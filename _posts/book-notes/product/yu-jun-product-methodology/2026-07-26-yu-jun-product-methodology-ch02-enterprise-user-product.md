@@ -1,8 +1,19 @@
 ---
 title: "《俞军产品方法论》第 2 章：企业、用户、产品"
 date: 2026-07-26 00:12:00 +0800
+updated: 2026-07-26
+uid: yu-jun-product-methodology-ch02-enterprise-user-product
+type: reading
+status: growing
+topics: [product-management, books]
+series: yu-jun-product-methodology
+related:
+    - yu-jun-product-methodology-notes
+    - yu-jun-product-methodology-ch01-product-manager
+    - yu-jun-product-methodology-ch03-transaction
 categories: [读书笔记, 产品, 俞军产品方法论]
 tags: [product-management, reading-notes]
+description: 分析企业、用户与产品之间的关系，并讨论产品如何持续创造和交换用户价值。
 toc: true
 math: true
 mermaid: true

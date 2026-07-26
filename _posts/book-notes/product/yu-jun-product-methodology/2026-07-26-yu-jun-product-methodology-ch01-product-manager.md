@@ -1,8 +1,16 @@
 ---
 title: "《俞军产品方法论》第 1 章：什么是产品经理"
 date: 2026-07-26 00:11:00 +0800
+updated: 2026-07-26
+uid: yu-jun-product-methodology-ch01-product-manager
+type: reading
+status: growing
+topics: [product-management, books]
+series: yu-jun-product-methodology
+related: [yu-jun-product-methodology-notes, yu-jun-product-methodology-ch02-enterprise-user-product]
 categories: [读书笔记, 产品, 俞军产品方法论]
 tags: [product-management, reading-notes]
+description: 从用户模型、交易模型和实践迭代理解产品经理的核心工作与能力结构。
 toc: true
 math: true
 mermaid: true

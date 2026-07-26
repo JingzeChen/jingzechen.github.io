@@ -1,8 +1,22 @@
 ---
 title: "《俞军产品方法论》读书笔记"
 date: 2026-07-26 00:10:00 +0800
+updated: 2026-07-26
+uid: yu-jun-product-methodology-notes
+type: reading
+status: growing
+topics: [product-management, books]
+series: yu-jun-product-methodology
+featured: true
+related:
+  - yu-jun-product-methodology-ch01-product-manager
+  - yu-jun-product-methodology-ch02-enterprise-user-product
+  - yu-jun-product-methodology-ch03-transaction
+  - yu-jun-product-methodology-ch04-decision-making
+  - yu-jun-product-methodology-ch05-selection-and-growth
 categories: [读书笔记, 产品, 俞军产品方法论]
 tags: [product-management, reading-notes]
+description: 《俞军产品方法论》的阅读框架、章节进度，以及用户价值与交易模型的知识索引。
 toc: true
 pin: true
 ---

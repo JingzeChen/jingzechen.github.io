@@ -1,8 +1,19 @@
 ---
 title: "《俞军产品方法论》第 4 章：决策"
 date: 2026-07-26 00:14:00 +0800
+updated: 2026-07-26
+uid: yu-jun-product-methodology-ch04-decision-making
+type: reading
+status: growing
+topics: [product-management, books]
+series: yu-jun-product-methodology
+related:
+    - yu-jun-product-methodology-notes
+    - yu-jun-product-methodology-ch03-transaction
+    - yu-jun-product-methodology-ch05-selection-and-growth
 categories: [读书笔记, 产品, 俞军产品方法论]
 tags: [product-management, reading-notes]
+description: 梳理产品决策中的收益、成本、概率、认知偏差和信息约束。
 toc: true
 math: true
 mermaid: true

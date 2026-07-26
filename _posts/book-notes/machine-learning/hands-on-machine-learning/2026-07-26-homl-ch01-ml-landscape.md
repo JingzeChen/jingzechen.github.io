@@ -1,8 +1,19 @@
 ---
 title: "《Hands-On Machine Learning with Scikit-Learn and PyTorch》第 1 章：机器学习概览"
 date: 2026-07-26 09:00:00 +0800
+updated: 2026-07-26
+uid: homl-ch01-ml-landscape
+type: reading
+status: growing
+topics: [machine-learning, books]
+series: hands-on-machine-learning
+related: [homl-preface, homl-ch02-end-to-end-project]
+references:
+    - { title: "Chapter companion notebook", url: "https://homl.info/colab-p", note: "Interactive notebooks for the PyTorch edition." }
+    - { title: "Hands-On Machine Learning companion repository", url: "https://github.com/ageron/handson-mlp" }
 categories: [读书笔记, 机器学习, Hands-On Machine Learning]
 tags: [machine-learning, hands-on-ml, reading-notes]
+description: 从任务、数据、训练方式与泛化能力出发，建立机器学习系统的整体认识。
 toc: true
 math: true
 mermaid: true

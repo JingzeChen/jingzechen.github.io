@@ -1,8 +1,16 @@
 ---
 title: "《统计学习方法（第 2 版）》第 3 章：k 近邻法"
 date: 2026-07-26 00:03:00 +0800
+updated: 2026-07-26
+uid: statistical-learning-methods-ch03-k-nearest-neighbors
+type: reading
+status: growing
+topics: [machine-learning, books]
+series: statistical-learning-methods
+related: [statistical-learning-methods-notes, statistical-learning-methods-ch02-perceptron]
 categories: [读书笔记, 机器学习, 统计学习方法]
 tags: [statistical-learning, k-nearest-neighbors, reading-notes]
+description: 理解 k 近邻法的模型、距离度量、k 值选择，以及 kd 树的搜索过程。
 toc: true
 math: true
 ---

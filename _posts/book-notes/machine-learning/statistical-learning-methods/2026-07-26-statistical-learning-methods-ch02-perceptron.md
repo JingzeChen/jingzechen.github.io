@@ -1,8 +1,19 @@
 ---
 title: "《统计学习方法（第 2 版）》第 2 章：感知机"
 date: 2026-07-26 00:02:00 +0800
+updated: 2026-07-26
+uid: statistical-learning-methods-ch02-perceptron
+type: reading
+status: growing
+topics: [machine-learning, books]
+series: statistical-learning-methods
+related:
+  - statistical-learning-methods-notes
+  - statistical-learning-methods-ch01-introduction
+  - statistical-learning-methods-ch03-k-nearest-neighbors
 categories: [读书笔记, 机器学习, 统计学习方法]
 tags: [statistical-learning, perceptron, reading-notes]
+description: 从线性可分、损失函数和随机梯度下降理解感知机的原始形式与对偶形式。
 toc: true
 math: true
 ---

@@ -1,8 +1,20 @@
 ---
 title: "《统计学习方法（第 2 版）》读书笔记"
 date: 2026-07-26 00:00:00 +0800
+updated: 2026-07-26
+uid: statistical-learning-methods-notes
+type: reading
+status: growing
+topics: [machine-learning, books]
+series: statistical-learning-methods
+featured: true
+related:
+  - statistical-learning-methods-ch01-introduction
+  - statistical-learning-methods-ch02-perceptron
+  - statistical-learning-methods-ch03-k-nearest-neighbors
 categories: [读书笔记, 机器学习, 统计学习方法]
 tags: [statistical-learning, machine-learning, reading-notes]
+description: 《统计学习方法（第 2 版）》的学习索引、章节进度与核心概念地图。
 toc: true
 math: true
 ---

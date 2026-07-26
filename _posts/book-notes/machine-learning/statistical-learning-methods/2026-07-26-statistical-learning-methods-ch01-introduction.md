@@ -1,8 +1,16 @@
 ---
 title: "《统计学习方法（第 2 版）》第 1 章：统计学习及监督学习概论"
 date: 2026-07-26 00:01:00 +0800
+updated: 2026-07-26
+uid: statistical-learning-methods-ch01-introduction
+type: reading
+status: growing
+topics: [machine-learning, books]
+series: statistical-learning-methods
+related: [statistical-learning-methods-notes, statistical-learning-methods-ch02-perceptron]
 categories: [读书笔记, 机器学习, 统计学习方法]
 tags: [statistical-learning, supervised-learning, reading-notes]
+description: 梳理统计学习的基本概念、监督学习问题、经验风险与模型评估方法。
 toc: true
 math: true
 ---

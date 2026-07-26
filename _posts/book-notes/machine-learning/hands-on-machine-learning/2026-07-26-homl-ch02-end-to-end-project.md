@@ -1,8 +1,19 @@
 ---
 title: "《Hands-On Machine Learning with Scikit-Learn and PyTorch》第 2 章：端到端机器学习项目"
 date: 2026-07-26 10:00:00 +0800
+updated: 2026-07-26
+uid: homl-ch02-end-to-end-project
+type: reading
+status: growing
+topics: [machine-learning, books]
+series: hands-on-machine-learning
+related: [homl-ch01-ml-landscape]
+references:
+    - { title: "Chapter companion notebook", url: "https://homl.info/colab-p", note: "Interactive notebooks for the PyTorch edition." }
+    - { title: "Hands-On Machine Learning companion repository", url: "https://github.com/ageron/handson-mlp" }
 categories: [读书笔记, 机器学习, Hands-On Machine Learning]
 tags: [machine-learning, hands-on-ml, reading-notes]
+description: 以完整项目为线索，梳理数据准备、模型训练、评估和上线前检查的工程流程。
 toc: true
 math: true
 mermaid: true

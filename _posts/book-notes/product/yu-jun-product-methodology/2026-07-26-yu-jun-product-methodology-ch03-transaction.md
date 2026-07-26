@@ -1,8 +1,19 @@
 ---
 title: "《俞军产品方法论》第 3 章：交易"
 date: 2026-07-26 00:13:00 +0800
+updated: 2026-07-26
+uid: yu-jun-product-methodology-ch03-transaction
+type: reading
+status: growing
+topics: [product-management, books]
+series: yu-jun-product-methodology
+related:
+    - yu-jun-product-methodology-notes
+    - yu-jun-product-methodology-ch02-enterprise-user-product
+    - yu-jun-product-methodology-ch04-decision-making
 categories: [读书笔记, 产品, 俞军产品方法论]
 tags: [product-management, reading-notes]
+description: 用交易模型理解用户决策、价值交换、交易成本和产品机制设计。
 toc: true
 math: true
 mermaid: true
