@@ -1,6 +1,6 @@
 ---
 title: "《俞军产品方法论》第 5 章：产品经理的选拔与成长"
-date: 2026-07-26 12:00:00 +0800
+date: 2026-07-26 00:15:00 +0800
 categories: [读书笔记, 产品, 俞军产品方法论]
 tags: [product-management, reading-notes]
 toc: true

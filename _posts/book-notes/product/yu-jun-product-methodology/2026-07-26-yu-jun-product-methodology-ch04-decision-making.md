@@ -1,6 +1,6 @@
 ---
 title: "《俞军产品方法论》第 4 章：决策"
-date: 2026-07-26 11:00:00 +0800
+date: 2026-07-26 00:14:00 +0800
 categories: [读书笔记, 产品, 俞军产品方法论]
 tags: [product-management, reading-notes]
 toc: true

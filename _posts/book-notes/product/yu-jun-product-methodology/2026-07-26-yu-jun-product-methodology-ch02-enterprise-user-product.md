@@ -1,6 +1,6 @@
 ---
 title: "《俞军产品方法论》第 2 章：企业、用户、产品"
-date: 2026-07-26 09:00:00 +0800
+date: 2026-07-26 00:12:00 +0800
 categories: [读书笔记, 产品, 俞军产品方法论]
 tags: [product-management, reading-notes]
 toc: true

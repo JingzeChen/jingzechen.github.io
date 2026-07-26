@@ -1,6 +1,6 @@
 ---
 title: "《俞军产品方法论》第 1 章：什么是产品经理"
-date: 2026-07-26 08:00:00 +0800
+date: 2026-07-26 00:11:00 +0800
 categories: [读书笔记, 产品, 俞军产品方法论]
 tags: [product-management, reading-notes]
 toc: true
