@@ -6,24 +6,14 @@
 
 /* A tool for locale datetime */
 class LocaleHelper {
-  static get attrTimestamp() {
-    return 'data-ts';
-  }
-
-  static get attrDateFormat() {
-    return 'data-df';
-  }
+  static datetimeAttr = 'datetime';
 
   static get locale() {
-    return $('html').attr('lang').substring(0, 2);
+    return document.documentElement.getAttribute('lang').substring(0, 2);
   }
 
-  static getTimestamp(elem) {
-    return Number(elem.attr(LocaleHelper.attrTimestamp)); // unix timestamp
-  }
-
-  static getDateFormat(elem) {
-    return elem.attr(LocaleHelper.attrDateFormat);
+  static getDatetime(elem) {
+    return elem.getAttribute(this.datetimeAttr);
   }
 }
 
@@ -31,21 +21,18 @@ export function initLocaleDatetime() {
   dayjs.locale(LocaleHelper.locale);
   dayjs.extend(window.dayjs_plugin_localizedFormat);
 
-  $(`[${LocaleHelper.attrTimestamp}]`).each(function () {
-    const date = dayjs.unix(LocaleHelper.getTimestamp($(this)));
-    const text = date.format(LocaleHelper.getDateFormat($(this)));
-    $(this).text(text);
-    $(this).removeAttr(LocaleHelper.attrTimestamp);
-    $(this).removeAttr(LocaleHelper.attrDateFormat);
+  document
+    .querySelectorAll(`[${LocaleHelper.datetimeAttr}]`)
+    .forEach((elem) => {
+      const date = dayjs(LocaleHelper.getDatetime(elem));
+      elem.textContent = date.format(elem.dataset.df);
+      delete elem.dataset.df;
 
-    // setup tooltips
-    const tooltip = $(this).attr('data-bs-toggle');
-    if (typeof tooltip === 'undefined' || tooltip !== 'tooltip') {
-      return;
-    }
-
-    const tooltipText = date.format('llll'); // see: https://day.js.org/docs/en/display/format#list-of-localized-formats
-    $(this).attr('data-bs-title', tooltipText);
-    new bootstrap.Tooltip($(this));
-  });
+      // setup tooltips
+      if ('bsToggle' in elem.dataset && elem.dataset.bsToggle === 'tooltip') {
+        // see: https://day.js.org/docs/en/display/format#list-of-localized-formats
+        const tooltipText = date.format('llll');
+        elem.dataset.bsTitle = tooltipText;
+      }
+    });
 }
