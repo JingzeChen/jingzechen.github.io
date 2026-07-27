@@ -1,6 +1,6 @@
 ---
 title: "《高效能人士的七个习惯》读书笔记：第三章 习惯一 积极主动"
-date: 2026-07-28 11:00:00 +0800
+date: 2026-07-27 11:00:00 +0800
 updated: 2026-07-28
 uid: seven-habits-ch03-be-proactive
 type: reading

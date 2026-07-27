@@ -1,6 +1,6 @@
 ---
 title: "《高效能人士的七个习惯》读书笔记：第二章 七个习惯概论"
-date: 2026-07-28 10:00:00 +0800
+date: 2026-07-27 10:00:00 +0800
 updated: 2026-07-28
 uid: seven-habits-ch02-overview
 type: reading

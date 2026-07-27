@@ -1,6 +1,6 @@
 ---
 title: "《高效能人士的七个习惯》读书笔记：第一章 由内而外全面造就自己"
-date: 2026-07-28 09:00:00 +0800
+date: 2026-07-27 09:00:00 +0800
 updated: 2026-07-28
 uid: seven-habits-ch01-inside-out
 type: reading

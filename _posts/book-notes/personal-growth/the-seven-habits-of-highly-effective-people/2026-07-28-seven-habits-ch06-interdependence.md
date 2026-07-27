@@ -1,6 +1,6 @@
 ---
 title: "《高效能人士的七个习惯》读书笔记：第六章 人际关系的本质"
-date: 2026-07-28 14:00:00 +0800
+date: 2026-07-27 14:00:00 +0800
 updated: 2026-07-28
 uid: seven-habits-ch06-interdependence
 type: reading

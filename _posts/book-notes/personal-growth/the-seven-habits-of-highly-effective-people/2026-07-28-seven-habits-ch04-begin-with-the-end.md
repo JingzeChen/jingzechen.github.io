@@ -1,6 +1,6 @@
 ---
 title: "《高效能人士的七个习惯》读书笔记：第四章 习惯二 以终为始"
-date: 2026-07-28 12:00:00 +0800
+date: 2026-07-27 12:00:00 +0800
 updated: 2026-07-28
 uid: seven-habits-ch04-begin-with-the-end
 type: reading
