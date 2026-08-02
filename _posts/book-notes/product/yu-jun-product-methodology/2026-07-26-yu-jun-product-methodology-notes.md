@@ -1,7 +1,7 @@
 ---
 title: "《俞军产品方法论》读书笔记"
 date: 2026-07-26 00:10:00 +0800
-updated: 2026-07-26
+updated: 2026-08-02
 uid: yu-jun-product-methodology-notes
 type: reading
 status: growing
@@ -14,6 +14,7 @@ related:
   - yu-jun-product-methodology-ch03-transaction
   - yu-jun-product-methodology-ch04-decision-making
   - yu-jun-product-methodology-ch05-selection-and-growth
+  - yu-jun-product-methodology-appendix-cognitive-evolution
 categories: [读书笔记, 产品, 俞军产品方法论]
 tags: [product-management, reading-notes]
 description: 《俞军产品方法论》的阅读框架、章节进度，以及用户价值与交易模型的知识索引。
@@ -46,6 +47,6 @@ pin: true
 | 第三章 | [交易]({% post_url book-notes/product/yu-jun-product-methodology/2026-07-26-yu-jun-product-methodology-ch03-transaction %}) | 已完成 |
 | 第四章 | [决策]({% post_url book-notes/product/yu-jun-product-methodology/2026-07-26-yu-jun-product-methodology-ch04-decision-making %}) | 已完成 |
 | 第五章 | [产品经理的选拔与成长]({% post_url book-notes/product/yu-jun-product-methodology/2026-07-26-yu-jun-product-methodology-ch05-selection-and-growth %}) | 已完成 |
-| 附录 | 俞军产品认知迭代 | 待整理 |
+| 附录 | [俞军产品认知迭代]({% post_url book-notes/product/yu-jun-product-methodology/2026-08-02-yu-jun-product-methodology-appendix-cognitive-evolution %}) | 已完成 |
 
 后续各章独立成文，本文件只维护导航与进度。

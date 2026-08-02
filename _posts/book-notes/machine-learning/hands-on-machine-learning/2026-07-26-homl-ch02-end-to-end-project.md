@@ -1,13 +1,13 @@
 ---
 title: "《Hands-On Machine Learning with Scikit-Learn and PyTorch》第 2 章：端到端机器学习项目"
 date: 2026-07-26 10:00:00 +0800
-updated: 2026-07-26
+updated: 2026-08-02
 uid: homl-ch02-end-to-end-project
 type: reading
 status: growing
 topics: [machine-learning, books]
 series: hands-on-machine-learning
-related: [homl-ch01-ml-landscape]
+related: [homl-ch01-ml-landscape, homl-ch03-classification]
 references:
     - { title: "Chapter companion notebook", url: "https://homl.info/colab-p", note: "Interactive notebooks for the PyTorch edition." }
     - { title: "Hands-On Machine Learning companion repository", url: "https://github.com/ageron/handson-mlp" }

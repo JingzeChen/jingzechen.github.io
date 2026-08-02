@@ -1,13 +1,13 @@
 ---
 title: "《俞军产品方法论》第 5 章：产品经理的选拔与成长"
 date: 2026-07-26 00:15:00 +0800
-updated: 2026-07-26
+updated: 2026-08-02
 uid: yu-jun-product-methodology-ch05-selection-and-growth
 type: reading
 status: growing
 topics: [product-management, books]
 series: yu-jun-product-methodology
-related: [yu-jun-product-methodology-notes, yu-jun-product-methodology-ch04-decision-making]
+related: [yu-jun-product-methodology-notes, yu-jun-product-methodology-ch04-decision-making, yu-jun-product-methodology-appendix-cognitive-evolution]
 categories: [读书笔记, 产品, 俞军产品方法论]
 tags: [product-management, reading-notes]
 description: 从能力模型、实践密度和反馈质量理解产品经理的选拔与长期成长。

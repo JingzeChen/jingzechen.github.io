@@ -1,13 +1,13 @@
 ---
 title: "《高效能人士的七个习惯》读书笔记：第六章 人际关系的本质"
 date: 2026-07-27 14:00:00 +0800
-updated: 2026-07-28
+updated: 2026-08-02
 uid: seven-habits-ch06-interdependence
 type: reading
 status: growing
 topics: [personal-growth, books]
 series: seven-habits
-related: [seven-habits-ch05-first-things-first]
+related: [seven-habits-ch05-first-things-first, seven-habits-ch07-win-win]
 categories: [读书笔记, 个人成长, 高效能人士的七个习惯]
 tags: [personal-growth, seven-habits, reading-notes]
 description: 理解独立如何通向互赖，以及信任与情感账户为何是高效人际关系的基础。
