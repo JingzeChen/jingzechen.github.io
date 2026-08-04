@@ -1,0 +1,111 @@
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    const content = document.querySelector('article > .content');
+    const progress = document.querySelector('#reading-progress > span');
+
+    if (content && progress) {
+      let progressFrame = null;
+      const updateProgress = () => {
+        progressFrame = null;
+        const start = content.getBoundingClientRect().top + window.scrollY;
+        const distance = Math.max(content.offsetHeight - window.innerHeight, 1);
+        const value = Math.min(1, Math.max(0, (window.scrollY - start) / distance));
+        progress.style.transform = `scaleX(${value})`;
+      };
+      const requestProgress = () => {
+        if (progressFrame === null) progressFrame = window.requestAnimationFrame(updateProgress);
+      };
+      window.addEventListener('scroll', requestProgress, { passive: true });
+      window.addEventListener('resize', requestProgress);
+      updateProgress();
+    }
+
+    if (!content) return;
+
+    const headings = [...content.querySelectorAll('h2[id]')];
+    const tocLinks = [...document.querySelectorAll('#toc .toc-link, #toc-popup-content .toc-link')];
+    const progressive = headings.length > 20 || tocLinks.length > 80;
+    const navigation = [...document.querySelectorAll('[data-toc-chapter-nav]')];
+    const currentLabels = [...document.querySelectorAll('[data-toc-current]')];
+    let currentIndex = 0;
+    let tocFrame = null;
+
+    document.querySelectorAll('.node-name--H4').forEach((link) => {
+      link.closest('li')?.setAttribute('hidden', '');
+    });
+    document.querySelectorAll('.toc-link').forEach((link) => {
+      link.title = link.textContent.trim();
+    });
+
+    if (!progressive || headings.length === 0) return;
+
+    document.body.classList.add('progressive-toc');
+    navigation.forEach((element) => { element.hidden = false; });
+    currentLabels.forEach((element) => { element.hidden = false; });
+
+    const headingId = (link) => decodeURIComponent(link.hash.slice(1));
+    const markCurrentSection = () => {
+      document.querySelectorAll('.toc-current-section').forEach((item) => {
+        item.classList.remove('toc-current-section');
+      });
+      document.querySelectorAll('.node-name--H2').forEach((link) => {
+        if (headingId(link) === headings[currentIndex].id) {
+          link.closest('li')?.classList.add('toc-current-section');
+        }
+      });
+      document.querySelectorAll('[data-toc-position]').forEach((label) => {
+        label.textContent = `${currentIndex + 1} / ${headings.length}`;
+      });
+      currentLabels.forEach((label) => {
+        label.textContent = headings[currentIndex].textContent.trim();
+      });
+      document.querySelectorAll('[data-toc-previous]').forEach((button) => {
+        button.disabled = currentIndex === 0;
+      });
+      document.querySelectorAll('[data-toc-next]').forEach((button) => {
+        button.disabled = currentIndex === headings.length - 1;
+      });
+    };
+
+    const updateCurrentSection = () => {
+      tocFrame = null;
+      let nextIndex = 0;
+      headings.forEach((heading, index) => {
+        if (heading.getBoundingClientRect().top <= 120) nextIndex = index;
+      });
+      if (nextIndex !== currentIndex) {
+        currentIndex = nextIndex;
+        markCurrentSection();
+      }
+    };
+    const requestTocUpdate = () => {
+      if (tocFrame === null) tocFrame = window.requestAnimationFrame(updateCurrentSection);
+    };
+    const goToHeading = (index) => {
+      const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      headings[index]?.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
+    };
+
+    document.querySelectorAll('[data-toc-previous]').forEach((button) => {
+      button.addEventListener('click', () => goToHeading(Math.max(0, currentIndex - 1)));
+    });
+    document.querySelectorAll('[data-toc-next]').forEach((button) => {
+      button.addEventListener('click', () => goToHeading(Math.min(headings.length - 1, currentIndex + 1)));
+    });
+    window.addEventListener('scroll', requestTocUpdate, { passive: true });
+    markCurrentSection();
+
+    const dialog = document.getElementById('toc-popup');
+    const closeButton = document.getElementById('toc-popup-close');
+    let lastTrigger = null;
+    document.querySelectorAll('.toc-trigger').forEach((trigger) => {
+      trigger.addEventListener('click', () => { lastTrigger = trigger; });
+    });
+    if (dialog && closeButton) {
+      new MutationObserver(() => {
+        if (dialog.open) closeButton.focus();
+      }).observe(dialog, { attributes: true, attributeFilter: ['open'] });
+      dialog.addEventListener('close', () => lastTrigger?.focus());
+    }
+  });
+</script>

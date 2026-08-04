@@ -1,5 +1,5 @@
 ---
-layout: garden-index
+layout: reading
 title: Reading
 content_type: reading
 kicker: Books into practice

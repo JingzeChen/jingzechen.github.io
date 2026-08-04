@@ -6,6 +6,7 @@ module Garden
     priority :highest
 
     REQUIRED_FIELDS = %w[uid type status topics description].freeze
+    TEMPLATE_DESCRIPTION = /梳理核心概念、论证结构、适用边\s*界与实践要点/.freeze
 
     def generate(site)
       content_types = site.config.dig("garden", "content_types") || []
@@ -14,6 +15,8 @@ module Garden
       errors = []
 
       site.posts.docs.each do |post|
+        post.data["garden_description_valid"] = !post.data["description"].to_s.match?(TEMPLATE_DESCRIPTION)
+
         REQUIRED_FIELDS.each do |field|
           errors << "#{post.relative_path}: missing '#{field}'" if blank?(post.data[field])
         end
@@ -21,6 +24,7 @@ module Garden
         validate_value(post, "type", content_types, errors)
         validate_value(post, "status", statuses, errors)
         validate_topics(post, errors)
+        validate_series_order(post, errors)
 
         uid = post.data["uid"]
         next if blank?(uid)
@@ -60,6 +64,13 @@ module Garden
       return if blank?(topics) || topics.is_a?(Array)
 
       errors << "#{post.relative_path}: 'topics' must be a YAML array"
+    end
+
+    def validate_series_order(post, errors)
+      order = post.data["series_order"]
+      return if order.nil? || order.is_a?(Integer) && order.positive?
+
+      errors << "#{post.relative_path}: 'series_order' must be a positive integer"
     end
   end
 end

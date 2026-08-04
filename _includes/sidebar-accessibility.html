@@ -1,0 +1,63 @@
+<script>
+  (() => {
+    const body = document.body;
+    const sidebar = document.getElementById('sidebar');
+    const trigger = document.getElementById('sidebar-trigger');
+    const desktop = window.matchMedia('(min-width: 992px)');
+
+    if (!sidebar || !trigger) return;
+
+    const focusableSelector = 'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])';
+    const focusableElements = () => [...sidebar.querySelectorAll(focusableSelector)]
+      .filter((element) => element.getClientRects().length > 0);
+    let expanded = body.hasAttribute('sidebar-display');
+
+    const sync = () => {
+      const nextExpanded = body.hasAttribute('sidebar-display');
+      trigger.setAttribute('aria-expanded', nextExpanded.toString());
+      trigger.setAttribute('aria-label', nextExpanded ? 'Close navigation' : 'Open navigation');
+      body.classList.toggle('garden-scroll-lock', nextExpanded && !desktop.matches);
+
+      if (nextExpanded && !expanded) {
+        window.requestAnimationFrame(() => focusableElements()[0]?.focus());
+      } else if (!nextExpanded && expanded) {
+        window.requestAnimationFrame(() => trigger.focus());
+      }
+
+      expanded = nextExpanded;
+    };
+
+    new MutationObserver(sync).observe(body, { attributes: true, attributeFilter: ['sidebar-display'] });
+
+    document.addEventListener('keydown', (event) => {
+      if (!expanded || desktop.matches) return;
+
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        trigger.click();
+        return;
+      }
+
+      if (event.key !== 'Tab') return;
+
+      const focusable = focusableElements();
+      const first = focusable[0];
+      const last = focusable.at(-1);
+
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last?.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first?.focus();
+      }
+    });
+
+    desktop.addEventListener('change', () => {
+      if (desktop.matches && expanded) trigger.click();
+      sync();
+    });
+
+    sync();
+  })();
+</script>

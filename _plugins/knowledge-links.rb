@@ -55,7 +55,7 @@ module Garden
         end
       end
 
-      build_series_navigation(posts)
+      build_series_navigation(posts, errors)
 
       return if errors.empty?
 
@@ -65,12 +65,25 @@ module Garden
 
     private
 
-    def build_series_navigation(posts)
-      posts.group_by { |post| post.data["series"] }.each_value do |series_posts|
-        next if series_posts.first.data["series"].nil?
+    def build_series_navigation(posts, errors)
+      posts.group_by { |post| post.data["series"] }.each do |series, series_posts|
+        next if series.nil?
 
-        ordered_posts = series_posts.sort_by(&:date)
+        explicit_orders = series_posts.filter_map { |post| post.data["series_order"] }
+        duplicate_orders = explicit_orders.tally.select { |_, count| count > 1 }.keys
+        duplicate_orders.each do |order|
+          errors << "series '#{series}' uses duplicate series_order #{order}"
+        end
+
+        ordered_posts = if explicit_orders.size == series_posts.size
+                          series_posts.sort_by { |post| post.data["series_order"] }
+                        else
+                          series_posts.sort_by(&:date)
+                        end
+
         ordered_posts.each_with_index do |post, index|
+          post.data["garden_series_position"] = index + 1
+          post.data["garden_series_size"] = ordered_posts.size
           post.data["garden_series_previous"] = reference_for(ordered_posts[index - 1]) if index.positive?
           next_post = ordered_posts[index + 1]
           post.data["garden_series_next"] = reference_for(next_post) unless next_post.nil?

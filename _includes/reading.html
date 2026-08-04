@@ -1,0 +1,159 @@
+<script>
+  (() => {
+    const root = document.querySelector('[data-reading-library]');
+    if (!root) return;
+
+    const pageSize = 24;
+    const topicLabels = {{ site.data.topics | jsonify }};
+    const validViews = new Set(['series', 'topic', 'all']);
+    const buttons = [...root.querySelectorAll('[data-reading-view]')];
+    const panels = [...root.querySelectorAll('[data-reading-panel]')];
+    const topicSelect = root.querySelector('[data-reading-filter="topic"]');
+    const seriesSelect = root.querySelector('[data-reading-filter="series"]');
+    const list = root.querySelector('[data-reading-notes]');
+    const status = root.querySelector('[data-reading-status]');
+    const empty = root.querySelector('[data-reading-empty]');
+    const more = root.querySelector('[data-reading-more]');
+    const clearButtons = [...root.querySelectorAll('[data-reading-clear]')];
+    const params = new URLSearchParams(window.location.search);
+    const state = {
+      view: validViews.has(params.get('view')) ? params.get('view') : 'series',
+      topic: params.get('topic') || '',
+      series: params.get('series') || '',
+      visible: pageSize,
+      notes: null
+    };
+
+    const setUrl = () => {
+      const next = new URL(window.location.href);
+      next.searchParams.set('view', state.view);
+      state.topic ? next.searchParams.set('topic', state.topic) : next.searchParams.delete('topic');
+      state.series ? next.searchParams.set('series', state.series) : next.searchParams.delete('series');
+      window.history.replaceState({}, '', next);
+    };
+
+    const createText = (tag, className, value) => {
+      const element = document.createElement(tag);
+      if (className) element.className = className;
+      element.textContent = value;
+      return element;
+    };
+
+    const createNote = (note) => {
+      const article = document.createElement('article');
+      article.className = 'garden-entry reading-note-row';
+
+      const meta = createText('div', 'garden-entry-meta', '');
+      meta.append(createText('span', '', note.seriesTitle));
+      const time = createText('time', '', note.updated);
+      time.dateTime = note.updated;
+      meta.append(time);
+
+      const heading = document.createElement('h2');
+      const link = createText('a', '', note.title);
+      link.href = note.url;
+      heading.append(link);
+
+      article.append(meta, heading);
+      if (note.description) article.append(createText('p', '', note.description));
+
+      const visibleTopics = note.topics.filter((topic) => topic !== 'books');
+      if (visibleTopics.length > 0) {
+        const topics = createText('div', 'garden-topics', '');
+        topics.setAttribute('aria-label', 'Topics');
+        visibleTopics.forEach((topic) => {
+          topics.append(createText('span', '', topicLabels[topic]?.title || topic.replaceAll('-', ' ')));
+        });
+        article.append(topics);
+      }
+
+      return article;
+    };
+
+    const matchingNotes = () => (state.notes || []).filter((note) => {
+      return (!state.topic || note.topics.includes(state.topic)) &&
+        (!state.series || note.series === state.series);
+    });
+
+    const renderNotes = () => {
+      if (!state.notes) return;
+      const matching = matchingNotes();
+      const visible = matching.slice(0, state.visible);
+      list.replaceChildren(...visible.map(createNote));
+      status.textContent = matching.length === 0
+        ? 'No matching notes.'
+        : `Showing ${visible.length} of ${matching.length} notes.`;
+      empty.hidden = matching.length !== 0;
+      more.hidden = visible.length >= matching.length;
+      clearButtons.forEach((button) => {
+        if (button.classList.contains('reading-clear')) button.hidden = !state.topic && !state.series;
+      });
+    };
+
+    const loadNotes = async () => {
+      if (state.notes) return renderNotes();
+      try {
+        const response = await fetch(root.dataset.notesUrl);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        state.notes = await response.json();
+        renderNotes();
+      } catch {
+        status.textContent = 'Notes could not be loaded. Use Browse all for the complete archive.';
+      }
+    };
+
+    const showView = (view, updateUrl = true) => {
+      state.view = validViews.has(view) ? view : 'series';
+      buttons.forEach((button) => {
+        button.setAttribute('aria-pressed', (button.dataset.readingView === state.view).toString());
+      });
+      panels.forEach((panel) => {
+        panel.hidden = panel.dataset.readingPanel !== state.view;
+      });
+      if (state.view === 'all') loadNotes();
+      if (updateUrl) setUrl();
+    };
+
+    buttons.forEach((button) => button.addEventListener('click', () => showView(button.dataset.readingView)));
+    root.querySelectorAll('[data-reading-topic]').forEach((link) => {
+      link.addEventListener('click', (event) => {
+        event.preventDefault();
+        state.topic = link.dataset.readingTopic;
+        state.visible = pageSize;
+        topicSelect.value = state.topic;
+        showView('all');
+        root.querySelector('[data-reading-panel="all"]')?.scrollIntoView({ block: 'start' });
+      });
+    });
+
+    topicSelect.addEventListener('change', () => {
+      state.topic = topicSelect.value;
+      state.visible = pageSize;
+      setUrl();
+      renderNotes();
+    });
+    seriesSelect.addEventListener('change', () => {
+      state.series = seriesSelect.value;
+      state.visible = pageSize;
+      setUrl();
+      renderNotes();
+    });
+    clearButtons.forEach((button) => button.addEventListener('click', () => {
+      state.topic = '';
+      state.series = '';
+      state.visible = pageSize;
+      topicSelect.value = '';
+      seriesSelect.value = '';
+      setUrl();
+      renderNotes();
+    }));
+    more.addEventListener('click', () => {
+      state.visible += pageSize;
+      renderNotes();
+    });
+
+    topicSelect.value = state.topic;
+    seriesSelect.value = state.series;
+    showView(state.view, false);
+  })();
+</script>
