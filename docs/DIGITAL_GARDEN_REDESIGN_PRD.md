@@ -1009,6 +1009,7 @@ MVP 允许使用可访问的主题矩阵，但标题必须命名为 `Themes`，�
 - Phase 2 技术项已完成：三视图与 URL 状态、Topic / Series / 语言就绪筛选、显式 `series_order`、Topic 页面、字段加权搜索、阅读进度与 Ultra-long 导航。
 - Phase 3 已完成非对称 Selected Writing；Themes 继续保持可访问文本矩阵。
 - 194 篇内容治理已完成：171 条模板 Description 已逐篇改写，公共 Topic `books` 已全部移除；构建门禁阻止两者回归。
+- 单一 Status 降噪已覆盖首页精选、Series、关联内容和通用索引；文章页保留自身成熟度，列表标记只在至少两种可信状态存在时启用。
 - 13 个 Series 已集中补齐作者并提供章节 `uid` 锚点；文章元数据和 Series 导航可定位当前章节。
 - `tools/content-quality.rb` 提供可重复的数据盘点与启用门槛报告；当前 65 篇超过 120 个 TOC 项，已列入人工编辑复核清单。
 - Knowledge Map 暂缓：当前排除公共值 `books` 后，194 篇内容的 Topic 共现边数量为 0，不满足真实关系图启用条件。
@@ -1070,7 +1071,7 @@ MVP 允许使用可访问的主题矩阵，但标题必须命名为 `Themes`，�
 - [ ] 筛选无结果时可以一键清除。
 - [ ] All Notes 首个 HTML 响应包含不超过 30 个内容行，不一次渲染全部 194 篇。
 - [ ] 每个 Series 按前言 / 引言、第 1 章至第 N 章、后记 / 附录正序展示。
-- [ ] 只有单一 `growing` 时不显示 Status 筛选和重复 Marker。
+- [x] 只有单一 `growing` 时不显示 Status 筛选和重复 Marker。
 - [ ] 模板 Description 不在列表中重复出现。
 - [ ] Reading、Archives 与 Categories 有明确主次，不产生内容相同的并列 Series 页面。
 - [ ] Archives 和 Category 页面不再同时出现两个全局侧栏和一个内容栏。

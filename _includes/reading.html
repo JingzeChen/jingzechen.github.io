@@ -11,6 +11,7 @@
     const topicSelect = root.querySelector('[data-reading-filter="topic"]');
     const seriesSelect = root.querySelector('[data-reading-filter="series"]');
     const languageSelect = root.querySelector('[data-reading-filter="language"]');
+    const statusSelect = root.querySelector('[data-reading-filter="status"]');
     const sortSelect = root.querySelector('[data-reading-filter="sort"]');
     const seriesSortSelect = root.querySelector('[data-reading-series-sort]');
     const seriesGrid = root.querySelector('.reading-series-grid');
@@ -32,11 +33,18 @@
       topic: params.get('topic') || '',
       series: params.get('series') || '',
       language: params.get('language') || '',
+      status: statusSelect ? params.get('status') || '' : '',
       sort: ['updated', 'published', 'series'].includes(params.get('sort')) ? params.get('sort') : 'updated',
       seriesSort: ['recent', 'name'].includes(params.get('series_sort')) ? params.get('series_sort') : 'recent',
       visible: pageSize,
       notes: null
     };
+
+    if (!statusSelect && params.has('status')) {
+      const next = new URL(window.location.href);
+      next.searchParams.delete('status');
+      window.history.replaceState({}, '', next);
+    }
 
     const setUrl = () => {
       const next = new URL(window.location.href);
@@ -44,6 +52,7 @@
       state.topic ? next.searchParams.set('topic', state.topic) : next.searchParams.delete('topic');
       state.series ? next.searchParams.set('series', state.series) : next.searchParams.delete('series');
       state.language ? next.searchParams.set('language', state.language) : next.searchParams.delete('language');
+      state.status ? next.searchParams.set('status', state.status) : next.searchParams.delete('status');
       state.sort !== 'updated' ? next.searchParams.set('sort', state.sort) : next.searchParams.delete('sort');
       state.seriesSort !== 'recent'
         ? next.searchParams.set('series_sort', state.seriesSort)
@@ -58,13 +67,16 @@
       return element;
     };
 
-    const createNote = (note) => {
+    const createNote = (note, showStatus) => {
       const article = document.createElement('article');
       article.className = 'garden-entry reading-note-row';
       article.lang = note.contentLang;
 
       const meta = createText('div', 'garden-entry-meta', '');
       meta.append(createText('span', '', note.seriesTitle));
+      if (showStatus) {
+        meta.append(createText('span', `garden-status garden-status-${note.status}`, note.status));
+      }
       const time = createText('time', '', note.updated);
       time.dateTime = note.updated;
       meta.append(time);
@@ -95,7 +107,8 @@
     const matchingNotes = () => (state.notes || []).filter((note) => {
       return (!state.topic || note.topics.includes(state.topic)) &&
         (!state.series || note.series === state.series) &&
-        (!state.language || note.contentLang === state.language);
+        (!state.language || note.contentLang === state.language) &&
+        (!state.status || note.status === state.status);
     }).sort((left, right) => {
       if (state.sort === 'published') return right.published.localeCompare(left.published);
       if (state.sort === 'series') {
@@ -105,7 +118,7 @@
     });
 
     const updateFilterCount = () => {
-      const count = [state.topic, state.series, state.language].filter(Boolean).length;
+      const count = [state.topic, state.series, state.language, state.status].filter(Boolean).length;
       filterCountLabels.forEach((label) => {
         label.hidden = count === 0;
         label.textContent = count.toString();
@@ -119,7 +132,8 @@
       if (!state.notes) return;
       const matching = matchingNotes();
       const visible = matching.slice(0, state.visible);
-      list.replaceChildren(...visible.map(createNote));
+      const showStatuses = new Set(matching.map((note) => note.status)).size > 1;
+      list.replaceChildren(...visible.map((note) => createNote(note, showStatuses)));
       status.textContent = matching.length === 0
         ? 'No matching notes.'
         : `Showing ${visible.length} of ${matching.length} notes.`;
@@ -215,6 +229,12 @@
       setUrl();
       renderNotes();
     });
+    statusSelect?.addEventListener('change', () => {
+      state.status = statusSelect.value;
+      state.visible = pageSize;
+      setUrl();
+      renderNotes();
+    });
     sortSelect.addEventListener('change', () => {
       state.sort = sortSelect.value;
       state.visible = pageSize;
@@ -230,10 +250,12 @@
       state.topic = '';
       state.series = '';
       state.language = '';
+      state.status = '';
       state.visible = pageSize;
       topicSelect.value = '';
       seriesSelect.value = '';
       if (languageSelect) languageSelect.value = '';
+      if (statusSelect) statusSelect.value = '';
       setUrl();
       renderNotes();
     }));
@@ -245,6 +267,7 @@
     topicSelect.value = state.topic;
     seriesSelect.value = state.series;
     if (languageSelect) languageSelect.value = state.language;
+    if (statusSelect) statusSelect.value = state.status;
     sortSelect.value = state.sort;
     seriesSortSelect.value = state.seriesSort;
     filterOpen.addEventListener('click', () => {

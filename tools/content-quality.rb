@@ -84,8 +84,8 @@ report = {
   "h2_over_20" => posts.count { |post| post["h2_count"] > 20 },
   "max_toc_items" => posts.map { |post| post["toc_items"] }.max,
   "activation_gates" => {
-    "status_filter" => posts.map { |post| post["status"] }.uniq.size > 1,
-    "language_filter" => posts.map { |post| post["language"] }.uniq.size > 1,
+    "status_filter" => posts.select { |post| post["type"] == "reading" }.map { |post| post["status"] }.uniq.size > 1,
+    "language_filter" => posts.select { |post| post["type"] == "reading" }.map { |post| post["language"] }.uniq.size > 1,
     "cross_type_library" => posts.map { |post| post["type"] }.uniq.size > 1,
     "knowledge_map" => visible_edges.any?
   },

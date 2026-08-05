@@ -16,6 +16,18 @@ assert = lambda do |condition, message|
   failures << message unless condition
 end
 
+assert_status_markers = lambda do |markers, statuses, message|
+  expected_statuses = statuses.uniq.size > 1 ? statuses : []
+  assert.call(markers.size == expected_statuses.size, "#{message} count mismatch")
+  markers.zip(expected_statuses).each do |marker, status|
+    assert.call(marker.text.strip == status, "#{message} text mismatch")
+    assert.call(
+      marker["class"].to_s.split.include?("garden-status-#{status}"),
+      "#{message} class mismatch"
+    )
+  end
+end
+
 read = ->(path) { File.read(File.join(site_dir, path), encoding: "UTF-8") }
 parse = ->(path) { Nokogiri::HTML(read.call(path)) }
 
@@ -26,6 +38,7 @@ posts = Dir.glob(File.join(source_dir, "_posts", "**", "*.md")).map do |path|
 end
 
 reading_posts = posts.select { |_, data| data["type"] == "reading" }
+status_by_uid = posts.to_h { |_, data| [data["uid"], data["status"]] }
 series_registry = YAML.safe_load_file(File.join(source_dir, "_data", "series.yml"), aliases: true)
 topic_registry = YAML.safe_load_file(File.join(source_dir, "_data", "topics.yml"), aliases: true)
 site_config = YAML.safe_load_file(File.join(source_dir, "_config.yml"), aliases: true)
@@ -50,9 +63,19 @@ reading_data = JSON.parse(read.call("assets/js/data/reading.json"))
 search_data = JSON.parse(read.call("assets/js/data/search.json"))
 assert.call(reading_data.size == reading_posts.size, "reading.json count must match reading posts")
 assert.call(reading_data.all? { |item| !item["contentLang"].to_s.empty? }, "reading.json language mismatch")
+assert.call(reading_data.all? { |item| !item["status"].to_s.empty? }, "reading.json status mismatch")
+assert.call(
+  reading_data.all? { |item| status_by_uid[item["uid"]] == item["status"] },
+  "reading.json statuses must match source posts"
+)
 assert.call(reading_data.none? { |item| item["seriesOrder"].nil? }, "reading.json requires seriesOrder")
 assert.call(search_data.size == posts.size, "search.json count must match source posts")
 assert.call(search_data.all? { |item| !item["contentLang"].to_s.empty? }, "search.json language mismatch")
+assert.call(
+  search_data.all? { |item| status_by_uid[item["uid"]] == item["status"] },
+  "search.json statuses must match source posts"
+)
+status_by_url = search_data.to_h { |item| [item["url"], item["status"]] }
 assert.call(
   search_data.none? { |item| hidden_topics.any? { |topic| item["topics"].split(/,\s*/).include?(topic) } },
   "search.json exposes hidden topics"
@@ -82,11 +105,40 @@ assert.call(home.css(".garden-topic-map > a[href^='/topics/']").size == topic_re
 visible_featured_count = [featured.size, 3].min
 assert.call(home.css(".garden-featured-link").size == visible_featured_count, "homepage featured-link count mismatch")
 assert.call(home.css(".garden-featured-reason").size == visible_featured_count, "homepage featured-reason count mismatch")
+featured_statuses = home.css(".garden-featured-link").filter_map { |link| status_by_url[link["href"]] }
+assert.call(featured_statuses.size == visible_featured_count, "homepage featured links must resolve to source posts")
+assert_status_markers.call(
+  home.css(".garden-featured-grid .garden-entry-status"),
+  featured_statuses,
+  "homepage status markers"
+)
 assert.call(reading.css(".reading-series-item").size == series_registry.size, "Reading must render every mapped series")
 assert.call(reading.css(".reading-note-row").empty?, "Reading initial HTML must not render all notes")
 language_count = reading_posts.map { |_, data| data["content_lang"] }.uniq.size
 language_filter_present = !reading.at_css('[data-reading-filter="language"]').nil?
 assert.call(language_filter_present == (language_count > 1), "language filter activation gate mismatch")
+reading_status_count = reading_posts.map { |_, data| data["status"] }.uniq.size
+status_filter_present = !reading.at_css('[data-reading-filter="status"]').nil?
+assert.call(status_filter_present == (reading_status_count > 1), "status filter activation gate mismatch")
+
+type_routes = {
+  "note" => "notes/index.html",
+  "essay" => "essays/index.html",
+  "journal" => "journal/index.html",
+  "project" => "projects/index.html",
+  "idea" => "ideas/index.html"
+}
+type_routes.each do |type, route|
+  document = parse.call(route)
+  links = document.css(".garden-entry-list .garden-entry h2 a")
+  statuses = links.filter_map { |link| status_by_url[link["href"]] }
+  assert.call(statuses.size == links.size, "#{type} index links must resolve to source posts")
+  assert_status_markers.call(
+    document.css(".garden-entry-list .garden-entry-status"),
+    statuses,
+    "#{type} index status markers"
+  )
+end
 
 series_registry.each do |slug, metadata|
   route = metadata.fetch("url").delete_prefix("/").delete_suffix("/")
@@ -114,10 +166,10 @@ series_registry.each do |slug, metadata|
     chapter_items.map { |item| item["id"] } == series_posts.map { |_, data| data["uid"] },
     "#{slug} chapter anchors do not match series order"
   )
-  expected_status_count = series_posts.map { |_, data| data["status"] }.uniq.size > 1 ? series_posts.size : 0
-  assert.call(
-    document.css(".series-chapter-status").size == expected_status_count,
-    "#{slug} status marker activation gate mismatch"
+  assert_status_markers.call(
+    document.css(".series-chapter-status"),
+    series_posts.map { |_, data| data["status"] },
+    "#{slug} status markers"
   )
 end
 
@@ -144,6 +196,19 @@ end
 overview_count = 0
 Dir.glob(File.join(site_dir, "posts", "*", "index.html")).each do |path|
   document = Nokogiri::HTML(File.read(path, encoding: "UTF-8"))
+  %w[garden-related-title garden-backlinks-title].each do |heading_id|
+    section = document.at_css("##{heading_id}")&.parent
+    next if section.nil?
+
+    links = section.css(".garden-connection-list > a")
+    statuses = links.filter_map { |link| status_by_url[link["href"]] }
+    assert.call(statuses.size == links.size, "#{path} connection links must resolve to source posts")
+    assert_status_markers.call(
+      section.css(".garden-connection-status"),
+      statuses,
+      "#{path} #{heading_id} status markers"
+    )
+  end
   overview = document.at_css(".chapter-overview")
   next if overview.nil?
 
