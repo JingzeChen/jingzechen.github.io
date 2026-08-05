@@ -4,9 +4,11 @@ date: 2026-07-27 12:00:00 +0800
 updated: 2026-07-28
 uid: seven-habits-ch04-begin-with-the-end
 type: reading
+content_lang: zh-CN
 status: growing
 topics: [personal-growth, books]
 series: seven-habits
+series_order: 5
 related: [seven-habits-ch03-be-proactive, seven-habits-ch05-first-things-first]
 categories: [读书笔记, 个人成长, 高效能人士的七个习惯]
 tags: [personal-growth, seven-habits, reading-notes]

@@ -4,9 +4,11 @@ date: 2026-08-01 03:02:00 +0800
 updated: 2026-08-02
 uid: ospp-ch02-kernel-abstraction
 type: reading
+content_lang: zh-CN
 status: growing
 topics: [operating-systems, books]
 series: operating-systems-principles-practice
+series_order: 2
 related: [ospp-ch01-introduction, ospp-ch03-programming-interface]
 categories: [读书笔记, 操作系统, OSPP]
 tags: [operating-systems, ospp, reading-notes]

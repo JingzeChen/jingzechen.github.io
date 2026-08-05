@@ -1003,6 +1003,15 @@ MVP 允许使用可访问的主题矩阵，但标题必须命名为 `Themes`，�
 - 完善暗色或低光阅读主题，前提是所有图表、代码和对比度均完成适配。
 - 进一步清理残余 Chirpy 默认视觉，但保留稳定底层能力。
 
+### 实施状态（2026-08-04）
+
+- Phase 1 已完成并上线。
+- Phase 2 技术项已完成：三视图与 URL 状态、Topic / Series / 语言就绪筛选、显式 `series_order`、Topic 页面、字段加权搜索、阅读进度与 Ultra-long 导航。
+- Phase 3 已完成非对称 Selected Writing；Themes 继续保持可访问文本矩阵。
+- Knowledge Map 暂缓：当前排除公共值 `books` 后，194 篇内容的 Topic 共现边数量为 0，不满足真实关系图启用条件。
+- Status 筛选、Latest Changes 和 Cross-type Library 暂缓：当前仍是单一 `growing`、批量更新时间、单一 Content Type。
+- 低光主题与匿名分析等待产品决策；171 篇模板 Description 和 `updated` 历史审计属于后续编辑治理，不通过自动生成内容替代。
+
 ## 20. 优先级需求清单
 
 | ID | 需求 | 优先级 | 阶段 | 工作量预估 |

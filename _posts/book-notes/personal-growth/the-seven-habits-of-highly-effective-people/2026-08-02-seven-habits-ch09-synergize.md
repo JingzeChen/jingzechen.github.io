@@ -4,9 +4,11 @@ date: 2026-08-01 04:09:00 +0800
 updated: 2026-08-02
 uid: seven-habits-ch09-synergize
 type: reading
+content_lang: zh-CN
 status: growing
 topics: [personal-growth, books]
 series: seven-habits
+series_order: 10
 related: [seven-habits-ch08-seek-first-to-understand, seven-habits-ch10-sharpen-the-saw]
 categories: [读书笔记, 个人成长, 高效能人士的七个习惯]
 tags: [personal-growth, seven-habits, reading-notes]

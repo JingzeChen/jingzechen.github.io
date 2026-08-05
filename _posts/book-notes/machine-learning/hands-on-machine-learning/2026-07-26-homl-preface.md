@@ -4,9 +4,11 @@ date: 2026-07-26 08:00:00 +0800
 updated: 2026-07-26
 uid: homl-preface
 type: reading
+content_lang: zh-CN
 status: growing
 topics: [machine-learning, books]
 series: hands-on-machine-learning
+series_order: 1
 related: [homl-ch01-ml-landscape]
 references:
   - title: Hands-On Machine Learning companion repository

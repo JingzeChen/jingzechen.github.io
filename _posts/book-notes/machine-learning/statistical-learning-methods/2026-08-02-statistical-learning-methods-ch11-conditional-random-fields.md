@@ -4,9 +4,11 @@ date: 2026-08-01 02:11:00 +0800
 updated: 2026-08-02
 uid: statistical-learning-methods-ch11-conditional-random-fields
 type: reading
+content_lang: zh-CN
 status: growing
 topics: [machine-learning, books]
 series: statistical-learning-methods
+series_order: 12
 related: [statistical-learning-methods-ch10-hidden-markov-models, statistical-learning-methods-ch12-supervised-learning-summary]
 categories: [读书笔记, 机器学习, 统计学习方法]
 tags: [statistical-learning, machine-learning, reading-notes]

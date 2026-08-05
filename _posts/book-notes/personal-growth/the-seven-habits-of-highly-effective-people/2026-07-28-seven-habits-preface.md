@@ -4,9 +4,11 @@ date: 2026-07-27 08:00:00 +0800
 updated: 2026-07-28
 uid: seven-habits-preface
 type: reading
+content_lang: zh-CN
 status: growing
 topics: [personal-growth, books]
 series: seven-habits
+series_order: 1
 related: [seven-habits-ch01-inside-out]
 categories: [读书笔记, 个人成长, 高效能人士的七个习惯]
 tags: [personal-growth, seven-habits, reading-notes]

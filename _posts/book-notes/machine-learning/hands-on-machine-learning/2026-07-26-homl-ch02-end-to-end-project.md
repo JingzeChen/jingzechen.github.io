@@ -4,9 +4,11 @@ date: 2026-07-26 10:00:00 +0800
 updated: 2026-08-02
 uid: homl-ch02-end-to-end-project
 type: reading
+content_lang: zh-CN
 status: growing
 topics: [machine-learning, books]
 series: hands-on-machine-learning
+series_order: 3
 related: [homl-ch01-ml-landscape, homl-ch03-classification]
 references:
     - { title: "Chapter companion notebook", url: "https://homl.info/colab-p", note: "Interactive notebooks for the PyTorch edition." }

@@ -4,9 +4,11 @@ date: 2026-08-01 05:06:00 +0800
 updated: 2026-08-02
 uid: deliberate-practice-ch06-in-life
 type: reading
+content_lang: zh-CN
 status: growing
 topics: [personal-growth, books]
 series: deliberate-practice
+series_order: 7
 related: [deliberate-practice-ch05-at-work, deliberate-practice-ch07-roadmap-to-excellence]
 categories: [读书笔记, 个人成长, 刻意练习]
 tags: [personal-growth, deliberate-practice, reading-notes]

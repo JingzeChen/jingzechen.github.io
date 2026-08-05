@@ -10,6 +10,17 @@
     const panels = [...root.querySelectorAll('[data-reading-panel]')];
     const topicSelect = root.querySelector('[data-reading-filter="topic"]');
     const seriesSelect = root.querySelector('[data-reading-filter="series"]');
+    const languageSelect = root.querySelector('[data-reading-filter="language"]');
+    const sortSelect = root.querySelector('[data-reading-filter="sort"]');
+    const seriesSortSelect = root.querySelector('[data-reading-series-sort]');
+    const seriesGrid = root.querySelector('.reading-series-grid');
+    const filterPanel = root.querySelector('[data-reading-filter-panel]');
+    const filterDesktop = root.querySelector('[data-reading-filter-desktop]');
+    const filterDialog = root.querySelector('[data-reading-filter-dialog-body]')?.closest('dialog');
+    const filterDialogBody = root.querySelector('[data-reading-filter-dialog-body]');
+    const filterOpen = root.querySelector('[data-reading-filter-open]');
+    const filterCountLabels = [...root.querySelectorAll('[data-reading-filter-count]')];
+    const mobileFilters = window.matchMedia('(max-width: 767.98px)');
     const list = root.querySelector('[data-reading-notes]');
     const status = root.querySelector('[data-reading-status]');
     const empty = root.querySelector('[data-reading-empty]');
@@ -20,6 +31,9 @@
       view: validViews.has(params.get('view')) ? params.get('view') : 'series',
       topic: params.get('topic') || '',
       series: params.get('series') || '',
+      language: params.get('language') || '',
+      sort: ['updated', 'published', 'series'].includes(params.get('sort')) ? params.get('sort') : 'updated',
+      seriesSort: ['recent', 'name'].includes(params.get('series_sort')) ? params.get('series_sort') : 'recent',
       visible: pageSize,
       notes: null
     };
@@ -29,6 +43,11 @@
       next.searchParams.set('view', state.view);
       state.topic ? next.searchParams.set('topic', state.topic) : next.searchParams.delete('topic');
       state.series ? next.searchParams.set('series', state.series) : next.searchParams.delete('series');
+      state.language ? next.searchParams.set('language', state.language) : next.searchParams.delete('language');
+      state.sort !== 'updated' ? next.searchParams.set('sort', state.sort) : next.searchParams.delete('sort');
+      state.seriesSort !== 'recent'
+        ? next.searchParams.set('series_sort', state.seriesSort)
+        : next.searchParams.delete('series_sort');
       window.history.replaceState({}, '', next);
     };
 
@@ -42,6 +61,7 @@
     const createNote = (note) => {
       const article = document.createElement('article');
       article.className = 'garden-entry reading-note-row';
+      article.lang = note.contentLang;
 
       const meta = createText('div', 'garden-entry-meta', '');
       meta.append(createText('span', '', note.seriesTitle));
@@ -62,7 +82,9 @@
         const topics = createText('div', 'garden-topics', '');
         topics.setAttribute('aria-label', 'Topics');
         visibleTopics.forEach((topic) => {
-          topics.append(createText('span', '', topicLabels[topic]?.title || topic.replaceAll('-', ' ')));
+          const topicLink = createText('a', '', topicLabels[topic]?.title || topic.replaceAll('-', ' '));
+          topicLink.href = `/topics/${topic}/`;
+          topics.append(topicLink);
         });
         article.append(topics);
       }
@@ -72,8 +94,26 @@
 
     const matchingNotes = () => (state.notes || []).filter((note) => {
       return (!state.topic || note.topics.includes(state.topic)) &&
-        (!state.series || note.series === state.series);
+        (!state.series || note.series === state.series) &&
+        (!state.language || note.contentLang === state.language);
+    }).sort((left, right) => {
+      if (state.sort === 'published') return right.published.localeCompare(left.published);
+      if (state.sort === 'series') {
+        return left.seriesTitle.localeCompare(right.seriesTitle) || left.seriesOrder - right.seriesOrder;
+      }
+      return right.updated.localeCompare(left.updated) || right.published.localeCompare(left.published);
     });
+
+    const updateFilterCount = () => {
+      const count = [state.topic, state.series, state.language].filter(Boolean).length;
+      filterCountLabels.forEach((label) => {
+        label.hidden = count === 0;
+        label.textContent = count.toString();
+      });
+      clearButtons.forEach((button) => {
+        if (button.classList.contains('reading-clear')) button.hidden = count === 0;
+      });
+    };
 
     const renderNotes = () => {
       if (!state.notes) return;
@@ -85,9 +125,7 @@
         : `Showing ${visible.length} of ${matching.length} notes.`;
       empty.hidden = matching.length !== 0;
       more.hidden = visible.length >= matching.length;
-      clearButtons.forEach((button) => {
-        if (button.classList.contains('reading-clear')) button.hidden = !state.topic && !state.series;
-      });
+      updateFilterCount();
     };
 
     const loadNotes = async () => {
@@ -114,6 +152,39 @@
       if (updateUrl) setUrl();
     };
 
+    const sortSeries = () => {
+      const cards = [...seriesGrid.children];
+      cards.sort((left, right) => {
+        if (state.seriesSort === 'name') {
+          return left.dataset.seriesTitle.localeCompare(right.dataset.seriesTitle);
+        }
+        return right.dataset.seriesUpdated.localeCompare(left.dataset.seriesUpdated) ||
+          left.dataset.seriesTitle.localeCompare(right.dataset.seriesTitle);
+      });
+      seriesGrid.append(...cards);
+    };
+
+    const finishFilterDialog = () => {
+      document.documentElement.classList.remove('overflow-hidden');
+      document.body.classList.remove('overflow-hidden');
+      window.setTimeout(() => filterOpen.focus(), 0);
+    };
+
+    const closeFilters = () => {
+      if (filterDialog.open) filterDialog.close();
+      finishFilterDialog();
+    };
+
+    const placeFilterPanel = () => {
+      if (mobileFilters.matches) {
+        if (filterDialog.open) closeFilters();
+        filterDialogBody.append(filterPanel);
+      } else {
+        if (filterDialog.open) closeFilters();
+        filterDesktop.append(filterPanel);
+      }
+    };
+
     buttons.forEach((button) => button.addEventListener('click', () => showView(button.dataset.readingView)));
     root.querySelectorAll('[data-reading-topic]').forEach((link) => {
       link.addEventListener('click', (event) => {
@@ -138,12 +209,31 @@
       setUrl();
       renderNotes();
     });
+    languageSelect?.addEventListener('change', () => {
+      state.language = languageSelect.value;
+      state.visible = pageSize;
+      setUrl();
+      renderNotes();
+    });
+    sortSelect.addEventListener('change', () => {
+      state.sort = sortSelect.value;
+      state.visible = pageSize;
+      setUrl();
+      renderNotes();
+    });
+    seriesSortSelect.addEventListener('change', () => {
+      state.seriesSort = seriesSortSelect.value;
+      setUrl();
+      sortSeries();
+    });
     clearButtons.forEach((button) => button.addEventListener('click', () => {
       state.topic = '';
       state.series = '';
+      state.language = '';
       state.visible = pageSize;
       topicSelect.value = '';
       seriesSelect.value = '';
+      if (languageSelect) languageSelect.value = '';
       setUrl();
       renderNotes();
     }));
@@ -154,6 +244,30 @@
 
     topicSelect.value = state.topic;
     seriesSelect.value = state.series;
+    if (languageSelect) languageSelect.value = state.language;
+    sortSelect.value = state.sort;
+    seriesSortSelect.value = state.seriesSort;
+    filterOpen.addEventListener('click', () => {
+      filterDialog.showModal();
+      document.documentElement.classList.add('overflow-hidden');
+      document.body.classList.add('overflow-hidden');
+      filterPanel.querySelector('select')?.focus();
+    });
+    root.querySelectorAll('[data-reading-filter-close]').forEach((button) => {
+      button.addEventListener('click', closeFilters);
+    });
+    filterDialog.addEventListener('click', (event) => {
+      if (event.target === filterDialog) closeFilters();
+    });
+    filterDialog.addEventListener('cancel', (event) => {
+      event.preventDefault();
+      closeFilters();
+    });
+    filterDialog.addEventListener('close', finishFilterDialog);
+    mobileFilters.addEventListener('change', placeFilterPanel);
+    placeFilterPanel();
+    sortSeries();
+    updateFilterCount();
     showView(state.view, false);
   })();
 </script>

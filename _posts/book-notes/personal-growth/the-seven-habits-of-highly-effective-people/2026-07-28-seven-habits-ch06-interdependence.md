@@ -4,9 +4,11 @@ date: 2026-07-27 14:00:00 +0800
 updated: 2026-08-02
 uid: seven-habits-ch06-interdependence
 type: reading
+content_lang: zh-CN
 status: growing
 topics: [personal-growth, books]
 series: seven-habits
+series_order: 7
 related: [seven-habits-ch05-first-things-first, seven-habits-ch07-win-win]
 categories: [读书笔记, 个人成长, 高效能人士的七个习惯]
 tags: [personal-growth, seven-habits, reading-notes]

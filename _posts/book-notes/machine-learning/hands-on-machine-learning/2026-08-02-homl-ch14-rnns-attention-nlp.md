@@ -4,9 +4,11 @@ date: 2026-08-01 01:14:00 +0800
 updated: 2026-08-02
 uid: homl-ch14-rnns-attention-nlp
 type: reading
+content_lang: zh-CN
 status: growing
 topics: [machine-learning, books]
 series: hands-on-machine-learning
+series_order: 15
 related: [homl-ch13-rnns-cnns-sequences, homl-ch15-transformers-nlp-chatbots]
 categories: [读书笔记, 机器学习, Hands-On Machine Learning]
 tags: [machine-learning, hands-on-ml, reading-notes]

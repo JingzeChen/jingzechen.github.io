@@ -4,9 +4,11 @@ date: 2026-08-03 01:05:00 +0800
 updated: 2026-08-04
 uid: ai-engineering-ch05-prompt-engineering
 type: reading
+content_lang: zh-CN
 status: growing
 topics: [ai-engineering, books]
 series: ai-engineering
+series_order: 6
 related: [ai-engineering-ch04-evaluating-ai-systems, ai-engineering-ch06-rag-agents]
 categories: [读书笔记, AI 系统, AI Engineering]
 tags: [ai-engineering, foundation-models, reading-notes]

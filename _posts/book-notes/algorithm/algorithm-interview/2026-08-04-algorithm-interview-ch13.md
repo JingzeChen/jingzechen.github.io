@@ -4,9 +4,11 @@ date: 2026-08-03 02:13:00 +0800
 updated: 2026-08-04
 uid: algorithm-interview-ch13
 type: reading
+content_lang: zh-CN
 status: growing
 topics: [algorithms, books]
 series: algorithm-interview
+series_order: 14
 related: [algorithm-interview-ch12, algorithm-interview-ch14]
 categories: [读书笔记, 算法, 算法面试]
 tags: [algorithms, data-structures, coding-interviews, reading-notes]

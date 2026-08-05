@@ -4,9 +4,11 @@ date: 2026-08-01 06:07:00 +0800
 updated: 2026-08-02
 uid: make-it-stick-ch07-lifelong-learners
 type: reading
+content_lang: zh-CN
 status: growing
 topics: [learning, books]
 series: make-it-stick
+series_order: 8
 related: [make-it-stick-ch06-learning-styles, make-it-stick-ch08-learning-strategies]
 categories: [读书笔记, 个人成长, 认知天性]
 tags: [learning-science, personal-growth, reading-notes]

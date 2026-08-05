@@ -4,10 +4,13 @@ date: 2026-07-26 00:10:00 +0800
 updated: 2026-08-02
 uid: yu-jun-product-methodology-notes
 type: reading
+content_lang: zh-CN
 status: growing
 topics: [product-management, books]
 series: yu-jun-product-methodology
+series_order: 1
 featured: true
+why_start_here: 从用户价值与交易模型出发，理解产品决策背后的稳定分析框架。
 related:
   - yu-jun-product-methodology-ch01-product-manager
   - yu-jun-product-methodology-ch02-enterprise-user-product

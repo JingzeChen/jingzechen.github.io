@@ -4,9 +4,11 @@ date: 2026-08-03 01:08:00 +0800
 updated: 2026-08-04
 uid: ai-engineering-ch08-dataset-engineering
 type: reading
+content_lang: zh-CN
 status: growing
 topics: [ai-engineering, books]
 series: ai-engineering
+series_order: 9
 related: [ai-engineering-ch07-fine-tuning, ai-engineering-ch09-inference-optimization]
 categories: [读书笔记, AI 系统, AI Engineering]
 tags: [ai-engineering, foundation-models, reading-notes]

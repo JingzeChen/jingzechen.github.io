@@ -4,9 +4,11 @@ date: 2026-08-01 05:02:00 +0800
 updated: 2026-08-02
 uid: deliberate-practice-ch02-brain-adaptability
 type: reading
+content_lang: zh-CN
 status: growing
 topics: [personal-growth, books]
 series: deliberate-practice
+series_order: 3
 related: [deliberate-practice-ch01-purposeful-practice, deliberate-practice-ch03-mental-representations]
 categories: [读书笔记, 个人成长, 刻意练习]
 tags: [personal-growth, deliberate-practice, reading-notes]

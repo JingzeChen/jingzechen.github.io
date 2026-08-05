@@ -4,9 +4,11 @@ date: 2026-08-01 04:12:00 +0800
 updated: 2026-08-02
 uid: seven-habits-appendix-time-management-life-centers
 type: reading
+content_lang: zh-CN
 status: growing
 topics: [personal-growth, books]
 series: seven-habits
+series_order: 13
 related: [seven-habits-ch11-inside-out-again]
 categories: [读书笔记, 个人成长, 高效能人士的七个习惯]
 tags: [personal-growth, seven-habits, reading-notes]

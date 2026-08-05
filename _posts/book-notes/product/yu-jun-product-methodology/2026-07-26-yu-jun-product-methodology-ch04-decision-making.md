@@ -4,9 +4,11 @@ date: 2026-07-26 00:14:00 +0800
 updated: 2026-07-26
 uid: yu-jun-product-methodology-ch04-decision-making
 type: reading
+content_lang: zh-CN
 status: growing
 topics: [product-management, books]
 series: yu-jun-product-methodology
+series_order: 5
 related:
     - yu-jun-product-methodology-notes
     - yu-jun-product-methodology-ch03-transaction

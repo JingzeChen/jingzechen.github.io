@@ -5,12 +5,14 @@ module Garden
     safe true
     priority :highest
 
-    REQUIRED_FIELDS = %w[uid type status topics description].freeze
+    REQUIRED_FIELDS = %w[uid type status topics description content_lang].freeze
     TEMPLATE_DESCRIPTION = /梳理核心概念、论证结构、适用边\s*界与实践要点/.freeze
 
     def generate(site)
       content_types = site.config.dig("garden", "content_types") || []
       statuses = site.config.dig("garden", "statuses") || []
+      content_languages = site.config.dig("garden", "content_languages") || []
+      series_registry = site.data["series"] || {}
       seen_uids = {}
       errors = []
 
@@ -23,8 +25,11 @@ module Garden
 
         validate_value(post, "type", content_types, errors)
         validate_value(post, "status", statuses, errors)
+        validate_value(post, "content_lang", content_languages, errors)
         validate_topics(post, errors)
         validate_series_order(post, errors)
+        validate_series(post, series_registry, errors)
+        validate_featured(post, errors)
 
         uid = post.data["uid"]
         next if blank?(uid)
@@ -38,6 +43,11 @@ module Garden
         else
           seen_uids[uid] = post.relative_path
         end
+      end
+
+      featured_count = site.posts.docs.count { |post| post.data["featured"] == true }
+      unless featured_count.between?(2, 5)
+        errors << "featured content count must be between 2 and 5 (found #{featured_count})"
       end
 
       return if errors.empty?
@@ -71,6 +81,20 @@ module Garden
       return if order.nil? || order.is_a?(Integer) && order.positive?
 
       errors << "#{post.relative_path}: 'series_order' must be a positive integer"
+    end
+
+    def validate_series(post, registry, errors)
+      series = post.data["series"]
+      return if blank?(series) || registry.key?(series)
+
+      errors << "#{post.relative_path}: series '#{series}' has no _data/series.yml entry"
+    end
+
+    def validate_featured(post, errors)
+      return unless post.data["featured"] == true
+      return unless blank?(post.data["why_start_here"])
+
+      errors << "#{post.relative_path}: featured content requires 'why_start_here'"
     end
   end
 end

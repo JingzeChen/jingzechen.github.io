@@ -4,9 +4,11 @@ date: 2026-08-01 04:07:00 +0800
 updated: 2026-08-02
 uid: seven-habits-ch07-win-win
 type: reading
+content_lang: zh-CN
 status: growing
 topics: [personal-growth, books]
 series: seven-habits
+series_order: 8
 related: [seven-habits-ch06-interdependence, seven-habits-ch08-seek-first-to-understand]
 categories: [读书笔记, 个人成长, 高效能人士的七个习惯]
 tags: [personal-growth, seven-habits, reading-notes]

@@ -22,9 +22,49 @@
 
     if (!content) return;
 
+    const updateTableOverflow = () => {
+      content.querySelectorAll('.table-wrapper').forEach((wrapper) => {
+        const overflowing = wrapper.scrollWidth > wrapper.clientWidth + 1;
+        wrapper.classList.toggle('has-overflow', overflowing);
+        if (!overflowing) {
+          wrapper.removeAttribute('tabindex');
+          wrapper.removeAttribute('aria-label');
+          return;
+        }
+
+        wrapper.tabIndex = 0;
+        wrapper.setAttribute('aria-label', 'Scrollable table');
+        if (wrapper.dataset.keyboardScroll) return;
+        wrapper.dataset.keyboardScroll = 'true';
+        wrapper.addEventListener('keydown', (event) => {
+          if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+          event.preventDefault();
+          wrapper.scrollBy({ left: event.key === 'ArrowRight' ? 120 : -120, behavior: 'smooth' });
+        });
+      });
+    };
+
+    const enhanceDiagrams = () => {
+      content.querySelectorAll('.mermaid').forEach((diagram) => {
+        if (diagram.hasAttribute('aria-label')) return;
+        const headingsBefore = [...content.querySelectorAll('h2, h3')].filter((heading) => {
+          return heading.compareDocumentPosition(diagram) & Node.DOCUMENT_POSITION_FOLLOWING;
+        });
+        const section = headingsBefore.at(-1)?.textContent.trim();
+        diagram.setAttribute('role', 'img');
+        diagram.setAttribute('aria-label', section ? `Diagram for ${section}` : 'Article diagram');
+      });
+    };
+
+    updateTableOverflow();
+    enhanceDiagrams();
+    window.addEventListener('resize', updateTableOverflow);
+    new MutationObserver(enhanceDiagrams).observe(content, { childList: true, subtree: true });
+
     const headings = [...content.querySelectorAll('h2[id]')];
     const tocLinks = [...document.querySelectorAll('#toc .toc-link, #toc-popup-content .toc-link')];
-    const progressive = headings.length > 20 || tocLinks.length > 80;
+    const progressive = content.closest('article')?.dataset.ultraLong === 'true' ||
+      headings.length > 20 || tocLinks.length > 80;
     const navigation = [...document.querySelectorAll('[data-toc-chapter-nav]')];
     const currentLabels = [...document.querySelectorAll('[data-toc-current]')];
     let currentIndex = 0;

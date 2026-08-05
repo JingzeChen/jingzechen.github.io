@@ -4,9 +4,11 @@ date: 2026-08-03 01:09:00 +0800
 updated: 2026-08-04
 uid: ai-engineering-ch09-inference-optimization
 type: reading
+content_lang: zh-CN
 status: growing
 topics: [ai-engineering, books]
 series: ai-engineering
+series_order: 10
 related: [ai-engineering-ch08-dataset-engineering, ai-engineering-ch10-architecture-user-feedback]
 categories: [读书笔记, AI 系统, AI Engineering]
 tags: [ai-engineering, foundation-models, reading-notes]

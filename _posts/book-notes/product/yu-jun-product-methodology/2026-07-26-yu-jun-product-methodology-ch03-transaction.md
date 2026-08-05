@@ -4,9 +4,11 @@ date: 2026-07-26 00:13:00 +0800
 updated: 2026-07-26
 uid: yu-jun-product-methodology-ch03-transaction
 type: reading
+content_lang: zh-CN
 status: growing
 topics: [product-management, books]
 series: yu-jun-product-methodology
+series_order: 4
 related:
     - yu-jun-product-methodology-notes
     - yu-jun-product-methodology-ch02-enterprise-user-product

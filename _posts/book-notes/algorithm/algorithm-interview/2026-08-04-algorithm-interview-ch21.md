@@ -4,9 +4,11 @@ date: 2026-08-03 02:21:00 +0800
 updated: 2026-08-04
 uid: algorithm-interview-ch21
 type: reading
+content_lang: zh-CN
 status: growing
 topics: [algorithms, books]
 series: algorithm-interview
+series_order: 22
 related: [algorithm-interview-ch20, algorithm-interview-ch22]
 categories: [读书笔记, 算法, 算法面试]
 tags: [algorithms, data-structures, coding-interviews, reading-notes]

@@ -4,9 +4,11 @@ date: 2026-08-01 00:16:00 +0800
 updated: 2026-08-02
 uid: yu-jun-product-methodology-appendix-cognitive-evolution
 type: reading
+content_lang: zh-CN
 status: growing
 topics: [product-management, books]
 series: yu-jun-product-methodology
+series_order: 7
 related: [yu-jun-product-methodology-notes, yu-jun-product-methodology-ch05-selection-and-growth]
 categories: [读书笔记, 产品, 俞军产品方法论]
 tags: [product-management, reading-notes]

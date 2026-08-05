@@ -20,6 +20,7 @@ date: 2026-07-26 08:00:00 +0800
 updated: 2026-07-26
 uid: consensus-basics
 type: note
+content_lang: zh-CN
 status: seedling
 topics: [distributed-systems]
 categories: [技术, 后端]
@@ -117,6 +118,7 @@ date: 2026-07-26 08:00:00 +0800
 updated: 2026-07-26
 uid: article-slug
 type: note
+content_lang: zh-CN
 status: seedling
 topics: [ai, software-engineering]
 related: [evaluation-basics, reliable-ai-systems]
@@ -167,6 +169,12 @@ image:
 - `seedling`：刚记录，仍待验证或展开。
 - `growing`：已有结构，仍在持续补充。
 - `evergreen`：经过多次整理，当前相对稳定。
+
+#### `content_lang`
+
+- 表示正文内容语言，不改变全站英文界面语言。
+- 当前允许 `zh-CN` 和 `en`。
+- 中文内容使用 `zh-CN`，英文内容使用 `en`；不要根据代码块或引用语言判断。
 
 #### `topics`
 
@@ -255,7 +263,9 @@ tags: [machine-learning, naive-bayes, reading-notes]
 | 字段 | 类型 | 用途 |
 | --- | --- | --- |
 | `series` | 字符串 | 所属书籍、项目或专题的稳定 slug |
+| `series_order` | 正整数 | Series 内的明确阅读顺序；新 Series 内容必须填写 |
 | `featured` | 布尔值 | 是否进入首页精选内容 |
+| `why_start_here` | 字符串 | Featured 内容的推荐理由；`featured: true` 时必填 |
 | `related` | 字符串数组 | 通过目标文章的 `uid` 建立显式知识关系 |
 | `references` | 对象数组 | 结构化来源，每项必须包含 `title` 和 `url` |
 | `toc` | 布尔值 | 是否显示目录；本站默认开启 |
@@ -266,6 +276,8 @@ tags: [machine-learning, naive-bayes, reading-notes]
 | `comments` | 布尔值 | 覆盖全局评论设置 |
 | `author` | 字符串 | 从 `_data/authors.yml` 指定作者 |
 | `media_subpath` | 字符串 | 为本文图片和媒体设置公共路径前缀 |
+
+`topics` 的展示名、定义、相关主题和推荐入口统一维护在 `_data/topics.yml`；新增 Topic 前先补映射。Series 的正式名称、说明和兼容 URL 统一维护在 `_data/series.yml`。旧文章缺少 `series_order` 时构建仍按日期回退，但新增或维护中的 Series 内容必须使用显式顺序。
 
 ## 5. 正文结构规范
 
@@ -545,9 +557,11 @@ date: 2026-07-26 00:11:00 +0800
 updated: 2026-07-26
 uid: book-slug-ch01
 type: reading
+content_lang: zh-CN
 status: growing
 topics: [machine-learning, books]
 series: book-slug
+series_order: 2
 categories: [读书笔记, 领域, 书名]
 tags: [topic, reading-notes]
 description: "本章内容的简短摘要。"
@@ -650,6 +664,14 @@ bundle exec jekyll build -d _site
 - 文章因 future date 被跳过
 - 缺失布局、插件或资源
 
+构建后运行数字花园验收：
+
+```powershell
+bundle exec ruby tools/validate-garden.rb _site
+```
+
+该检查覆盖内容语言、Series 顺序、Topic 页面、Reading/Search 数据、Featured 入口和 Ultra-long 章节锚点。
+
 ### 13.3 链接检查
 
 ```powershell
@@ -666,7 +688,11 @@ bundle exec htmlproofer _site --disable-external --ignore-urls "/^http:\/\/127.0
 - [ ] 发布时间不是未来时间。
 - [ ] `uid` 全站唯一，发布后保持稳定。
 - [ ] `type`、`status` 和 `topics` 使用允许的值。
+- [ ] `content_lang` 与正文主要语言一致。
 - [ ] `title`、`date`、`updated` 和 `description` 已填写。
+- [ ] Series 内容具有连续且不重复的 `series_order`。
+- [ ] 新 Topic 已在 `_data/topics.yml` 中定义。
+- [ ] `featured: true` 时已填写 `why_start_here`。
 - [ ] 兼容用的 `categories` 和 `tags` 已填写。
 - [ ] 分类从宽到窄，名称与现有分类一致。
 - [ ] 标签使用小写英文和连字符。
@@ -679,6 +705,7 @@ bundle exec htmlproofer _site --disable-external --ignore-urls "/^http:\/\/127.0
 - [ ] `references` 的标题和 URL 完整且经过核实。
 - [ ] 图片路径、替代文本和尺寸正确。
 - [ ] 生产构建成功。
+- [ ] `tools/validate-garden.rb` 检查成功。
 - [ ] HTMLProofer 检查成功。
 - [ ] 没有误提交本地 `book-notes/` 源副本或 `_site/` 构建产物。
 

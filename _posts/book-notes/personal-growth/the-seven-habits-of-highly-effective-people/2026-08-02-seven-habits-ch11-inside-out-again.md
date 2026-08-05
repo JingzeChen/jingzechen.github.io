@@ -4,9 +4,11 @@ date: 2026-08-01 04:11:00 +0800
 updated: 2026-08-02
 uid: seven-habits-ch11-inside-out-again
 type: reading
+content_lang: zh-CN
 status: growing
 topics: [personal-growth, books]
 series: seven-habits
+series_order: 12
 related: [seven-habits-ch10-sharpen-the-saw, seven-habits-appendix-time-management-life-centers]
 categories: [读书笔记, 个人成长, 高效能人士的七个习惯]
 tags: [personal-growth, seven-habits, reading-notes]

@@ -4,9 +4,11 @@ date: 2026-07-26 00:01:00 +0800
 updated: 2026-07-26
 uid: statistical-learning-methods-ch01-introduction
 type: reading
+content_lang: zh-CN
 status: growing
 topics: [machine-learning, books]
 series: statistical-learning-methods
+series_order: 2
 related: [statistical-learning-methods-notes, statistical-learning-methods-ch02-perceptron]
 categories: [读书笔记, 机器学习, 统计学习方法]
 tags: [statistical-learning, supervised-learning, reading-notes]

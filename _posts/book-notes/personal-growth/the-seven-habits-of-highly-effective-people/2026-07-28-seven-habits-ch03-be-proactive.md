@@ -4,9 +4,11 @@ date: 2026-07-27 11:00:00 +0800
 updated: 2026-07-28
 uid: seven-habits-ch03-be-proactive
 type: reading
+content_lang: zh-CN
 status: growing
 topics: [personal-growth, books]
 series: seven-habits
+series_order: 4
 related: [seven-habits-ch02-overview, seven-habits-ch04-begin-with-the-end]
 categories: [读书笔记, 个人成长, 高效能人士的七个习惯]
 tags: [personal-growth, seven-habits, reading-notes]

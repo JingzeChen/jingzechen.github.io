@@ -4,9 +4,11 @@ date: 2026-08-03 01:07:00 +0800
 updated: 2026-08-04
 uid: ai-engineering-ch07-fine-tuning
 type: reading
+content_lang: zh-CN
 status: growing
 topics: [ai-engineering, books]
 series: ai-engineering
+series_order: 8
 related: [ai-engineering-ch06-rag-agents, ai-engineering-ch08-dataset-engineering]
 categories: [读书笔记, AI 系统, AI Engineering]
 tags: [ai-engineering, foundation-models, reading-notes]

@@ -4,9 +4,11 @@ date: 2026-08-01 06:01:00 +0800
 updated: 2026-08-02
 uid: make-it-stick-ch01-learning-challenges-human-nature
 type: reading
+content_lang: zh-CN
 status: growing
 topics: [learning, books]
 series: make-it-stick
+series_order: 2
 related: [make-it-stick-preface, make-it-stick-ch02-knowledge-chains-memory-knots]
 categories: [读书笔记, 个人成长, 认知天性]
 tags: [learning-science, personal-growth, reading-notes]

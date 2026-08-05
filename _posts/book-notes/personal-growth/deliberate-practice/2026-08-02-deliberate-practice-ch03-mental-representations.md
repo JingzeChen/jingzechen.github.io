@@ -4,9 +4,11 @@ date: 2026-08-01 05:03:00 +0800
 updated: 2026-08-02
 uid: deliberate-practice-ch03-mental-representations
 type: reading
+content_lang: zh-CN
 status: growing
 topics: [personal-growth, books]
 series: deliberate-practice
+series_order: 4
 related: [deliberate-practice-ch02-brain-adaptability, deliberate-practice-ch04-gold-standard]
 categories: [读书笔记, 个人成长, 刻意练习]
 tags: [personal-growth, deliberate-practice, reading-notes]

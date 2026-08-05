@@ -4,9 +4,11 @@ date: 2026-08-03 01:01:00 +0800
 updated: 2026-08-04
 uid: ai-engineering-ch01-foundation-model-applications
 type: reading
+content_lang: zh-CN
 status: growing
 topics: [ai-engineering, books]
 series: ai-engineering
+series_order: 2
 related: [ai-engineering-preface, ai-engineering-ch02-understanding-foundation-models]
 categories: [读书笔记, AI 系统, AI Engineering]
 tags: [ai-engineering, foundation-models, reading-notes]

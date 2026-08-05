@@ -4,9 +4,11 @@ date: 2026-08-01 07:09:00 +0800
 updated: 2026-08-02
 uid: pyramid-principle-ch09-structured-problem-analysis
 type: reading
+content_lang: zh-CN
 status: growing
 topics: [communication, books]
 series: pyramid-principle
+series_order: 9
 related: [pyramid-principle-ch08-define-problem, pyramid-principle-ch10-written-presentation]
 categories: [读书笔记, 个人成长, 金字塔原理]
 tags: [communication, structured-thinking, reading-notes]

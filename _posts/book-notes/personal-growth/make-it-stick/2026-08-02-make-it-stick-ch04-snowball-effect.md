@@ -4,9 +4,11 @@ date: 2026-08-01 06:04:00 +0800
 updated: 2026-08-02
 uid: make-it-stick-ch04-snowball-effect
 type: reading
+content_lang: zh-CN
 status: growing
 topics: [learning, books]
 series: make-it-stick
+series_order: 5
 related: [make-it-stick-ch03-post-deliberate-practice, make-it-stick-ch05-mental-models]
 categories: [读书笔记, 个人成长, 认知天性]
 tags: [learning-science, personal-growth, reading-notes]

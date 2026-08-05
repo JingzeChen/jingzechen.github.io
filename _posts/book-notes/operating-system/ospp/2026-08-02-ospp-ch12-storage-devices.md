@@ -4,9 +4,11 @@ date: 2026-08-01 03:12:00 +0800
 updated: 2026-08-02
 uid: ospp-ch12-storage-devices
 type: reading
+content_lang: zh-CN
 status: growing
 topics: [operating-systems, books]
 series: operating-systems-principles-practice
+series_order: 12
 related: [ospp-ch11-file-systems-overview, ospp-ch13-files-directories]
 categories: [读书笔记, 操作系统, OSPP]
 tags: [operating-systems, ospp, reading-notes]

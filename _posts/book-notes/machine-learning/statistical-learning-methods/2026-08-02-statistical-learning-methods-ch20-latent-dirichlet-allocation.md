@@ -4,9 +4,11 @@ date: 2026-08-01 02:20:00 +0800
 updated: 2026-08-02
 uid: statistical-learning-methods-ch20-latent-dirichlet-allocation
 type: reading
+content_lang: zh-CN
 status: growing
 topics: [machine-learning, books]
 series: statistical-learning-methods
+series_order: 21
 related: [statistical-learning-methods-ch19-markov-chain-monte-carlo, statistical-learning-methods-ch21-pagerank]
 categories: [读书笔记, 机器学习, 统计学习方法]
 tags: [statistical-learning, machine-learning, reading-notes]

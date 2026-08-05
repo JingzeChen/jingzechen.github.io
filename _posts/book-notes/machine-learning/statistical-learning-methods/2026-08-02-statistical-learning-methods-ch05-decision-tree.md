@@ -4,9 +4,11 @@ date: 2026-08-01 02:05:00 +0800
 updated: 2026-08-02
 uid: statistical-learning-methods-ch05-decision-tree
 type: reading
+content_lang: zh-CN
 status: growing
 topics: [machine-learning, books]
 series: statistical-learning-methods
+series_order: 6
 related: [statistical-learning-methods-ch04-naive-bayes, statistical-learning-methods-ch06-logistic-regression-maximum-entropy]
 categories: [读书笔记, 机器学习, 统计学习方法]
 tags: [statistical-learning, machine-learning, reading-notes]

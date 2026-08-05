@@ -1,31 +1,153 @@
-<!--
-  Jekyll Simple Search loader
-  See: <https://github.com/christian-fei/Simple-Jekyll-Search>
--->
-
-{% capture result_elem %}
-  <article class="search-result-item px-1 px-sm-2" role="option">
-    <header>
-      <div class="search-result-context"><span>{type}</span><span>{seriesTitle}</span></div>
-      <h2><a href="{url}">{title}</a></h2>
-    </header>
-    <p>{excerpt}</p>
-    <div class="search-result-topics">{topics}</div>
-  </article>
-{% endcapture %}
-
-{% capture not_found %}<p class="mt-5">{{ site.data.locales[include.lang].search.no_results }}</p>{% endcapture %}
-
 <script>
-  {% comment %} Note: dependent library will be loaded in `js-selector.html` {% endcomment %}
   document.addEventListener('DOMContentLoaded', () => {
-    SimpleJekyllSearch({
-      searchInput: document.getElementById('search-input'),
-      resultsContainer: document.getElementById('search-results'),
-      json: '{{ '/assets/js/data/search.json' | relative_url }}',
-      searchResultTemplate: '{{ result_elem | strip_newlines }}',
-      noResultsText: '{{ not_found }}',
-      limit: 30
+    const input = document.getElementById('search-input');
+    const results = document.getElementById('search-results');
+    if (!input || !results) return;
+
+    const topicLabels = {{ site.data.topics | jsonify }};
+    const indexUrl = '{{ '/assets/js/data/search.json' | relative_url }}';
+    let indexPromise = null;
+    let requestId = 0;
+
+    const updateResults = (...children) => {
+      results.replaceChildren(...children);
+      results.dispatchEvent(new CustomEvent('search:updated'));
+    };
+
+    const normalize = (value) => value.toString().normalize('NFKC').toLocaleLowerCase();
+    const termsFor = (query) => normalize(query).split(/\s+/).filter(Boolean);
+    const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+    const appendHighlighted = (element, value, terms) => {
+      const text = value || '';
+      if (terms.length === 0) {
+        element.textContent = text;
+        return;
+      }
+
+      const expression = new RegExp(`(${terms.map(escapeRegExp).join('|')})`, 'gi');
+      text.split(expression).forEach((part) => {
+        if (terms.includes(normalize(part))) {
+          const mark = document.createElement('mark');
+          mark.textContent = part;
+          element.append(mark);
+        } else {
+          element.append(document.createTextNode(part));
+        }
+      });
+    };
+
+    const scoreField = (value, terms, weight) => {
+      const normalized = normalize(value || '');
+      return terms.reduce((score, term) => {
+        if (!normalized.includes(term)) return score;
+        return score + weight + (normalized === term ? weight : 0) + (normalized.startsWith(term) ? 1 : 0);
+      }, 0);
+    };
+
+    const scoreItem = (item, terms) => {
+      const searchable = normalize([
+        item.title,
+        item.type,
+        item.seriesTitle,
+        item.excerpt,
+        item.topics,
+        item.tags,
+        item.content
+      ].join(' '));
+      if (!terms.every((term) => searchable.includes(term))) return 0;
+
+      return scoreField(item.title, terms, 12) +
+        scoreField(item.seriesTitle, terms, 8) +
+        scoreField(item.excerpt, terms, 4) +
+        scoreField(item.type, terms, 3) +
+        scoreField(item.topics, terms, 3) +
+        scoreField(item.tags, terms, 2) +
+        scoreField(item.content, terms, 1);
+    };
+
+    const createResult = (item, terms) => {
+      const article = document.createElement('article');
+      article.className = 'search-result-item px-1 px-sm-2';
+      article.lang = item.contentLang || 'zh-CN';
+      article.setAttribute('role', 'option');
+
+      const header = document.createElement('header');
+      const context = document.createElement('div');
+      context.className = 'search-result-context';
+      [item.type, item.seriesTitle].forEach((value) => {
+        const span = document.createElement('span');
+        span.textContent = value;
+        context.append(span);
+      });
+
+      const heading = document.createElement('h2');
+      const link = document.createElement('a');
+      link.href = item.url;
+      appendHighlighted(link, item.title, terms);
+      heading.append(link);
+      header.append(context, heading);
+
+      const excerpt = document.createElement('p');
+      appendHighlighted(excerpt, item.excerpt, terms);
+
+      const topics = document.createElement('div');
+      topics.className = 'search-result-topics';
+      topics.textContent = item.topics;
+      article.append(header, excerpt, topics);
+      return article;
+    };
+
+    const createEmpty = () => {
+      const empty = document.createElement('div');
+      empty.className = 'search-empty';
+      const message = document.createElement('p');
+      message.textContent = '{{ site.data.locales[include.lang].search.no_results }}';
+      const links = document.createElement('div');
+      links.className = 'search-empty-topics';
+      Object.entries(topicLabels).slice(0, 5).forEach(([slug, metadata]) => {
+        const link = document.createElement('a');
+        link.href = `/topics/${slug}/`;
+        link.textContent = metadata.title;
+        links.append(link);
+      });
+      empty.append(message, links);
+      return empty;
+    };
+
+    const loadIndex = () => {
+      indexPromise ||= fetch(indexUrl).then((response) => {
+        if (!response.ok) throw new Error(`Search index HTTP ${response.status}`);
+        return response.json();
+      });
+      return indexPromise;
+    };
+
+    input.addEventListener('input', async () => {
+      const currentRequest = ++requestId;
+      const terms = termsFor(input.value);
+      if (terms.length === 0) {
+        updateResults();
+        return;
+      }
+
+      try {
+        const index = await loadIndex();
+        if (currentRequest !== requestId) return;
+        const matches = index.map((item) => ({ item, score: scoreItem(item, terms) }))
+          .filter((match) => match.score > 0)
+          .sort((left, right) => right.score - left.score || right.item.date.localeCompare(left.item.date))
+          .slice(0, 30);
+        updateResults(...(matches.length > 0
+          ? matches.map((match) => createResult(match.item, terms))
+          : [createEmpty()]));
+      } catch {
+        if (currentRequest !== requestId) return;
+        const error = document.createElement('p');
+        error.className = 'search-empty';
+        error.textContent = 'Search is temporarily unavailable.';
+        updateResults(error);
+      }
     });
   });
 </script>

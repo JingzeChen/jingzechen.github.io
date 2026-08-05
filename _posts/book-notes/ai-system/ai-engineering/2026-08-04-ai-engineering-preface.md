@@ -4,9 +4,13 @@ date: 2026-08-03 01:00:00 +0800
 updated: 2026-08-04
 uid: ai-engineering-preface
 type: reading
+content_lang: zh-CN
 status: growing
 topics: [ai-engineering, books]
 series: ai-engineering
+series_order: 1
+featured: true
+why_start_here: 从一本书的路线图进入，先建立 AI Engineering 与传统机器学习之间的边界和全局框架。
 related: [ai-engineering-ch01-foundation-model-applications]
 categories: [读书笔记, AI 系统, AI Engineering]
 tags: [ai-engineering, foundation-models, reading-notes]

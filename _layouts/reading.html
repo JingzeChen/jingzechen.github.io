@@ -8,6 +8,7 @@ script_includes:
 
 {% assign reading_posts = site.posts | where: 'type', 'reading' %}
 {% assign latest_post = reading_posts | sort: 'updated' | reverse | first %}
+{% assign reading_languages = reading_posts | map: 'content_lang' | uniq | sort %}
 
 <article
   class="garden-index reading-library px-1"
@@ -41,8 +42,17 @@ script_includes:
 
   <section class="reading-view" data-reading-panel="series" aria-labelledby="reading-series-title">
     <div class="reading-section-heading">
-      <h2 id="reading-series-title">Series</h2>
-      <p>Choose a book or collection, then continue in chapter order.</p>
+      <div>
+        <h2 id="reading-series-title">Series</h2>
+        <p>Choose a book or collection, then continue in chapter order.</p>
+      </div>
+      <label class="reading-sort-control">
+        <span>Sort</span>
+        <select data-reading-series-sort>
+          <option value="recent">Recently maintained</option>
+          <option value="name">Name</option>
+        </select>
+      </label>
     </div>
     <div class="reading-series-grid">
       {% for series_entry in site.data.series %}
@@ -51,7 +61,11 @@ script_includes:
         {% assign series_posts = reading_posts | where: 'series', series_slug %}
         {% assign latest_series_post = series_posts | sort: 'updated' | reverse | first %}
         {% if series_posts.size > 0 %}
-          <article class="reading-series-item">
+          <article
+            class="reading-series-item"
+            data-series-title="{{ series_meta.title | downcase | escape }}"
+            data-series-updated="{{ latest_series_post.updated | default: latest_series_post.date | date: '%Y-%m-%d' }}"
+          >
             <div class="reading-series-meta">
               <span>{{ series_posts.size }} notes</span>
               {% if latest_series_post %}
@@ -65,7 +79,9 @@ script_includes:
             <div class="garden-topics" aria-label="Topics">
               {% for topic in series_meta.topics %}
                 {% assign topic_meta = site.data.topics[topic] %}
-                <span>{{ topic_meta.title | default: topic | replace: '-', ' ' }}</span>
+                <a href="{{ '/topics/' | append: topic | append: '/' | relative_url }}">
+                  {{- topic_meta.title | default: topic | replace: '-', ' ' -}}
+                </a>
               {% endfor %}
             </div>
           </article>
@@ -86,7 +102,7 @@ script_includes:
         {% assign topic_posts = reading_posts | where_exp: 'post', 'post.topics contains topic_slug' %}
         {% if topic_posts.size > 0 %}
           <article class="reading-topic-item">
-            <h3>{{ topic_meta.title }}</h3>
+            <h3><a href="{{ '/topics/' | append: topic_slug | append: '/' | relative_url }}">{{ topic_meta.title }}</a></h3>
             <p class="reading-topic-count">{{ topic_posts.size }} notes</p>
             <ol>
               {% for post in topic_posts limit: 3 %}
@@ -109,27 +125,66 @@ script_includes:
       <h2 id="reading-all-title">All Notes</h2>
       <p>Filter the complete reading collection. Notes load in batches of 24.</p>
     </div>
-    <div class="reading-filters" aria-label="Filter reading notes">
-      <label>
-        <span>Topic</span>
-        <select data-reading-filter="topic">
-          <option value="">All topics</option>
-          {% for topic_entry in site.data.topics %}
-            <option value="{{ topic_entry[0] }}">{{ topic_entry[1].title }}</option>
-          {% endfor %}
-        </select>
-      </label>
-      <label>
-        <span>Series</span>
-        <select data-reading-filter="series">
-          <option value="">All series</option>
-          {% for series_entry in site.data.series %}
-            <option value="{{ series_entry[0] }}">{{ series_entry[1].title }}</option>
-          {% endfor %}
-        </select>
-      </label>
-      <button type="button" class="reading-clear" data-reading-clear hidden>Clear all</button>
+    <div class="reading-mobile-filter-bar">
+      <button type="button" data-reading-filter-open aria-haspopup="dialog" aria-controls="reading-filter-dialog">
+        <i class="fas fa-sliders" aria-hidden="true"></i>
+        Filters <span data-reading-filter-count hidden></span>
+      </button>
     </div>
+    <div data-reading-filter-desktop>
+      <div class="reading-filters" data-reading-filter-panel aria-label="Filter reading notes">
+        <label>
+          <span>Topic</span>
+          <select data-reading-filter="topic">
+            <option value="">All topics</option>
+            {% for topic_entry in site.data.topics %}
+              <option value="{{ topic_entry[0] }}">{{ topic_entry[1].title }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label>
+          <span>Series</span>
+          <select data-reading-filter="series">
+            <option value="">All series</option>
+            {% for series_entry in site.data.series %}
+              <option value="{{ series_entry[0] }}">{{ series_entry[1].title }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        {% if reading_languages.size > 1 %}
+          <label>
+            <span>Language</span>
+            <select data-reading-filter="language">
+              <option value="">All languages</option>
+              {% for language in reading_languages %}
+                <option value="{{ language }}">{{ language }}</option>
+              {% endfor %}
+            </select>
+          </label>
+        {% endif %}
+        <label>
+          <span>Sort</span>
+          <select data-reading-filter="sort">
+            <option value="updated">Recently maintained</option>
+            <option value="published">Recently published</option>
+            <option value="series">Series order</option>
+          </select>
+        </label>
+        <button type="button" class="reading-clear" data-reading-clear hidden>
+          Clear all <span data-reading-filter-count hidden></span>
+        </button>
+        <button type="button" class="reading-filter-done" data-reading-filter-close>Done</button>
+      </div>
+    </div>
+    <dialog id="reading-filter-dialog" class="reading-filter-dialog" aria-labelledby="reading-filter-title">
+      <header>
+        <h3 id="reading-filter-title">Filter notes</h3>
+        <button type="button" data-reading-filter-close aria-label="Close filters">
+          <i class="fas fa-xmark" aria-hidden="true"></i>
+        </button>
+      </header>
+      <div data-reading-filter-dialog-body></div>
+    </dialog>
     <p class="reading-result-status" data-reading-status aria-live="polite">Loading notes…</p>
     <div class="garden-entry-list reading-note-list" data-reading-notes></div>
     <div class="reading-empty" data-reading-empty hidden>

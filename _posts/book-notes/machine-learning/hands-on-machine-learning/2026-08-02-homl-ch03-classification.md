@@ -4,9 +4,11 @@ date: 2026-08-01 01:03:00 +0800
 updated: 2026-08-02
 uid: homl-ch03-classification
 type: reading
+content_lang: zh-CN
 status: growing
 topics: [machine-learning, books]
 series: hands-on-machine-learning
+series_order: 4
 related: [homl-ch02-end-to-end-project, homl-ch04-training-models]
 categories: [读书笔记, 机器学习, Hands-On Machine Learning]
 tags: [machine-learning, hands-on-ml, reading-notes]

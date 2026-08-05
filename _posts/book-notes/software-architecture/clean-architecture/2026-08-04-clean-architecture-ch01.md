@@ -4,9 +4,11 @@ date: 2026-08-03 03:01:00 +0800
 updated: 2026-08-04
 uid: clean-architecture-ch01
 type: reading
+content_lang: zh-CN
 status: growing
 topics: [software-architecture, books]
 series: clean-architecture
+series_order: 1
 related: [clean-architecture-ch02]
 categories: [读书笔记, 软件架构, Clean Architecture]
 tags: [software-architecture, clean-architecture, reading-notes]

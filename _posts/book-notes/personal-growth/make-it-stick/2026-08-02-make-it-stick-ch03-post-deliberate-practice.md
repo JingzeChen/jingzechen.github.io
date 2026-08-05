@@ -4,9 +4,11 @@ date: 2026-08-01 06:03:00 +0800
 updated: 2026-08-02
 uid: make-it-stick-ch03-post-deliberate-practice
 type: reading
+content_lang: zh-CN
 status: growing
 topics: [learning, books]
 series: make-it-stick
+series_order: 4
 related: [make-it-stick-ch02-knowledge-chains-memory-knots, make-it-stick-ch04-snowball-effect]
 categories: [读书笔记, 个人成长, 认知天性]
 tags: [learning-science, personal-growth, reading-notes]

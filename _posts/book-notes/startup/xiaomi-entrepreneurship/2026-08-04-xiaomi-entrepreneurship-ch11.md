@@ -4,9 +4,11 @@ date: 2026-08-03 05:11:00 +0800
 updated: 2026-08-04
 uid: xiaomi-entrepreneurship-ch11
 type: reading
+content_lang: zh-CN
 status: growing
 topics: [entrepreneurship, books]
 series: xiaomi-entrepreneurship
+series_order: 12
 related: [xiaomi-entrepreneurship-ch10, xiaomi-entrepreneurship-ch12]
 categories: [读书笔记, 创业, 小米创业思考]
 tags: [entrepreneurship, xiaomi, business, reading-notes]

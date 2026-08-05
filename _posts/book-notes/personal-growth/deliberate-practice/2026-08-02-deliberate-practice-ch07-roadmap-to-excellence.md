@@ -4,9 +4,11 @@ date: 2026-08-01 05:07:00 +0800
 updated: 2026-08-02
 uid: deliberate-practice-ch07-roadmap-to-excellence
 type: reading
+content_lang: zh-CN
 status: growing
 topics: [personal-growth, books]
 series: deliberate-practice
+series_order: 8
 related: [deliberate-practice-ch06-in-life, deliberate-practice-ch08-innate-talent]
 categories: [读书笔记, 个人成长, 刻意练习]
 tags: [personal-growth, deliberate-practice, reading-notes]

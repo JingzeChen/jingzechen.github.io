@@ -4,10 +4,13 @@ date: 2026-07-26 00:00:00 +0800
 updated: 2026-08-02
 uid: statistical-learning-methods-notes
 type: reading
+content_lang: zh-CN
 status: growing
 topics: [machine-learning, books]
 series: statistical-learning-methods
+series_order: 1
 featured: true
+why_start_here: 用一张持续维护的知识索引串联监督学习、无监督学习与核心数学工具。
 related:
   - statistical-learning-methods-ch01-introduction
   - statistical-learning-methods-ch02-perceptron

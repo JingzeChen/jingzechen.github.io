@@ -4,9 +4,11 @@ date: 2026-08-01 01:18:00 +0800
 updated: 2026-08-02
 uid: homl-ch18-autoencoders-gans-diffusion
 type: reading
+content_lang: zh-CN
 status: growing
 topics: [machine-learning, books]
 series: hands-on-machine-learning
+series_order: 19
 related: [homl-ch17-accelerating-transformers, homl-ch19-reinforcement-learning]
 categories: [读书笔记, 机器学习, Hands-On Machine Learning]
 tags: [machine-learning, hands-on-ml, reading-notes]

@@ -4,9 +4,11 @@ date: 2026-08-03 01:03:00 +0800
 updated: 2026-08-04
 uid: ai-engineering-ch03-evaluation-methodology
 type: reading
+content_lang: zh-CN
 status: growing
 topics: [ai-engineering, books]
 series: ai-engineering
+series_order: 4
 related: [ai-engineering-ch02-understanding-foundation-models, ai-engineering-ch04-evaluating-ai-systems]
 categories: [读书笔记, AI 系统, AI Engineering]
 tags: [ai-engineering, foundation-models, reading-notes]

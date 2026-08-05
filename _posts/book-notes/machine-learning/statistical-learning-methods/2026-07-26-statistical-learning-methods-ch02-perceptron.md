@@ -4,9 +4,11 @@ date: 2026-07-26 00:02:00 +0800
 updated: 2026-07-26
 uid: statistical-learning-methods-ch02-perceptron
 type: reading
+content_lang: zh-CN
 status: growing
 topics: [machine-learning, books]
 series: statistical-learning-methods
+series_order: 3
 related:
   - statistical-learning-methods-notes
   - statistical-learning-methods-ch01-introduction

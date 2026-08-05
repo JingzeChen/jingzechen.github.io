@@ -4,9 +4,11 @@ date: 2026-08-01 07:12:00 +0800
 updated: 2026-08-02
 uid: pyramid-principle-ch12-words-sentences
 type: reading
+content_lang: zh-CN
 status: growing
 topics: [communication, books]
 series: pyramid-principle
+series_order: 12
 related: [pyramid-principle-ch11-presentation-slides]
 categories: [读书笔记, 个人成长, 金字塔原理]
 tags: [communication, structured-thinking, reading-notes]

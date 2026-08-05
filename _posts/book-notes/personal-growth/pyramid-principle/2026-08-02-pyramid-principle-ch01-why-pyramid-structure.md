@@ -4,9 +4,11 @@ date: 2026-08-01 07:01:00 +0800
 updated: 2026-08-02
 uid: pyramid-principle-ch01-why-pyramid-structure
 type: reading
+content_lang: zh-CN
 status: growing
 topics: [communication, books]
 series: pyramid-principle
+series_order: 1
 related: [pyramid-principle-ch02-internal-structure]
 categories: [读书笔记, 个人成长, 金字塔原理]
 tags: [communication, structured-thinking, reading-notes]

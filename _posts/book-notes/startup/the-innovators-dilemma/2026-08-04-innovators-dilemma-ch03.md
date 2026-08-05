@@ -4,9 +4,11 @@ date: 2026-08-03 04:03:00 +0800
 updated: 2026-08-04
 uid: innovators-dilemma-ch03
 type: reading
+content_lang: zh-CN
 status: growing
 topics: [innovation, books]
 series: the-innovators-dilemma
+series_order: 4
 related: [innovators-dilemma-ch02, innovators-dilemma-ch04]
 categories: [读书笔记, 创业, 创新者的窘境]
 tags: [innovation, disruptive-innovation, strategy, reading-notes]

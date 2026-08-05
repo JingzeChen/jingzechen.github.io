@@ -4,9 +4,11 @@ date: 2026-08-01 03:04:00 +0800
 updated: 2026-08-02
 uid: ospp-ch04-concurrency-threads
 type: reading
+content_lang: zh-CN
 status: growing
 topics: [operating-systems, books]
 series: operating-systems-principles-practice
+series_order: 4
 related: [ospp-ch03-programming-interface, ospp-ch05-shared-object-synchronization]
 categories: [读书笔记, 操作系统, OSPP]
 tags: [operating-systems, ospp, reading-notes]

@@ -4,9 +4,11 @@ date: 2026-08-01 07:07:00 +0800
 updated: 2026-08-02
 uid: pyramid-principle-ch07-summarize-groups
 type: reading
+content_lang: zh-CN
 status: growing
 topics: [communication, books]
 series: pyramid-principle
+series_order: 7
 related: [pyramid-principle-ch06-logical-order, pyramid-principle-ch08-define-problem]
 categories: [读书笔记, 个人成长, 金字塔原理]
 tags: [communication, structured-thinking, reading-notes]

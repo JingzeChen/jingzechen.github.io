@@ -14,6 +14,7 @@ module Garden
     def generate(site)
       site.posts.docs.each do |post|
         root = Kramdown::Document.new(post.content, input: "GFM").root
+        headings = collect_headings(root)
         body_text = normalize(extract_text(root))
         excerpt_source = if post.data["garden_description_valid"]
                            post.data["description"]
@@ -23,10 +24,29 @@ module Garden
 
         post.data["garden_search_excerpt"] = truncate(normalize(excerpt_source), MAX_EXCERPT_LENGTH)
         post.data["garden_search_text"] = truncate(body_text, MAX_SEARCH_TEXT_LENGTH)
+        post.data["garden_heading_counts"] = headings.map { |heading| heading.options[:level] }.tally
+        post.data["garden_toc_items"] = headings.size
+        post.data["garden_h2_headings"] = headings.filter_map do |heading|
+          next unless heading.options[:level] == 2
+
+          { "id" => heading.attr["id"], "title" => heading.options[:raw_text] }
+        end
       end
     end
 
     private
+
+    def collect_headings(root)
+      headings = []
+      stack = [root]
+      until stack.empty?
+        element = stack.pop
+        level = element.options[:level]
+        headings << element if element.type == :header && (2..4).cover?(level)
+        stack.concat(element.children.reverse)
+      end
+      headings
+    end
 
     def extract_text(element)
       return "" if EXCLUDED_TYPES.include?(element.type)

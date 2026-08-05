@@ -4,9 +4,11 @@ date: 2026-08-01 02:15:00 +0800
 updated: 2026-08-02
 uid: statistical-learning-methods-ch15-singular-value-decomposition
 type: reading
+content_lang: zh-CN
 status: growing
 topics: [machine-learning, books]
 series: statistical-learning-methods
+series_order: 16
 related: [statistical-learning-methods-ch14-clustering, statistical-learning-methods-ch16-principal-component-analysis]
 categories: [读书笔记, 机器学习, 统计学习方法]
 tags: [statistical-learning, machine-learning, reading-notes]

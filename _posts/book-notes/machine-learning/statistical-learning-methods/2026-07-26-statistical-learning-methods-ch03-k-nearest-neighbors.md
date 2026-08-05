@@ -4,9 +4,11 @@ date: 2026-07-26 00:03:00 +0800
 updated: 2026-08-02
 uid: statistical-learning-methods-ch03-k-nearest-neighbors
 type: reading
+content_lang: zh-CN
 status: growing
 topics: [machine-learning, books]
 series: statistical-learning-methods
+series_order: 4
 related: [statistical-learning-methods-notes, statistical-learning-methods-ch02-perceptron, statistical-learning-methods-ch04-naive-bayes]
 categories: [读书笔记, 机器学习, 统计学习方法]
 tags: [statistical-learning, k-nearest-neighbors, reading-notes]
