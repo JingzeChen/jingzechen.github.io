@@ -8,8 +8,8 @@ content_lang: zh-CN
 status: growing
 topics: [software-architecture]
 series: clean-architecture
-series_order: 1
-related: [clean-architecture-ch02]
+series_order: 2
+related: [clean-architecture-preface-introduction, clean-architecture-ch02]
 categories: [读书笔记, 软件架构, Clean Architecture]
 tags: [software-architecture, clean-architecture, reading-notes]
 description: "重新定义设计与架构为从高层政策到低层细节的连续体，并以全生命周期内持续低成本响应需求作为好架构的检验标准。"

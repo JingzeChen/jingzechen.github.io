@@ -8,7 +8,7 @@ content_lang: zh-CN
 status: growing
 topics: [software-architecture]
 series: clean-architecture
-series_order: 2
+series_order: 3
 related: [clean-architecture-ch01, clean-architecture-ch03]
 categories: [读书笔记, 软件架构, Clean Architecture]
 tags: [software-architecture, clean-architecture, reading-notes]

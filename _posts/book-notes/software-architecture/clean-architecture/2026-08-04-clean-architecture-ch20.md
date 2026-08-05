@@ -8,8 +8,8 @@ content_lang: zh-CN
 status: growing
 topics: [software-architecture]
 series: clean-architecture
-series_order: 20
-related: [clean-architecture-ch19]
+series_order: 21
+related: [clean-architecture-ch19, clean-architecture-ch21]
 categories: [读书笔记, 软件架构, Clean Architecture]
 tags: [software-architecture, clean-architecture, reading-notes]
 description: "区分关键业务规则与应用特定规则，明确 Entity、Use Case 和请求响应模型的职责，防止数据库与界面对象侵入系统核心。"
