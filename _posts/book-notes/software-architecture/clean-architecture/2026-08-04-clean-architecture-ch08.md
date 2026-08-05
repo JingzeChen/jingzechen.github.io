@@ -6,13 +6,13 @@ uid: clean-architecture-ch08
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [software-architecture, books]
+topics: [software-architecture]
 series: clean-architecture
 series_order: 8
 related: [clean-architecture-ch07, clean-architecture-ch09]
 categories: [读书笔记, 软件架构, Clean Architecture]
 tags: [software-architecture, clean-architecture, reading-notes]
-description: "围绕「《Clean Architecture》Chapter 8 读书笔记」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "通过 Web 与打印报表的扩展示例，说明 SRP 如何分离变化、DIP 如何调整依赖，使稳定业务规则免受新呈现方式影响。"
 toc: true
 mermaid: true
 ---

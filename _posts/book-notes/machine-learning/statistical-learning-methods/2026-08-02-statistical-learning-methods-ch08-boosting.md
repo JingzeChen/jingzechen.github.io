@@ -6,13 +6,13 @@ uid: statistical-learning-methods-ch08-boosting
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [machine-learning, books]
+topics: [machine-learning]
 series: statistical-learning-methods
 series_order: 9
 related: [statistical-learning-methods-ch07-support-vector-machines, statistical-learning-methods-ch09-em-algorithm]
 categories: [读书笔记, 机器学习, 统计学习方法]
 tags: [statistical-learning, machine-learning, reading-notes]
-description: "围绕「提升方法」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "由错分样本重加权和加权表决推导 AdaBoost，证明训练误差界及指数损失的前向分步解释，再推广到残差拟合与梯度提升。"
 toc: true
 math: true
 ---

@@ -6,13 +6,13 @@ uid: clean-architecture-ch10
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [software-architecture, books]
+topics: [software-architecture]
 series: clean-architecture
 series_order: 10
 related: [clean-architecture-ch09, clean-architecture-ch11]
 categories: [读书笔记, 软件架构, Clean Architecture]
 tags: [software-architecture, clean-architecture, reading-notes]
-description: "围绕「《Clean Architecture》Chapter 10 读书笔记」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "从 OPS 宽接口到系统级依赖链，说明客户端为何只应依赖实际使用的能力，以缩小变更、构建、部署与故障传播范围。"
 toc: true
 mermaid: true
 ---

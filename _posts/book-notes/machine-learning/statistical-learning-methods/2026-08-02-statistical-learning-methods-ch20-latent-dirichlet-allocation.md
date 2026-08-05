@@ -6,13 +6,13 @@ uid: statistical-learning-methods-ch20-latent-dirichlet-allocation
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [machine-learning, books]
+topics: [machine-learning]
 series: statistical-learning-methods
 series_order: 21
 related: [statistical-learning-methods-ch19-markov-chain-monte-carlo, statistical-learning-methods-ch21-pagerank]
 categories: [读书笔记, 机器学习, 统计学习方法]
 tags: [statistical-learning, machine-learning, reading-notes]
-description: "围绕「潜在狄利克雷分配」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "用 Dirichlet 先验修正 PLSA 的参数增长与新文档问题，展开 LDA 分层生成过程，并比较折叠 Gibbs 与变分 EM 的后验近似。"
 toc: true
 math: true
 ---

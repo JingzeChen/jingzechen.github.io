@@ -6,13 +6,13 @@ uid: statistical-learning-methods-ch13-unsupervised-learning-introduction
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [machine-learning, books]
+topics: [machine-learning]
 series: statistical-learning-methods
 series_order: 14
 related: [statistical-learning-methods-ch12-supervised-learning-summary, statistical-learning-methods-ch14-clustering]
 categories: [读书笔记, 机器学习, 统计学习方法]
 tags: [statistical-learning, machine-learning, reading-notes]
-description: "围绕「无监督学习概论」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "以“压缩即结构”的假设建立无监督学习框架，区分聚类、降维和概率估计的纵向与横向结构，并给出模型、策略、算法路线图。"
 toc: true
 render_with_liquid: false
 math: true

@@ -6,13 +6,13 @@ uid: algorithm-interview-ch21
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [algorithms, books]
+topics: [algorithms]
 series: algorithm-interview
 series_order: 22
 related: [algorithm-interview-ch20, algorithm-interview-ch22]
 categories: [读书笔记, 算法, 算法面试]
 tags: [algorithms, data-structures, coding-interviews, reading-notes]
-description: "围绕「动态规划」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "从重叠子问题出发建立状态、转移、初值、顺序和答案位置，贯通坐标、序列、背包、树形、区间及 Floyd 动态规划。"
 toc: true
 render_with_liquid: false
 math: true

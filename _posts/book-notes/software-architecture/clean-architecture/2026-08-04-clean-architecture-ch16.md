@@ -6,13 +6,13 @@ uid: clean-architecture-ch16
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [software-architecture, books]
+topics: [software-architecture]
 series: clean-architecture
 series_order: 16
 related: [clean-architecture-ch15, clean-architecture-ch17]
 categories: [读书笔记, 软件架构, Clean Architecture]
 tags: [software-architecture, clean-architecture, reading-notes]
-description: "围绕「《Clean Architecture》Chapter 16 读书笔记」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "同时按层和用例解耦系统，区分逻辑边界与源码、部署、服务等物理模式，让业务意图可见并保留拆分或合并选择。"
 toc: true
 mermaid: true
 ---

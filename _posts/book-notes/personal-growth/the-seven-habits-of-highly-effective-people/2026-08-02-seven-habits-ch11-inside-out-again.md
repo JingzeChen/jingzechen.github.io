@@ -6,13 +6,13 @@ uid: seven-habits-ch11-inside-out-again
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [personal-growth, books]
+topics: [personal-growth]
 series: seven-habits
 series_order: 12
 related: [seven-habits-ch10-sharpen-the-saw, seven-habits-appendix-time-management-life-centers]
 categories: [读书笔记, 个人成长, 高效能人士的七个习惯]
 tags: [personal-growth, seven-habits, reading-notes]
-description: "围绕「第十一章 再论由内而外造就自己」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "从刺激与回应之间恢复选择空间，通过安全而持续的深度交流看见关系与代际模式，先改变自己，再终止有害循环并传递原则。"
 toc: true
 ---
 

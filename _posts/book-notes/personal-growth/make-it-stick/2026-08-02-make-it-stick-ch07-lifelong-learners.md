@@ -6,13 +6,13 @@ uid: make-it-stick-ch07-lifelong-learners
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [learning, books]
+topics: [learning]
 series: make-it-stick
 series_order: 8
 related: [make-it-stick-ch06-learning-styles, make-it-stick-ch08-learning-strategies]
 categories: [读书笔记, 个人成长, 认知天性]
 tags: [learning-science, personal-growth, reading-notes]
-description: "围绕「终身学习者基本的基本」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "把终身学习视为基因、环境、自控、成长心态、专项练习与助记工具共同作用的发展系统，同时警惕把可塑性等同于无限迁移。"
 toc: true
 math: true
 mermaid: true

@@ -6,13 +6,13 @@ uid: ospp-ch09-caching-virtual-memory
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [operating-systems, books]
+topics: [operating-systems]
 series: operating-systems-principles-practice
 series_order: 9
 related: [ospp-ch08-address-translation, ospp-ch10-advanced-memory-management]
 categories: [读书笔记, 操作系统, OSPP]
 tags: [operating-systems, ospp, reading-notes]
-description: "围绕「局部性、替换策略与按需分页」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "以局部性和工作集解释缓存命中，比较相联查找与 FIFO、LRU、Clock 等替换策略，再把主存推导为磁盘页的按需缓存。"
 toc: true
 math: true
 mermaid: true

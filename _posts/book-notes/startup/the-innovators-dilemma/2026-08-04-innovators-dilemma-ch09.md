@@ -6,13 +6,13 @@ uid: innovators-dilemma-ch09
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [innovation, books]
+topics: [innovation]
 series: the-innovators-dilemma
 series_order: 10
 related: [innovators-dilemma-ch08, innovators-dilemma-ch10]
 categories: [读书笔记, 创业, 创新者的窘境]
 tags: [innovation, disruptive-innovation, strategy, reading-notes]
-description: "围绕「《创新者的窘境》第九章读书笔记」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "从3.5英寸硬盘替代、QuickBooks与胰岛素案例解释性能过度供给如何改变客户选择标准，并推动竞争基础与产品生命周期迁移。"
 toc: true
 math: true
 mermaid: true

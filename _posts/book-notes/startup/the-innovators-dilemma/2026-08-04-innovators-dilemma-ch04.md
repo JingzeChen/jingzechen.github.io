@@ -6,13 +6,13 @@ uid: innovators-dilemma-ch04
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [innovation, books]
+topics: [innovation]
 series: the-innovators-dilemma
 series_order: 5
 related: [innovators-dilemma-ch03, innovators-dilemma-ch05]
 categories: [读书笔记, 创业, 创新者的窘境]
 tags: [innovation, disruptive-innovation, strategy, reading-notes]
-description: "围绕「《创新者的窘境》第四章读书笔记」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "以希捷上移和小型钢厂逐级攻入板材市场为证，解释高毛利激励、成本结构与组织筛选为何让企业易上难下。"
 toc: true
 math: true
 mermaid: true

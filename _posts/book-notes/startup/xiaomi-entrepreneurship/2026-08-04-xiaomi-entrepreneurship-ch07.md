@@ -6,13 +6,13 @@ uid: xiaomi-entrepreneurship-ch07
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [entrepreneurship, books]
+topics: [entrepreneurship]
 series: xiaomi-entrepreneurship
 series_order: 8
 related: [xiaomi-entrepreneurship-ch06, xiaomi-entrepreneurship-ch08]
 categories: [读书笔记, 创业, 小米创业思考]
 tags: [entrepreneurship, xiaomi, business, reading-notes]
-description: "围绕「《小米创业思考》第七章《技术为本》读书笔记」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "从五大技术板块、百万美元技术奖与工程师自发项目出发，区分研发投入、技术能力和创新文化如何共同沉淀长期竞争力。"
 toc: true
 mermaid: true
 ---

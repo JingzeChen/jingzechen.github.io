@@ -6,13 +6,13 @@ uid: make-it-stick-ch02-knowledge-chains-memory-knots
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [learning, books]
+topics: [learning]
 series: make-it-stick
 series_order: 3
 related: [make-it-stick-ch01-learning-challenges-human-nature, make-it-stick-ch03-post-deliberate-practice]
 categories: [读书笔记, 个人成长, 认知天性]
 tags: [learning-science, personal-growth, reading-notes]
-description: "围绕「学习的本质——知识链和记忆结」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "揭示回忆并非只测记忆：间隔检索会重新激活并巩固知识、暴露缺口，低权重测验则把纠错嵌入日常学习。"
 toc: true
 math: true
 mermaid: true

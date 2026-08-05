@@ -78,7 +78,7 @@ module Garden
         ordered_posts = if explicit_orders.size == series_posts.size
                           series_posts.sort_by { |post| post.data["series_order"] }
                         else
-                          series_posts.sort_by(&:date)
+                          series_posts.sort_by { |post| [post.date, post.relative_path] }
                         end
 
         ordered_posts.each_with_index do |post, index|

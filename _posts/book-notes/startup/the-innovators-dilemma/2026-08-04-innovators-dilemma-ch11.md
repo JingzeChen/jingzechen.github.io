@@ -6,13 +6,13 @@ uid: innovators-dilemma-ch11
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [innovation, books]
+topics: [innovation]
 series: the-innovators-dilemma
 series_order: 12
 related: [innovators-dilemma-ch10]
 categories: [读书笔记, 创业, 创新者的窘境]
 tags: [innovation, disruptive-innovation, strategy, reading-notes]
-description: "围绕「《创新者的窘境》第十一章读书笔记」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "将全书证据收束为七点洞察与四项原则，说明真正解法不是更努力管理，而是让组织规模、客户和成本结构匹配破坏性机会。"
 toc: true
 math: true
 mermaid: true

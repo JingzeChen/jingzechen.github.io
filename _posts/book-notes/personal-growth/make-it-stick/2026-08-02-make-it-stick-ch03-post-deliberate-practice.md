@@ -6,13 +6,13 @@ uid: make-it-stick-ch03-post-deliberate-practice
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [learning, books]
+topics: [learning]
 series: make-it-stick
 series_order: 4
 related: [make-it-stick-ch02-knowledge-chains-memory-knots, make-it-stick-ch04-snowball-effect]
 categories: [读书笔记, 个人成长, 认知天性]
 tags: [learning-science, personal-growth, reading-notes]
-description: "围绕「“后刻意练习”时代的到来」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "比较集中、间隔、穿插与多样化练习，说明眼前正确率为何会误导，并用辨识题型和调整动作换取长期保持与迁移。"
 toc: true
 math: true
 mermaid: true

@@ -6,13 +6,13 @@ uid: homl-ch06-ensemble-learning-random-forests
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [machine-learning, books]
+topics: [machine-learning]
 series: hands-on-machine-learning
 series_order: 7
 related: [homl-ch05-decision-trees, homl-ch07-dimensionality-reduction]
 categories: [读书笔记, 机器学习, Hands-On Machine Learning]
 tags: [machine-learning, hands-on-ml, reading-notes]
-description: "围绕「集成学习与随机森林」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "从误差相关性解释集成为何有效，比较投票、Bagging、随机森林、AdaBoost、梯度提升与 Stacking 的训练和评估路径。"
 toc: true
 math: true
 mermaid: true

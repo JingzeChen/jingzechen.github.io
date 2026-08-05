@@ -6,13 +6,13 @@ uid: algorithm-interview-ch10
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [algorithms, books]
+topics: [algorithms]
 series: algorithm-interview
 series_order: 11
 related: [algorithm-interview-ch09, algorithm-interview-ch11]
 categories: [读书笔记, 算法, 算法面试]
 tags: [algorithms, data-structures, coding-interviews, reading-notes]
-description: "围绕「《算法面试（全二册）》第 10 章“并查集”读书笔记」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "用森林代表元刻画动态连通性，推导路径压缩与按秩合并的近常数均摊代价，并扩展到网格和带权约束。"
 toc: true
 render_with_liquid: false
 math: true

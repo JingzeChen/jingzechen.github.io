@@ -6,7 +6,7 @@ uid: statistical-learning-methods-ch03-k-nearest-neighbors
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [machine-learning, books]
+topics: [machine-learning]
 series: statistical-learning-methods
 series_order: 4
 related: [statistical-learning-methods-notes, statistical-learning-methods-ch02-perceptron, statistical-learning-methods-ch04-naive-bayes]

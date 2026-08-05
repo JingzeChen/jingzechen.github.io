@@ -6,13 +6,13 @@ uid: xiaomi-entrepreneurship-ch03
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [entrepreneurship, books]
+topics: [entrepreneurship]
 series: xiaomi-entrepreneurship
 series_order: 4
 related: [xiaomi-entrepreneurship-ch02, xiaomi-entrepreneurship-ch04]
 categories: [读书笔记, 创业, 小米创业思考]
 tags: [entrepreneurship, xiaomi, business, reading-notes]
-description: "围绕「《小米创业思考》第三章《重回增长》读书笔记」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "从上市前设立硬件净利润率5%红线到印度、欧洲本地化，分析小米如何把创始人信念制度化并检验全球增长模式。"
 toc: true
 mermaid: true
 ---

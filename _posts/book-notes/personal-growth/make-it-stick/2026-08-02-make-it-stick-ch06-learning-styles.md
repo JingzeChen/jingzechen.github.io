@@ -6,13 +6,13 @@ uid: make-it-stick-ch06-learning-styles
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [learning, books]
+topics: [learning]
 series: make-it-stick
 series_order: 7
 related: [make-it-stick-ch05-mental-models, make-it-stick-ch07-lifelong-learners]
 categories: [读书笔记, 个人成长, 认知天性]
 tags: [learning-science, personal-growth, reading-notes]
-description: "围绕「选择适合自己的学习风格」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "反驳视觉型、听觉型等媒介匹配假说，转而按任务、先备能力和实测弱点选择策略，并从案例比较中提炼可迁移规则。"
 toc: true
 math: true
 mermaid: true

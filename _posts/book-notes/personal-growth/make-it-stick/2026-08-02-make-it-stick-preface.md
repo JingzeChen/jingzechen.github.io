@@ -6,13 +6,13 @@ uid: make-it-stick-preface
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [learning, books]
+topics: [learning]
 series: make-it-stick
 series_order: 1
 related: [make-it-stick-ch01-learning-challenges-human-nature]
 categories: [读书笔记, 个人成长, 认知天性]
 tags: [learning-science, personal-growth, reading-notes]
-description: "围绕「让学习轻而易举的心理学规律》序与前言读书笔记」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "用白纸回忆法重新定义学习成效：不看材料仍能检索、解释并迁移，才比笔记数量、重复阅读和即时熟悉感更可靠。"
 toc: true
 math: true
 mermaid: true

@@ -6,13 +6,13 @@ uid: clean-architecture-ch14
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [software-architecture, books]
+topics: [software-architecture]
 series: clean-architecture
 series_order: 14
 related: [clean-architecture-ch13, clean-architecture-ch15]
 categories: [读书笔记, 软件架构, Clean Architecture]
 tags: [software-architecture, clean-architecture, reading-notes]
-description: "围绕「《Clean Architecture》Chapter 14 读书笔记」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "串联 ADP、SDP、SAP 与稳定性度量，学习消除依赖环、让箭头指向稳定抽象，并识别僵化区和无用区。"
 toc: true
 mermaid: true
 ---

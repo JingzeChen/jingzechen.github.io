@@ -6,13 +6,13 @@ uid: ospp-ch14-reliable-storage
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [operating-systems, books]
+topics: [operating-systems]
 series: operating-systems-principles-practice
 series_order: 14
 related: [ospp-ch13-files-directories]
 categories: [读书笔记, 操作系统, OSPP]
 tags: [operating-systems, ospp, reading-notes]
-description: "围绕「可靠存储」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "区分更新中断与介质损坏两类故障，用事务恢复保证原子提交，以校验、RAID、复制和备份分层处理检测、纠错与灾难恢复。"
 toc: true
 render_with_liquid: false
 math: true

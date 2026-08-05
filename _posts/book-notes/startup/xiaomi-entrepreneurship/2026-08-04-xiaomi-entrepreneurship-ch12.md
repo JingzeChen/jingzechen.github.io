@@ -6,13 +6,13 @@ uid: xiaomi-entrepreneurship-ch12
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [entrepreneurship, books]
+topics: [entrepreneurship]
 series: xiaomi-entrepreneurship
 series_order: 13
 related: [xiaomi-entrepreneurship-ch11, xiaomi-entrepreneurship-ch13]
 categories: [读书笔记, 创业, 小米创业思考]
 tags: [entrepreneurship, xiaomi, business, reading-notes]
-description: "围绕「《小米创业思考》第十二章《生态链模式》读书笔记」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "解析少数股权投资加全方位孵化的生态链模式，说明小米如何让独立团队专注品类，同时共享产品、供应链、渠道与AIoT能力。"
 toc: true
 mermaid: true
 ---

@@ -6,13 +6,13 @@ uid: statistical-learning-methods-ch10-hidden-markov-models
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [machine-learning, books]
+topics: [machine-learning]
 series: statistical-learning-methods
 series_order: 11
 related: [statistical-learning-methods-ch09-em-algorithm, statistical-learning-methods-ch11-conditional-random-fields]
 categories: [读书笔记, 机器学习, 统计学习方法]
 tags: [statistical-learning, machine-learning, reading-notes]
-description: "围绕「隐马尔可夫模型」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "以隐藏状态生成观测序列建立 HMM，分别用前向后向、Baum-Welch 和 Viterbi 解决概率计算、参数学习与最优路径解码。"
 toc: true
 math: true
 ---

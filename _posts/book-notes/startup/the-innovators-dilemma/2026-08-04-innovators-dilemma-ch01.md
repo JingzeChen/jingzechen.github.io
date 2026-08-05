@@ -6,13 +6,13 @@ uid: innovators-dilemma-ch01
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [innovation, books]
+topics: [innovation]
 series: the-innovators-dilemma
 series_order: 2
 related: [innovators-dilemma-introduction, innovators-dilemma-ch02]
 categories: [读书笔记, 创业, 创新者的窘境]
 tags: [innovation, disruptive-innovation, strategy, reading-notes]
-description: "围绕「《创新者的窘境》第一章读书笔记」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "以硬盘业多轮尺寸迁移为证，区分延续性与破坏性技术，揭示客户需求和资源分配如何让领先企业错失新市场。"
 toc: true
 math: true
 mermaid: true

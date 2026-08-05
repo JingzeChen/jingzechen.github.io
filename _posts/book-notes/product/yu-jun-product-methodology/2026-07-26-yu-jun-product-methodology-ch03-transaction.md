@@ -6,7 +6,7 @@ uid: yu-jun-product-methodology-ch03-transaction
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [product-management, books]
+topics: [product-management]
 series: yu-jun-product-methodology
 series_order: 4
 related:

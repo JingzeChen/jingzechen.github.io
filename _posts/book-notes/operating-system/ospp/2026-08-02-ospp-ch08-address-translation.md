@@ -6,13 +6,13 @@ uid: ospp-ch08-address-translation
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [operating-systems, books]
+topics: [operating-systems]
 series: operating-systems-principles-practice
 series_order: 8
 related: [ospp-ch07-scheduling, ospp-ch09-caching-virtual-memory]
 categories: [读书笔记, 操作系统, OSPP]
 tags: [operating-systems, ospp, reading-notes]
-description: "围绕「从虚拟地址到受保护的物理内存」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "推导虚拟地址到物理页框的分页映射，比较分段、多级页表、TLB 与大页在保护、稀疏空间、转换速度和一致性上的取舍。"
 toc: true
 math: true
 mermaid: true

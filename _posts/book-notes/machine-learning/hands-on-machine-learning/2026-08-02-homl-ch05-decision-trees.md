@@ -6,13 +6,13 @@ uid: homl-ch05-decision-trees
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [machine-learning, books]
+topics: [machine-learning]
 series: hands-on-machine-learning
 series_order: 6
 related: [homl-ch04-training-models, homl-ch06-ensemble-learning-random-forests]
 categories: [读书笔记, 机器学习, Hands-On Machine Learning]
 tags: [machine-learning, hands-on-ml, reading-notes]
-description: "围绕「决策树（Decision Trees）」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "以 Iris 分类树拆解 CART 的特征与阈值选择，比较 Gini、熵和回归 MSE，并分析结构正则化、轴向敏感与高方差。"
 toc: true
 math: true
 mermaid: true

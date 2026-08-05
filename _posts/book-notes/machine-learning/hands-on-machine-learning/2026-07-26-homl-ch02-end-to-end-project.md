@@ -6,7 +6,7 @@ uid: homl-ch02-end-to-end-project
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [machine-learning, books]
+topics: [machine-learning]
 series: hands-on-machine-learning
 series_order: 3
 related: [homl-ch01-ml-landscape, homl-ch03-classification]

@@ -6,13 +6,13 @@ uid: deliberate-practice-ch04-gold-standard
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [personal-growth, books]
+topics: [personal-growth]
 series: deliberate-practice
 series_order: 5
 related: [deliberate-practice-ch03-mental-representations, deliberate-practice-ch05-at-work]
 categories: [读书笔记, 个人成长, 刻意练习]
 tags: [personal-growth, deliberate-practice, reading-notes]
-description: "围绕「第 4 章 黄金标准」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "严格界定刻意练习：成熟领域的卓越标准、验证过的训练路径与合格导师，如何让专项纠错超越盲目投入和一万小时迷思。"
 toc: true
 math: true
 mermaid: true

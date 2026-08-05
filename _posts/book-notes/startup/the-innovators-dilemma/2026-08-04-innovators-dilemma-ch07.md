@@ -6,13 +6,13 @@ uid: innovators-dilemma-ch07
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [innovation, books]
+topics: [innovation]
 series: the-innovators-dilemma
 series_order: 8
 related: [innovators-dilemma-ch06, innovators-dilemma-ch08]
 categories: [读书笔记, 创业, 创新者的窘境]
 tags: [innovation, disruptive-innovation, strategy, reading-notes]
-description: "围绕「《创新者的窘境》第七章读书笔记」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "对照硬盘预测误差、惠普Kittyhawk失败与本田英特尔转向，说明未知市场要靠低成本试错和学习计划发现，而非精确预测。"
 toc: true
 math: true
 mermaid: true

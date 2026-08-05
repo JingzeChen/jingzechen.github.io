@@ -6,13 +6,13 @@ uid: clean-architecture-ch17
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [software-architecture, books]
+topics: [software-architecture]
 series: clean-architecture
 series_order: 17
 related: [clean-architecture-ch16, clean-architecture-ch18]
 categories: [读书笔记, 软件架构, Clean Architecture]
 tags: [software-architecture, clean-architecture, reading-notes]
-description: "围绕「《Clean Architecture》Chapter 17 读书笔记」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "以数据库、GUI 和框架为插件，说明边界应画在不同变化轴之间，且源码依赖要从外围细节指向稳定业务策略。"
 toc: true
 mermaid: true
 ---

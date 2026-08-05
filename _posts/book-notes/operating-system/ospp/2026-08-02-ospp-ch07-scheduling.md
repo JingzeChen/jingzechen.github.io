@@ -6,13 +6,13 @@ uid: ospp-ch07-scheduling
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [operating-systems, books]
+topics: [operating-systems]
 series: operating-systems-principles-practice
 series_order: 7
 related: [ospp-ch06-multi-object-synchronization, ospp-ch08-address-translation]
 categories: [读书笔记, 操作系统, OSPP]
 tags: [operating-systems, ospp, reading-notes]
-description: "围绕「从单处理器公平到数据中心资源管理」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "从响应时间、吞吐、尾延迟、公平和能耗目标比较单核与多核调度，并用排队论说明过载时调度无法替代容量管理。"
 toc: true
 math: true
 mermaid: true

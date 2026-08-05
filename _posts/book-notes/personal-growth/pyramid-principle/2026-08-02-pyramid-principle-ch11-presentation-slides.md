@@ -6,13 +6,13 @@ uid: pyramid-principle-ch11-presentation-slides
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [communication, books]
+topics: [communication]
 series: pyramid-principle
 series_order: 11
 related: [pyramid-principle-ch10-written-presentation, pyramid-principle-ch12-words-sentences]
 categories: [读书笔记, 个人成长, 金字塔原理]
 tags: [communication, structured-thinking, reading-notes]
-description: "围绕「在 PPT 演示文稿中呈现金字塔读书笔记」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "将报告改写成现场体验：演讲者负责叙事，文字页固定一个结论，图表页呈现关系，故事板统筹页面顺序与节奏。"
 toc: true
 math: true
 mermaid: true

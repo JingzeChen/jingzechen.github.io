@@ -6,13 +6,13 @@ uid: homl-ch13-rnns-cnns-sequences
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [machine-learning, books]
+topics: [machine-learning]
 series: hands-on-machine-learning
 series_order: 14
 related: [homl-ch12-convolutional-neural-networks, homl-ch14-rnns-attention-nlp]
 categories: [读书笔记, 机器学习, Hands-On Machine Learning]
 tags: [machine-learning, hands-on-ml, reading-notes]
-description: "围绕「使用 RNN 和 CNN 处理序列」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "用 BPTT 训练递归状态完成时间序列预测，比较基线、简单 RNN、LSTM/GRU 与因果膨胀 CNN，并强调时间切分和泄漏。"
 toc: true
 math: true
 mermaid: true

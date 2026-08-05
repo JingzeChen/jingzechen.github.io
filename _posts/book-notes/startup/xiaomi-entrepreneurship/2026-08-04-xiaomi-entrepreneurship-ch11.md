@@ -6,13 +6,13 @@ uid: xiaomi-entrepreneurship-ch11
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [entrepreneurship, books]
+topics: [entrepreneurship]
 series: xiaomi-entrepreneurship
 series_order: 12
 related: [xiaomi-entrepreneurship-ch10, xiaomi-entrepreneurship-ch12]
 categories: [读书笔记, 创业, 小米创业思考]
 tags: [entrepreneurship, xiaomi, business, reading-notes]
-description: "围绕「《小米创业思考》第十一章《新零售》读书笔记」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "追踪小米从纯电商、直营试水、安阳模式受挫到PPP共营的渠道演进，说明线下扩张应重构货权、数字化与库存效率。"
 toc: true
 mermaid: true
 ---

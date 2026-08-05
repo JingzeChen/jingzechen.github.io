@@ -6,13 +6,13 @@ uid: algorithm-interview-ch22
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [algorithms, books]
+topics: [algorithms]
 series: algorithm-interview
 series_order: 23
 related: [algorithm-interview-ch21, algorithm-interview-ch23]
 categories: [读书笔记, 算法, 算法面试]
 tags: [algorithms, data-structures, coding-interviews, reading-notes]
-description: "围绕「贪心法」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "围绕不可撤销的局部选择，用交换论证、割性质和标签确定性证明贪心正确，覆盖区间、生成树与非负权最短路。"
 toc: true
 render_with_liquid: false
 math: true

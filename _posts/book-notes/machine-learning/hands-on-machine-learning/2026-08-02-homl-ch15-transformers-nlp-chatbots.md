@@ -6,13 +6,13 @@ uid: homl-ch15-transformers-nlp-chatbots
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [machine-learning, books]
+topics: [machine-learning]
 series: hands-on-machine-learning
 series_order: 16
 related: [homl-ch14-rnns-attention-nlp, homl-ch16-vision-multimodal-transformers]
 categories: [读书笔记, 机器学习, Hands-On Machine Learning]
 tags: [machine-learning, hands-on-ml, reading-notes]
-description: "围绕「用于自然语言处理和聊天机器人的 Transformer」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "拆解编码器、解码器与多头注意力，比较 BERT、GPT 和编码器-解码器预训练，并延伸到 SFT、RLHF/DPO、RAG 与工具编排。"
 toc: true
 math: true
 mermaid: true

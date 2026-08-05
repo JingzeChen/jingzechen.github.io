@@ -6,13 +6,13 @@ uid: algorithm-interview-ch18
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [algorithms, books]
+topics: [algorithms]
 series: algorithm-interview
 series_order: 19
 related: [algorithm-interview-ch17, algorithm-interview-ch19]
 categories: [读书笔记, 算法, 算法面试]
 tags: [algorithms, data-structures, coding-interviews, reading-notes]
-description: "围绕「DFS、BFS 和拓扑排序」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "把问题建模为状态图，比较 DFS 深入、BFS 分层与入度消除的访问不变量，覆盖连通、无权最短路和 DAG 排序。"
 toc: true
 render_with_liquid: false
 math: true

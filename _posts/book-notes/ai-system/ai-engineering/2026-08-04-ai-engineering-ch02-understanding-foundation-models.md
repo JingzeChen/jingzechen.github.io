@@ -6,13 +6,13 @@ uid: ai-engineering-ch02-understanding-foundation-models
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [ai-engineering, books]
+topics: [ai-engineering]
 series: ai-engineering
 series_order: 3
 related: [ai-engineering-ch01-foundation-model-applications, ai-engineering-ch03-evaluation-methodology]
 categories: [读书笔记, AI 系统, AI Engineering]
 tags: [ai-engineering, foundation-models, reading-notes]
-description: "围绕「理解基础模型」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "从训练数据、Transformer、模型规模、后训练与采样机制出发，理解基础模型的能力、成本、偏差和生成风险如何形成。"
 toc: true
 math: true
 mermaid: true

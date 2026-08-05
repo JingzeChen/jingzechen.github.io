@@ -6,13 +6,13 @@ uid: innovators-dilemma-ch03
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [innovation, books]
+topics: [innovation]
 series: the-innovators-dilemma
 series_order: 4
 related: [innovators-dilemma-ch02, innovators-dilemma-ch04]
 categories: [读书笔记, 创业, 创新者的窘境]
 tags: [innovation, disruptive-innovation, strategy, reading-notes]
-description: "围绕「《创新者的窘境》第三章读书笔记」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "追踪液压挖掘机从住宅挖沟向主流市场上移的二十年路径，证明破坏性取决于价值网与性能轨道，而非技术变化速度。"
 toc: true
 math: true
 mermaid: true

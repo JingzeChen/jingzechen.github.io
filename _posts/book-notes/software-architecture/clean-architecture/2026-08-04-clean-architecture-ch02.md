@@ -6,13 +6,13 @@ uid: clean-architecture-ch02
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [software-architecture, books]
+topics: [software-architecture]
 series: clean-architecture
 series_order: 2
 related: [clean-architecture-ch01, clean-architecture-ch03]
 categories: [读书笔记, 软件架构, Clean Architecture]
 tags: [software-architecture, clean-architecture, reading-notes]
-description: "围绕「《Clean Architecture》Chapter 2 读书笔记」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "区分软件的行为价值与结构价值，解释为何当前功能的紧急性会挤压未来可修改性，以及开发者为何必须捍卫二者。"
 toc: true
 mermaid: true
 ---

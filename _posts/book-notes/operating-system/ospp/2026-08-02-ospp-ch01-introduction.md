@@ -6,13 +6,13 @@ uid: ospp-ch01-introduction
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [operating-systems, books]
+topics: [operating-systems]
 series: operating-systems-principles-practice
 series_order: 1
 related: [ospp-ch02-kernel-abstraction]
 categories: [读书笔记, 操作系统, OSPP]
 tags: [operating-systems, ospp, reading-notes]
-description: "围绕「操作系统是什么、如何评价、如何演化」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "从 Web 请求链路引出进程、并发、缓存、设备与保护，建立可靠性、安全性、可移植性、性能和公平性的评价框架及权衡。"
 toc: true
 math: true
 mermaid: true

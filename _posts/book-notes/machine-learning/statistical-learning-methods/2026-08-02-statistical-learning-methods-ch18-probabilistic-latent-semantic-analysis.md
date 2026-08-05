@@ -6,13 +6,13 @@ uid: statistical-learning-methods-ch18-probabilistic-latent-semantic-analysis
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [machine-learning, books]
+topics: [machine-learning]
 series: statistical-learning-methods
 series_order: 19
 related: [statistical-learning-methods-ch17-latent-semantic-analysis, statistical-learning-methods-ch19-markov-chain-monte-carlo]
 categories: [读书笔记, 机器学习, 统计学习方法]
 tags: [statistical-learning, machine-learning, reading-notes]
-description: "围绕「概率潜在语义分析」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "把 LSA 的低秩话题表示改写为文档、话题、单词的 PLSA 生成模型，推导后验责任与 EM 软计数更新，并辨析参数增长和词袋假设。"
 toc: true
 math: true
 ---

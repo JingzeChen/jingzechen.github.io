@@ -6,13 +6,13 @@ uid: ai-engineering-ch01-foundation-model-applications
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [ai-engineering, books]
+topics: [ai-engineering]
 series: ai-engineering
 series_order: 2
 related: [ai-engineering-preface, ai-engineering-ch02-understanding-foundation-models]
 categories: [读书笔记, AI 系统, AI Engineering]
 tags: [ai-engineering, foundation-models, reading-notes]
-description: "围绕「用基础模型构建 AI 应用导论」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "解释规模化为何催生 AI 工程，串联基础模型的通用能力、三种适配方式、应用机会判断与团队技术栈。"
 toc: true
 math: true
 mermaid: true

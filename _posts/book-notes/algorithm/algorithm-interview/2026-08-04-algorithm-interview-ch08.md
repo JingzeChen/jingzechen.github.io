@@ -6,13 +6,13 @@ uid: algorithm-interview-ch08
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [algorithms, books]
+topics: [algorithms]
 series: algorithm-interview
 series_order: 9
 related: [algorithm-interview-ch07, algorithm-interview-ch09]
 categories: [读书笔记, 算法, 算法面试]
 tags: [algorithms, data-structures, coding-interviews, reading-notes]
-description: "围绕「《算法面试（全二册）》第 8 章“平衡二叉树”读书笔记」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "由 AVL 平衡因子与旋转推导对数树高，比较强弱平衡代价，并展示有序集合和映射如何支持排名与区间操作。"
 toc: true
 render_with_liquid: false
 math: true

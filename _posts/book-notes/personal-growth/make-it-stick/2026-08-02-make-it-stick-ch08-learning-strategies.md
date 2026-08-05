@@ -6,13 +6,13 @@ uid: make-it-stick-ch08-learning-strategies
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [learning, books]
+topics: [learning]
 series: make-it-stick
 series_order: 9
 related: [make-it-stick-ch07-lifelong-learners]
 categories: [读书笔记, 个人成长, 认知天性]
 tags: [learning-science, personal-growth, reading-notes]
-description: "围绕「写给大家的学习策略」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "将检索、间隔、穿插、细化、生成、反思和校准分别落实到学生、职场、教学与培训场景，形成可测量的长期学习闭环。"
 toc: true
 math: true
 mermaid: true

@@ -6,13 +6,13 @@ uid: statistical-learning-methods-ch15-singular-value-decomposition
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [machine-learning, books]
+topics: [machine-learning]
 series: statistical-learning-methods
 series_order: 16
 related: [statistical-learning-methods-ch14-clustering, statistical-learning-methods-ch16-principal-component-analysis]
 categories: [读书笔记, 机器学习, 统计学习方法]
 tags: [statistical-learning, machine-learning, reading-notes]
-description: "围绕「奇异值分解」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "从任意矩阵的两组正交基构造 SVD，连接奇异值、秩与四个子空间，并证明截断 SVD 是 Frobenius 范数下的最优低秩近似。"
 toc: true
 math: true
 ---

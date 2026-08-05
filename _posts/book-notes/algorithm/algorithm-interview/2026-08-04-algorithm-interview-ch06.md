@@ -6,13 +6,13 @@ uid: algorithm-interview-ch06
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [algorithms, books]
+topics: [algorithms]
 series: algorithm-interview
 series_order: 7
 related: [algorithm-interview-ch05, algorithm-interview-ch07]
 categories: [读书笔记, 算法, 算法面试]
 tags: [algorithms, data-structures, coding-interviews, reading-notes]
-description: "围绕「《算法面试（全二册）》第 6 章“二叉树”读书笔记」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "围绕二叉树的递归结构，串联深度与层次遍历、遍历序列重建和带空标记序列化，辨析时间与栈空间边界。"
 toc: true
 render_with_liquid: false
 math: true

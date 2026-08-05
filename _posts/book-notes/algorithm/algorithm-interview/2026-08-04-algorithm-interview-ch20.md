@@ -6,13 +6,13 @@ uid: algorithm-interview-ch20
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [algorithms, books]
+topics: [algorithms]
 series: algorithm-interview
 series_order: 21
 related: [algorithm-interview-ch19, algorithm-interview-ch21]
 categories: [读书笔记, 算法, 算法面试]
 tags: [algorithms, data-structures, coding-interviews, reading-notes]
-description: "围绕「分支限界法和 A* 算法」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "以活结点表和安全上下界组织最优化搜索，比较 FIFO、优先队列与 A*，推导 g+h 启发式保证最优的条件。"
 toc: true
 render_with_liquid: false
 math: true

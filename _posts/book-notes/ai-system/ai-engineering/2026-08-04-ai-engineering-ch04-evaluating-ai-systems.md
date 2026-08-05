@@ -6,13 +6,13 @@ uid: ai-engineering-ch04-evaluating-ai-systems
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [ai-engineering, books]
+topics: [ai-engineering]
 series: ai-engineering
 series_order: 5
 related: [ai-engineering-ch03-evaluation-methodology, ai-engineering-ch05-prompt-engineering]
 categories: [读书笔记, AI 系统, AI Engineering]
 tags: [ai-engineering, foundation-models, reading-notes]
-description: "围绕「评估 AI 系统」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "把评估方法落到真实应用：定义能力、质量、指令遵循及成本指标，完成模型筛选、部署取舍与持续监控。"
 toc: true
 math: true
 mermaid: true

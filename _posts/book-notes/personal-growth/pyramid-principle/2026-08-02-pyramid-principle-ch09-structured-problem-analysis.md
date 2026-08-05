@@ -6,13 +6,13 @@ uid: pyramid-principle-ch09-structured-problem-analysis
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [communication, books]
+topics: [communication]
 series: pyramid-principle
 series_order: 9
 related: [pyramid-principle-ch08-define-problem, pyramid-principle-ch10-written-presentation]
 categories: [读书笔记, 个人成长, 金字塔原理]
 tags: [communication, structured-thinking, reading-notes]
-description: "围绕「结构化分析问题读书笔记」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "先搭诊断框架与可证伪假设，再收集能区分原因的证据；确认根因后用方案逻辑树生成选项，避免资料堆积替代分析。"
 toc: true
 math: true
 mermaid: true

@@ -6,13 +6,13 @@ uid: clean-architecture-ch04
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [software-architecture, books]
+topics: [software-architecture]
 series: clean-architecture
 series_order: 4
 related: [clean-architecture-ch03, clean-architecture-ch05]
 categories: [读书笔记, 软件架构, Clean Architecture]
 tags: [software-architecture, clean-architecture, reading-notes]
-description: "围绕「《Clean Architecture》Chapter 4 读书笔记」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "沿 Dijkstra、goto 与程序证明的历史，说明结构化控制如何支持递归分解，并让测试通过证伪构成架构纪律。"
 toc: true
 mermaid: true
 ---

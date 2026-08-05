@@ -6,7 +6,7 @@ uid: statistical-learning-methods-ch01-introduction
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [machine-learning, books]
+topics: [machine-learning]
 series: statistical-learning-methods
 series_order: 2
 related: [statistical-learning-methods-notes, statistical-learning-methods-ch02-perceptron]

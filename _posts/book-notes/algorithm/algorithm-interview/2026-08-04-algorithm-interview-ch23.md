@@ -6,13 +6,13 @@ uid: algorithm-interview-ch23
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [algorithms, books]
+topics: [algorithms]
 series: algorithm-interview
 series_order: 24
 related: [algorithm-interview-ch22, algorithm-interview-ch24]
 categories: [读书笔记, 算法, 算法面试]
 tags: [algorithms, data-structures, coding-interviews, reading-notes]
-description: "围绕「跳跃问题」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "将数组下标、字符位置和数轴坐标统一为隐式状态图，判断何时可压缩为最远边界贪心，何时必须逐状态搜索。"
 toc: true
 render_with_liquid: false
 math: true

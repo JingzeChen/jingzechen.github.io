@@ -6,13 +6,13 @@ uid: deliberate-practice-ch01-purposeful-practice
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [personal-growth, books]
+topics: [personal-growth]
 series: deliberate-practice
 series_order: 2
 related: [deliberate-practice-preface, deliberate-practice-ch02-brain-adaptability]
 categories: [读书笔记, 个人成长, 刻意练习]
 tags: [personal-growth, deliberate-practice, reading-notes]
-description: "围绕「第 1 章 有目的的练习」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "从数字广度训练与平台期出发，提炼明确目标、全神贯注、即时反馈和走出舒适区四项有目的练习条件。"
 toc: true
 math: true
 mermaid: true

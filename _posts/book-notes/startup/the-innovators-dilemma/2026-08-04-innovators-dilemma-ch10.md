@@ -6,13 +6,13 @@ uid: innovators-dilemma-ch10
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [innovation, books]
+topics: [innovation]
 series: the-innovators-dilemma
 series_order: 11
 related: [innovators-dilemma-ch09, innovators-dilemma-ch11]
 categories: [读书笔记, 创业, 创新者的窘境]
 tags: [innovation, disruptive-innovation, strategy, reading-notes]
-description: "围绕「《创新者的窘境》第十章读书笔记」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "以电动汽车为待决案例，演示如何用性能轨线判定破坏性，再依次选择早期市场、产品、技术、渠道与独立组织。"
 toc: true
 math: true
 mermaid: true

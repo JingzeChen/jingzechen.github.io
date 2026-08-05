@@ -6,13 +6,13 @@ uid: ospp-ch02-kernel-abstraction
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [operating-systems, books]
+topics: [operating-systems]
 series: operating-systems-principles-practice
 series_order: 2
 related: [ospp-ch01-introduction, ospp-ch03-programming-interface]
 categories: [读书笔记, 操作系统, OSPP]
 tags: [operating-systems, ospp, reading-notes]
-description: "围绕「受保护执行与安全模式切换」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "解释用户态直接执行与内核强制保护如何兼得，串联双模式、特权指令、页保护、定时器及中断、异常和系统调用的受控切换。"
 toc: true
 math: true
 mermaid: true

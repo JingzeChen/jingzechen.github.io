@@ -6,13 +6,13 @@ uid: homl-ch18-autoencoders-gans-diffusion
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [machine-learning, books]
+topics: [machine-learning]
 series: hands-on-machine-learning
 series_order: 19
 related: [homl-ch17-accelerating-transformers, homl-ch19-reinforcement-learning]
 categories: [读书笔记, 机器学习, Hands-On Machine Learning]
 tags: [machine-learning, hands-on-ml, reading-notes]
-description: "围绕「自编码器、GAN 与扩散模型」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "从受约束重建到概率生成，推导线性自编码器与 PCA、VAE 的 ELBO，并比较 GAN 对抗训练和扩散去噪的质量、稳定性与采样成本。"
 toc: true
 math: true
 mermaid: true

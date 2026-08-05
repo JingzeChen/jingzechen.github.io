@@ -6,13 +6,13 @@ uid: make-it-stick-ch04-snowball-effect
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [learning, books]
+topics: [learning]
 series: make-it-stick
 series_order: 5
 related: [make-it-stick-ch03-post-deliberate-practice, make-it-stick-ch05-mental-models]
 categories: [读书笔记, 个人成长, 认知天性]
 tags: [learning-science, personal-growth, reading-notes]
-description: "围绕「知识的“滚雪球”效应」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "串联编码、巩固、检索和再巩固，解释适量遗忘如何放大重学收益，并界定相关、可克服且有反馈的合意困难。"
 toc: true
 math: true
 mermaid: true

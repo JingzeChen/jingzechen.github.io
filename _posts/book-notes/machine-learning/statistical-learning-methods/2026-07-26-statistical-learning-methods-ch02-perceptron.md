@@ -6,7 +6,7 @@ uid: statistical-learning-methods-ch02-perceptron
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [machine-learning, books]
+topics: [machine-learning]
 series: statistical-learning-methods
 series_order: 3
 related:

@@ -6,7 +6,7 @@ uid: seven-habits-ch06-interdependence
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [personal-growth, books]
+topics: [personal-growth]
 series: seven-habits
 series_order: 7
 related: [seven-habits-ch05-first-things-first, seven-habits-ch07-win-win]

@@ -6,13 +6,13 @@ uid: homl-ch03-classification
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [machine-learning, books]
+topics: [machine-learning]
 series: hands-on-machine-learning
 series_order: 4
 related: [homl-ch02-end-to-end-project, homl-ch04-training-models]
 categories: [读书笔记, 机器学习, Hands-On Machine Learning]
 tags: [machine-learning, hands-on-ml, reading-notes]
-description: "围绕「分类（Classification）」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "以 MNIST 分类为主线，比较混淆矩阵、精确率召回率、F₁、PR 与 ROC 曲线，并延伸到多类、多标签及误差分析。"
 toc: true
 math: true
 mermaid: true

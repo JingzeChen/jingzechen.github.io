@@ -6,13 +6,13 @@ uid: ospp-ch12-storage-devices
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [operating-systems, books]
+topics: [operating-systems]
 series: operating-systems-principles-practice
 series_order: 12
 related: [ospp-ch11-file-systems-overview, ospp-ch13-files-directories]
 categories: [读书笔记, 操作系统, OSPP]
 tags: [operating-systems, ospp, reading-notes]
-description: "围绕「存储设备」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "拆解磁盘寻道、旋转和传输及闪存读写擦除成本，用延迟模型反推顺序布局、请求调度、FTL、垃圾回收与磨损均衡。"
 toc: true
 math: true
 mermaid: true

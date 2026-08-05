@@ -6,13 +6,13 @@ uid: pyramid-principle-ch01-why-pyramid-structure
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [communication, books]
+topics: [communication]
 series: pyramid-principle
 series_order: 1
 related: [pyramid-principle-ch02-internal-structure]
 categories: [读书笔记, 个人成长, 金字塔原理]
 tags: [communication, structured-thinking, reading-notes]
-description: "围绕「为什么要用金字塔结构——读书笔记」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "从工作记忆限制解释文章为何难懂：表达者应先把思想分组并概括，让读者先接收上位结论，再按需展开细节。"
 toc: true
 math: true
 mermaid: true

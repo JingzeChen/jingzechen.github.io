@@ -6,13 +6,13 @@ uid: pyramid-principle-ch06-logical-order
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [communication, books]
+topics: [communication]
 series: pyramid-principle
 series_order: 6
 related: [pyramid-principle-ch05-deduction-induction, pyramid-principle-ch07-summarize-groups]
 categories: [读书笔记, 个人成长, 金字塔原理]
 tags: [communication, structured-thinking, reading-notes]
-description: "围绕「应用逻辑顺序读书笔记」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "把顺序作为分组质量的诊断器：过程按时间、整体按结构、同类判断按程度排列，由此暴露异类、层级混杂和遗漏。"
 toc: true
 math: true
 mermaid: true

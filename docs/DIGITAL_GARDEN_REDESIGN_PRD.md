@@ -849,9 +849,9 @@ MVP 允许使用可访问的主题矩阵，但标题必须命名为 `Themes`，�
 
 | 数据问题 | 当前基线 | 首发处理 | 后续治理 |
 | --- | --- | --- | --- |
-| 模板 Description | 171 / 194 | 列表与搜索不把模板文案当有效摘要；优先改写 Featured、Series 索引和高访问内容 | 按 Series 逐批改写，不阻塞布局上线 |
+| 模板 Description | 0 / 194；治理前为 171 / 194 | 列表与搜索不把模板文案当有效摘要 | 已逐篇改写并加入构建门禁，保持模板与重复摘要为 0 |
 | 单一 Status | 194 / 194 为 `growing` | 隐藏列表 Marker 与 Status 筛选 | 内容状态经过复核且至少两种状态有可信内容后启用 |
-| 公共 Topic | `books` 为 194 / 194 | 从 Themes、筛选和关系图中排除 | 评估从 `topics` 移除，由 `type: reading` 表达同一语义 |
+| 公共 Topic | 0 / 194；治理前 `books` 为 194 / 194 | 从 Themes、筛选和关系图中排除 | 已从 Front Matter 移除并加入构建门禁，由 `type: reading` 表达同一语义 |
 | 批量日期 | 发布与维护时间高度聚集 | 首页不使用逐章 Latest Changes | 建立真实维护历史后再启用 Recently Updated |
 | 空 Type | 5 个 Type 为 0 | Sidebar、首页与 About 不展示为现有路径 | 首篇内容及有效落地页上线后自动出现 |
 
@@ -1008,9 +1008,12 @@ MVP 允许使用可访问的主题矩阵，但标题必须命名为 `Themes`，�
 - Phase 1 已完成并上线。
 - Phase 2 技术项已完成：三视图与 URL 状态、Topic / Series / 语言就绪筛选、显式 `series_order`、Topic 页面、字段加权搜索、阅读进度与 Ultra-long 导航。
 - Phase 3 已完成非对称 Selected Writing；Themes 继续保持可访问文本矩阵。
+- 194 篇内容治理已完成：171 条模板 Description 已逐篇改写，公共 Topic `books` 已全部移除；构建门禁阻止两者回归。
+- 13 个 Series 已集中补齐作者并提供章节 `uid` 锚点；文章元数据和 Series 导航可定位当前章节。
+- `tools/content-quality.rb` 提供可重复的数据盘点与启用门槛报告；当前 65 篇超过 120 个 TOC 项，已列入人工编辑复核清单。
 - Knowledge Map 暂缓：当前排除公共值 `books` 后，194 篇内容的 Topic 共现边数量为 0，不满足真实关系图启用条件。
 - Status 筛选、Latest Changes 和 Cross-type Library 暂缓：当前仍是单一 `growing`、批量更新时间、单一 Content Type。
-- 低光主题与匿名分析等待产品决策；171 篇模板 Description 和 `updated` 历史审计属于后续编辑治理，不通过自动生成内容替代。
+- 低光主题与匿名分析等待产品决策；`updated` 历史审计属于后续编辑治理，不通过自动生成内容替代。
 
 ## 20. 优先级需求清单
 

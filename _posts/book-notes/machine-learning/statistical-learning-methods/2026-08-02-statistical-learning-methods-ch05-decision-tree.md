@@ -6,13 +6,13 @@ uid: statistical-learning-methods-ch05-decision-tree
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [machine-learning, books]
+topics: [machine-learning]
 series: statistical-learning-methods
 series_order: 6
 related: [statistical-learning-methods-ch04-naive-bayes, statistical-learning-methods-ch06-logistic-regression-maximum-entropy]
 categories: [读书笔记, 机器学习, 统计学习方法]
 tags: [statistical-learning, machine-learning, reading-notes]
-description: "围绕「决策树」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "以贷款分类比较 ID3 信息增益、C4.5 增益比和 CART 基尼准则，解释贪心生成、代价复杂度剪枝与交叉验证选树。"
 toc: true
 math: true
 ---

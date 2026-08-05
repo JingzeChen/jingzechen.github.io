@@ -6,13 +6,13 @@ uid: statistical-learning-methods-appendices-math-tools
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [machine-learning, books]
+topics: [machine-learning]
 series: statistical-learning-methods
 series_order: 24
 related: [statistical-learning-methods-ch22-unsupervised-learning-summary]
 categories: [读书笔记, 机器学习, 统计学习方法]
 tags: [statistical-learning, machine-learning, reading-notes]
-description: "围绕「基础数学工具」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "串联梯度下降、牛顿与拟牛顿、拉格朗日对偶与 KKT、矩阵基本子空间、KL 散度和 Dirichlet 期望，补齐正文的优化与概率推导工具。"
 toc: true
 math: true
 ---

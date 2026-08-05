@@ -6,13 +6,13 @@ uid: xiaomi-entrepreneurship-ch08
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [entrepreneurship, books]
+topics: [entrepreneurship]
 series: xiaomi-entrepreneurship
 series_order: 9
 related: [xiaomi-entrepreneurship-ch07, xiaomi-entrepreneurship-ch09]
 categories: [读书笔记, 创业, 小米创业思考]
 tags: [entrepreneurship, xiaomi, business, reading-notes]
-description: "围绕「《小米创业思考》第八章《和用户交朋友》读书笔记」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "从性价比、少SKU、新媒体倾听到用户参与，说明“不占信息差便宜”的长期兑现如何沉淀信任、降低选择与获客成本。"
 toc: true
 mermaid: true
 ---

@@ -6,13 +6,13 @@ uid: homl-ch19-reinforcement-learning
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [machine-learning, books]
+topics: [machine-learning]
 series: hands-on-machine-learning
 series_order: 20
 related: [homl-ch18-autoencoders-gans-diffusion]
 categories: [读书笔记, 机器学习, Hands-On Machine Learning]
 tags: [machine-learning, hands-on-ml, reading-notes]
-description: "围绕「强化学习」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "从 MDP、回报与优势函数建立信用分配，比较策略梯度、DQN、Actor-Critic 和 PPO，并处理探索、回放、目标网络及评估方差。"
 toc: true
 math: true
 mermaid: true

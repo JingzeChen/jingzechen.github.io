@@ -6,13 +6,13 @@ uid: homl-ch04-training-models
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [machine-learning, books]
+topics: [machine-learning]
 series: hands-on-machine-learning
 series_order: 5
 related: [homl-ch03-classification, homl-ch05-decision-trees]
 categories: [读书笔记, 机器学习, Hands-On Machine Learning]
 tags: [machine-learning, hands-on-ml, reading-notes]
-description: "围绕「训练模型（Training Models）」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "从线性回归的正规方程与梯度下降出发，推导正则化、早停、逻辑回归和 Softmax 的损失函数、梯度及泛化诊断。"
 toc: true
 math: true
 mermaid: true

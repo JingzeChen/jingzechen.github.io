@@ -6,13 +6,13 @@ uid: xiaomi-entrepreneurship-ch06
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [entrepreneurship, books]
+topics: [entrepreneurship]
 series: xiaomi-entrepreneurship
 series_order: 7
 related: [xiaomi-entrepreneurship-ch05, xiaomi-entrepreneurship-ch07]
 categories: [读书笔记, 创业, 小米创业思考]
 tags: [entrepreneurship, xiaomi, business, reading-notes]
-description: "围绕「《小米创业思考》第六章《互联网七字诀》读书笔记」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "把“专注、极致、口碑、快”串成从选择目标到反馈迭代的闭环，并用最小切口、产品取舍和一元核心检验业务扩张。"
 toc: true
 mermaid: true
 ---

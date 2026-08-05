@@ -6,13 +6,13 @@ uid: seven-habits-ch07-win-win
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [personal-growth, books]
+topics: [personal-growth]
 series: seven-habits
 series_order: 8
 related: [seven-habits-ch06-interdependence, seven-habits-ch08-seek-first-to-understand]
 categories: [读书笔记, 个人成长, 高效能人士的七个习惯]
 tags: [personal-growth, seven-habits, reading-notes]
-description: "围绕「第七章 习惯四 双赢思维」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "双赢不是退让技巧，而是由诚信、成熟和知足支撑，并通过信任关系、明确协议、匹配奖励与协作过程实现的长期互利系统。"
 toc: true
 ---
 

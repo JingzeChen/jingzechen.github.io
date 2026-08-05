@@ -6,13 +6,13 @@ uid: ai-engineering-ch06-rag-agents
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [ai-engineering, books]
+topics: [ai-engineering]
 series: ai-engineering
 series_order: 7
 related: [ai-engineering-ch05-prompt-engineering, ai-engineering-ch07-fine-tuning]
 categories: [读书笔记, AI 系统, AI Engineering]
 tags: [ai-engineering, foundation-models, reading-notes]
-description: "围绕「RAG 与智能体」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "说明如何按查询检索外部证据并让智能体规划工具行动，涵盖检索算法、RAG 优化、权限控制、故障定位与分层评估。"
 toc: true
 math: true
 mermaid: true

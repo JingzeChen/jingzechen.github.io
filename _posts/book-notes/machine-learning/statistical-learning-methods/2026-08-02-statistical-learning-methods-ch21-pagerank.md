@@ -6,13 +6,13 @@ uid: statistical-learning-methods-ch21-pagerank
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [machine-learning, books]
+topics: [machine-learning]
 series: statistical-learning-methods
 series_order: 22
 related: [statistical-learning-methods-ch20-latent-dirichlet-allocation, statistical-learning-methods-ch22-unsupervised-learning-summary]
 categories: [读书笔记, 机器学习, 统计学习方法]
 tags: [statistical-learning, machine-learning, reading-notes]
-description: "围绕「PageRank 算法」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "将链接重要度化为随机浏览者的平稳分布，分析悬挂结点、陷阱和周期，并用阻尼传送、稀疏幂迭代与线性方程计算 PageRank。"
 toc: true
 math: true
 ---

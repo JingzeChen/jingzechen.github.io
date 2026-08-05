@@ -6,13 +6,13 @@ uid: clean-architecture-ch13
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [software-architecture, books]
+topics: [software-architecture]
 series: clean-architecture
 series_order: 13
 related: [clean-architecture-ch12, clean-architecture-ch14]
 categories: [读书笔记, 软件架构, Clean Architecture]
 tags: [software-architecture, clean-architecture, reading-notes]
-description: "围绕「《Clean Architecture》Chapter 13 读书笔记」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "用 REP、CCP、CRP 判断哪些类应共同发布、变化与复用，展示组件边界如何在开发便利和复用成本间动态调整。"
 toc: true
 mermaid: true
 ---

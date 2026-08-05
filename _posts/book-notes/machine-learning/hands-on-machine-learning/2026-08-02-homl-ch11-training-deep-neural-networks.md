@@ -6,13 +6,13 @@ uid: homl-ch11-training-deep-neural-networks
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [machine-learning, books]
+topics: [machine-learning]
 series: hands-on-machine-learning
 series_order: 12
 related: [homl-ch10-neural-networks-with-pytorch, homl-ch12-convolutional-neural-networks]
 categories: [读书笔记, 机器学习, Hands-On Machine Learning]
 tags: [machine-learning, hands-on-ml, reading-notes]
-description: "围绕「训练深度神经网络」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "从 Jacobian 连乘解释梯度消失与爆炸，比较初始化、归一化、迁移学习、优化器、学习率调度及多种正则化方案。"
 toc: true
 math: true
 mermaid: true

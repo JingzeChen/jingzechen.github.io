@@ -6,13 +6,13 @@ uid: clean-architecture-ch15
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [software-architecture, books]
+topics: [software-architecture]
 series: clean-architecture
 series_order: 15
 related: [clean-architecture-ch14, clean-architecture-ch16]
 categories: [读书笔记, 软件架构, Clean Architecture]
 tags: [software-architecture, clean-architecture, reading-notes]
-description: "围绕「《Clean Architecture》Chapter 15 读书笔记」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "将架构定义为组件划分、排列与通信形成的系统形状，目标是支撑完整生命周期，并通过隔离细节尽可能延迟决策。"
 toc: true
 mermaid: true
 ---

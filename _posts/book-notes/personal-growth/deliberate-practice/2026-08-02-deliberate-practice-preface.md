@@ -6,13 +6,13 @@ uid: deliberate-practice-preface
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [personal-growth, books]
+topics: [personal-growth]
 series: deliberate-practice
 series_order: 1
 related: [deliberate-practice-ch01-purposeful-practice]
 categories: [读书笔记, 个人成长, 刻意练习]
 tags: [personal-growth, deliberate-practice, reading-notes]
-description: "围绕「推荐序」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "拆解一万小时口号的固定阈值迷思，说明高质量反馈、领域化长时记忆与真实情境为何比单纯累计时数更关键。"
 toc: true
 math: true
 mermaid: true

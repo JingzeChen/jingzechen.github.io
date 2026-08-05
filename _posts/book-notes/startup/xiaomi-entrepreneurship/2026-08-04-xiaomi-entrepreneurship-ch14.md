@@ -6,13 +6,13 @@ uid: xiaomi-entrepreneurship-ch14
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [entrepreneurship, books]
+topics: [entrepreneurship]
 series: xiaomi-entrepreneurship
 series_order: 15
 related: [xiaomi-entrepreneurship-ch13, xiaomi-entrepreneurship-epilogue-appendices]
 categories: [读书笔记, 创业, 小米创业思考]
 tags: [entrepreneurship, xiaomi, business, reading-notes]
-description: "围绕「《小米创业思考》第十四章《小米方法论的演进思考》读书笔记」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "面对流量红利消退与规模不经济，区分必须坚持的使命铁律和可调整的策略，并以高端化、造车检验终局意识与组织能力。"
 toc: true
 mermaid: true
 ---

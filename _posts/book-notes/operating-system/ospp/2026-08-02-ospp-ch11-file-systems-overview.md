@@ -6,13 +6,13 @@ uid: ospp-ch11-file-systems-overview
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [operating-systems, books]
+topics: [operating-systems]
 series: operating-systems-principles-practice
 series_order: 11
 related: [ospp-ch10-advanced-memory-management, ospp-ch12-storage-devices]
 categories: [读书笔记, 操作系统, OSPP]
 tags: [operating-systems, ospp, reading-notes]
-description: "围绕「持久命名、API 与设备访问」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "从命名持久数据的需求建立文件、目录、链接与挂载抽象，追踪 open/read/write 到块设备的分层路径，并澄清缓存写回与持久化差异。"
 toc: true
 math: true
 mermaid: true

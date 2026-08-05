@@ -6,13 +6,13 @@ uid: deliberate-practice-ch09-new-world
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [personal-growth, books]
+topics: [personal-growth]
 series: deliberate-practice
 series_order: 10
 related: [deliberate-practice-ch08-innate-talent]
 categories: [读书笔记, 个人成长, 刻意练习]
 tags: [personal-growth, deliberate-practice, reading-notes]
-description: "围绕「第 9 章 用刻意练习创造全新的世界」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "从大学物理主动学习实验出发，把专家表征、渐进任务、即时反馈和重新作答转化为教育与终身学习的制度设计。"
 toc: true
 math: true
 mermaid: true

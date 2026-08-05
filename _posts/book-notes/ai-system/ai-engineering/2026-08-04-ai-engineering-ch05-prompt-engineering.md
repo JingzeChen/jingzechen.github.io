@@ -6,13 +6,13 @@ uid: ai-engineering-ch05-prompt-engineering
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [ai-engineering, books]
+topics: [ai-engineering]
 series: ai-engineering
 series_order: 6
 related: [ai-engineering-ch04-evaluating-ai-systems, ai-engineering-ch06-rag-agents]
 categories: [读书笔记, AI 系统, AI Engineering]
 tags: [ai-engineering, foundation-models, reading-notes]
-description: "围绕「提示工程」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "将提示视为可测试、可版本化的程序接口，掌握上下文学习、结构设计、迭代优化，以及提示注入的分层防御。"
 toc: true
 math: true
 mermaid: true

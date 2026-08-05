@@ -6,13 +6,13 @@ uid: algorithm-interview-ch02
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [algorithms, books]
+topics: [algorithms]
 series: algorithm-interview
 series_order: 3
 related: [algorithm-interview-ch01, algorithm-interview-ch03]
 categories: [读书笔记, 算法, 算法面试]
 tags: [algorithms, data-structures, coding-interviews, reading-notes]
-description: "围绕「《算法面试（全二册）》第 2 章“链表”读书笔记」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "以结点身份和 next 不变量为线索，讲清插入删除、反转、分组重连、判环与有序链表归并中的指针安全。"
 toc: true
 render_with_liquid: false
 math: true

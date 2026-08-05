@@ -6,13 +6,13 @@ uid: ai-engineering-ch03-evaluation-methodology
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [ai-engineering, books]
+topics: [ai-engineering]
 series: ai-engineering
 series_order: 4
 related: [ai-engineering-ch02-understanding-foundation-models, ai-engineering-ch04-evaluating-ai-systems]
 categories: [读书笔记, AI 系统, AI Engineering]
 tags: [ai-engineering, foundation-models, reading-notes]
-description: "围绕「评估方法论」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "建立从失败模式选择评估证据的方法，辨析困惑度、相似度、AI 裁判与两两比较各自能回答什么、何时失效。"
 toc: true
 math: true
 mermaid: true

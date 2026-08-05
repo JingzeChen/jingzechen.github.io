@@ -6,13 +6,13 @@ uid: homl-ch12-convolutional-neural-networks
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [machine-learning, books]
+topics: [machine-learning]
 series: hands-on-machine-learning
 series_order: 13
 related: [homl-ch11-training-deep-neural-networks, homl-ch13-rnns-cnns-sequences]
 categories: [读书笔记, 机器学习, Hands-On Machine Learning]
 tags: [machine-learning, hands-on-ml, reading-notes]
-description: "围绕「使用卷积神经网络进行深度计算机视觉」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "从局部感受野与权重共享推导卷积、池化和感受野计算，串联经典 CNN、迁移学习、目标检测的 NMS/mAP 与语义实例分割。"
 toc: true
 math: true
 mermaid: true

@@ -6,13 +6,13 @@ uid: clean-architecture-ch06
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [software-architecture, books]
+topics: [software-architecture]
 series: clean-architecture
 series_order: 6
 related: [clean-architecture-ch05, clean-architecture-ch07]
 categories: [读书笔记, 软件架构, Clean Architecture]
 tags: [software-architecture, clean-architecture, reading-notes]
-description: "围绕「《Clean Architecture》Chapter 6 读书笔记」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "从不可变性追溯并发故障的根源，比较事务内存与事件溯源，学习把必要的状态修改隔离到受控边界。"
 toc: true
 mermaid: true
 ---

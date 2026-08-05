@@ -6,13 +6,13 @@ uid: statistical-learning-methods-ch19-markov-chain-monte-carlo
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [machine-learning, books]
+topics: [machine-learning]
 series: statistical-learning-methods
 series_order: 20
 related: [statistical-learning-methods-ch18-probabilistic-latent-semantic-analysis, statistical-learning-methods-ch20-latent-dirichlet-allocation]
 categories: [读书笔记, 机器学习, 统计学习方法]
 tags: [statistical-learning, machine-learning, reading-notes]
-description: "围绕「马尔可夫链蒙特卡罗法」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "从高维积分与直接抽样困难出发，以平稳分布和遍历定理构造 MCMC，推导 Metropolis-Hastings 接受率及 Gibbs 满条件更新。"
 toc: true
 math: true
 ---

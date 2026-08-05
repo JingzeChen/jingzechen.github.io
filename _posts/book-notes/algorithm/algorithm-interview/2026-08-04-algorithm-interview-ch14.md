@@ -6,13 +6,13 @@ uid: algorithm-interview-ch14
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [algorithms, books]
+topics: [algorithms]
 series: algorithm-interview
 series_order: 15
 related: [algorithm-interview-ch13, algorithm-interview-ch15]
 categories: [读书笔记, 算法, 算法面试]
 tags: [algorithms, data-structures, coding-interviews, reading-notes]
-description: "围绕「字典树和后缀数组」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "对比 Trie 共享多串前缀与后缀数组排序单串后缀的思路，推导精确查询、LCP、不同子串和最长重复子串。"
 toc: true
 render_with_liquid: false
 math: true

@@ -6,13 +6,13 @@ uid: seven-habits-ch10-sharpen-the-saw
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [personal-growth, books]
+topics: [personal-growth]
 series: seven-habits
 series_order: 11
 related: [seven-habits-ch09-synergize, seven-habits-ch11-inside-out-again]
 categories: [读书笔记, 个人成长, 高效能人士的七个习惯]
 tags: [personal-growth, seven-habits, reading-notes]
-description: "围绕「第十章 习惯七 不断更新」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "把身体、精神、智力和社会情感视为个人产能，以均衡更新打破‘越忙越钝’的循环，并通过学习、坚持、实践螺旋成长。"
 toc: true
 math: true
 ---

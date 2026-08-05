@@ -6,13 +6,13 @@ uid: statistical-learning-methods-ch16-principal-component-analysis
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [machine-learning, books]
+topics: [machine-learning]
 series: statistical-learning-methods
 series_order: 17
 related: [statistical-learning-methods-ch15-singular-value-decomposition, statistical-learning-methods-ch17-latent-semantic-analysis]
 categories: [读书笔记, 机器学习, 统计学习方法]
 tags: [statistical-learning, machine-learning, reading-notes]
-description: "围绕「主成分分析」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "从最大投影方差与最小重构误差的等价性推导 PCA，比较协方差或相关矩阵的特征分解与数据矩阵 SVD 两条算法路径。"
 toc: true
 math: true
 ---

@@ -6,13 +6,13 @@ uid: pyramid-principle-ch10-written-presentation
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [communication, books]
+topics: [communication]
 series: pyramid-principle
 series_order: 10
 related: [pyramid-principle-ch09-structured-problem-analysis, pyramid-principle-ch11-presentation-slides]
 categories: [读书笔记, 个人成长, 金字塔原理]
 tags: [communication, structured-thinking, reading-notes]
-description: "围绕「在书面上呈现金字塔读书笔记」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "让页面视觉层级忠实映射思想层级，以标题、编号、缩进和过渡显示分组及移动路径，支持读者快速扫描、回看与检索。"
 toc: true
 math: true
 mermaid: true

@@ -6,13 +6,13 @@ uid: xiaomi-entrepreneurship-ch13
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [entrepreneurship, books]
+topics: [entrepreneurship]
 series: xiaomi-entrepreneurship
 series_order: 14
 related: [xiaomi-entrepreneurship-ch12, xiaomi-entrepreneurship-ch14]
 categories: [读书笔记, 创业, 小米创业思考]
 tags: [entrepreneurship, xiaomi, business, reading-notes]
-description: "围绕「《小米创业思考》第十三章《智能制造》读书笔记」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "从专业代工、产业投资到实验智能工厂，说明小米如何以国产装备、柔性产线和全链路数据改造制造效率，而非简单自建工厂。"
 toc: true
 mermaid: true
 ---

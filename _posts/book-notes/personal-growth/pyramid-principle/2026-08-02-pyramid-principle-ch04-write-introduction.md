@@ -6,13 +6,13 @@ uid: pyramid-principle-ch04-write-introduction
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [communication, books]
+topics: [communication]
 series: pyramid-principle
 series_order: 4
 related: [pyramid-principle-ch03-build-pyramid, pyramid-principle-ch05-deduction-induction]
 categories: [读书笔记, 个人成长, 金字塔原理]
 tags: [communication, structured-thinking, reading-notes]
-description: "围绕「序言的具体写法读书笔记」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "序言先从读者认可的背景起步，以变化制造冲突和疑问，再立即给出顶层回答；SCQA 功能完整即可灵活调整表面顺序。"
 toc: true
 math: true
 mermaid: true

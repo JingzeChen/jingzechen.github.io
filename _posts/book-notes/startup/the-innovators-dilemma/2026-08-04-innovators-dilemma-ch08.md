@@ -6,13 +6,13 @@ uid: innovators-dilemma-ch08
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [innovation, books]
+topics: [innovation]
 series: the-innovators-dilemma
 series_order: 9
 related: [innovators-dilemma-ch07, innovators-dilemma-ch09]
 categories: [读书笔记, 创业, 创新者的窘境]
 tags: [innovation, disruptive-innovation, strategy, reading-notes]
-description: "围绕「《创新者的窘境》第八章读书笔记」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "用资源、流程、价值观三分框架诊断组织能力，说明收购后何时整合、何时独立，以及既有强项为何会成为新任务的缺陷。"
 toc: true
 math: true
 mermaid: true

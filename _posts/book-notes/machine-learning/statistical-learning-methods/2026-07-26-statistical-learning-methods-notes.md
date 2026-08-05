@@ -6,7 +6,7 @@ uid: statistical-learning-methods-notes
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [machine-learning, books]
+topics: [machine-learning]
 series: statistical-learning-methods
 series_order: 1
 featured: true

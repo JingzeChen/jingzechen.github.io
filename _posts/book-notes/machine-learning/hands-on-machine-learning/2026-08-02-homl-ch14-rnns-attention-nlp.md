@@ -6,13 +6,13 @@ uid: homl-ch14-rnns-attention-nlp
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [machine-learning, books]
+topics: [machine-learning]
 series: hands-on-machine-learning
 series_order: 15
 related: [homl-ch13-rnns-cnns-sequences, homl-ch15-transformers-nlp-chatbots]
 categories: [读书笔记, 机器学习, Hands-On Machine Learning]
 tags: [machine-learning, hands-on-ml, reading-notes]
-description: "围绕「使用 RNN 和注意力进行自然语言处理」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "从字符语言模型和情感分类走向机器翻译，串联分词嵌入、双向 RNN、teacher forcing、beam search 与 QKV 注意力。"
 toc: true
 math: true
 mermaid: true

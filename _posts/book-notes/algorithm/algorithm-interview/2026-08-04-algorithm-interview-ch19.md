@@ -6,13 +6,13 @@ uid: algorithm-interview-ch19
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [algorithms, books]
+topics: [algorithms]
 series: algorithm-interview
 series_order: 20
 related: [algorithm-interview-ch18, algorithm-interview-ch20]
 categories: [读书笔记, 算法, 算法面试]
 tags: [algorithms, data-structures, coding-interviews, reading-notes]
-description: "围绕「回溯法」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "把候选建模为隐式解空间树，通过选择、约束、递归与撤销保持状态一致，并区分子集树、排列树及安全剪枝。"
 toc: true
 render_with_liquid: false
 math: true

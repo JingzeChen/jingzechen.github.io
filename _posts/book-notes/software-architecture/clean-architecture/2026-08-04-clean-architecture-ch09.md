@@ -6,13 +6,13 @@ uid: clean-architecture-ch09
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [software-architecture, books]
+topics: [software-architecture]
 series: clean-architecture
 series_order: 9
 related: [clean-architecture-ch08, clean-architecture-ch10]
 categories: [读书笔记, 软件架构, Clean Architecture]
 tags: [software-architecture, clean-architecture, reading-notes]
-description: "围绕「《Clean Architecture》Chapter 9 读书笔记」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "以许可证、正方形与长方形、出租车接口检验行为替换性，揭示语法兼容为何不足，以及实现特判如何污染架构。"
 toc: true
 mermaid: true
 ---

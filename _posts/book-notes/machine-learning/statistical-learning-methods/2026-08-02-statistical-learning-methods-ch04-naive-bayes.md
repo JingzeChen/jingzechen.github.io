@@ -6,13 +6,13 @@ uid: statistical-learning-methods-ch04-naive-bayes
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [machine-learning, books]
+topics: [machine-learning]
 series: statistical-learning-methods
 series_order: 5
 related: [statistical-learning-methods-ch03-k-nearest-neighbors, statistical-learning-methods-ch05-decision-tree]
 categories: [读书笔记, 机器学习, 统计学习方法]
 tags: [statistical-learning, machine-learning, reading-notes]
-description: "围绕「朴素贝叶斯法」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "从 0-1 风险下的后验最大决策推导朴素贝叶斯，量化条件独立如何化解参数爆炸，并用极大似然与拉普拉斯平滑完成估计。"
 toc: true
 math: true
 ---

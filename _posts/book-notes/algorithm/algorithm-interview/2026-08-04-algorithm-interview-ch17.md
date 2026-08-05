@@ -6,13 +6,13 @@ uid: algorithm-interview-ch17
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [algorithms, books]
+topics: [algorithms]
 series: algorithm-interview
 series_order: 18
 related: [algorithm-interview-ch16, algorithm-interview-ch18]
 categories: [读书笔记, 算法, 算法面试]
 tags: [algorithms, data-structures, coding-interviews, reading-notes]
-description: "围绕「分治法」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "沿分解、求解、合并建立分治递推，贯通归并与快速排序、选择、二分边界和值域判定，并辨析子问题独立性。"
 toc: true
 render_with_liquid: false
 math: true

@@ -6,7 +6,7 @@ uid: yu-jun-product-methodology-ch05-selection-and-growth
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [product-management, books]
+topics: [product-management]
 series: yu-jun-product-methodology
 series_order: 6
 related: [yu-jun-product-methodology-notes, yu-jun-product-methodology-ch04-decision-making, yu-jun-product-methodology-appendix-cognitive-evolution]

@@ -6,13 +6,13 @@ uid: xiaomi-entrepreneurship-preface
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [entrepreneurship, books]
+topics: [entrepreneurship]
 series: xiaomi-entrepreneurship
 series_order: 1
 related: [xiaomi-entrepreneurship-ch01]
 categories: [读书笔记, 创业, 小米创业思考]
 tags: [entrepreneurship, xiaomi, business, reading-notes]
-description: "围绕「《小米创业思考》前言读书笔记」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "以十二年创业复盘提出“商业的核心是效率”，说明小米如何用互联网方法改造制造业，并把效率红利转化为用户利益。"
 toc: true
 mermaid: true
 ---

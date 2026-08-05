@@ -6,13 +6,13 @@ uid: ai-engineering-ch10-architecture-user-feedback
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [ai-engineering, books]
+topics: [ai-engineering]
 series: ai-engineering
 series_order: 11
 related: [ai-engineering-ch09-inference-optimization]
 categories: [读书笔记, AI 系统, AI Engineering]
 tags: [ai-engineering, foundation-models, reading-notes]
-description: "围绕「AI 工程架构与用户反馈」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "展示 AI 应用如何因真实失败逐步加入上下文、护栏、路由、缓存与智能体，并把有偏用户反馈转化为可靠改进闭环。"
 toc: true
 math: true
 mermaid: true

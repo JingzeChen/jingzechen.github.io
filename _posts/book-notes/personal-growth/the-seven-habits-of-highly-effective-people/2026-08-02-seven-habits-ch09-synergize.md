@@ -6,13 +6,13 @@ uid: seven-habits-ch09-synergize
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [personal-growth, books]
+topics: [personal-growth]
 series: seven-habits
 series_order: 10
 related: [seven-habits-ch08-seek-first-to-understand, seven-habits-ch10-sharpen-the-saw]
 categories: [读书笔记, 个人成长, 高效能人士的七个习惯]
 tags: [personal-growth, seven-habits, reading-notes]
-description: "围绕「第九章 习惯六 统合综效」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "把差异视为尚未拥有的信息，以双赢动机和移情沟通扩张选项集合，寻找优于压服、让步与妥协的第三条道路。"
 toc: true
 ---
 

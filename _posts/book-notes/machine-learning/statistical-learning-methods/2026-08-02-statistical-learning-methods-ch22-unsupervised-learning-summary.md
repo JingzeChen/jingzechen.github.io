@@ -6,13 +6,13 @@ uid: statistical-learning-methods-ch22-unsupervised-learning-summary
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [machine-learning, books]
+topics: [machine-learning]
 series: statistical-learning-methods
 series_order: 23
 related: [statistical-learning-methods-ch21-pagerank, statistical-learning-methods-appendices-math-tools]
 categories: [读书笔记, 机器学习, 统计学习方法]
 tags: [statistical-learning, machine-learning, reading-notes]
-description: "围绕「无监督学习方法总结」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "按任务、模型、策略、算法、假设和边界重组聚类、降维、话题与图分析，厘清 SVD、EM、变分、MCMC 和幂法的复用关系。"
 toc: true
 math: true
 ---

@@ -6,13 +6,13 @@ uid: homl-ch16-vision-multimodal-transformers
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [machine-learning, books]
+topics: [machine-learning]
 series: hands-on-machine-learning
 series_order: 17
 related: [homl-ch15-transformers-nlp-chatbots, homl-ch17-accelerating-transformers]
 categories: [读书笔记, 机器学习, Hands-On Machine Learning]
 tags: [machine-learning, hands-on-ml, reading-notes]
-description: "围绕「视觉与多模态 Transformer」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "从图像 patch 化与注意力二次复杂度出发，比较 ViT、DETR、Swin、自监督视觉表征及 CLIP/Flamingo 等多模态融合与对齐。"
 toc: true
 math: true
 mermaid: true

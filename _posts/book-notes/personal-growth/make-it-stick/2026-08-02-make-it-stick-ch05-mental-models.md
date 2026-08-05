@@ -6,13 +6,13 @@ uid: make-it-stick-ch05-mental-models
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [learning, books]
+topics: [learning]
 series: make-it-stick
 series_order: 6
 related: [make-it-stick-ch04-snowball-effect, make-it-stick-ch06-learning-styles]
 categories: [读书笔记, 个人成长, 认知天性]
 tags: [learning-science, personal-growth, reading-notes]
-description: "围绕「打造适合自己的心智模型」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "直觉、记忆和旧模型都可能误判；本章用延迟测验、真实结果、同伴反馈与高保真模拟校准自信和自我导向学习。"
 toc: true
 math: true
 mermaid: true

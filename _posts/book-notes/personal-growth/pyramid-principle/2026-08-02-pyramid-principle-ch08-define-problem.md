@@ -6,13 +6,13 @@ uid: pyramid-principle-ch08-define-problem
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [communication, books]
+topics: [communication]
 series: pyramid-principle
 series_order: 8
 related: [pyramid-principle-ch07-summarize-groups, pyramid-principle-ch09-structured-problem-analysis]
 categories: [读书笔记, 个人成长, 金字塔原理]
 tags: [communication, structured-thinking, reading-notes]
-description: "围绕「界定问题读书笔记」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "用非期望结果 R1 与期望结果 R2 的差距界定问题，分开症状、根因、目标和方案，先限定分析范围再组织序言。"
 toc: true
 math: true
 mermaid: true

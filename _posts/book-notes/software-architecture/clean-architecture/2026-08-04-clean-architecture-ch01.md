@@ -6,13 +6,13 @@ uid: clean-architecture-ch01
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [software-architecture, books]
+topics: [software-architecture]
 series: clean-architecture
 series_order: 1
 related: [clean-architecture-ch02]
 categories: [读书笔记, 软件架构, Clean Architecture]
 tags: [software-architecture, clean-architecture, reading-notes]
-description: "围绕「《Clean Architecture》Chapter 1 读书笔记」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "重新定义设计与架构为从高层政策到低层细节的连续体，并以全生命周期内持续低成本响应需求作为好架构的检验标准。"
 toc: true
 mermaid: true
 ---

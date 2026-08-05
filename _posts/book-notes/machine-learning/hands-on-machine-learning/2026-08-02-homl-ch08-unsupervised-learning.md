@@ -6,13 +6,13 @@ uid: homl-ch08-unsupervised-learning
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [machine-learning, books]
+topics: [machine-learning]
 series: hands-on-machine-learning
 series_order: 9
 related: [homl-ch07-dimensionality-reduction, homl-ch09-artificial-neural-networks]
 categories: [读书笔记, 机器学习, Hands-On Machine Learning]
 tags: [machine-learning, hands-on-ml, reading-notes]
-description: "围绕「无监督学习技术」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "比较 K-Means、DBSCAN 与高斯混合对簇结构的不同假设，串联 EM、半监督与主动学习、异常检测及 BIC/AIC 选模。"
 toc: true
 math: true
 mermaid: true

@@ -6,13 +6,13 @@ uid: pyramid-principle-ch02-internal-structure
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [communication, books]
+topics: [communication]
 series: pyramid-principle
 series_order: 2
 related: [pyramid-principle-ch01-why-pyramid-structure, pyramid-principle-ch03-build-pyramid]
 categories: [读书笔记, 个人成长, 金字塔原理]
 tags: [communication, structured-thinking, reading-notes]
-description: "围绕「金字塔内部的结构读书笔记」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "用三套关系驱动金字塔：纵向以疑问和回答展开层级，横向用演绎或归纳检验同层思想，序言以 SCQA 引出初始问题。"
 toc: true
 math: true
 mermaid: true

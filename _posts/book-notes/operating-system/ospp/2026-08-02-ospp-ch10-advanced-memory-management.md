@@ -6,13 +6,13 @@ uid: ospp-ch10-advanced-memory-management
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [operating-systems, books]
+topics: [operating-systems]
 series: operating-systems-principles-practice
 series_order: 10
 related: [ospp-ch09-caching-virtual-memory, ospp-ch11-file-systems-overview]
 categories: [读书笔记, 操作系统, OSPP]
 tags: [operating-systems, ospp, reading-notes]
-description: "围绕「零拷贝、虚拟机、容错与用户级分页」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "把页表权限视为低频事件的可编程介入点，串联零拷贝、两级虚拟化、写时复制、检查点、故障恢复与用户级分页。"
 toc: true
 math: true
 mermaid: true

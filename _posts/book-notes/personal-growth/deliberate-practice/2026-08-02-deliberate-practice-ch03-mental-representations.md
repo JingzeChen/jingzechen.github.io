@@ -6,13 +6,13 @@ uid: deliberate-practice-ch03-mental-representations
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [personal-growth, books]
+topics: [personal-growth]
 series: deliberate-practice
 series_order: 4
 related: [deliberate-practice-ch02-brain-adaptability, deliberate-practice-ch04-gold-standard]
 categories: [读书笔记, 个人成长, 刻意练习]
 tags: [personal-growth, deliberate-practice, reading-notes]
-description: "围绕「第 3 章 心理表征」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "借盲棋、球场预测和临床诊断说明心理表征如何压缩领域信息、预判结果、制定计划，并把外部反馈内化为自我纠错。"
 toc: true
 math: true
 mermaid: true

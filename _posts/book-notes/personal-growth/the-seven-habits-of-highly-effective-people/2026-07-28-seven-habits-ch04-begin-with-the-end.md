@@ -6,7 +6,7 @@ uid: seven-habits-ch04-begin-with-the-end
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [personal-growth, books]
+topics: [personal-growth]
 series: seven-habits
 series_order: 5
 related: [seven-habits-ch03-be-proactive, seven-habits-ch05-first-things-first]

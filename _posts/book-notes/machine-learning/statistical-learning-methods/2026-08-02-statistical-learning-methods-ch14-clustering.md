@@ -6,13 +6,13 @@ uid: statistical-learning-methods-ch14-clustering
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [machine-learning, books]
+topics: [machine-learning]
 series: statistical-learning-methods
 series_order: 15
 related: [statistical-learning-methods-ch13-unsupervised-learning-introduction, statistical-learning-methods-ch15-singular-value-decomposition]
 categories: [读书笔记, 机器学习, 统计学习方法]
 tags: [statistical-learning, machine-learning, reading-notes]
-description: "围绕「聚类方法」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "比较闵可夫斯基、马氏距离、相关和余弦等相似度，进而推导层次聚类的类间连接与 k 均值的分配更新迭代及初值风险。"
 toc: true
 render_with_liquid: false
 math: true

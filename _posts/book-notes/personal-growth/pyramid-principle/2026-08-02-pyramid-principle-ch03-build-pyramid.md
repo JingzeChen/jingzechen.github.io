@@ -6,13 +6,13 @@ uid: pyramid-principle-ch03-build-pyramid
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [communication, books]
+topics: [communication]
 series: pyramid-principle
 series_order: 3
 related: [pyramid-principle-ch02-internal-structure, pyramid-principle-ch04-write-introduction]
 categories: [读书笔记, 个人成长, 金字塔原理]
 tags: [communication, structured-thinking, reading-notes]
-description: "围绕「如何构建金字塔读书笔记」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "提供两条可切换的构建路径：已知读者问题时由 SCQA 自上而下展开，结论模糊时从材料分组、排序并向上概括。"
 toc: true
 math: true
 mermaid: true

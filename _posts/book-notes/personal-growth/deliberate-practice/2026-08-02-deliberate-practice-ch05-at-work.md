@@ -6,13 +6,13 @@ uid: deliberate-practice-ch05-at-work
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [personal-growth, books]
+topics: [personal-growth]
 series: deliberate-practice
 series_order: 6
 related: [deliberate-practice-ch04-gold-standard, deliberate-practice-ch06-in-life]
 categories: [读书笔记, 个人成长, 刻意练习]
 tags: [personal-growth, deliberate-practice, reading-notes]
-description: "围绕「第 5 章 在工作中运用刻意练习原则」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "把工作重构为安全、高保真的反复训练：先做关键判断，再用录像、已知结果和专家复盘修正职业心理表征。"
 toc: true
 math: true
 mermaid: true

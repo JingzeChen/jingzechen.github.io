@@ -6,7 +6,7 @@ uid: homl-preface
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [machine-learning, books]
+topics: [machine-learning]
 series: hands-on-machine-learning
 series_order: 1
 related: [homl-ch01-ml-landscape]

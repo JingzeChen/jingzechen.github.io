@@ -6,13 +6,13 @@ uid: ai-engineering-ch09-inference-optimization
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [ai-engineering, books]
+topics: [ai-engineering]
 series: ai-engineering
 series_order: 10
 related: [ai-engineering-ch08-dataset-engineering, ai-engineering-ch10-architecture-user-feedback]
 categories: [读书笔记, AI 系统, AI Engineering]
 tags: [ai-engineering, foundation-models, reading-notes]
-description: "围绕「推理优化」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "从 prefill 与 decode 的不同瓶颈出发，用 TTFT、TPOT、goodput 和成本衡量量化、缓存、批处理及并行优化。"
 toc: true
 math: true
 mermaid: true

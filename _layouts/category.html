@@ -39,26 +39,37 @@ layout: page
 <div id="page-category">
   {% if category_series_meta and category_series_posts.size == page.posts.size %}
     {% assign ordered_series_posts = category_series_posts | sort: 'garden_series_position' %}
+    {% assign series_statuses = ordered_series_posts | map: 'status' | uniq %}
     <header class="taxonomy-header series-header">
       <p class="garden-kicker">Reading series</p>
       <h1>{{ category_series_meta.title }}</h1>
       <p>{{ category_series_meta.description }}</p>
       <div class="taxonomy-meta">
         <span>{{ ordered_series_posts.size }} notes</span>
+        {% if category_series_meta.author %}<span>By {{ category_series_meta.author }}</span>{% endif %}
         {% for topic in category_series_meta.topics %}
           <a href="{{ '/topics/' | append: topic | append: '/' | relative_url }}">
             {{- site.data.topics[topic].title | default: topic | replace: '-', ' ' -}}
           </a>
         {% endfor %}
+        {% if category_series_meta.external_url %}
+          <a href="{{ category_series_meta.external_url }}" rel="external">Book details</a>
+        {% endif %}
       </div>
     </header>
 
     <ol class="series-chapter-list">
       {% for post in ordered_series_posts %}
-        <li>
-          <span class="series-chapter-number">{{ post.garden_series_position | prepend: '0' | slice: -2, 2 }}</span>
+        <li id="{{ post.uid }}" data-series-status="{{ post.status }}">
+          <span class="series-chapter-number">
+            {{- post.garden_series_position | prepend: '0' | slice: -2, 2 -}}
+            <span class="series-current-label">Current chapter</span>
+          </span>
           <div>
             <a href="{{ post.url | relative_url }}">{{ post.title }}</a>
+            {% if series_statuses.size > 1 %}
+              <span class="series-chapter-status garden-post-status-{{ post.status }}">{{ post.status }}</span>
+            {% endif %}
             {% if post.garden_description_valid %}<p>{{ post.description }}</p>{% endif %}
           </div>
           <time datetime="{{ post.updated | default: post.date | date_to_xmlschema }}">
@@ -67,6 +78,21 @@ layout: page
         </li>
       {% endfor %}
     </ol>
+    <script>
+      (() => {
+        const chapters = document.querySelectorAll('.series-chapter-list > li[id]');
+        const updateCurrentChapter = () => {
+          chapters.forEach((chapter) => chapter.removeAttribute('aria-current'));
+          const chapter = document.getElementById(location.hash.slice(1));
+          if (chapter?.matches('.series-chapter-list > li[id]')) {
+            chapter.setAttribute('aria-current', 'location');
+          }
+        };
+
+        updateCurrentChapter();
+        window.addEventListener('hashchange', updateCurrentChapter);
+      })();
+    </script>
   {% else %}
     <header class="taxonomy-header">
       <p class="garden-kicker">Subject</p>

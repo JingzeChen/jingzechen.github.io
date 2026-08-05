@@ -6,13 +6,13 @@ uid: deliberate-practice-ch08-innate-talent
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [personal-growth, books]
+topics: [personal-growth]
 series: deliberate-practice
 series_order: 9
 related: [deliberate-practice-ch07-roadmap-to-excellence, deliberate-practice-ch09-new-world]
 categories: [读书笔记, 个人成长, 刻意练习]
 tags: [personal-growth, deliberate-practice, reading-notes]
-description: "围绕「第 8 章 怎样解释天生才华」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "拆开神童传奇与天赋标签，追查专项训练、身体差异和基因—环境交互，说明初始优势为何不能直接预测最终成就。"
 toc: true
 math: true
 mermaid: true

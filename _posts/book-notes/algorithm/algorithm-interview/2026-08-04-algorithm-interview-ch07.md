@@ -6,13 +6,13 @@ uid: algorithm-interview-ch07
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [algorithms, books]
+topics: [algorithms]
 series: algorithm-interview
 series_order: 8
 related: [algorithm-interview-ch06, algorithm-interview-ch08]
 categories: [读书笔记, 算法, 算法面试]
 tags: [algorithms, data-structures, coding-interviews, reading-notes]
-description: "围绕「《算法面试（全二册）》第 7 章“二叉搜索树”读书笔记」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "以全局次序不变量和中序递增性质推导 BST 的搜索、插入、删除、剪枝、排名与迭代器，说明性能受树高支配。"
 toc: true
 render_with_liquid: false
 math: true

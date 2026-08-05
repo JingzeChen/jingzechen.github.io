@@ -6,13 +6,13 @@ uid: make-it-stick-ch01-learning-challenges-human-nature
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [learning, books]
+topics: [learning]
 series: make-it-stick
 series_order: 2
 related: [make-it-stick-preface, make-it-stick-ch02-knowledge-chains-memory-knots]
 categories: [读书笔记, 个人成长, 认知天性]
 tags: [learning-science, personal-growth, reading-notes]
-description: "围绕「学习是挑战天性的必修课」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "区分练习时流畅与延迟后真会，借飞行危机和认知实验说明检索、间隔、穿插、生成与反馈为何值得承受短期困难。"
 toc: true
 math: true
 mermaid: true

@@ -6,13 +6,13 @@ uid: xiaomi-entrepreneurship-ch05
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [entrepreneurship, books]
+topics: [entrepreneurship]
 series: xiaomi-entrepreneurship
 series_order: 6
 related: [xiaomi-entrepreneurship-ch04, xiaomi-entrepreneurship-ch06]
 categories: [读书笔记, 创业, 小米创业思考]
 tags: [entrepreneurship, xiaomi, business, reading-notes]
-description: "围绕「《小米创业思考》第五章《我对互联网思维的理解》读书笔记」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "沿盘古失败、站店卖软件与两次互联网长考，追溯雷军如何从技术崇拜转向理解用户，并把互联网归纳为连接、服务与效率方法。"
 toc: true
 mermaid: true
 ---

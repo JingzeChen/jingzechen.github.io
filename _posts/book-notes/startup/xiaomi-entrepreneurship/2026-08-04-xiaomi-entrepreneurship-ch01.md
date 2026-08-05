@@ -6,13 +6,13 @@ uid: xiaomi-entrepreneurship-ch01
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [entrepreneurship, books]
+topics: [entrepreneurship]
 series: xiaomi-entrepreneurship
 series_order: 2
 related: [xiaomi-entrepreneurship-preface, xiaomi-entrepreneurship-ch02]
 categories: [读书笔记, 创业, 小米创业思考]
 tags: [entrepreneurship, xiaomi, business, reading-notes]
-description: "围绕「《小米创业思考》第一章《奇迹时代》读书笔记」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "还原小米从MIUI百名种子用户、每周迭代到手机爆品和IoT生态的路径，展示资源有限时如何选切口、聚人才并与用户共创。"
 toc: true
 mermaid: true
 ---

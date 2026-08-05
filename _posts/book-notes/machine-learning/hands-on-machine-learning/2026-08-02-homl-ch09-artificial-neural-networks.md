@@ -6,13 +6,13 @@ uid: homl-ch09-artificial-neural-networks
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [machine-learning, books]
+topics: [machine-learning]
 series: hands-on-machine-learning
 series_order: 10
 related: [homl-ch08-unsupervised-learning, homl-ch10-neural-networks-with-pytorch]
 categories: [读书笔记, 机器学习, Hands-On Machine Learning]
 tags: [machine-learning, hands-on-ml, reading-notes]
-description: "围绕「人工神经网络简介」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "从感知机的线性边界与 XOR 局限推到多层感知机，解释非线性激活、前向与反向传播，并匹配回归和分类的输出层与损失。"
 toc: true
 math: true
 mermaid: true

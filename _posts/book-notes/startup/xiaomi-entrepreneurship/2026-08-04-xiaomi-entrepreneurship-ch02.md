@@ -6,13 +6,13 @@ uid: xiaomi-entrepreneurship-ch02
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [entrepreneurship, books]
+topics: [entrepreneurship]
 series: xiaomi-entrepreneurship
 series_order: 3
 related: [xiaomi-entrepreneurship-ch01, xiaomi-entrepreneurship-ch03]
 categories: [读书笔记, 创业, 小米创业思考]
 tags: [entrepreneurship, xiaomi, business, reading-notes]
-description: "围绕「《小米创业思考》第二章《低谷》读书笔记」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "复盘高速增长掩盖的研发、供应链和管理短板，以及销量下滑引发的死亡螺旋，说明小米如何靠交付、创新与质量补课自救。"
 toc: true
 mermaid: true
 ---

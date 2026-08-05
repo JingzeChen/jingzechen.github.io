@@ -6,13 +6,13 @@ uid: algorithm-interview-ch01
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [algorithms, books]
+topics: [algorithms]
 series: algorithm-interview
 series_order: 2
 related: [algorithm-interview-preface, algorithm-interview-ch02]
 categories: [读书笔记, 算法, 算法面试]
 tags: [algorithms, data-structures, coding-interviews, reading-notes]
-description: "围绕「《算法面试（全二册）》第 1 章“数组”读书笔记」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "从连续索引和有序性出发，推导双指针、原地覆盖、区间划分与多路归并，并比较随机访问和中间更新的代价。"
 toc: true
 render_with_liquid: false
 math: true

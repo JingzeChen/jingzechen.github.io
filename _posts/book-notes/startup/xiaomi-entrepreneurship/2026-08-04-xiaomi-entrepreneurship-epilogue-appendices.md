@@ -6,13 +6,13 @@ uid: xiaomi-entrepreneurship-epilogue-appendices
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [entrepreneurship, books]
+topics: [entrepreneurship]
 series: xiaomi-entrepreneurship
 series_order: 16
 related: [xiaomi-entrepreneurship-ch14]
 categories: [读书笔记, 创业, 小米创业思考]
 tags: [entrepreneurship, xiaomi, business, reading-notes]
-description: "围绕「《小米创业思考》后记与附录读书笔记」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "以后记的创新效率模型对照IPO公开信、十周年与造车演讲，辨析5%利润承诺、危机决策和方法论在真实历史语境中的形成。"
 toc: true
 mermaid: true
 ---

@@ -6,13 +6,13 @@ uid: algorithm-interview-ch11
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [algorithms, books]
+topics: [algorithms]
 series: algorithm-interview
 series_order: 12
 related: [algorithm-interview-ch10, algorithm-interview-ch12]
 categories: [读书笔记, 算法, 算法面试]
 tags: [algorithms, data-structures, coding-interviews, reading-notes]
-description: "围绕「前缀和与差分」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "把前缀和与差分视为离散逆运算，推导一维和二维的区间查询、批量更新及子数组计数公式。"
 toc: true
 render_with_liquid: false
 math: true

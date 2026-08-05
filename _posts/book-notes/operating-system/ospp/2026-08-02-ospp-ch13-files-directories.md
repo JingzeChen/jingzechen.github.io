@@ -6,13 +6,13 @@ uid: ospp-ch13-files-directories
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [operating-systems, books]
+topics: [operating-systems]
 series: operating-systems-principles-practice
 series_order: 13
 related: [ospp-ch12-storage-devices, ospp-ch14-reliable-storage]
 categories: [读书笔记, 操作系统, OSPP]
 tags: [operating-systems, ospp, reading-notes]
-description: "围绕「文件与目录」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "推导路径名与字节偏移到设备块的两级翻译，比较 FAT、FFS、extent、NTFS 与写时复制索引在随机访问、扩展和崩溃恢复上的权衡。"
 toc: true
 render_with_liquid: false
 math: true

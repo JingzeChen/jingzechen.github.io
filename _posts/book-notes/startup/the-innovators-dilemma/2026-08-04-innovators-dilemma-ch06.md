@@ -6,13 +6,13 @@ uid: innovators-dilemma-ch06
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [innovation, books]
+topics: [innovation]
 series: the-innovators-dilemma
 series_order: 7
 related: [innovators-dilemma-ch05, innovators-dilemma-ch07]
 categories: [读书笔记, 创业, 创新者的窘境]
 tags: [innovation, disruptive-innovation, strategy, reading-notes]
-description: "围绕「《创新者的窘境》第六章读书笔记」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "以硬盘企业37%与6%的进入成功率为证，说明破坏性市场必须抢先，却需由规模足够小、能重视小订单的机构承接。"
 toc: true
 math: true
 mermaid: true

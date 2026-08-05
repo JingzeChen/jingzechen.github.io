@@ -6,13 +6,13 @@ uid: homl-ch17-accelerating-transformers
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [machine-learning, books]
+topics: [machine-learning]
 series: hands-on-machine-learning
 series_order: 18
 related: [homl-ch16-vision-multimodal-transformers, homl-ch18-autoencoders-gans-diffusion]
 categories: [读书笔记, 机器学习, Hands-On Machine Learning]
 tags: [machine-learning, hands-on-ml, reading-notes]
-description: "围绕「加速 Transformer」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "按 prefill、decode、长序列和训练内存定位瓶颈，比较 KV 缓存、GQA、FlashAttention、MoE、LoRA 与多维并行的速度质量取舍。"
 toc: true
 math: true
 mermaid: true

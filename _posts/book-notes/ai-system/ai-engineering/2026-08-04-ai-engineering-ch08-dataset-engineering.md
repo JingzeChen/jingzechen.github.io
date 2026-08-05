@@ -6,13 +6,13 @@ uid: ai-engineering-ch08-dataset-engineering
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [ai-engineering, books]
+topics: [ai-engineering]
 series: ai-engineering
 series_order: 9
 related: [ai-engineering-ch07-fine-tuning, ai-engineering-ch09-inference-optimization]
 categories: [读书笔记, AI 系统, AI Engineering]
 tags: [ai-engineering, foundation-models, reading-notes]
-description: "围绕「数据集工程」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "围绕期望行为设计训练数据，说明质量、覆盖、数量与混合比例如何协同，并比较人工标注、弱监督、合成及清洗流程。"
 toc: true
 math: true
 mermaid: true

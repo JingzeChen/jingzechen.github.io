@@ -6,13 +6,13 @@ uid: statistical-learning-methods-ch06-logistic-regression-maximum-entropy
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [machine-learning, books]
+topics: [machine-learning]
 series: statistical-learning-methods
 series_order: 7
 related: [statistical-learning-methods-ch05-decision-tree, statistical-learning-methods-ch07-support-vector-machines]
 categories: [读书笔记, 机器学习, 统计学习方法]
 tags: [statistical-learning, machine-learning, reading-notes]
-description: "围绕「逻辑斯谛回归与最大熵模型」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "从 sigmoid 对数几率和最大熵约束两路推导同一对数线性模型，证明拉格朗日对偶与极大似然等价，并比较 IIS 与拟牛顿优化。"
 toc: true
 math: true
 ---

@@ -6,13 +6,13 @@ uid: clean-architecture-ch19
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [software-architecture, books]
+topics: [software-architecture]
 series: clean-architecture
 series_order: 19
 related: [clean-architecture-ch18, clean-architecture-ch20]
 categories: [读书笔记, 软件架构, Clean Architecture]
 tags: [software-architecture, clean-architecture, reading-notes]
-description: "围绕「《Clean Architecture》Chapter 19 读书笔记」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "用策略距输入输出的距离定义层级，通过加密程序说明数据流不决定依赖方向，并把低层设备隔离在核心转换之外。"
 toc: true
 mermaid: true
 ---

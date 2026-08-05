@@ -6,13 +6,13 @@ uid: ospp-ch05-shared-object-synchronization
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [operating-systems, books]
+topics: [operating-systems]
 series: operating-systems-principles-practice
 series_order: 5
 related: [ospp-ch04-concurrency-threads, ospp-ch06-multi-object-synchronization]
 categories: [读书笔记, 操作系统, OSPP]
 tags: [operating-systems, ospp, reading-notes]
-description: "围绕「锁、条件变量与结构化并发」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "从竞态、指令重排和交错爆炸出发，用锁封装共享对象、以条件变量等待状态谓词，并区分安全性、活性与公平性。"
 toc: true
 math: true
 mermaid: true

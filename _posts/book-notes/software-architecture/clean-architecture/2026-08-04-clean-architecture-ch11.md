@@ -6,13 +6,13 @@ uid: clean-architecture-ch11
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [software-architecture, books]
+topics: [software-architecture]
 series: clean-architecture
 series_order: 11
 related: [clean-architecture-ch10, clean-architecture-ch12]
 categories: [读书笔记, 软件架构, Clean Architecture]
 tags: [software-architecture, clean-architecture, reading-notes]
-description: "围绕「《Clean Architecture》Chapter 11 读书笔记」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "区分运行时控制流与源码依赖，说明高层策略怎样通过稳定抽象反转对易变细节的依赖，并把具体创建集中到架构边界。"
 toc: true
 mermaid: true
 ---

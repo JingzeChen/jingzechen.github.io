@@ -6,7 +6,7 @@ uid: innovators-dilemma-introduction
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [innovation, books]
+topics: [innovation]
 series: the-innovators-dilemma
 series_order: 1
 related: [innovators-dilemma-ch01]

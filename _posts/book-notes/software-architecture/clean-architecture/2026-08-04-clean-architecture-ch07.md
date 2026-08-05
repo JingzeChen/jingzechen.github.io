@@ -6,13 +6,13 @@ uid: clean-architecture-ch07
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [software-architecture, books]
+topics: [software-architecture]
 series: clean-architecture
 series_order: 7
 related: [clean-architecture-ch06, clean-architecture-ch08]
 categories: [读书笔记, 软件架构, Clean Architecture]
 tags: [software-architecture, clean-architecture, reading-notes]
-description: "围绕「《Clean Architecture》Chapter 7 读书笔记」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "澄清 SRP 并非要求一个类只做一件事，而是让模块只服务变化诉求一致的 actor，以隔离偶然共享与合并冲突。"
 toc: true
 mermaid: true
 ---

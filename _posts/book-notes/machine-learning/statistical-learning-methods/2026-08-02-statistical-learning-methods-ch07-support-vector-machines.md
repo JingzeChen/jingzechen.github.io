@@ -6,13 +6,13 @@ uid: statistical-learning-methods-ch07-support-vector-machines
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [machine-learning, books]
+topics: [machine-learning]
 series: statistical-learning-methods
 series_order: 8
 related: [statistical-learning-methods-ch06-logistic-regression-maximum-entropy, statistical-learning-methods-ch08-boosting]
 categories: [读书笔记, 机器学习, 统计学习方法]
 tags: [statistical-learning, machine-learning, reading-notes]
-description: "围绕「支持向量机」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "从几何间隔最大化建立硬间隔 SVM，经拉格朗日对偶推到软间隔与核方法，并拆解 KKT、支持向量及 SMO 两变量更新。"
 toc: true
 math: true
 ---

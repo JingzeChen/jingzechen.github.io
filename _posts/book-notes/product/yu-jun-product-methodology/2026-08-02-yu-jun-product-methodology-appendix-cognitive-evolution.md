@@ -6,7 +6,7 @@ uid: yu-jun-product-methodology-appendix-cognitive-evolution
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [product-management, books]
+topics: [product-management]
 series: yu-jun-product-methodology
 series_order: 7
 related: [yu-jun-product-methodology-notes, yu-jun-product-methodology-ch05-selection-and-growth]

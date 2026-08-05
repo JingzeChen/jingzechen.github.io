@@ -6,13 +6,13 @@ uid: ospp-ch03-programming-interface
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [operating-systems, books]
+topics: [operating-systems]
 series: operating-systems-principles-practice
 series_order: 3
 related: [ospp-ch02-kernel-abstraction, ospp-ch04-concurrency-threads]
 categories: [读书笔记, 操作系统, OSPP]
 tags: [operating-systems, ospp, reading-notes]
-description: "围绕「进程、I/O、Shell 与操作系统结构」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "以 UNIX 细腰接口贯通 fork、exec、wait、统一 I/O、Shell 管道与 IPC，并比较功能放在库、内核或用户服务中的代价。"
 toc: true
 render_with_liquid: false
 math: true

@@ -6,13 +6,13 @@ uid: algorithm-interview-ch24
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [algorithms, books]
+topics: [algorithms]
 series: algorithm-interview
 series_order: 25
 related: [algorithm-interview-ch23, algorithm-interview-ch25]
 categories: [读书笔记, 算法, 算法面试]
 tags: [algorithms, data-structures, coding-interviews, reading-notes]
-description: "围绕「迷宫问题」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "从停点、滚动边和距离定义构造迷宫图，依目标分别选择 DFS、BFS 或复合优先级 Dijkstra，避免把变权边误作单位边。"
 toc: true
 render_with_liquid: false
 math: true

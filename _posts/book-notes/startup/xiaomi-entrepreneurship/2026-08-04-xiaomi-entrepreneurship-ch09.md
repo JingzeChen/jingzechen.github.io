@@ -6,13 +6,13 @@ uid: xiaomi-entrepreneurship-ch09
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [entrepreneurship, books]
+topics: [entrepreneurship]
 series: xiaomi-entrepreneurship
 series_order: 10
 related: [xiaomi-entrepreneurship-ch08, xiaomi-entrepreneurship-ch10]
 categories: [读书笔记, 创业, 小米创业思考]
 tags: [entrepreneurship, xiaomi, business, reading-notes]
-description: "围绕「《小米创业思考》第九章《爆品模式》读书笔记」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "以单款、精品、海量、长周期为体检指标，解释爆品如何由大众需求、超预期产品、惊喜定价和规模效率共同形成。"
 toc: true
 mermaid: true
 ---

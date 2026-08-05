@@ -6,13 +6,13 @@ uid: algorithm-interview-preface
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [algorithms, books]
+topics: [algorithms]
 series: algorithm-interview
 series_order: 1
 related: [algorithm-interview-ch01]
 categories: [读书笔记, 算法, 算法面试]
 tags: [algorithms, data-structures, coding-interviews, reading-notes]
-description: "围绕「《算法面试（全二册）》前言读书笔记」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "说明算法面试训练为何以问题建模、实现、复杂度比较和复盘为核心，并交代全书从数据结构到设计策略的学习路径。"
 toc: true
 render_with_liquid: false
 math: true

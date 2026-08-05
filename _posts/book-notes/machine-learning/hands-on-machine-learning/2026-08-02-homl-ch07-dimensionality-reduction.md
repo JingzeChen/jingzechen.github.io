@@ -6,13 +6,13 @@ uid: homl-ch07-dimensionality-reduction
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [machine-learning, books]
+topics: [machine-learning]
 series: hands-on-machine-learning
 series_order: 8
 related: [homl-ch06-ensemble-learning-random-forests, homl-ch08-unsupervised-learning]
 categories: [读书笔记, 机器学习, Hands-On Machine Learning]
 tags: [machine-learning, hands-on-ml, reading-notes]
-description: "围绕「降维（Dimensionality Reduction）」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "从维度灾难与内在维数出发，比较 PCA、随机投影和 LLE 分别保留方差、距离与局部结构的原理、实现和失真风险。"
 toc: true
 math: true
 mermaid: true

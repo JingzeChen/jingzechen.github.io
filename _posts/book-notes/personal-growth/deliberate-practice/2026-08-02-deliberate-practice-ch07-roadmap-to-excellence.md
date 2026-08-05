@@ -6,13 +6,13 @@ uid: deliberate-practice-ch07-roadmap-to-excellence
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [personal-growth, books]
+topics: [personal-growth]
 series: deliberate-practice
 series_order: 8
 related: [deliberate-practice-ch06-in-life, deliberate-practice-ch08-innate-talent]
 categories: [读书笔记, 个人成长, 刻意练习]
 tags: [personal-growth, deliberate-practice, reading-notes]
-description: "围绕「第 7 章 成为杰出人物的路线图」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "沿兴趣萌芽、认真训练、全力投入和开拓创新四阶段，解释家庭、导师、机会与年龄窗口怎样共同塑造杰出表现。"
 toc: true
 math: true
 mermaid: true

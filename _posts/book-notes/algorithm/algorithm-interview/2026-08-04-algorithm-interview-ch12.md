@@ -6,13 +6,13 @@ uid: algorithm-interview-ch12
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [algorithms, books]
+topics: [algorithms]
 series: algorithm-interview
 series_order: 13
 related: [algorithm-interview-ch11, algorithm-interview-ch13]
 categories: [读书笔记, 算法, 算法面试]
 tags: [algorithms, data-structures, coding-interviews, reading-notes]
-description: "围绕「线段树」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "以可结合的区间摘要为不变量，推导线段树建树、查询、单点更新、懒传播、动态开点与坐标离散化。"
 toc: true
 render_with_liquid: false
 math: true

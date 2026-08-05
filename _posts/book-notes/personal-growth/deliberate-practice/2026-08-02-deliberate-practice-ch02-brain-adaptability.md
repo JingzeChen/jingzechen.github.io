@@ -6,13 +6,13 @@ uid: deliberate-practice-ch02-brain-adaptability
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [personal-growth, books]
+topics: [personal-growth]
 series: deliberate-practice
 series_order: 3
 related: [deliberate-practice-ch01-purposeful-practice, deliberate-practice-ch03-mental-representations]
 categories: [读书笔记, 个人成长, 刻意练习]
 tags: [personal-growth, deliberate-practice, reading-notes]
-description: "围绕「第 2 章 大脑的适应能力」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "以伦敦出租车司机等研究解释神经可塑性：适度挑战打破体内平衡，专项适应提升能力，也伴随年龄、维持与代价约束。"
 toc: true
 math: true
 mermaid: true

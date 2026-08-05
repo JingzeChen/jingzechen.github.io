@@ -12,12 +12,16 @@ module Garden
       content_types = site.config.dig("garden", "content_types") || []
       statuses = site.config.dig("garden", "statuses") || []
       content_languages = site.config.dig("garden", "content_languages") || []
+      hidden_topics = site.config.dig("garden", "hidden_topics") || []
       series_registry = site.data["series"] || {}
       seen_uids = {}
       errors = []
 
       site.posts.docs.each do |post|
         post.data["garden_description_valid"] = !post.data["description"].to_s.match?(TEMPLATE_DESCRIPTION)
+        unless post.data["garden_description_valid"]
+          errors << "#{post.relative_path}: replace the template description with a specific summary"
+        end
 
         REQUIRED_FIELDS.each do |field|
           errors << "#{post.relative_path}: missing '#{field}'" if blank?(post.data[field])
@@ -26,7 +30,7 @@ module Garden
         validate_value(post, "type", content_types, errors)
         validate_value(post, "status", statuses, errors)
         validate_value(post, "content_lang", content_languages, errors)
-        validate_topics(post, errors)
+        validate_topics(post, hidden_topics, errors)
         validate_series_order(post, errors)
         validate_series(post, series_registry, errors)
         validate_featured(post, errors)
@@ -50,6 +54,12 @@ module Garden
         errors << "featured content count must be between 2 and 5 (found #{featured_count})"
       end
 
+      series_registry.each do |slug, metadata|
+        %w[title description url topics].each do |field|
+          errors << "series '#{slug}' requires '#{field}'" if blank?(metadata[field])
+        end
+      end
+
       return if errors.empty?
 
       raise Jekyll::Errors::FatalException,
@@ -69,11 +79,17 @@ module Garden
       errors << "#{post.relative_path}: invalid #{field} '#{value}' (allowed: #{allowed_values.join(", ")})"
     end
 
-    def validate_topics(post, errors)
+    def validate_topics(post, hidden_topics, errors)
       topics = post.data["topics"]
-      return if blank?(topics) || topics.is_a?(Array)
+      return if blank?(topics)
 
-      errors << "#{post.relative_path}: 'topics' must be a YAML array"
+      unless topics.is_a?(Array)
+        errors << "#{post.relative_path}: 'topics' must be a YAML array"
+        return
+      end
+
+      hidden = topics & hidden_topics
+      errors << "#{post.relative_path}: remove hidden topics #{hidden.join(', ')}" unless hidden.empty?
     end
 
     def validate_series_order(post, errors)

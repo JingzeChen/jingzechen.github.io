@@ -6,13 +6,13 @@ uid: seven-habits-appendix-time-management-life-centers
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [personal-growth, books]
+topics: [personal-growth]
 series: seven-habits
 series_order: 13
 related: [seven-habits-ch11-inside-out-again]
 categories: [读书笔记, 个人成长, 高效能人士的七个习惯]
 tags: [personal-growth, seven-habits, reading-notes]
-description: "围绕「附录」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "用九小时无法容纳全部急事的办公室案例检验授权与第二象限思维，再以生活中心矩阵揭示价值取向如何支配时间配置。"
 toc: true
 math: true
 ---

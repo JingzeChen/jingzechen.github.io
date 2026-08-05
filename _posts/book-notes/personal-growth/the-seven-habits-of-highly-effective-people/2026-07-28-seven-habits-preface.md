@@ -6,7 +6,7 @@ uid: seven-habits-preface
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [personal-growth, books]
+topics: [personal-growth]
 series: seven-habits
 series_order: 1
 related: [seven-habits-ch01-inside-out]

@@ -6,13 +6,13 @@ uid: pyramid-principle-ch05-deduction-induction
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [communication, books]
+topics: [communication]
 series: pyramid-principle
 series_order: 5
 related: [pyramid-principle-ch04-write-introduction, pyramid-principle-ch06-logical-order]
 categories: [读书笔记, 个人成长, 金字塔原理]
 tags: [communication, structured-thinking, reading-notes]
-description: "围绕「演绎推理与归纳推理读书笔记」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "辨清横向思想的两类关系：演绎让前提逐步推出结论，归纳从同类事实提炼共同判断；发现过程与读者呈现不必同序。"
 toc: true
 math: true
 mermaid: true

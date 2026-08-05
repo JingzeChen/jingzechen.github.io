@@ -6,13 +6,13 @@ uid: ospp-ch04-concurrency-threads
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [operating-systems, books]
+topics: [operating-systems]
 series: operating-systems-principles-practice
 series_order: 4
 related: [ospp-ch03-programming-interface, ospp-ch05-shared-object-synchronization]
 categories: [读书笔记, 操作系统, OSPP]
 tags: [operating-systems, ospp, reading-notes]
-description: "围绕「从顺序执行流到虚拟处理器」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "把线程刻画为复用到有限处理器上的顺序执行流，说明 TCB、栈、上下文切换和生命周期如何支持并发，同时暴露共享内存风险。"
 toc: true
 math: true
 mermaid: true

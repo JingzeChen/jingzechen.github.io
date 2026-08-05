@@ -6,7 +6,7 @@ uid: seven-habits-ch03-be-proactive
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [personal-growth, books]
+topics: [personal-growth]
 series: seven-habits
 series_order: 4
 related: [seven-habits-ch02-overview, seven-habits-ch04-begin-with-the-end]

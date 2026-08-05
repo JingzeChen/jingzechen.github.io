@@ -179,8 +179,9 @@ image:
 #### `topics`
 
 - 使用 YAML 数组和小写英文 slug。
-- 表示稳定的知识领域，例如 `machine-learning`、`software-engineering`、`books`。
+- 表示稳定的知识领域，例如 `machine-learning`、`software-engineering`、`learning`。
 - 通常使用 1 至 3 个，不把临时关键词都放进 topics。
+- `_config.yml` 中 `garden.hidden_topics` 列出的公共值不得写入 Front Matter。
 
 #### `description`
 
@@ -559,7 +560,7 @@ uid: book-slug-ch01
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [machine-learning, books]
+topics: [machine-learning]
 series: book-slug
 series_order: 2
 categories: [读书笔记, 领域, 书名]
@@ -668,6 +669,7 @@ bundle exec jekyll build -d _site
 
 ```powershell
 bundle exec ruby tools/validate-garden.rb _site
+bundle exec ruby tools/content-quality.rb --check
 ```
 
 该检查覆盖内容语言、Series 顺序、Topic 页面、Reading/Search 数据、Featured 入口和 Ultra-long 章节锚点。

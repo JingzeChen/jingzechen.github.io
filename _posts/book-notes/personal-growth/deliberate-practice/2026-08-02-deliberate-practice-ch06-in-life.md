@@ -6,13 +6,13 @@ uid: deliberate-practice-ch06-in-life
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [personal-growth, books]
+topics: [personal-growth]
 series: deliberate-practice
 series_order: 7
 related: [deliberate-practice-ch05-at-work, deliberate-practice-ch07-roadmap-to-excellence]
 categories: [读书笔记, 个人成长, 刻意练习]
 tags: [personal-growth, deliberate-practice, reading-notes]
-description: "围绕「第 6 章 在生活中运用刻意练习原则」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "为个人训练搭建可持续系统：选择合适导师，以短时专注和三个 F 自建反馈，诊断平台期，并用环境与社群维持投入。"
 toc: true
 math: true
 mermaid: true

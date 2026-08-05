@@ -6,13 +6,13 @@ uid: statistical-learning-methods-ch11-conditional-random-fields
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [machine-learning, books]
+topics: [machine-learning]
 series: statistical-learning-methods
 series_order: 12
 related: [statistical-learning-methods-ch10-hidden-markov-models, statistical-learning-methods-ch12-supervised-learning-summary]
 categories: [读书笔记, 机器学习, 统计学习方法]
 tags: [statistical-learning, machine-learning, reading-notes]
-description: "围绕「条件随机场」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "从 HMM 观测独立局限转向判别式线性链 CRF，借无向图因子分解、前向后向、拟牛顿学习和 Viterbi 完成序列标注。"
 toc: true
 math: true
 ---

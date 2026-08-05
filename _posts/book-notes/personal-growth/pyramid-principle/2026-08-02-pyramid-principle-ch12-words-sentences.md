@@ -6,13 +6,13 @@ uid: pyramid-principle-ch12-words-sentences
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [communication, books]
+topics: [communication]
 series: pyramid-principle
 series_order: 12
 related: [pyramid-principle-ch11-presentation-slides]
 categories: [读书笔记, 个人成长, 金字塔原理]
 tags: [communication, structured-thinking, reading-notes]
-description: "围绕「在字里行间呈现金字塔读书笔记」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "把抽象关系还原为对象、动作和方向，再写成主语明确的简单句，使读者能从文字重建图像、因果与状态变化。"
 toc: true
 math: true
 mermaid: true

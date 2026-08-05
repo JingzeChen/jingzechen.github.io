@@ -6,13 +6,13 @@ uid: statistical-learning-methods-ch12-supervised-learning-summary
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [machine-learning, books]
+topics: [machine-learning]
 series: statistical-learning-methods
 series_order: 13
 related: [statistical-learning-methods-ch11-conditional-random-fields, statistical-learning-methods-ch13-unsupervised-learning-introduction]
 categories: [读书笔记, 机器学习, 统计学习方法]
 tags: [statistical-learning, machine-learning, reading-notes]
-description: "围绕「监督学习方法总结」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "用适用问题、模型、策略和算法四维框架重排十种监督学习方法，比较生成与判别、线性与非线性及逻辑、合页、指数损失的关系。"
 toc: true
 math: true
 ---

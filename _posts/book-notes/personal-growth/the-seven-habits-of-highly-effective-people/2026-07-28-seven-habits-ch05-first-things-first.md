@@ -6,7 +6,7 @@ uid: seven-habits-ch05-first-things-first
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [personal-growth, books]
+topics: [personal-growth]
 series: seven-habits
 series_order: 6
 related: [seven-habits-ch04-begin-with-the-end, seven-habits-ch06-interdependence]

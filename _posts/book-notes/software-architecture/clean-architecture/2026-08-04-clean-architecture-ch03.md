@@ -6,13 +6,13 @@ uid: clean-architecture-ch03
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [software-architecture, books]
+topics: [software-architecture]
 series: clean-architecture
 series_order: 3
 related: [clean-architecture-ch02, clean-architecture-ch04]
 categories: [读书笔记, 软件架构, Clean Architecture]
 tags: [software-architecture, clean-architecture, reading-notes]
-description: "围绕「《Clean Architecture》Chapter 3 读书笔记」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "把结构化、面向对象和函数式编程理解为三种限制危险自由的纪律，连接控制流、依赖方向与可变状态的架构意义。"
 toc: true
 mermaid: true
 ---

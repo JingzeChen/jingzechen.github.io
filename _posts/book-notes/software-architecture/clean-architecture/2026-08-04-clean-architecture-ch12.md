@@ -6,13 +6,13 @@ uid: clean-architecture-ch12
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [software-architecture, books]
+topics: [software-architecture]
 series: clean-architecture
 series_order: 12
 related: [clean-architecture-ch11, clean-architecture-ch13]
 categories: [读书笔记, 软件架构, Clean Architecture]
 tags: [software-architecture, clean-architecture, reading-notes]
-description: "围绕「《Clean Architecture》Chapter 12 读书笔记」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "以部署单元定义组件，沿固定地址、可重定位二进制、链接器与动态加载的演化，解释插件架构赖以成立的工具基础。"
 toc: true
 mermaid: true
 ---

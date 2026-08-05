@@ -6,13 +6,13 @@ uid: clean-architecture-ch18
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [software-architecture, books]
+topics: [software-architecture]
 series: clean-architecture
 series_order: 18
 related: [clean-architecture-ch17, clean-architecture-ch19]
 categories: [读书笔记, 软件架构, Clean Architecture]
 tags: [software-architecture, clean-architecture, reading-notes]
-description: "围绕「《Clean Architecture》Chapter 18 读书笔记」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "比较单体源码、动态组件、本地进程与网络服务四种边界的隔离强度、通信成本和部署代价，选择满足需求的最经济形态。"
 toc: true
 mermaid: true
 ---

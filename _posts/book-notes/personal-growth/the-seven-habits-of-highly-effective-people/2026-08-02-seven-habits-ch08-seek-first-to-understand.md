@@ -6,13 +6,13 @@ uid: seven-habits-ch08-seek-first-to-understand
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [personal-growth, books]
+topics: [personal-growth]
 series: seven-habits
 series_order: 9
 related: [seven-habits-ch07-win-win, seven-habits-ch09-synergize]
 categories: [读书笔记, 个人成长, 高效能人士的七个习惯]
 tags: [personal-growth, seven-habits, reading-notes]
-description: "围绕「第八章 习惯五 知彼解己」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "善意建议也会因顺序错误而失败；先用移情聆听进入对方参照系、满足被理解的需求，再以品德、感情和理性表达自己。"
 toc: true
 ---
 

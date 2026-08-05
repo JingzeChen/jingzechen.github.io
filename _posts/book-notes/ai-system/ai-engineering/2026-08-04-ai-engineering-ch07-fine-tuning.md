@@ -6,13 +6,13 @@ uid: ai-engineering-ch07-fine-tuning
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [ai-engineering, books]
+topics: [ai-engineering]
 series: ai-engineering
 series_order: 8
 related: [ai-engineering-ch06-rag-agents, ai-engineering-ch08-dataset-engineering]
 categories: [读书笔记, AI 系统, AI Engineering]
 tags: [ai-engineering, foundation-models, reading-notes]
-description: "围绕「微调」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "先诊断信息缺失还是行为不足，再决定提示、RAG 或微调；并推导训练显存、LoRA、量化及多模型组合的工程取舍。"
 toc: true
 math: true
 mermaid: true

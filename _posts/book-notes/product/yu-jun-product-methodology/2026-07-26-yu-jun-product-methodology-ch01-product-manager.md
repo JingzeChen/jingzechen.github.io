@@ -6,7 +6,7 @@ uid: yu-jun-product-methodology-ch01-product-manager
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [product-management, books]
+topics: [product-management]
 series: yu-jun-product-methodology
 series_order: 2
 related: [yu-jun-product-methodology-notes, yu-jun-product-methodology-ch02-enterprise-user-product]

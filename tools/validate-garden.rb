@@ -36,8 +36,10 @@ assert.call(posts.all? { |_, data| !data["content_lang"].to_s.empty? }, "all pos
 posts.group_by { |_, data| data["series"] }.each do |series, members|
   next if series.nil?
 
-  orders = members.map { |_, data| data["series_order"] }.sort
-  assert.call(orders == (1..members.size).to_a, "#{series} must have contiguous series_order values")
+  orders = members.filter_map { |_, data| data["series_order"] }
+  if orders.size == members.size
+    assert.call(orders.sort == (1..members.size).to_a, "#{series} must have contiguous series_order values")
+  end
 end
 
 featured = posts.select { |_, data| data["featured"] == true }
@@ -85,6 +87,39 @@ assert.call(reading.css(".reading-note-row").empty?, "Reading initial HTML must 
 language_count = reading_posts.map { |_, data| data["content_lang"] }.uniq.size
 language_filter_present = !reading.at_css('[data-reading-filter="language"]').nil?
 assert.call(language_filter_present == (language_count > 1), "language filter activation gate mismatch")
+
+series_registry.each do |slug, metadata|
+  route = metadata.fetch("url").delete_prefix("/").delete_suffix("/")
+  document = parse.call("#{route}/index.html")
+  series_posts = posts.select { |_, data| data["series"] == slug }
+  explicit_orders = series_posts.filter_map { |_, data| data["series_order"] }
+  series_posts = if explicit_orders.size == series_posts.size
+                   series_posts.sort_by { |_, data| data["series_order"] }
+                 else
+                   series_posts.sort_by { |path, data| [data["date"], path] }
+                 end
+  chapter_items = document.css(".series-chapter-list > li[id]")
+  rendered_author = document.at_css(".series-header .taxonomy-meta")&.text.to_s
+
+  assert.call(document.at_css(".series-header h1")&.text&.strip == metadata["title"], "#{slug} title mismatch")
+  unless metadata["author"].to_s.empty?
+    assert.call(rendered_author.include?("By #{metadata["author"]}"), "#{slug} author mismatch")
+  end
+  assert.call(chapter_items.size == series_posts.size, "#{slug} chapter count mismatch")
+  assert.call(
+    chapter_items.all? { |item| item.at_css(".series-current-label")&.text&.strip == "Current chapter" },
+    "#{slug} chapters require accessible current labels"
+  )
+  assert.call(
+    chapter_items.map { |item| item["id"] } == series_posts.map { |_, data| data["uid"] },
+    "#{slug} chapter anchors do not match series order"
+  )
+  expected_status_count = series_posts.map { |_, data| data["status"] }.uniq.size > 1 ? series_posts.size : 0
+  assert.call(
+    document.css(".series-chapter-status").size == expected_status_count,
+    "#{slug} status marker activation gate mismatch"
+  )
+end
 
 topic_files = Dir.glob(File.join(site_dir, "topics", "*", "index.html"))
 assert.call(topic_files.size == topic_registry.size, "generated topic-page count must match topic registry")

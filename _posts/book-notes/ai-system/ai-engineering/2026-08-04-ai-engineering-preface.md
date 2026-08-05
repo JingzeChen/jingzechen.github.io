@@ -6,7 +6,7 @@ uid: ai-engineering-preface
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [ai-engineering, books]
+topics: [ai-engineering]
 series: ai-engineering
 series_order: 1
 featured: true

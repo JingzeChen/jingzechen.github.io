@@ -6,13 +6,13 @@ uid: statistical-learning-methods-ch17-latent-semantic-analysis
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [machine-learning, books]
+topics: [machine-learning]
 series: statistical-learning-methods
 series_order: 18
 related: [statistical-learning-methods-ch16-principal-component-analysis, statistical-learning-methods-ch18-probabilistic-latent-semantic-analysis]
 categories: [读书笔记, 机器学习, 统计学习方法]
 tags: [statistical-learning, machine-learning, reading-notes]
-description: "围绕「潜在语义分析」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "由 TF-IDF 单词文本矩阵进入话题空间，比较 SVD-LSA 的最优低秩近似与 NMF-LSA 的非负可解释分解及乘法更新。"
 toc: true
 math: true
 ---

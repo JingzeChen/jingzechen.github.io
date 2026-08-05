@@ -6,13 +6,13 @@ uid: clean-architecture-ch05
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [software-architecture, books]
+topics: [software-architecture]
 series: clean-architecture
 series_order: 5
 related: [clean-architecture-ch04, clean-architecture-ch06]
 categories: [读书笔记, 软件架构, Clean Architecture]
 tags: [software-architecture, clean-architecture, reading-notes]
-description: "围绕「《Clean Architecture》Chapter 5 读书笔记」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "逐一检验封装、继承与多态是否定义面向对象，最终说明安全多态怎样反转源码依赖并形成插件式架构。"
 toc: true
 mermaid: true
 ---

@@ -6,13 +6,13 @@ uid: ospp-ch06-multi-object-synchronization
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [operating-systems, books]
+topics: [operating-systems]
 series: operating-systems-principles-practice
 series_order: 6
 related: [ospp-ch05-shared-object-synchronization, ospp-ch07-scheduling]
 categories: [读书笔记, 操作系统, OSPP]
 tags: [operating-systems, ospp, reading-notes]
-description: "围绕「可扩展锁、原子性与死锁」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "分析细粒度锁带来的缓存争用、跨对象原子性与死锁，比较 MCS、RCU、可串行化协议、Banker 和无阻塞同步的边界。"
 toc: true
 math: true
 mermaid: true

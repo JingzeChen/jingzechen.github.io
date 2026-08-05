@@ -6,13 +6,13 @@ uid: xiaomi-entrepreneurship-ch04
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [entrepreneurship, books]
+topics: [entrepreneurship]
 series: xiaomi-entrepreneurship
 series_order: 5
 related: [xiaomi-entrepreneurship-ch03, xiaomi-entrepreneurship-ch05]
 categories: [读书笔记, 创业, 小米创业思考]
 tags: [entrepreneurship, xiaomi, business, reading-notes]
-description: "围绕「《小米创业思考》第四章《新十年新征程》读书笔记」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "围绕重启高端、三大铁律与手机和AIoT战略，说明小米如何用技术、性价比和产品体验约束新十年的扩张方向。"
 toc: true
 mermaid: true
 ---

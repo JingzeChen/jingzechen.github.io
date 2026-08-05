@@ -6,13 +6,13 @@ uid: pyramid-principle-ch07-summarize-groups
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [communication, books]
+topics: [communication]
 series: pyramid-principle
 series_order: 7
 related: [pyramid-principle-ch06-logical-order, pyramid-principle-ch08-define-problem]
 categories: [读书笔记, 个人成长, 金字塔原理]
 tags: [communication, structured-thinking, reading-notes]
-description: "围绕「概括各组思想读书笔记」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "概括不是给清单贴上‘问题’或‘建议’标签，而要说明一组行动共同产生的结果，或一组事实共同蕴含的新判断。"
 toc: true
 math: true
 mermaid: true

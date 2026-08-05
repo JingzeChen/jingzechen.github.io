@@ -6,13 +6,13 @@ uid: statistical-learning-methods-ch09-em-algorithm
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [machine-learning, books]
+topics: [machine-learning]
 series: statistical-learning-methods
 series_order: 10
 related: [statistical-learning-methods-ch08-boosting, statistical-learning-methods-ch10-hidden-markov-models]
 categories: [读书笔记, 机器学习, 统计学习方法]
 tags: [statistical-learning, machine-learning, reading-notes]
-description: "围绕「EM 算法及其推广」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "从隐变量导致的 log-sum 难题出发，用 Jensen 下界推导 EM 的 E/M 步、似然单调性和软计数直觉，并延伸到 GEM。"
 toc: true
 math: true
 ---

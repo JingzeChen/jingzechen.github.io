@@ -6,13 +6,13 @@ uid: homl-ch10-neural-networks-with-pytorch
 type: reading
 content_lang: zh-CN
 status: growing
-topics: [machine-learning, books]
+topics: [machine-learning]
 series: hands-on-machine-learning
 series_order: 11
 related: [homl-ch09-artificial-neural-networks, homl-ch11-training-deep-neural-networks]
 categories: [读书笔记, 机器学习, Hands-On Machine Learning]
 tags: [machine-learning, hands-on-ml, reading-notes]
-description: "围绕「使用 PyTorch 构建神经网络」梳理核心概念、论证结构、适用边界与实践要点。"
+description: "以 Tensor、Autograd、Module 与 DataLoader 搭建 PyTorch 训练评估闭环，覆盖自定义网络、调参、保存和编译部署。"
 toc: true
 math: true
 mermaid: true
