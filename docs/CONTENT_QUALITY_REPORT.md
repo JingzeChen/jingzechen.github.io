@@ -23,7 +23,7 @@ This report is generated from the current `_posts/` source with `tools/content-q
 - Types: `reading=233`
 - Statuses: `growing=233`
 - Languages: `zh-CN=233`
-- Updated dates: `2026-07-26=8, 2026-07-28=6, 2026-08-02=95, 2026-08-04=85, 2026-08-05=39`
+- Updated dates: `2026-07-26=8, 2026-07-28=6, 2026-08-02=86, 2026-08-04=85, 2026-08-05=39, 2026-08-06=9`
 - Description length: `27–80` characters
 
 ## Activation Gates
