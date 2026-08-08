@@ -1255,7 +1255,7 @@ shell 围栏表示用户应在终端执行的命令或可能看到的输出。�
 
 若发现技术或文字错误，序言建议访问：
 
-- [Packt Submit Errata](http://www.packt.com/submit-errata)
+- [Packt Submit Errata](https://www.packt.com/submit-errata)
 
 选择 **Submit Errata** 并填写表单。高质量勘误应包含章节、位置、原文、期望修正、复现环境和证据。代码问题最好同时说明使用的仓库 commit、依赖版本及最小复现步骤。
 
