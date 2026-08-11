@@ -10,6 +10,11 @@ set -eu
 
 SITE_DIR="_site"
 
+if [[ "${OSTYPE:-}" == msys* ]] && command -v cygpath >/dev/null; then
+  ruby_root="$(ruby -rrbconfig -e 'print RbConfig::CONFIG["prefix"]')"
+  export PATH="$(cygpath -u "$ruby_root")/msys64/ucrt64/bin:$PATH"
+fi
+
 _config="_config.yml"
 
 _baseurl=""

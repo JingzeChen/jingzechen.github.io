@@ -38,8 +38,10 @@ posts = Dir.glob(File.join(source_dir, "_posts", "**", "*.md")).map do |path|
 end
 
 reading_posts = posts.select { |_, data| data["type"] == "reading" }
+podcast_posts = posts.select { |_, data| data["type"] == "podcast" }
 status_by_uid = posts.to_h { |_, data| [data["uid"], data["status"]] }
 series_registry = YAML.safe_load_file(File.join(source_dir, "_data", "series.yml"), aliases: true)
+podcast_show_registry = YAML.safe_load_file(File.join(source_dir, "_data", "podcast_shows.yml"), aliases: true)
 topic_registry = YAML.safe_load_file(File.join(source_dir, "_data", "topics.yml"), aliases: true)
 site_config = YAML.safe_load_file(File.join(source_dir, "_config.yml"), aliases: true)
 hidden_topics = Array(site_config.dig("garden", "hidden_topics"))
@@ -88,12 +90,14 @@ assert.call(
 
 home = parse.call("index.html")
 reading = parse.call("reading/index.html")
+podcasts = parse.call("podcasts/index.html")
 sidebar_labels = home.css("#sidebar .nav-item span").map(&:text)
 type_labels = {
   "note" => "Notes",
   "essay" => "Essays",
   "journal" => "Journal",
   "reading" => "Reading",
+  "podcast" => "Listening",
   "project" => "Projects",
   "idea" => "Ideas"
 }
@@ -120,6 +124,45 @@ assert.call(language_filter_present == (language_count > 1), "language filter ac
 reading_status_count = reading_posts.map { |_, data| data["status"] }.uniq.size
 status_filter_present = !reading.at_css('[data-reading-filter="status"]').nil?
 assert.call(status_filter_present == (reading_status_count > 1), "status filter activation gate mismatch")
+assert.call(
+  podcasts.css(".podcast-list-item").size == podcast_posts.size,
+  "Podcast Notes must render every podcast post"
+)
+assert.call(
+  podcasts.css(".podcast-source-link[target='_blank'][rel~='noopener'][rel~='noreferrer']").size == podcast_posts.size,
+  "Podcast Notes source links must open safely"
+)
+assert.call(
+  podcasts.css("[data-podcast-show-filter] option").size == podcast_show_registry.size + 1,
+  "Podcast Notes show filter must match the show registry"
+)
+
+podcast_posts.each do |path, data|
+  %w[podcast_cover transcript_jsonl transcript_txt study_cards].each do |field|
+    asset_path = data.fetch(field).delete_prefix("/")
+    assert.call(File.file?(File.join(source_dir, asset_path)), "#{path}: missing #{field} asset")
+  end
+
+  transcript_path = File.join(source_dir, data.fetch("transcript_jsonl").delete_prefix("/"))
+  next unless File.file?(transcript_path)
+
+  begin
+    rows = File.foreach(transcript_path, encoding: "UTF-8").filter_map do |line|
+      JSON.parse(line) unless line.strip.empty?
+    end
+    valid_rows = rows.any? && rows.each_with_index.all? do |row, index|
+      row["start"].is_a?(Numeric) && row["end"].is_a?(Numeric) && row["text"].is_a?(String) &&
+        row["end"] >= row["start"] && (index.zero? || row["start"] >= rows[index - 1]["start"])
+    end
+    assert.call(valid_rows, "#{path}: transcript rows must be valid and chronologically ordered")
+    if valid_rows
+      duration_delta = (rows.last["end"] - data.fetch("episode_duration_seconds")).abs
+      assert.call(duration_delta <= 60, "#{path}: transcript duration differs by more than 60 seconds")
+    end
+  rescue JSON::ParserError => e
+    failures << "#{path}: transcript JSONL is invalid (#{e.message})"
+  end
+end
 
 type_routes = {
   "note" => "notes/index.html",

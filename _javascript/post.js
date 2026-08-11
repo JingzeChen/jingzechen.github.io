@@ -8,6 +8,7 @@ import {
   initToc,
   loadMermaid
 } from './modules/components';
+import { initPodcastEpisode } from './modules/podcast';
 
 loadImg();
 initToc();
@@ -17,4 +18,5 @@ initLocaleDatetime();
 initClipboard();
 initTopbar();
 loadMermaid();
+initPodcastEpisode();
 basic();

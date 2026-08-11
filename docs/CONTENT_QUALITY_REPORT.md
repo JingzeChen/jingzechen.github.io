@@ -6,24 +6,24 @@ This report is generated from the current `_posts/` source with `tools/content-q
 
 | Metric | Value |
 | --- | ---: |
-| Posts | 314 |
+| Posts | 325 |
 | Series | 22 |
 | Featured entries | 3 |
 | Template descriptions | 0 |
 | Duplicate descriptions | 0 |
 | Descriptions over language limit | 0 |
 | Hidden Topic assignments | 0 |
-| Topic co-occurrence edges | 4 |
+| Topic co-occurrence edges | 22 |
 | TOC over 80 items | 223 |
 | TOC over 120 items | 148 |
 | Maximum TOC items | 598 |
 
 ## Metadata Distribution
 
-- Types: `reading=314`
-- Statuses: `growing=314`
-- Languages: `zh-CN=314`
-- Updated dates: `2026-07-26=8, 2026-07-28=6, 2026-08-02=86, 2026-08-04=85, 2026-08-05=39, 2026-08-06=9, 2026-08-08=81`
+- Types: `podcast=11, reading=314`
+- Statuses: `growing=325`
+- Languages: `zh-CN=325`
+- Updated dates: `2026-07-26=8, 2026-07-28=6, 2026-08-02=86, 2026-08-04=85, 2026-08-05=39, 2026-08-06=9, 2026-08-08=81, 2026-08-11=11`
 - Description length: `27–95` characters
 
 ## Activation Gates
@@ -32,7 +32,7 @@ This report is generated from the current `_posts/` source with `tools/content-q
 | --- | --- |
 | Status filter | No |
 | Language filter | No |
-| Cross-type Library | No |
+| Cross-type Library | Yes |
 | Knowledge Map | Yes |
 
 `Latest Changes` requires a separate editorial audit of `updated`; clustered migration dates do not qualify automatically.

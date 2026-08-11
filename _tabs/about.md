@@ -1,7 +1,7 @@
 ---
 # the default layout is 'page'
 icon: fas fa-info-circle
-order: 7
+order: 8
 ---
 
 我是 Jingze Chen，一名目前就职于微软的软件工程师。我的工作主要集中在后端服务和 LLM 相关领域，包括 Prompt Engineering、Evaluation，以及持续改善 AI 的回复质量。我的专业背景是软件工程，尤其关注如何构建真正实用的 AI 系统，并通过可靠的工程实现带来出色的用户体验。
@@ -37,5 +37,7 @@ order: 7
 ## 如何阅读这里
 
 **Reading** 按 Series 组织每本书的前言、章节与附录，也可以按 Topic 浏览跨书主题，或在 All Notes 中筛选全部笔记。
+
+**Listening** 保存播客总结、带时间点的分章笔记和自动转写。可以先读摘要，再从章节目录跳到对应逐字稿，并回到原节目核对语境。
 
 不必从最新内容开始。可以从首页推荐、一个 Series 或一个 Theme 进入，再沿章节导航和关联链接继续探索。
