@@ -148,6 +148,10 @@ lectures.each do |path, data|
 
   html = Nokogiri::HTML(File.read(html_path, encoding: "UTF-8"))
   assert.call(!html.at_css("[data-course-workbench]").nil?, "#{label}: workbench is missing")
+  if html.at_css('main > article[data-toc="true"]')
+    assert.call(!html.at_css("#toc-solo-trigger").nil?, "#{label}: mobile TOC trigger is missing")
+    assert.call(!html.at_css("#toc-popup").nil?, "#{label}: mobile TOC popup is missing")
+  end
   if slides["manifest"]
     slide_image = html.at_css("[data-course-slide-image]")
     assert.call(!slide_image.nil?, "#{label}: slide image is missing")
