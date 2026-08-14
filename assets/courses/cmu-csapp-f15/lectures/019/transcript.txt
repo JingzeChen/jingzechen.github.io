@@ -1,0 +1,687 @@
+[00:00:02] All right, good afternoon, everybody.
+[00:00:04] Welcome, good to see you all, and welcome also to our viewers on video.
+[00:00:09] So last week we looked at this virtual memory mechanism
+[00:00:15] and how it provides so many different useful functionalities to the system
+[00:00:22] along with this sort of abstraction of having this large contiguous array of bytes.
+[00:00:31] Now, once we're given that,
+[00:00:34] that large array of bytes, now we have to manage it.
+[00:00:38] And we have to have to have some mechanism to manage and use that resource.
+[00:00:47] Okay, so that's the topic of our lectures this week is storage allocation,
+[00:00:55] and how storage allocators work, and how you use them to manage the virtual memory in your system.
+[00:01:06] So the basic idea of a dynamic memory allocator is that applications use it to manipulate virtual memory, to create, to allocate, to allocate, to allocate and free chunks of virtual memory that you need in your program.
+[00:01:24] And it's, this, this memory, is maintained in an area of virtual memory called the heap, okay, and almost all languages have some languages have some mechanism for acquiring and manipulative.
+[00:01:37] this, this, this, this, this dynamic memory.
+[00:01:44] So in, in, in C, it's a phone, it's a phone, it's the malloc package.
+[00:01:49] Languages like Java have the new, you know, you know, the new method.
+[00:01:56] Now, the allocator, the allocator maintains the heap as a contiguous collection of blocks.
+[00:02:01] Um, where, where, and blocks can be allocated can be allocated or free.
+[00:02:06] Okay, allocated meaning meaning that they're, they're, they're being used
+[00:02:08] by some program application, free meaning that they're available to be for use by an application.
+[00:02:18] And there's two types of allocators. The kind of allocator that you find and see, such as the Malik package,
+[00:02:26] it's up to the application to both explicitly allocate the memory and explicitly free it when the application is finished with it.
+[00:02:35] Okay, so the system won't free up any memory that you allocate unless you do.
+[00:02:40] it explicitly by calling the, by calling the free function.
+[00:02:47] But there's other languages that that support implicit allocators. And in these implicit allocators,
+[00:02:53] in these implicit allocators, the programmer explicitly allocates memory, but then the system
+[00:03:01] takes care of freeing the memory. Okay, so it's that the burden of freeing the memory is shifted from
+[00:03:07] the application program to the system.
+[00:03:10] And it frees this memory implicitly sort of behind the scenes using a process called garbage collection.
+[00:03:17] Okay. So languages like Java, ML, Lisp, they all do implicit implicit, implicit, they all support implicit allocators.
+[00:03:26] Now today, we're going to just, we're going to discuss explicit memory allocators.
+[00:03:30] On Thursday, we'll get into implicit allocators and how they work.
+[00:03:35] Now, the allocator in C is provided by the standard C library.
+[00:03:42] in a set of functions called malloc package.
+[00:03:46] The malic function is used to allocate memory, and it takes as input a size argument, which is in bytes.
+[00:03:55] Okay. And then it returns a pointer to a memory block that contains at least size bytes.
+[00:04:04] And that block is aligned to x86 systems to 8 bytes on x86 64 systems to 16 bytes.
+[00:04:12] bytes. If size is zero, it returns no. And then it returns minus 1, like, like most typical,
+[00:04:21] like most typical system calls. The programmer frees memory by calling the free function.
+[00:04:30] It takes as an argument, a pointer, that was returned from some prior invocation of Malik, and it returns nothing.
+[00:04:39] And it frees that, given this pointer that was returned by the prior invocation of
+[00:04:46] of malloc, it frees the block at that address, and then returns that block to the pool of available memory.
+[00:04:55] Now there's some other functions.
+[00:04:57] C-ALEC is a version of malloc that gives you an initialized block of memory that's initialized to zero.
+[00:05:05] And re-alloc, you can, you can malloc a block and then call re-alloc to change the size of that previously allocated block.
+[00:05:13] And then there's a function called S-break, which is used internally.
+[00:05:17] is used internally by allocators to grow and shrink the heap.
+[00:05:21] So when an allocator needs more memory, it calls S-break to get that additional virtual memory. And then
+[00:05:28] that's added to the heap that the portion, that grows the heap, and then it adds it to the
+[00:05:33] memory that the allocator is manipulating.
+[00:05:40] So here's an example of how we would use Malik in a simple program. We have a pointer to an
+[00:05:47] int, p, and we call Malik.
+[00:05:51] and we want to allocate an array of n-inths.
+[00:05:55] So this is the, this is sort of the standard way you call it.
+[00:05:59] We want n-inths, and so we call it with n times the size of int.
+[00:06:04] Okay, because remember the argument is in bytes.
+[00:06:08] Malik returns a pointer.
+[00:06:10] It returns a generic pointer, void star pointer.
+[00:06:13] So we cast it to a pointer to an int to keep the compiler happy,
+[00:06:20] and then assign it to P.
+[00:06:22] We check for a null return value.
+[00:06:29] So I should point out the, it returns zero on error.
+[00:06:35] So we check, we check for this null pointer, which is zero,
+[00:06:40] which is zero, and print an error if it's null.
+[00:06:44] Now once we've got that pointer, now, P,
+[00:06:47] we can treat it just like an array.
+[00:06:50] So we can, so inside the loop, if we want to initialize it,
+[00:06:53] We loop across the elements of the array,
+[00:06:58] initializing each one to some value.
+[00:07:01] Now when we're finished, when we're finished with this chunk of memory
+[00:07:04] that we've allocated, then we free it by calling free
+[00:07:09] with the pointer P.
+[00:07:13] Okay, now the, so we're going to look today at how functions
+[00:07:17] like Malik and free are implemented.
+[00:07:20] So we're going to make a few simplifying assumptions.
+[00:07:24] So I'm going to, memory is
+[00:07:27] is bite addressed. We know that. But for the purposes of this lecture, we're going to assume that it's word addressed.
+[00:07:33] Okay, so we're just going to look at word-sized units.
+[00:07:35] And I'm going to assume that words are four bytes.
+[00:07:42] So basically, the size of an int. So this isn't, actually, this isn't true. I need to fix that.
+[00:07:54] So basically, we're going to think of words as four-byte quantity, sort of integer-sized
+[00:08:02] And then our blocks are contiguous chunks of those words that can be either allocated
+[00:08:09] or free.
+[00:08:11] So here we have a portion of the heap which consists of a four-word allocated block followed by a two-word
+[00:08:17] word free block, followed by another four-word allocated block, followed by a three-word free block.
+[00:08:26] And we'll indicate these free blocks by white and we'll indicate allocated blocks with
+[00:08:31] some shade of color.
+[00:08:33] So let's look now how a sequence of allocations and freeze would work.
+[00:08:42] And now notice I'm calling Malik with the size of in words, not bytes, just to keep things,
+[00:08:49] keep these pictures simpler.
+[00:08:55] So in this, first we call Malik and allocate a four-word block, and that gives us a pointer P1.
+[00:09:06] Then we call Malik again to get a five-word block, so it just takes a four-word block.
+[00:09:10] one of the free words and allocates it.
+[00:09:14] We call Malik again to get a six-word block.
+[00:09:18] And then we free the block that's pointed at by P2, this purple block.
+[00:09:24] Okay, so now we, that frees up that block. And then we do another allocation
+[00:09:30] for a two-word block. And so the the allocator looks to see if it can find a
+[00:09:37] free block that has enough room and it finds that it finds this free block
+[00:09:42] here that has five free words and then it allocates the the requested block inside of
+[00:09:51] that that free block now allocators work under a lot of a lot of a lot of different
+[00:10:00] constraints okay so it's hard to write an allocator because of all these
+[00:10:03] constraints applications can choose any combination of allocated and free blocks so you
+[00:10:11] You can't predict what an application is going to request.
+[00:10:17] And the application is required to free a block by, when it frees a block, to pass a pointer that was returned
+[00:10:24] from a previous invocation of Malik.
+[00:10:27] So the application has a few constraints, but really the only one that it has is that the fact
+[00:10:34] that the, when it frees something, it has to be a pointer from a previous invocation of Malik.
+[00:10:40] Now the...
+[00:10:41] Malik operates or allocators like Malik operate under a lot of different constraints.
+[00:10:46] They can't control the size or the number of the allocated blocks because they have no control over
+[00:10:52] the, what the application is doing.
+[00:10:55] If an application calls Malik, Malik has to respond right away.
+[00:10:59] It might, you might be able to do a better, a more efficient version by batching up requests
+[00:11:05] and then responding to all those requests at once, but the allocator can't do it.
+[00:11:09] When it gets called, it has to process.
+[00:11:11] the request and then return right away.
+[00:11:15] Of course, it has to allocate blocks from free memory.
+[00:11:17] So it can't, in general, I can't touch any allocated block.
+[00:11:21] Right?
+[00:11:22] Once it allocates a block, that block belongs to the application
+[00:11:25] and the Malik package can't touch it.
+[00:11:29] Now, this has a number of implications.
+[00:11:31] So this means that the allocator can't,
+[00:11:35] it can't move blocks around, like it can't compress blocks.
+[00:11:39] Like, an allocator might want to
+[00:11:41] take allocated blocks and smush them all together to create larger free blocks.
+[00:11:46] Okay, but it can't do that.
+[00:11:49] Okay. So once, in a language like C, once an allocator gives a block to an application,
+[00:11:56] it can't touch it.
+[00:11:58] Okay, now blocks like blocks, because blocks are holding data structures like structs
+[00:12:04] or, you know, scalar, scalar objects, it has to be aligned to the size of the largest object that can
+[00:12:12] So for 64-bit systems, that's 16-byte alignment.
+[00:12:16] For 32-bit systems, it's 8-byte alignment.
+[00:12:18] Now allocators are really interesting
+[00:12:26] objects because they combine a trade-off of both
+[00:12:30] sort of running time, sort of speed, and space.
+[00:12:35] So it's kind of a space and performance trade-off.
+[00:12:38] You're trying to optimize both.
+[00:12:40] You want it to run as quickly as possible,
+[00:12:42] but you want it to use the virtual memory in the heap
+[00:12:46] as efficient.
+[00:12:47] as efficiently as possible.
+[00:12:49] So let's, now we define these, these sort of speed and
+[00:12:55] efficiency, memory efficiency metrics.
+[00:13:00] We have two metrics that we use.
+[00:13:02] One is called throughput.
+[00:13:03] So given some sequence of malloc and free requests,
+[00:13:07] R0 through RN minus 1, so just where R is either a malic
+[00:13:13] or a free, our goal is to maximize throughput,
+[00:13:17] throughput and the peak memory utilization.
+[00:13:22] And what makes Malik such a fascinating and interesting study is that these often conflict.
+[00:13:28] Like it's very easy to make a really fast Malik that has terrible memory utilization.
+[00:13:36] So throughput is just the number of completed requests per unit time.
+[00:13:40] So if we have 5,000 malloc calls and 5,000 free calls in 10 seconds, then our throughput is 1,000
+[00:13:48] per second.
+[00:13:49] So it's just measuring sort of how efficiently our malloc can process these requests from an application.
+[00:13:58] Now, peak memory utilization is a, measure sort of how much useful space, sort of how much, it measures
+[00:14:13] how efficiently the allocator uses the heap, sort of how much is wasted on sort of overheads in
+[00:14:20] in the data structures that the allocator has to use as to use as to.
+[00:14:24] in its implementation.
+[00:14:26] So we'll define a payload.
+[00:14:29] When Malik returns a block, I'm sorry, when an application makes a call to Malik, it's requesting a certain-size block.
+[00:14:36] It's requesting a certain size block.
+[00:14:39] And that block is called the payload.
+[00:14:41] So if we call Malik with an argument of 10 bytes, we're requesting a block that has a payload of
+[00:14:48] that's at least size 10.
+[00:14:50] Okay, and the 10 bytes that we request that are called the payload,
+[00:14:54] everything else in that block.
+[00:14:55] is overhead.
+[00:14:56] Okay.
+[00:14:57] So after after we've run a sequence of requests, the aggregate payload is the sum of all the payloads and the currently allocated blocks.
+[00:15:12] Okay, so in a perfect allocator, the aggregate payload would equal the amount of memory the total size of all the allocated blocks, right?
+[00:15:23] Because there'd be no overhead.
+[00:15:25] It would just be pure, it would just be pure, every block would be pure payload.
+[00:15:33] Now, we're going to assume that the heap is monotonically non-decreasing, so it always gets bigger.
+[00:15:39] Okay, so our, this is a simplifying assumption.
+[00:15:42] It's not, it's not true in a real Malick package.
+[00:15:45] But we'll just assume that the allocator never decreases the size of the heap.
+[00:15:50] It only increases the size of the heap.
+[00:15:52] Okay.
+[00:15:57] So the peak, given those, given those notions of aggregate payload and heap size, the peak
+[00:16:04] the peak memory utilization after K plus 1,
+[00:16:07] requests is the sum of all the, is the sum of all the payloads divided by the total size of the heap.
+[00:16:20] So the, in the best case, each block in the heap consists of pure payload, so the utilization
+[00:16:29] would be one.
+[00:16:30] Okay, that's the best we can do.
+[00:16:32] But in practice, each block, the allocator is going to place, have data structures and padding inside
+[00:16:39] of each block.
+[00:16:40] that keep it from getting a perfect utilization.
+[00:16:46] Now one obvious thing is that since blocks have to be aligned, to some, you know, if they're 16 byte aligned,
+[00:16:54] then blocks have to start on 16 byte boundaries and they have to be at least 16 bytes.
+[00:16:59] So if you were to request a payload of two bytes, you'd have a lot of wasted bytes, right, that would sort of decrease the utilization.
+[00:17:07] So this is some of this, some of this, uh,
+[00:17:11] overhead is unavoidable, but your job as someone who writes, implements Malik,
+[00:17:16] is to try to keep that as small as possible.
+[00:17:22] So poor memory utilization is, this example that we just talked about is an example of what we
+[00:17:28] call fragmentation. And there's, there's two types of fragmentation. Internal fragmentation occurs
+[00:17:36] if the payload is smaller than the block size, so that was just what we were talking about.
+[00:17:41] And this can be caused by either padding, and
+[00:17:44] in the block or some kind of data structure in the block that the allocator needs.
+[00:17:52] Sometimes, too, you might make a policy decision that if an application request a small block,
+[00:17:57] you might return a larger block just to keep so that blocks don't get sort of splintered
+[00:18:02] up into little chunks.
+[00:18:03] You might want to keep blocks at some minimum size.
+[00:18:13] Now, internal fragmentation, you know, given a series of requests, we can just stop and freeze the heap.
+[00:18:22] And it's very easy to sort of compute the amount of internal fragmentation.
+[00:18:26] We can, at any point in time, we can just look at all the previous requests that we've made and
+[00:18:33] look at the size of the payload for each one of those requests.
+[00:18:37] And so we can determine the level, you know, at any point in time, we can determine the level of
+[00:18:46] internal fragmentation just by looking at the previous request.
+[00:18:50] So there's another form of fragmentation.
+[00:18:53] We have a fragmentation called external fragmentation, which is a little more difficult to deal with.
+[00:18:59] So external fragmentation occurs when there's enough memory in the heap, but there's no single free block that can satisfy a particular request.
+[00:19:10] Okay, so external fragmentation occurs when the application makes a request for a block, but nowhere in the heap is there a free block that's large enough to satisfy that request.
+[00:19:23] So, an example of this, like suppose, here's the previous example we looked at now where we have, after a series of Malik and Free Calls, we have two free blocks in the heap, one containing five words and the other containing two words.
+[00:19:42] So the total number of free words in our heap is seven, seven words.
+[00:19:47] And now we get a request for six words.
+[00:19:52] Okay, we have enough free blocks, we have enough free blocks, we have enough free words in the heap.
+[00:19:56] but we can't satisfy that request.
+[00:20:01] And it's because of, it's because of this phenomenon called external fragmentation.
+[00:20:06] For example, if we'd have, if we'd have somehow allocated, yeah, I don't know, in this case, I don't think we could have
+[00:20:20] have avoided the external fragmentation.
+[00:20:23] But nonetheless, there's enough memory here.
+[00:20:25] We just, just, just the way that our blocks are configured in the heap, we can't satisfy the
+[00:20:31] request. So in this, in this case that the allocator has to go and get more, more
+[00:20:36] more virtual memory, would have to go and it would have to get more virtual memory and extend
+[00:20:42] the heap out this way to get a large enough free block. So, you know, assessing and
+[00:20:49] sort of understanding external fragmentation is difficult because unlike internal
+[00:20:55] fragmentation, which depended on the previous requests, external fragmentation depends on
+[00:21:01] future requests. So if we look back at this point, we say, is our, is our heap
+[00:21:07] externally fragmented? Well, it depends, right? We can't say. It turns out it is because the next
+[00:21:14] request is for a block of size six. But if all of the future blocks, or future requests were
+[00:21:20] for blocks of, you know, say small blocks, then we'd be able to satisfy those and
+[00:21:25] and we wouldn't, we wouldn't suffer from external fragmentation.
+[00:21:33] Okay. Now, when we build the future requests, we'd be able to satisfy those of, you know, you know,
+[00:21:35] When we build an allocator, all kinds of issues come up.
+[00:21:43] That I've glossed over with my simple examples.
+[00:21:47] You know, how do we know, if we call free, how does free know how much memory to free up, right?
+[00:21:53] We don't call free with a block size, we call it with a pointer.
+[00:21:57] So how does free know how big that block is?
+[00:22:02] How do we keep track of all the free blocks?
+[00:22:04] When we have, you know, when we're satisfying an allocation request, we're going to find, we're
+[00:22:14] going to look for a free block that is larger than the requested size.
+[00:22:19] So in that case, what do we do with the extra space in the block?
+[00:22:23] Do we just keep it in the block, you know, and suffer some internal fragmentation?
+[00:22:28] Do we split that block into a smaller block?
+[00:22:31] Um, there's a lot of free blocks in the, in the heap.
+[00:22:37] How do we, when we make an, when the allocator gets a, a, a allocation request,
+[00:22:42] how does it pick from all, among all of those different free blocks?
+[00:22:45] There's many choices.
+[00:22:47] Um, and then once, when free tries to insert a free block, where in the heap, you know,
+[00:22:56] where does it insert it? Okay, when it's, when it's freed? And how do we re-insert
+[00:23:00] a free block? What does that mean?
+[00:23:02] Okay, so today we're going to look at, at, at all of these issues. Um, starting with
+[00:23:08] knowing how much to free. So how big are our block sizes? So the typical, the standard
+[00:23:15] method is to keep sort of a word size quantity at the beginning of each block that gives the size
+[00:23:24] of that block in some units. I'm showing them here in word size units. Okay, so that if
+[00:23:33] if the application mallocks a payload of size, wants to, wants to malloc a payload of size four, then
+[00:23:41] the allocator needs to find a block of size 5, so consisting of four payload words, at least
+[00:23:51] least four payload words, and then a header block, a header word at the beginning that indicates
+[00:23:59] the total size of that block, and then it returns a pointer, p-0, in this case, to the beginning
+[00:24:06] of the payload.
+[00:24:07] Okay, okay, so now we know how big each block is, that's pretty simple, but how we keep track
+[00:24:17] of the free blocks and this is where it gets interesting.
+[00:24:21] The simplest method is to use that we call an implicit list, an implicit list of free blocks.
+[00:24:29] And the idea here is to just put a header in the front of every block in the heap, whether allocated
+[00:24:36] or free.
+[00:24:39] And then we can use that, starting at the beginning of the heap, we can use that size to walk the heap.
+[00:24:47] So here's a block of size five, so we can jump.
+[00:24:51] We know that the next block starts at an offset of five.
+[00:24:57] With the second block, we know that the next block starts at an offset of four, and so on.
+[00:25:03] So we call it an implicit free list because there's no real list of free blocks, but we can traverse
+[00:25:11] that all of the free blocks in the heap by traversing all of the blocks in the heap and the heap,
+[00:25:19] and then just ignoring the allocated blocks.
+[00:25:21] Okay.
+[00:25:21] So.
+[00:25:26] So another thing we could do is we could actually use some of the words in the block to create a linked list of some kind, either a singly or doubly linked list.
+[00:25:37] And in this case, we, it's an explicit list of the free blocks, and we can just walk that list.
+[00:25:49] So here we visit the first free block, and then there's a pointer to the next free block, and so on.
+[00:25:55] So this, you can see, this might be a little more efficient because
+[00:25:58] if we want to traverse the free list, in this case, it's going to be ordered the number
+[00:26:06] of blocks in the list, okay, it's going to be linear in the total number of blocks in the heap, which
+[00:26:11] might be quite large. You know, there could be lots of allocated blocks. In this case, with an explicit
+[00:26:17] list, any traversal, just be linear in the size of the free list. Question?
+[00:26:24] Yeah, that's, the question is, don't we need a free bit and we do?
+[00:26:33] And I'll, we have, that's the next question.
+[00:26:45] Now another method, a more sophisticated method, instead of having one free list, we can have multiple
+[00:26:51] free lists where each free list contains blocks of a certain size or a certain range of sizes.
+[00:27:03] Or we can get really fancy and use some kind of a balanced tree to sort the blocks, to use the
+[00:27:10] blocks to use the tree to sort them by size order. Now today we're going to look
+[00:27:17] look at the implicit list, the simplest kind of free list, and this will identify a lot of
+[00:27:24] of basic concepts that are used in the more sophisticated free list. Question?
+[00:27:29] What do you mean different three lists for different size classes? Okay, the question is what do
+[00:27:35] you, what do we mean by different free lists for different size classes? So what I mean is that you
+[00:27:42] identify a range of sizes and you associate that range with each of these individual
+[00:27:50] free lists. Okay, so one free list might hold blocks of size 0 to 8. And another free list might hold
+[00:27:57] blocks of size 9 to 16. And the other, another free list maybe 17 to 32, you know.
+[00:28:06] And so you're guaranteed you now know, when you're traversing a certain list, you know, the
+[00:28:13] range of sizes of the blocks in that list. The reason you might want
+[00:28:20] to do that, by the way, is that imagine you had an infinite number of these lists, one for each
+[00:28:29] possible size. Then every time you allocated a block, you'd get a block of exactly
+[00:28:35] the size you needed. So there'd be a minimum amount of fragmentation if you had an
+[00:28:41] infinite number of these of these size classes. Now if we, of course, we can't have an
+[00:28:46] an infinite number, but the more of these size classes we have, the closer we get to
+[00:28:51] that ideal. All right, so let's look at how we would build implicit free lists. So as you correctly
+[00:29:02] pointed out, for each, each block we need both size and the allocation status. Question?
+[00:29:09] Why can't we map every size class? Yeah, that's, so why can't we have an infinite number
+[00:29:35] of size classes? I suppose, you know, that'd be an interesting strategy.
+[00:29:46] to think about. So you can't have an infinite number of size classes, but you
+[00:29:52] could create a new size class for every new size that you get. And that might work, but
+[00:29:59] it just depends on the range of these size classes and the frequency. And one problem you
+[00:30:05] might have is that you would get, maybe if you only get, it depends on the distribution
+[00:30:14] of your sizes that you get. If you're getting an equal number, if you're
+[00:30:18] of sizes is fairly uniform. That would probably work pretty well. If you're getting, if you have requests, if you have a lot of requests for different size classes, you'd have a lot of sort of wasted free lists, I think.
+[00:30:34] So it's a good question. It depends on, it depends on your workload. And there, and that is for, and that is a, and that is a really useful strategy for, so you, if you have really useful strategy for, so if you have really
+[00:30:49] size classes in your request, then you could just make, you know, special case
+[00:30:56] special case free list to handle those requests and then let the other free list sort of handle a wider range.
+[00:31:03] And imagine if you had a free list where all the blocks were the same, it could be a lot more efficient, right?
+[00:31:09] Because you only need, like, a bit vector, one bit for each potential block to tell you whether it's allocated or free.
+[00:31:17] So it could be very efficient. You wouldn't need to walk any lists or anything.
+[00:31:23] That's a good question. And that's the kind of thing you'll be thinking about when you do your malloc lab.
+[00:31:31] It's one of the, there's a huge design space in implementing malloc functions.
+[00:31:39] And we just, we just explored a one tiny part of it just now.
+[00:31:42] So with this implicit list, we're going to need both the size of the block and then its allocation status,
+[00:31:52] status, whether it's allocated or free. Now we could do this in two words, right?
+[00:31:56] But that would be wasteful. So the standard trick is to take advantage of the fact that blocks
+[00:32:02] have to be aligned. Okay, so this is actually, it's kind of a pain in the neck to always have to align
+[00:32:07] these blocks. But we can take advantage of it in this case. And the reason is that if a block is
+[00:32:14] aligned to some, say, 8 byte or 16 byte boundary, then the lower order bits are always going
+[00:32:19] to be zero. So if it's aligned to an 8 byte boundary,
+[00:32:23] the low order, the three, the three low order bits will always be zero, right?
+[00:32:28] 8 is 1,000, 16, 1 with 4 zeros, 24, 11, 1,000, right? So there, any 8 byte, any 8-aligned block, it has to be size 8, and it has to start on an address, that's a multiple of 8.
+[00:32:50] Right, so those, so those, the size, the size will always,
+[00:32:54] always the size of that block will always have the three or four lower order bits set to zero.
+[00:33:04] So we can take it, we can take advantage of that, and we'll just make, we'll just have one, we'll
+[00:33:10] just have one header word, and we'll use the low order bit to store the allocation status, okay?
+[00:33:19] And we can do that, because we know it's always zero. So when we, so we, we use that low order
+[00:33:25] bit to store the allocation status, and then the remaining bits correspond to the size.
+[00:33:31] And then whenever we want to extract the size, we just mask out this allocation status and always set it
+[00:33:37] to zero, because we know that it's zero. So let's look in detail what, given this, given this form
+[00:33:52] of implicit list, how we might set things up. So in this case, we're going to assume
+[00:34:00] of four-byte words, okay, int-sized words, and we're going to align on eight-byte boundaries.
+[00:34:10] Okay, so remember the payload of our blocks always has to start on an eight-byte boundary.
+[00:34:16] So the way we do that is we create this unused word at the beginning of the heap that's aligned on this
+[00:34:22] eight-byte boundary. And then the first block in the heap starts at an offset of four from that, from the
+[00:34:32] beginning of the heap. So we have the header, which is not aligned, and then we have
+[00:34:40] the payload which follows. In this case, it's a payload of one, one word. And that starts on this,
+[00:34:48] that begins on this, this eight-word boundary. And then the next block, and here we're
+[00:34:54] indicating a free block consisting of eight bytes, and then that's followed by an allocated block,
+[00:35:04] which is the one here, of 16 bytes, or four, four words.
+[00:35:12] And now the payload is only two words, so we have to pad, right, all of our blocks, because we're assuming
+[00:35:19] that they're aligned on eight-byte boundary, all of our blocks have to be a multiple of size multiple of
+[00:35:25] eight. Okay, so here's a case of internal fragmentation where we have this extra, this extra block
+[00:35:31] in order to maintain the alignment requirement. So that, that ensures that ensures that the next block's
+[00:35:36] payload starts at an eight-by-aligned boundary and so on. And so we can walk this
+[00:35:45] heap by just following these headers, masking out the allocation bits. And then we have this special
+[00:35:51] epilogue block, which is a zero, it's a block of, with a zero-sized payload, it's an
+[00:36:01] allocated block of size zero. And this is a, this is a trick, this is a trick you should use too.
+[00:36:09] So this, and we'll see when we look at coalescing why this is, why this helps.
+[00:36:14] But this, this, this allocated block at the very end eliminates some sort of special cases when we, when we start to coalesce free blocks.
+[00:36:22] And we'll talk about that in just a, just a moment.
+[00:36:26] But you, you can finish your, this, this, this, this allocated block of size zero is also helpful in terminating when you're walking this list.
+[00:36:36] You can, you can check for a size, allocated block of size zero to,
+[00:36:40] your search.
+[00:36:41] Okay, so given this kind of structure then, how do we find a free block?
+[00:36:47] Okay, there's a number of different ways.
+[00:36:50] The first way, the first way, which is called first fit, first fit, is to search the free list
+[00:36:57] from the beginning and just look for the first block we can find that satisfies the request.
+[00:37:07] So we're allocating, we're asking for a block of size 10, we start at the beginning of the heap,
+[00:37:13] We walk the list, we walk the heap, looking for a free block that's at least size 10.
+[00:37:23] And it needs to be, actually, it needs to be 10 plus the size of our header or two.
+[00:37:30] So once, so that's a simple idea.
+[00:37:34] Now, some people have proposed an alternative called next fit.
+[00:37:38] So the idea here is that instead of starting over each time from the beginning of the heap to find a block that fits, we just pick up where we left off the last
+[00:37:47] time.
+[00:37:48] Okay, so we look, we scan the heap,
+[00:37:52] so we find a block that's that's big enough to satisfy the request,
+[00:37:55] and then we remember where that, where we left off.
+[00:37:58] And the next time a request comes in, we pick up the search starting where we left off.
+[00:38:03] Now this seems like it would be a good idea, but studies,
+[00:38:06] empirical studies that people have done,
+[00:38:08] have shown that this actually results in worse fragmentation.
+[00:38:12] So, you know, you can consider it, but it generally,
+[00:38:17] generally probably not the best thing to do.
+[00:38:21] Now, another alternative is to find the block in the heap, a free block in the heap, that's the best fit.
+[00:38:33] So look at, so in general, look at all the blocks in the heap and find the block that fits the best.
+[00:38:41] Okay, so if we ask for 10 bytes, try to scan the heap for the block that has the closest to 10 bytes in it.
+[00:38:49] Okay, so that's called best fit.
+[00:38:50] That's called best fit.
+[00:38:52] And best fit, you can see it might be more, it sounds like it would be a lot more expensive, right?
+[00:38:58] Because you'd have to look, instead of just looking until you find a fit, you'd have to scan all the free blocks and then pick the best one.
+[00:39:05] Okay, but it has a nice property that it improves memory utilization.
+[00:39:09] So this isn't, this is a classic example of the space time tradeoff.
+[00:39:13] So it's slower, but it improves, it improves our use, the efficiency of the way we use memory.
+[00:39:24] And there's a, um,
+[00:39:25] Now, we mentioned an alternative way to organize the free list using multiple free list for different size classes.
+[00:39:33] Now, going back to that example, again, if we had an infinite number of size classes, one for each size, that would implement best fit with a constant time search.
+[00:39:43] We don't, we know exactly which free list to get the block from.
+[00:39:47] The problem, of course, is how much memory such an organization would use.
+[00:39:54] But the interesting thing about using multiple
+[00:39:59] free lists is that the more of these free lists you have, the closer you get to a true best fit.
+[00:40:07] Okay, so you can approach best fit. And then at some point you begin to get diminishing returns.
+[00:40:12] So that's another sort of design decision is how many of these multiple free lists do you need and what sort of what should be the size ranges associated with them.
+[00:40:22] Okay, another question now, once we found a block, so the application has made a call to Malik.
+[00:40:31] The malloc package is looked in the free list and it's somehow using some, some policy, it's identified a block that in which the requested block, a free block in which the requested block will fit.
+[00:40:44] Okay, so now what does it do?
+[00:40:47] It has to, the malloc package has to allocate, it has to sort of take that, so there's a question, how does it, it could allocate the whole block,
+[00:41:02] and return that back to the programmer, or it could choose to split out a portion,
+[00:41:08] just only the portion of block that's needed, and then create a smaller free block.
+[00:41:12] Okay.
+[00:41:14] So, for example, if, if we, if our, if our application is, is, is, has requested a block of size four, or I'm sorry, it, if the Malik package is determined that it, in order to satisfy the application request, it needs a block of size four.
+[00:41:34] including the header, then it would look and it would try to find a free block
+[00:41:42] of at least size four.
+[00:41:45] So let's say it chooses this block for some reason, maybe because it was a next fit
+[00:41:52] picked up here.
+[00:41:55] So this free block is actually six, contains six words.
+[00:42:02] So the allocator has to decide whether just to keep this block of size six and just return that back to the
+[00:42:10] to the application or whether to split that block into two blocks into an allocated block of size four, which it then returns to the application, followed by a free block of size two.
+[00:42:24] Okay, now another question is how to free a block. So the application is requested, it's called free, and it's asked the allocator to free up a particular block.
+[00:42:40] So this is pretty simple. So if we want to free up this block, you just clear the allocator to free up this block.
+[00:42:50] flag.
+[00:42:51] So if we want to free up the block we just created,
+[00:42:55] you just clear, you just set the allocated bit to zero, and you're done.
+[00:42:59] It's really simple.
+[00:43:01] But the problem now is this, this creates external fragmentation.
+[00:43:05] So now, if we just free that block of size 4, what used to be a block of size 6,
+[00:43:15] now consists of two contiguous smaller blocks, one of size 4 and one of size 2.
+[00:43:21] And so now, now if that's follow
+[00:43:25] by a request for five blocks, now we're stuck.
+[00:43:29] So this, but we've got plenty of memory, and it's even worse.
+[00:43:33] In this case, that memory is all contiguous just because,
+[00:43:37] but just because we just cleared the free block,
+[00:43:43] we didn't really notice that it was contiguous,
+[00:43:47] and so we ended up in this situation where we have these two contiguous free blocks.
+[00:43:51] So this suggests that when we do, when we free up blocks,
+[00:43:59] that we see up the blocks,
+[00:44:00] somehow need to coalesce any neighboring blocks
+[00:44:04] to keep blocks as big as possible, right?
+[00:44:06] So we cannot, one of the invariants of any decent allocator
+[00:44:11] is that there are never contiguous free blocks like this.
+[00:44:16] It's always a free block followed by an allocated block.
+[00:44:23] Okay, so the idea is that if we free a particular,
+[00:44:26] so here we have this allocated block,
+[00:44:30] and if we free that block, then we somehow have to check and see if
+[00:44:35] there's any adjacent free blocks either following, either next in memory,
+[00:44:41] or previous in memory.
+[00:44:44] And if there are, we need to, as part of the freeing process,
+[00:44:48] we need to coalesce those two blocks into a larger block,
+[00:44:52] the largest possible block possible.
+[00:44:56] Now, it's pretty easy.
+[00:44:58] If we're asked to free this block, this green block,
+[00:45:03] it's pretty easy to check the next block because you just
+[00:45:06] we have the size, we have this header.
+[00:45:09] So we know that the next block starts at an offset of four.
+[00:45:12] So we just, we just check, and we know that the header for that block is at an offset of four,
+[00:45:20] so we just check the allocated status of that next block using the size,
+[00:45:26] using the size field in our header.
+[00:45:28] But what about the previous block?
+[00:45:31] What about this block?
+[00:45:32] How do we check that?
+[00:45:33] Well, given, given all that we've talked about now, the only thing, the only way we could do
+[00:45:39] it would be to start at the beginning of the heap and now walk the free list until we get to this current block remembering the previous block.
+[00:45:49] So each time we, each time we traverse, we remember the previous block.
+[00:45:53] Okay, so that, but that would be very inefficient, right?
+[00:45:57] That would be, that would make free linear in the size of the heat.
+[00:46:02] Because we'd have to, in order to check the previous block,
+[00:46:05] we'd have to walk, starting at the very beginning, and walk the entire heap.
+[00:46:09] So the solace.
+[00:46:11] The solution for that was proposed by a famous computer scientist, Don Canuth, in 1973.
+[00:46:18] It's very clever, but very simple. Like all really good ideas, it seems obvious when you see it, but it turns out to be very clever and a very useful technique.
+[00:46:30] And the idea is just to replicate, for each block, replicate the header block at the end of the block.
+[00:46:38] Okay, so each block now contains a header block.
+[00:46:40] header and a footer, identical header and footer.
+[00:46:46] And then this creates sort of an implicit backwards, backwards length that we can use.
+[00:46:55] So now, given, given some block that we want to, given some block that we want to free,
+[00:47:05] we know that the size of that block will just be one, one word previous in memory.
+[00:47:12] So we can just, and it's always a fixed fixed offset of one
+[00:47:16] So given, you know, given a pointer to the header of this block, we can look one word back to see the size and the allocated allocation status of the previous block.
+[00:47:28] Okay, so that allows us to do that in constant time.
+[00:47:32] And so this footer is sometimes called a boundary tag.
+[00:47:37] And Canuth called it a boundary tag, but we'll just, or we can call it a footer, or we can call it a footer to be sort of parallel with, with the notion of a header.
+[00:47:47] But the key thing is that it's just identical.
+[00:47:50] Has the identical size and allocation status.
+[00:47:55] Okay, now, so given, yes, question.
+[00:48:06] So the question is, if we want to have a boundary tag, when we allocate a block,
+[00:48:09] do we need to set aside space for it?
+[00:48:11] And the answer is yes.
+[00:48:16] Most of the time, I'll show you one, I'll show you one optimization in a bit.
+[00:48:21] Okay, so given this idea of the boundary tag, and given this idea of the boundary tag, and given the
+[00:48:36] that we have some allocated block that we want to free, this yellow block.
+[00:48:41] Yes, question?
+[00:48:49] Yeah, well, you, so the question.
+[00:48:54] Yeah, so the question, yeah, so just to summarize the question,
+[00:48:57] or, you need to, when you allocate, when you're looking for blocks that fit,
+[00:49:03] you have to include the size of the header and the boundary tag.
+[00:49:07] It would, then you'd have, and then you'd have to insert padding to get a
+[00:49:16] size, a total block size that's a, you know,
+[00:49:19] a multiple that satisfies your alignment requirement?
+[00:49:23] Sorry?
+[00:49:25] Yeah, I mean, it can, yeah.
+[00:49:31] If you have, the question is, wouldn't that use a lot of memory?
+[00:49:34] And it can, and it can, and again, it depends on the requests, the request pattern.
+[00:49:39] If the application is requesting lots of small payloads,
+[00:49:42] then it's going to waste a lot of memory.
+[00:49:45] If it's requesting big payloads, not so bad.
+[00:49:48] Okay, so given that we have some block that we want to free,
+[00:49:55] there's four cases that we need.
+[00:49:56] four cases that we need to consider when coalescing.
+[00:50:01] The case where the next block is allocated and the previous block is free is allocated,
+[00:50:06] the case where the next block is free and the previous block is allocated, a case where the
+[00:50:14] previous block is allocated, and the case where both the previous and next block are free.
+[00:50:23] So in case one, where we have our allocated block that we want to free, surrounded by two allocated
+[00:50:29] blocks, we don't do anything, right?
+[00:50:31] Because you only call us free memory.
+[00:50:33] So in this case, we just set, keep the size of the header and footer stays the same,
+[00:50:41] and we just set the allocation status to free.
+[00:50:45] Now, if the next block is free and the previous block is allocated,
+[00:50:55] what we do is we check the boundary tag of the previous block and we see that it's allocated,
+[00:51:02] so there's nothing to do there.
+[00:51:04] We use the size to check the allocation status of the next block.
+[00:51:11] We use N to jump to the header of the next block.
+[00:51:15] We see that its allocation status is free, so these two blocks need to be coalesced.
+[00:51:23] So we do that by just adding the two sizes together to create this larger coalesced block
+[00:51:30] and setting its allocation status to zero.
+[00:51:33] Now, in the case where the previous block is free,
+[00:51:38] is free. Again, we check the boundary tag footer when we see that it is free.
+[00:51:47] So in this case we create, we have to update the size of the old, the header of the old previous
+[00:51:56] block to create this now new larger COALS block. Okay, and we update the header and the boundary
+[00:52:02] tag footer accordingly. And then in the case where where both the previous and the next block are free,
+[00:52:12] we create a single block that's the sum of all three of those sizes.
+[00:52:24] Okay, so is that, is that clear to everybody? Now as you pointed out, correctly pointed out,
+[00:52:38] that boundary tags can create additional internal fragmentation, because they're not part
+[00:52:44] of payload. So by definition, they're overhead. And so you might, you might ask yourself,
+[00:52:53] are there any cases where you don't need a boundary tag?
+[00:52:58] So which blocks need, which blocks need, which blocks need a boundary tag?
+[00:53:13] Could you get away, does an allocated block need one?
+[00:53:48] Yeah, you're, if you're not going to, if you're not, if you don't need to coalesce,
+[00:53:53] then you don't need that footer.
+[00:53:56] And what kind of blocks don't you coalesce?
+[00:53:58] Allocated blocks.
+[00:54:01] So what, so what, so maybe we can, maybe we can, maybe, maybe, maybe we don't need those,
+[00:54:12] those boundary tag footers on allocated blocks, right?
+[00:54:15] Just on free blocks.
+[00:54:18] But then how are we going to determine that the previous block is allocated or free?
+[00:54:23] If an allocated block doesn't have a boundary tag footer?
+[00:54:30] Yes.
+[00:54:33] Sorry?
+[00:54:37] Well, yeah, you would give it one when you free it.
+[00:54:40] But somehow when we're doing coalescing, we need to check somehow that that previous block,
+[00:54:44] whether it's allocated or free.
+[00:54:50] But how does it know whether it's a boundary tag or not?
+[00:54:52] tag or not?
+[00:54:53] I'm not sure.
+[00:54:56] Well, that's okay.
+[00:54:57] That's okay.
+[00:54:59] Yes.
+[00:55:00] Bingo.
+[00:55:06] You got it.
+[00:55:07] So remember this.
+[00:55:08] Remember because of our alignment.
+[00:55:10] We've got multiple, we've got multiple at least three bits.
+[00:55:16] Three or four bits that are always zero.
+[00:55:19] We're only using one of them.
+[00:55:21] So why not use another one to contain the allocation status of the
+[00:55:26] of the previous block.
+[00:55:28] Okay.
+[00:55:29] So, very good.
+[00:55:31] So the idea.
+[00:55:32] So here's the block that we want to free.
+[00:55:45] And here's its header.
+[00:55:46] And here's its header.
+[00:55:48] And we pass the P to it and we want to free it.
+[00:55:52] And we want to free it.
+[00:55:54] And we've got one bit.
+[00:55:56] We know that if we have eight-byte alignment,
+[00:56:00] we know that these are all implicitly zero.
+[00:56:03] So we're using, this is an allocated block that we want to free.
+[00:56:08] So it has an allocation status of
+[00:56:11] one and let's use this let's use one of these spare bits to indicate the allocation
+[00:56:22] status of the previous block okay so if our if the previous block is is is allocated
+[00:56:32] then this would be a one and when we're checking to see whether we need to coalesce
+[00:56:40] we just checked that we just checked that that that that second allocated bit the
+[00:56:46] allocated bit of the previous block and if it's one we don't need to know
+[00:56:50] what its size is.
+[00:56:52] Okay, we don't need to know where that block is
+[00:56:54] because we're not going to coalesce it.
+[00:56:57] So in that, we don't need, so here we don't need a boundary tag
+[00:57:01] for an allocated block.
+[00:57:04] But now if that, if that block is free,
+[00:57:08] it'll have a boundary tag.
+[00:57:11] So we'll check, if that block is free,
+[00:57:16] then the allocation status will indicate free,
+[00:57:24] and then we know we need to
+[00:57:26] we need to coalesce and we're going to need a boundary tag because we need to know where that
+[00:57:34] block starts.
+[00:57:35] We need to know its size so that we can go back and update this size to include the, you know,
+[00:57:43] the total coales size of those two blocks.
+[00:57:49] So is that, is that clear?
+[00:57:51] Yes.
+[00:57:52] Oh, it's just the allocated bit, so zero means not allocated,
+[00:57:58] so zero means not allocated, one means allocated.
+[00:58:01] Oh, why are those bits that are those bits that are?
+[00:58:11] are the bits always zero?
+[00:58:14] Okay.
+[00:58:16] So blocks have to be aligned to eight-byte boundaries.
+[00:58:20] Okay, or payloads have to be aligned to eight-byte boundaries.
+[00:58:25] Okay.
+[00:58:26] That means that blocks have to be, the size of blocks has to be a multiple of eight.
+[00:58:32] Because it's the same thing as when we were doing padding,
+[00:58:36] alignment, and structs.
+[00:58:38] The next, each block has to be, a size has to be a multiple of eight,
+[00:58:43] so that the,
+[00:58:44] the block that follows it in memory is aligned properly.
+[00:58:48] So you guarantee, because of the alignment requirement, you're guaranteed that of eight or 16,
+[00:58:54] you're guaranteed that the size of the blocks are always multiples of either eight or 16.
+[00:58:59] Okay, and so that, and that, so that, because that size is always a multiple of eight or 16,
+[00:59:05] you're guaranteed that either three or four, four bits are all zeros.
+[00:59:12] Any other questions?
+[00:59:23] Any other questions?
+[00:59:24] Okay, let me summarize then some key policies when when implementing an allocator.
+[00:59:40] And I mentioned that there's the design spaces for these things is really large and really interesting.
+[00:59:45] There's a lot of things that you, a lot of decisions that you have to make about various policies.
+[00:59:51] So the first is the placement policy where, when we, when we're trying to find, when we're trying to place a free block, I mean, I mean,
+[01:00:01] When we're trying to place an allocated block somewhere in a free block, somewhere in the list,
+[01:00:06] what policy do we use?
+[01:00:08] First fit, next fit, or best fit.
+[01:00:10] And generally, these things, they trade off throughput for fragmentation.
+[01:00:17] Right, so the faster versions, like, if you're willing to,
+[01:00:29] if you're willing to deal with lower throughput, like in the case of best fit, then you can get better
+[01:00:34] memory utilization. Now there are interesting ways to improve the performance of best fit.
+[01:00:44] You might consider something like good fit, which is sort of a mix of first fit and best fit. So maybe you only search the first, you know, a portion of the heap and then identify the best fit.
+[01:00:58] You know, maybe instead of searching the entire heap, you just search some portion of the heap and then cut off the search.
+[01:01:05] And then within that region that you searched, you picked the best part.
+[01:01:08] So that's something that called good fit. So that kind of approximates best fit. Or you can use these multiple free lists to approximate best fit. And that's, and then and there you, the real advantage of using multiple free lists is that it not only improves memory utilization, but it improves performance too, because the individual lists that you're looking for, you know that they contain blocks that are close to what you're asking.
+[01:01:41] for.
+[01:01:42] And since you're dividing all the free blocks up among amongst multiple free lists, those free lists will be shorter.
+[01:01:52] Okay, so your searches will take less time and your probability of finding a block that fits goes up because you're segregating these different size classes.
+[01:02:05] Now there's a, we also have to decide on some splitting policy.
+[01:02:09] So when we find, when we find a free block that's big enough,
+[01:02:13] enough what do we do with the leftover the leftover part of that block?
+[01:02:18] You know, once we've placed our allocated block into that, into that free block. What do we do with
+[01:02:24] the leftovers? Do we just leave the leftover part in the block itself and return that back to
+[01:02:29] the application, you know, avoiding so that sort of keeping, keeping larger blocks?
+[01:02:35] Or do we go ahead and split it like like I showed before? And splitting, going ahead and splitting that
+[01:02:43] and creating the original free block allocating a portion of it and then creating a smaller free block.
+[01:02:52] So that's, you know, that's a policy.
+[01:02:54] We may, you may want to, you may want to, you may want to, for small requests for small payloads, you may,
+[01:03:00] you may up to a certain size, you may not want to split.
+[01:03:04] You know, you may not, you may decide not to split blocks smaller.
+[01:03:07] You may not, you may decide not to create free blocks that are smaller than some threshold.
+[01:03:13] threshold and only splitting for requests for larger blocks.
+[01:03:19] And then there's the there's a coalescing policy.
+[01:03:23] Now we've seen freeing is pretty quick now.
+[01:03:27] It's constant time because of the boundary tag footers.
+[01:03:31] But you may, you may want to, you may want to try to speed that up even more
+[01:03:38] by deferring the coalescing. So you could, you can do coalescing.
+[01:03:45] every time the free is called, like we just looked at.
+[01:03:52] Or you could defer coalescing to some later time.
+[01:03:55] You know, maybe when you're scanning the free list,
+[01:03:58] when you're scanning the free list,
+[01:04:00] looking, trying to find, trying to place an allocated block
+[01:04:04] in response to a malloc call,
+[01:04:06] maybe as you scan that free list, you could go ahead
+[01:04:08] and do the coalescing at that time.
+[01:04:10] So I'm not saying which one is better.
+[01:04:15] It's hard to, it's really hard to argue for deferred
+[01:04:18] deferred coalescing, giving the constant time performance of boundary tag-based
+[01:04:25] coalescing.
+[01:04:26] But it is an option.
+[01:04:28] Okay, so here's a summary then of implicit lists.
+[01:04:34] This is the simplest, well, it's a very simple kind of allocator.
+[01:04:40] It's the cost to allocate is linear in the size of the heap, worst case.
+[01:04:52] The cost to allocate is linear in the size of the heap.
+[01:04:53] The cost of free is constant time, even with coalescing.
+[01:04:57] Memory usage will depend on the placement policy, first fit, next fit, or best fit.
+[01:05:04] It's not used in practice because of the linear time, the linear time cost of allocation.
+[01:05:12] Okay, but it can be used in sort of special purpose allocators where you have a small number of size classes maybe, or you have a very, you know that you have a very small, or fairly small free list.
+[01:05:23] small free list.
+[01:05:24] But the ideas of splitting and coalescing that we looked at are general to all allocators.
+[01:05:31] Okay, so the idea of a boundary tag, a boundary tag-based coalescing is used, is used regardless of
+[01:05:38] the structure of your free list.
+[01:05:42] So implicit lists are useful to study because they introduce some important concepts, but
+[01:05:48] generally they're not, they're not, they're not, uh, they're not that useful.
+[01:05:54] So next, um,
+[01:05:55] Next class, we'll look at some more sophisticated organizations of free lists, the explicit list and multiple free lists in particular.
+[01:06:05] All right, so we'll see you then.
+[01:06:08] Good luck on your shell lab due tonight.
+[01:06:11] And we'll see you on Thursday.

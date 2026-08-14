@@ -1,0 +1,775 @@
+[00:00:00] So we've now gotten through all the lectures on machine code and we're starting to talk about, okay, now that you know this stuff, what can you do with it?
+[00:00:11] And this lecture is along the lines of that.
+[00:00:14] This is sort of what you are now empowered to do now that you can look at and understand machine code.
+[00:00:21] This material is a little, this actually, there's a whole chapter of the book, Chapter 5 on performance optimization, and we're only going to do.
+[00:00:30] one lecture on it, and we don't have any labs, unfortunately, that really get you to push your limits on this,
+[00:00:37] which is too bad because it's a very interesting topic, and one I think you'd find yourself well equipped for.
+[00:00:43] There will, there are typically a few small exam problems that are sort of based on some of the material here you'll find in old exams.
+[00:00:53] But really the idea is, how can I make programs run fast? Given that I've sort of know
+[00:01:00] what algorithm I'm using and I've perhaps gotten a program that runs, how can
+[00:01:06] I make it run faster? And one of the themes of it is you can sort of do this in layers. You can sort of
+[00:01:15] first of all do the stuff to avoid sort of things that make programs run slow across a wide
+[00:01:27] variety of machines. And just make your, I would describe it as making your programs run slow across a wide variety of
+[00:01:31] your code more compiler-friendly, and we'll talk about what that means.
+[00:01:37] And you have to have some understanding and appreciation for what compilers are good at and what they're not good at to be able to do that.
+[00:01:44] And I describe these as the kind of things that you should just be in the habit of when you write programs writing this code that I'll describe as compiler-friendly.
+[00:01:53] And then the next level is, okay, given that I've sort of taken away the things that really
+[00:02:01] shouldn't have been there in the first place. Now how can I make my programs
+[00:02:05] run faster? In particular, how can I adapt it to the capabilities of the types of machines
+[00:02:12] that this program is going to run on? And that can again go from ones that will
+[00:02:16] generally make programs run fast across a wide variety of machines to ones that become
+[00:02:23] very specific. And very specific is a risky thing because even in the world of, say, x86 machines,
+[00:02:30] There's quite a variety of them that are available at any given point in time,
+[00:02:35] and they evolve over time as well.
+[00:02:37] So you can make a program run really fast on one particular model of one X-86 processor, but it might
+[00:02:45] not, that if you're trying too hard, you'll find your effort to sort of wasted when you move
+[00:02:51] it to another.
+[00:02:52] On the other hand, these general ideas I'm going to describe actually work across quite a range of
+[00:02:57] machines.
+[00:02:59] So, and I'll talk about that more as we go along.
+[00:03:01] So it used to be in the bad old days that if you wanted a program to run fast, you had to write it an assembly code.
+[00:03:10] And that's just plain not true anymore. And if anyone tells you it's true, it's because they're full of it.
+[00:03:15] It's just not true. Unless, except for the exceptional case where you're running on a very small resource-constrained machine, such as a very small underpowered embedded system.
+[00:03:30] So let's just assume that we're going to use a compiler.
+[00:03:33] We'll assume for this course we're going to use GCC because it's generally available.
+[00:03:37] It's not actually the best compiler out there.
+[00:03:39] Intel makes a compiler that costs money to license and stuff, but it's, it really can do some amazing things.
+[00:03:48] And other compilers exist, but GCC is sort of a good enough compiler for most people.
+[00:03:56] But there's some features of some things that sort of puzzle compilers that they don't really understand.
+[00:04:03] Compilers don't really understand, for example, that the numbers you're using, when you say it's an int, might actually range over a much smaller set of values.
+[00:04:13] And they have a very hard time understanding memory referencing patterns and the effect of procedure calls.
+[00:04:27] And so in general, what happens with the compiler is it has a whole sort of cookbook of optimization strategies and some recipes for,
+[00:04:38] how to try out different strategies and apply them.
+[00:04:42] But in general, if it ever feels like this code is something that it doesn't feel confident about being able to make certain transformations,
+[00:04:50] then it just won't.
+[00:04:51] It will keep things sort of a more direct implementation of exactly what you describe.
+[00:04:57] And we'll show examples of that as we go along.
+[00:05:01] So the thing about optimizing compilers, it always has a fallback position, which is to not optimize.
+[00:05:07] And sometimes that will get in trouble if you want your program to run faster.
+[00:05:12] And the compiler just, in its own conservative way, decides not to do that optimization.
+[00:05:19] And one of the tricks that you'll find is pretty useful, now that you can read assembly code, is you run the compiler.
+[00:05:26] You see what optimizations it does.
+[00:05:29] And if it doesn't make something that you expect it to be able to do, you go back and figure it out.
+[00:05:34] So it's very common, by the way, to do.
+[00:05:36] to rewrite your program in the same language and sort of tune it and up to make it run faster, to make it more compiler-friendly.
+[00:05:50] There's nothing wrong with that.
+[00:05:52] As long as you don't then just totally obliterate the program and make it totally illegible.
+[00:05:57] So let's just describe some sort of general optimizations.
+[00:06:01] And you've actually seen versions of this in some of the assembly code we've already looked
+[00:06:07] And I'll use mostly sort of examples from multidimensional arrays because
+[00:06:14] those are actually fairly easy optimization type of tasks.
+[00:06:18] But these apply to other types of program as well.
+[00:06:22] So you saw before when we described how to do array indexing in multidimensional arrays,
+[00:06:30] that the old style of code was if you had a variable size array,
+[00:06:36] It was up to you, the programmer, to write the formula, of how you convert row I, column J into a position in a one-dimensional array.
+[00:06:48] So remember, it's just the number of columns times the row number plus the column number is the standard one.
+[00:06:54] So that would give, this would be pretty typical code then.
+[00:06:58] It would give you a notation like this, if you wanted to set one row in array a row in array A to the values in a
+[00:07:06] one-dimensional row B, this is a code you'd write.
+[00:07:13] And the main observation is within this loop, the only variable that's changing is J.
+[00:07:19] And so from the array perspective, you're, this computation n times I,
+[00:07:26] if it gets repeated over and over again within this loop, then you're just wasting, it's a wasted effort.
+[00:07:33] So you can do what's called code motion, which is to
+[00:07:37] pre-compute the value of n times i outside of the loop and then use it over and
+[00:07:42] over again inside and compilers will generally do this when they they can detect, for example,
+[00:07:49] that it's an array access code and it has this technique. It will generally do
+[00:07:55] optimizations like this if you set say an optimization level of one or higher to GCCCC.
+[00:08:07] And we can see this.
+[00:08:09] In fact, this is this code, and I ran it through GCC using optimization 1, and you see as this red instruction shows, it boosted this multiplication outside of the loop.
+[00:08:20] And it's a little as if you, actually, this code does even more, it turns the code into something that looks more like a pointer code accessing array A and stepping through that element by element of the array.
+[00:08:38] Another one, and we've seen this already, that when GCC turns a multiplication or a division by shifting and adding in operations like that, multiplication or divisions like that, multiplication or division by constants, we've seen examples of that.
+[00:08:54] And a similar one would happen if we took that program I showed before and applied it to every row, so we wanted it to set for array A, we wanted to set for
+[00:09:14] of its rows to the value of the one-dimensional array B.
+[00:09:19] Then again, if we took that code, we boosted the n times i in there.
+[00:09:26] So now the interloop is good, but you realize that this multiplication isn't necessary either,
+[00:09:31] because what we're doing from i equals 0 to i equals 1 to i equals 2 is we're just increasing
+[00:09:38] the parameter n i by we're adding n to it.
+[00:09:42] So we can, and that's called a reduction in strength.
+[00:09:46] We've taken a multiplication and turned it into addition because there's some predictable pattern of how this variable NI is going to be updated.
+[00:09:56] Another example, and again, array indexing is a good example for optimizations.
+[00:10:03] Imagine we had an image that we represent as a two-dimensional array of pixel values.
+[00:10:11] And we want to do something that we want to do something that we represent as a two-dimensional array of pixel values.
+[00:10:13] that's a filtering operation where we want to take the sum of the four neighbors of a given pixel,
+[00:10:21] north, south, east, and west, and average those together, or sum them together.
+[00:10:28] And so the natural way you'd write this and see is to say, I want, I want, usually,
+[00:10:37] images you count from the top down.
+[00:10:40] And so you'd say this is the pixel above.
+[00:10:45] This is the pixel below.
+[00:10:47] This is the pixel to the left and this is the pixel to the left,
+[00:10:48] and this is the pixel to the right.
+[00:10:50] And if you do this in and just compile it straight through,
+[00:10:56] unfortunately,
+[00:10:58] it appears as if there's three different multiplications
+[00:11:01] by n, i minus 1, i plus 1, i plus 1, and i plus 1 and i.
+[00:11:05] And if the compiler isn't too
+[00:11:08] it won't realize that these are related to each other and it will issue three
+[00:11:13] different multiply operations just to do this one pixel thing.
+[00:11:17] Whereas if I'm a little more clever, and this is one where I manually
+[00:11:21] rewrote the code so the compiler would pick it up,
+[00:11:25] I'd say, well, if IN, so I nj is i times n plus j,
+[00:11:31] and I can get the pixel above the pixel below by shifting that off
+[00:11:38] setting that by a value of n.
+[00:11:42] And then it will issue the code, this will compile with a code with just one multiply.
+[00:11:47] And in general, by the way, multiply used to be a very expensive instruction.
+[00:11:52] Nowadays, there's enough hardware resources that it takes about three clock cycles, so it's not a huge deal.
+[00:11:58] But any time you can take three multiplies and use just one instead, that's generally a good idea.
+[00:12:03] Question.
+[00:12:08] So the question is, what if you're trying to optimize for space?
+[00:12:11] And there are a lot of optimizations that will
+[00:12:14] make your code be bigger at the expense of, in order to go faster, right?
+[00:12:20] This one, though, I'd argue this is actually shorter code, right?
+[00:12:24] And just look at the number of instructions, so.
+[00:12:26] And usually, so code, you know, that used to be a bigger concern when memory was sort of,
+[00:12:32] you know, back the original IBM PC had 640 kilobytes of memory, so,
+[00:12:37] in its maximum configuration, and that was a big deal to actually buy it that much.
+[00:12:43] So, you know, back then that was a big deal.
+[00:12:45] But nowadays memory, the size of the program is usually a pretty small fraction of what you're dealing with overall.
+[00:12:52] But it's a valid question.
+[00:12:57] Okay, so that just shows you an example.
+[00:12:59] And in general, compilers are pretty good at doing those low-level optimizations like that
+[00:13:05] if you write the code in a way that's reasonable.
+[00:13:08] But there's some other ones that the compiler, and even the fanciest compiler you can buy,
+[00:13:13] might not be able to figure it out.
+[00:13:16] And so I like to illustrate this with the compiler.
+[00:13:18] When the first term we ever taught 213, I was looking at some lab code that some of the students wrote,
+[00:13:27] and I was horrified about this code.
+[00:13:30] And I showed it to the TAs and none of them figured out what was wrong.
+[00:13:33] And I've shown it to many other highly trained C programmers, professionals.
+[00:13:39] And they go, looks okay to me.
+[00:13:41] So let's figure out why I was horrified by this code.
+[00:13:46] So the idea of this code is supposed to be pretty straightforward.
+[00:13:48] straightforward.
+[00:13:49] There's a string S and I want to convert that string, all the characters in it, to lowercase.
+[00:13:57] So I'm just going to read through the string, and for each string position, test that character.
+[00:14:04] And if it's somewhere between uppercase A and uppercase Z, then I'm going to shift it to
+[00:14:10] to being between lowercase A and lowercase Z, otherwise I won't change it.
+[00:14:14] So pretty straightforward.
+[00:14:17] But if you run this,
+[00:14:18] this, you see that if you go up to half a million characters, which might sound like a lot,
+[00:14:27] but it takes 240 or so, so four minutes to run this coat.
+[00:14:35] And you go, well, that's a pretty big string.
+[00:14:38] It's really not a big string.
+[00:14:39] You should be able to do lowercase conversion of a string in a lot less than four seconds.
+[00:14:45] And you also notice this growth is nonlinear.
+[00:14:47] linear it's quadratic. It's growing as a square of the string length. So this is not good.
+[00:14:53] And unfortunately it's the kind, and by the way, this is one of the, that is very easy, surprisingly easy,
+[00:14:58] to have programs that have some hidden performance bug that makes them run quadratic.
+[00:15:05] And you run tests, and you test for strings of 10,000 or less.
+[00:15:11] And it doesn't look like a big deal because the runtime is insignificant. So, but then
+[00:15:17] all of a sudden it hits a really bad case.
+[00:15:20] So this is a, there's something wrong here.
+[00:15:25] So what's so bad about this program? Well, the key is,
+[00:15:31] uh, went in a test like this of calling sterlin.
+[00:15:36] So, uh, the way it's determining whether it's reached the end of the string
+[00:15:41] is by calling sterlin to figure out how long the string is.
+[00:15:47] And the, uh, now, now, and remember if we do the conversion of a,
+[00:15:50] conversion of a for loop into a go-to form like you've seen, there's various ways to
+[00:15:56] convert it, but all of them, the test, gets built into the loop. So the main feature of that
+[00:16:04] is this call to sterling will happen every time you go through the loop. And people overlook
+[00:16:12] that fact. When you look at the different parts of a for loop, the initialization only gets
+[00:16:20] executed once, but
+[00:16:21] both the test and the update get incremented,
+[00:16:26] get applied every time you run through the loop.
+[00:16:30] So that's getting called as many times as there are characters in the loop,
+[00:16:35] in the string, right?
+[00:16:38] And now how does Sterland work?
+[00:16:39] Remember and see, the only way you know how long a string is,
+[00:16:43] is to step through the whole thing and find the null character at the end.
+[00:16:48] So Sterland itself is a linear time operation in the string
+[00:16:52] And you're doing that, and so you're doing N calls to a function that takes time N.
+[00:17:01] The string's getting shorter as you go, but not very fast.
+[00:17:04] So basically that's quadratic performance.
+[00:17:09] And that explains why you get that runtime.
+[00:17:14] So in particular, if I just make the following little change, I introduce a local variable called Glenn,
+[00:17:21] and I pre-compute Sterling because the string
+[00:17:25] the length of the string isn't changing.
+[00:17:27] I'm just changing the characters in the string.
+[00:17:29] Then, so the program will do the same thing.
+[00:17:34] But now the runtime is so short, it doesn't even show up.
+[00:17:38] It's maybe a second to do a million characters.
+[00:17:42] It's just not a big deal at all.
+[00:17:44] As it should be, it's just running through.
+[00:17:47] And so that's just an example.
+[00:17:50] One of many that I've seen in my career where something that
+[00:17:55] that seems almost insignificant turns out to be a serious performance problem.
+[00:18:00] So why couldn't a compiler figure this out?
+[00:18:06] Why couldn't a smart compiler look at the
+[00:18:13] original code and say, you know, this is what the programmer wrote,
+[00:18:22] but I know a better way to do it.
+[00:18:24] I'll pre-compute Sterlin in advance.
+[00:18:26] Well, there's a couple of reasons.
+[00:18:29] One is, actually, if you look at the code for Sterlin,
+[00:18:33] you see that you see that, you know,
+[00:18:34] it's actually modifying the string and Sterland,
+[00:18:38] I mean, the code here is modifying the string,
+[00:18:41] and we're calling Sterland on it.
+[00:18:43] So you'd have to be pretty careful to do the analysis,
+[00:18:46] the compiler would, to figure out that even though the string is changing,
+[00:18:51] the result you're going to get from Sterland
+[00:18:54] is not going to change, right?
+[00:19:00] So that's one reason.
+[00:19:04] And the second is, well, and how do,
+[00:19:07] And how can the compile be sure which version of SterLen is actually going to get used?
+[00:19:15] You remember and see each of the files gets compiled separately,
+[00:19:19] and only afterwards does it all get brought together in the linking phase?
+[00:19:24] And some of that even happens after the program gets started.
+[00:19:27] So even though there's a standard STERLEN function,
+[00:19:31] it's not necessarily the case that that's the one that will actually get used in the final program.
+[00:19:36] So the compiler really can't be sure of that.
+[00:19:41] In particular, I provided a sort of customized stern line function like this
+[00:19:47] that is keeping track of the sum of the lengths of all the strings that it's been called on
+[00:19:53] or some other side effect like that, that will,
+[00:19:58] that program would produce a very different result then if I,
+[00:20:03] whether or not I make the optimization.
+[00:20:05] optimization.
+[00:20:06] So the compiler has to assume that Sterland is just a black box that does whatever it does, and can't make
+[00:20:13] any assumptions about what how, what side effects it might have, and so forth.
+[00:20:20] So it won't make that optimization on any machine, even with the best compiler.
+[00:20:27] So that's just an example that, and you can tell that I've gotten kind of sensitized to this
+[00:20:36] so that I spot these, but a lot of people don't.
+[00:20:43] So let's look at this.
+[00:20:45] Let's see.
+[00:20:51] Oh, this is another bad example, a bad coding example.
+[00:20:56] Of, imagine I want to compute for a two-dimensional array A and a one-dimensional array B.
+[00:21:07] I want to make B sub i be the sum of all the elements in row I of A of A of A.
+[00:21:14] of A. So again, this is a fairly obvious kind of way to write this program that you say,
+[00:21:22] well, B.I. 0, and I'm going to just accumulate it. I'll step through the row and accumulate all the values.
+[00:21:28] And of course, we know now we could improve this by moving I times n out and so forth. I'm not
+[00:21:34] trying to illustrate that. But what you'll see in the program, this is in the inner loop,
+[00:21:40] and we've looked briefly at some floating point instructions, and we've looked briefly at some floating point instructions,
+[00:21:45] And remember, the main feature of them is the move instructions look like the move ones you're familiar with except when we put floating point data in one of these XMM registers.
+[00:21:56] So the main thing you see here is it's reading from memory, it's adding something to it, and then it's writing back to memory.
+[00:22:06] And what that memory location corresponds to B of I.
+[00:22:10] So what it means is every time through this loop it's having to do a memory read and a memory write of B in addition to the memory read of A.
+[00:22:22] Even though presumably B of I is the same value that you just updated it to in the previous execution of this loop, right?
+[00:22:34] So why do you have to, why do you read it, why do you write it out, and then read it back in, increment it, and then again, copy it?
+[00:22:40] again, copy it back out. Why does it have to go keep jumping back and forth between
+[00:22:45] memory and registers over and over again? Well, the reason is because in C you can't be sure that
+[00:22:54] there isn't what's known as aliasing, and I'm demonstrating it here, imagine if row B is just
+[00:23:02] declared to be the... Okay, so imagine, and you can do this in C, this is legal C code, you can
+[00:23:11] make one memory data structure overlay another data structure that's referred to as aliasing,
+[00:23:18] when two sort of separate parts of the program are referring to the same locations in memory.
+[00:23:25] And the C compiler has no way of knowing whether there's a lot of work in optimizing compilers
+[00:23:33] to detect aliasing possibilities, but in general it has to assume aliasing might happen. So imagine
+[00:23:39] this aliasing happens so that array B corresponds then to this row of
+[00:23:46] array A. Then, of course, its initial value is 4-816, but if you trace through what this
+[00:23:54] code will do, it has this sort of odd behavior that is probably not useful for anything, but
+[00:24:02] but it just demonstrates that what will happen is as this, as B gets updated, it's a
+[00:24:10] effectively changing A and it's changing then what's being read during
+[00:24:14] the summation.
+[00:24:18] And so this is a real possibility in C and so the compiler when it's given code like this, it has
+[00:24:26] to assume that these two memory locations might court overlap each other, so
+[00:24:32] that's why it's carefully writing it out and then reading it back in over and over
+[00:24:37] again.
+[00:24:41] And so if I just rewrite this code by introducing again a little
+[00:24:44] variable and accumulating in that local variable, and then only at the end do I assign
+[00:24:52] that to B sub I, then you'll see this exact same loop all of a sudden gets a lot simpler. It's
+[00:24:57] just a read, floating point, read, and add to do that. And we'll see, in fact, the memory is
+[00:25:09] actually one of the limiting performance limiters in a program. So this is, this will be
+[00:25:15] significantly faster.
+[00:25:17] And again, that's something that you as a programmer
+[00:25:20] would hardly think is a big deal.
+[00:25:23] But the C compiler can't do that in general
+[00:25:26] because it can't determine in advance what possible
+[00:25:29] aliasing there can be. So, as these two examples say,
+[00:25:38] sort of get in the habit of introducing local variables
+[00:25:41] and using them, and it's your way of telling the compiler,
+[00:25:45] don't call the same function over and over again.
+[00:25:48] Don't read and write the same memory location.
+[00:25:50] over and over again. Just hold it in a temporary one. And then it will automatically
+[00:25:55] allocate a register and store it in that register and everything will be good. Okay, so
+[00:26:02] that's sort of the kind of what we call optimization blockers, the kind of
+[00:26:09] things that you as a programmer can make a difference on. And the main blockers are
+[00:26:14] memory referencing, aliasing, and function calls and sort of understanding what might
+[00:26:20] happen in that function call.
+[00:26:22] So now what we're going to do is transition question.
+[00:26:49] No?
+[00:26:50] No, no, this is valid C code.
+[00:26:54] I'm sure this is valid C code because it ran.
+[00:26:57] So this is initializing, calling it an array B.
+[00:27:05] Remember, these are int stars.
+[00:27:07] These aren't two-dimensional arrays, right?
+[00:27:11] So this is saying A is now a, think of it as a linear array of four elements,
+[00:27:19] of nine elements.
+[00:27:21] A plus three is just to go in three. So this is, it is declaring B is not a pointer. It's an array.
+[00:27:29] But remember, with an array, you can use the name of that array as a reference to a pointer.
+[00:27:36] A readable reference, not a writable reference, right?
+[00:27:39] But the CCC version 4.9 just as ambassador.
+[00:27:45] Really? For this exact code? Yeah. Well, I'll double check it.
+[00:27:48] So the question is, why does C use null-terminated strings?
+[00:28:09] And it does, and it might be a bad decision for multiple reasons, right?
+[00:28:14] But I think in general, think of C was somebody who had, or a couple of people who had been writing a lot of assembly code,
+[00:28:25] and wanted to lift up that level so they weren't writing the same stuff over and over again.
+[00:28:31] But not thinking in terms of how can I be the most abstract possible.
+[00:28:36] So they were trying to provide sort of a minimum layer.
+[00:28:39] on top of machine level programming that would let them write code that could run from one machine to another.
+[00:28:45] So in everything they do, they sort of use the most simple representation and don't assume any kind of, there's no array,
+[00:28:53] you know, most languages would have array bounds checking, and array would be a data structure that would include its size, you know, range of values and stuff, and C just doesn't.
+[00:29:07] So everything about C is sort of the minimum.
+[00:29:11] And, you know, it's been around for 40 or something year, so.
+[00:29:16] No, Pascal does not precede C.
+[00:29:24] No, that's simply not true.
+[00:29:26] Pascal was created as a language for teaching by this fellow named Niklas Vert.
+[00:29:32] And it was very much an instructional language.
+[00:29:35] So it was really designed to help students who needed help.
+[00:29:40] And C was designed by professional professional.
+[00:29:42] programmers to let them write their code and not get in it in their way.
+[00:29:49] So they're very different theory between the two languages, right?
+[00:29:53] Yes. Yes. What's that? I'm sorry. Oh yes, that's a mistake there.
+[00:30:11] I'll double check this. Or people could check it. I'm pretty sure this code is okay
+[00:30:17] though. If not, you could certainly say double star B equals a plus three and that
+[00:30:24] would work, right? Question. Question. You think what?
+[00:30:36] You think this is 28?
+[00:30:44] Well, I'm not going to try and hand-execute it here, but let's check it.
+[00:30:48] You and I will check this code out and we'll fix it if it needs to be fixed, okay?
+[00:30:52] Thanks for pointing it out. Yeah.
+[00:30:56] Is it do this, the array of stack allocated?
+[00:31:02] No, that doesn't make any difference at all. In this code?
+[00:31:06] No, no, where it's allocated makes no difference at all here.
+[00:31:10] So I'll check. That might have to be double starb equals A plus 3, but I
+[00:31:14] this was a while ago that I wrote this code.
+[00:31:17] I'll double check it though.
+[00:31:20] Okay, so anyways, that's the sort of end of the story
+[00:31:26] for for simple optimist.
+[00:31:33] And they are simple optimizations.
+[00:31:35] It's just you have to get in the habit of doing it.
+[00:31:38] Okay, now what we're going to do is go a little bit fancier than this.
+[00:31:42] And as I said, this becomes somewhat more system-dependent,
+[00:31:45] but pretty much nowadays, all processors are, have similar
+[00:31:51] implementation. They all do what's known as out of order execution, except for the most
+[00:31:58] primitive microcontrollers. And so this is a, the kind of optimization I'll show, you'll find,
+[00:32:04] we'll, this general approach will work across quite a variety of machines. So what I'm going
+[00:32:13] to do is, is do this by a series of examples, starting from some not very efficient code and
+[00:32:18] making it run faster and faster, and we'll get a speed up of around, uh, uh, uh, uh,
+[00:32:23] 40 just in doing what we're doing.
+[00:32:28] So I'll start by saying, well, assume I have a data structure that looks like the way Pascal
+[00:32:34] implements arrays.
+[00:32:37] Sorry, I have nothing against Pascal.
+[00:32:40] We used to teach it back in the old days.
+[00:32:43] But, so a typical way you'd implement an array in a language is you'd
+[00:32:48] provide both the values that are stored in that array, and then
+[00:32:52] there'd be other information associated with.
+[00:32:55] with it. For example, what size it is.
+[00:32:58] And so this is sort of the sort of nice abstract way to do it.
+[00:33:03] And you write code that make sure that if you ever try to exceed the bounds on the array,
+[00:33:10] you'd return an error signal.
+[00:33:13] And so this particular function you're seeing is
+[00:33:19] what I want to retrieve an element, I pass a pointer, and then that value, the pointer get
+[00:33:26] it's used to retrieve the value from the array.
+[00:33:31] And the return value of this function is then just zero or one,
+[00:33:34] zero meaning failure and one meaning success.
+[00:33:37] And I'm writing it in this way that I use a data type I'll call data
+[00:33:41] underscore T, and that way I can run this, I can compile this code
+[00:33:46] using different definitions of data underscore T to get in slongs, floats,
+[00:33:50] and doubles, and we'll see how the performance characteristics of those
+[00:33:54] shift with the different
+[00:33:56] data types.
+[00:33:59] And the benchmark I'm going to use is a fairly simple one.
+[00:34:03] It's just to, for an array, an array or one of these vectors,
+[00:34:10] I just want to combine all the elements of it,
+[00:34:13] either compute their sum or their product.
+[00:34:16] And again, I'm going to use macros here,
+[00:34:18] ident and op, and define those,
+[00:34:22] so that op is addition and the identity value is zero,
+[00:34:26] or a .
+[00:34:27] the op is multiplication and the identity element is one,
+[00:34:31] so that I can compare addition in multiplication.
+[00:34:34] So that gives us sort of eight possibilities here,
+[00:34:37] two different operations and four different data types.
+[00:34:40] And so this is written in the sort of most straightforward manner
+[00:34:45] that I'm using this function called get-veck element
+[00:34:48] to retrieve the successive values of this array
+[00:34:52] and then performing this operation on it.
+[00:34:57] So now takes a function.
+[00:34:58] Now to express performance of this,
+[00:35:02] we're going to use a metric I introduced called CPE,
+[00:35:06] which stands for cycles per element.
+[00:35:11] And the idea is that usually when you write code that, say,
+[00:35:14] steps through a vector, anything that has sort of some linear performance
+[00:35:17] as you get bigger,
+[00:35:19] you don't really want to know for exactly,
+[00:35:23] it takes this many seconds or microseconds or nanoseconds to do an
+[00:35:28] operation, you kind of want to know often more what's its overall performance characteristics.
+[00:35:34] And also, it turns out when you're doing low-level code optimization, it's much more useful to think in terms
+[00:35:41] of clock cycles of the inner clock of the processor rather than an absolute term such as nanoseconds.
+[00:35:48] Because whether a processor is running at 2 gigahertz or 2.3 gigahertz, I don't really, I have no control
+[00:35:56] over that as a programmer, but I can control sort of at the low level how
+[00:36:02] many clock cycles are being used for different parts of the computation.
+[00:36:07] So that's why it's called cycles per element. And you can think of it as, and this shows some actual
+[00:36:13] measurements that typically a function like this get what I showed that combined will
+[00:36:19] have some overhead, a fixed amount that's associated with setting up the loop, doing
+[00:36:25] the top level call and all that stuff.
+[00:36:28] And then some component that's linear in the size.
+[00:36:32] And so what I want to know is the slope of that linear component.
+[00:36:36] And that will determine, that's what I'll call the cycles per element.
+[00:36:41] You can think of the slope as the sort of incremental cost of adding one more element to the array.
+[00:36:54] So now if I run this function, I showed you, and I'm only showing, mostly only show
+[00:37:00] four results because it turns out whether it's int or long or float or
+[00:37:07] double is not going to actually have any effect on performance for most of the cases. So if
+[00:37:13] I just run this code through a compiler and don't do any optimizations, it takes around
+[00:37:18] 20 cycles per element. And if I turn on optimization level one, which is sort of the
+[00:37:24] first serious optimization, it takes the time in half. So I'm down to 10 clock cycles
+[00:37:30] per element just by changing the compilation.
+[00:37:34] And that's using the most unoptimized code I could think of here.
+[00:37:41] And then I won't go through it all, but using sort of the kind of things I described earlier of sort
+[00:37:49] cut away some of the redundancy in this program, you can get it down to something a little
+[00:37:55] bit simpler.
+[00:37:56] And so one thing instead of you saw before, I was making a call to this get-veck element, and
+[00:38:01] And every time it did that, it went bounds checking.
+[00:38:04] And it's kind of silly to keep bounds checking the same array over and over again when I'm stepping,
+[00:38:10] I'm using its length as the determinant of how many elements to access.
+[00:38:16] So if I'm willing to sort of forego bounds checking, what I can do is introduce a function that will
+[00:38:22] just give me the actual data storage part of this vector and skip over all the other stuff.
+[00:38:29] And so I can write a loop that, and I introduce a function that will just give me the actual data storage part of this vector and skip over this vector and
+[00:38:32] local variables and all the kind of things we described and accumulate in
+[00:38:40] temporaries and things like that, then the program actually gets a lot faster.
+[00:38:46] Again, everything from here out is optimization level 1.
+[00:38:51] And so it drops it down to a little over a clock cycle for integers addition, or three clock cycles,
+[00:38:59] up to five clock cycles for double precision multiply.
+[00:39:02] So that's pretty good.
+[00:39:03] I've sort of definitely improved things.
+[00:39:07] But the question is, well, is that the best there is.
+[00:39:10] And first, and also try to understand, what is it about these numbers 3,5, and this seems to be something close to 1.25?
+[00:39:19] So where are those numbers coming from?
+[00:39:21] And does that indicate some fundamental limitation in my program?
+[00:39:28] Well, in order to do that, you have to have to have some understanding of the underlying hardware.
+[00:39:33] And there's a really good course you can take.
+[00:39:34] good course you can take I think it's called ECE 741 that will tell you
+[00:39:40] everything you ever could imagine wanting to know about processor design and you actually
+[00:39:46] design processors like this but I'm assuming you're not going to do that for a while
+[00:39:50] because you have about seven prerequisites to do before that happens so let me
+[00:39:57] just give you the the the the simple version and this is sort of an idea of what a
+[00:40:02] processor has looked like since about
+[00:40:04] 1995. So this is old stuff, but it's enough, actually, to really understand it,
+[00:40:13] it's so hard, it's really, the details are pretty massive. And so it's not even taught, for example,
+[00:40:19] 447 is the ECE is the computer architecture course, and they don't really go into this kind of design
+[00:40:26] here, because they're pretty hard, they're actually hard to design on your own. But the basic idea is you
+[00:40:33] think about a program as the computer just reads in an instruction, does whatever
+[00:40:39] it says to do, reads in another instruction, does what that says to do, and it has nothing to do
+[00:40:45] with how programs actually execute. What they've built up is this massive hardware infrastructure
+[00:40:51] to make a program run way faster than it would if it were just doing one instruction at a time.
+[00:40:58] And it employs a technique that's called super-scaler out-of-order execution.
+[00:41:03] And the idea is, roughly speaking, it takes your program, if you think of your program as a linear sequence of instructions,
+[00:41:11] and it just sucks in as many of those as it can, and it pulls it apart to realize that certain operations don't really depend on each other.
+[00:41:21] So I can start one even though it's later in the program than the one I'm working on right now because they're independent of each other.
+[00:41:28] And it's extracting what they call instruction level parallelism, places where
+[00:41:33] even though your program is a linear sequence of instruction,
+[00:41:37] buried in there is actually a sort of forest of different computations that need to be done,
+[00:41:44] some of which depend on each other and some of which don't.
+[00:41:47] And then it has a bunch of hardware.
+[00:41:50] And so that's up here.
+[00:41:52] This upper part shows this idea of fetching instructions.
+[00:41:57] So there's a cache memory, a high-performance-speed local memory.
+[00:42:03] that is just pulling in your instructions as fast as it can.
+[00:42:08] And those instructions are then feeding a big pile of hardware that will extract out of it these low-level operations and figure out which ones depend on which others.
+[00:42:21] And then there's a set of functional units in this part of it that are able to perform these low-level operations to do arithmetic,
+[00:42:32] floating point operations to read data from memory to store data back to memory,
+[00:42:39] all using a cache, which is something you're going to learn about fairly soon, how what all this
+[00:42:45] this cache is. But think of this as a high-speed copy of some of the data memory.
+[00:42:51] And so what this logic tries to do is keep forking out, spawning off
+[00:43:00] operations based on your program and keeping these as busy as they can be doing
+[00:43:06] different fragments of your code, doing different instructions in a different order from before.
+[00:43:12] And it turns out you think of a register as a little, the set of registers is a part of memory
+[00:43:19] that get read and written. It turns out that in executing a register now just
+[00:43:25] becomes the name of something that one instruction produces and some other instructions
+[00:43:30] consume. It's a destination for some. It's a source for others.
+[00:43:34] And this whole bunch of stuff here just sort of magically passes the results of one
+[00:43:41] computation to the input to another computation based on register names without ever
+[00:43:47] storing them in an explicit register file. There is a register file when
+[00:43:53] things kind of settle down, they get stored away. Anyways, there's a lot of stuff
+[00:43:58] going on here. But the main thing to think about is your machine has resources to do multiple
+[00:44:05] operations all at the same time if you can somehow structure your program so that those can all get
+[00:44:13] get used. So this is, as I mentioned, it's called a superscaler instructor, is one
+[00:44:21] that can do more than one instruction every clock cycle. And actually, Intel started
+[00:44:29] in 93, the very first Pentium could do two instructions at once.
+[00:44:34] But then a little later, they came out with one called the Pentium Pro, which is sort of the basis of the
+[00:44:38] basis of all modern processors. And the lead architect, by the way, was a CMU graduate.
+[00:44:45] But this out-order execution is the model that's used nowadays.
+[00:44:52] So the other thing is those functional units are more complex than you think they might be.
+[00:44:59] that they have what's called pipelining. And the idea of pipelining
+[00:45:03] is imagine you can break up a computation into a series of distinct stages. A simple example is if
+[00:45:11] you want to compute A times B plus C, you first do the times and then you do the plus. But
+[00:45:17] It actually gets deeper than that. You can take something like multiplication and break it
+[00:45:23] up into smaller steps that can be done one after the other.
+[00:45:29] And then if you have a separate dedicated hardware for each of those stages, then you can do what's called pipelining, which is when one operation moves from one stage to the next, a new operation can come in behind and start its thing.
+[00:45:45] So this example shows, imagine I had a three-stage pipeline multiplier, and I want to do this computation, A times B, A times C, and now multiply
+[00:45:59] those together. So the thing to observe is that A times B and A times C don't
+[00:46:05] depend on each other in any way. So I can do them both. And I don't have hardware to do them
+[00:46:10] simultaneously, but I have them enough to do one right after the other. So I can feed the first
+[00:46:18] computation into the first stage, A times step one, and then time step two, it will
+[00:46:26] move on to stage two and time step three it will move on to stage three. But now I can start A times C in time step two because this stage
+[00:46:40] became available once A times B moved from stage one to stage two. And so I can follow right behind, just one clock cycle behind this other operation. Now, p times one times P2, obviously
+[00:46:56] depends on both of these products. So it can't start until A times C is completed,
+[00:47:04] and then it will run through the pipeline without anything else. So overall, then we've done what
+[00:47:10] would have normally seemed to be nine steps worth of arithmetic in a total of seven steps here because
+[00:47:20] of pipelining. Question. If you had, like in this picture here,
+[00:47:32] if there were different multipliers in these different places, yes, you could do those two completely independent of each other.
+[00:47:49] Yes, this is all in a single core of a single processor.
+[00:47:52] Multi-core is yet another.
+[00:47:54] This is a lower level parallelism than you get through multi-core.
+[00:47:58] And it's present, except in the sort of lowest-end, lowest-powered, embedded processors.
+[00:48:03] Some version of this exists.
+[00:48:05] And most of the time your hardware is not being fully utilized.
+[00:48:08] It's one thing you're going to learn from this.
+[00:48:09] So that's the idea of pipelining. It's sort of like parallelism, but it's not that you have multiple copies of resources. It's that you have this ability to stream operations through a single hardware resource in close succession to each other.
+[00:48:30] And so Haswell, which is a little bit more recent than the shark machines, but not that much more, is one of the most recent versions.
+[00:48:45] of the Intel X86 series.
+[00:48:49] And the functional units include, there's a lot of functional units that can do different things,
+[00:48:55] but when you add it all up, there's a possibility of it doing two loads in one store, four integer
+[00:49:03] operations, two floating point multiplies, one addition, and one division.
+[00:49:09] They can't all happen at the same time because there's some share functional units.
+[00:49:14] But the point is there's really a lot of equipment there that can do stuff.
+[00:49:20] And also, you can measure how fat, an instruction now has two characteristics in operation is,
+[00:49:28] how long does it take from beginning to end, but also how closely spaced can two operations be because of this
+[00:49:36] pipelining.
+[00:49:37] So you see that most of them take some number of clock cycles to perform, but they're also pipelines
+[00:49:44] so that you can do a series of them just one cycle apart.
+[00:49:48] The only different ones that aren't is, you'll notice the division is both very slow and it's not pipeline.
+[00:49:56] And division is a very expensive operation on most machines, relatively speaking.
+[00:50:01] So what I claim then is these characteristics then provide a limit on how fast our program can run, our original program.
+[00:50:19] And that I have a series of multiplications, for example, of integers here, and this shows the code for it.
+[00:50:27] And the result of, I need the result of one multiplication before I can begin the next.
+[00:50:34] So there's a three-clock cycle bound here.
+[00:50:38] And you'll see that, in fact, my measurements all correspond to what I'm calling the latency bound of these machines,
+[00:50:44] which is just based on how much time it takes from a beginning of an operation to the end.
+[00:50:52] And the reason is we consider a diagram, the computation being done by this program.
+[00:50:58] that it's doing a series of multiplications,
+[00:51:01] and I require the result of one multiplication before I can start the next.
+[00:51:07] In general, if you look at this loop code, it has to compute ECX, the updated value of it,
+[00:51:14] before it can now start the next one.
+[00:51:18] And so that's why, even though this I have a pipeline multiplier, my program itself,
+[00:51:25] limits me to the sequential execution of all the multiplies.
+[00:51:36] So let's see if we can't get beyond that bound, that latency bound.
+[00:51:41] Well, there's a fairly common technique that you might have heard of before that's called loop unrolling.
+[00:51:47] And the idea of loop unrolling is just that you, rather than executing one value within a loop,
+[00:51:58] you execute multiple ones.
+[00:52:00] And so this code shows unrolling.
+[00:52:01] This code shows unrolling by 2.
+[00:52:03] And what it says is I'm going to step through this array, two elements at a time, and within each
+[00:52:11] of the inner loop, I'm going to combine the values from DI and D.I.
+[00:52:16] And I have to put in some extra code to finish off what happens if the original array was
+[00:52:22] of odd length, but you get the idea.
+[00:52:25] And this idea, I show this code of 2, but you could imagine this applying for different values.
+[00:52:30] for different values of loop unrolling.
+[00:52:33] So will this help us any?
+[00:52:36] Well, when I run it, I get that the integer addition got a little faster,
+[00:52:41] but the other ones didn't improve at all.
+[00:52:44] So this one is going faster because basically the old code,
+[00:52:50] just the overhead of the loop indexing and incrementing was enough to be slowing me down
+[00:52:56] because it's already close to a clock cycle.
+[00:52:58] So I just managed to knock that down to
+[00:53:01] to be at the latency bound of this particular instruction.
+[00:53:06] But it didn't improve the other ones because I still have this sequential dependency.
+[00:53:10] In order to get my new value of x, I have to first do one computation and then do the other
+[00:53:19] before I can begin another one.
+[00:53:24] But this shows me the way I could make a very, very small change and change performance fairly
+[00:53:30] dramatically.
+[00:53:31] What if I take these parentheses?
+[00:53:32] take these parentheses and shift them to the right.
+[00:53:38] Would that make any difference?
+[00:53:42] And lo and behold, yes, you find that,
+[00:53:47] you find that, and I'll call that transformation unrolling by two,
+[00:53:58] computing one element at a time, I'll talk about that in a minute
+[00:54:02] that in a minute, but I'll use this lowercase A to say I've done an associativity transformation.
+[00:54:09] And you see all of a sudden my time's dropped in half for these three cases.
+[00:54:15] So something's going on.
+[00:54:20] And so let's see why that is, and now I'll introduce it.
+[00:54:28] And so if I take my picture from before and think about what those computations imply,
+[00:54:34] you'll see that right now I've changed the structure of the computation.
+[00:54:37] of the computation so that I'm pairwise combining each element of pair of elements
+[00:54:44] of the array and then accumulating those into the overall computation.
+[00:54:50] So I've actually that shifting of the parentheses fundamentally changed how I'm doing my computation.
+[00:54:59] And you can see now that this critical path, which is what determines in this case the performance limitation,
+[00:55:06] just got shorter by a factor of ten.
+[00:55:07] by a factor of two.
+[00:55:09] And that's why I'm now running twice as fast for the operations, not for integer addition,
+[00:55:16] but for the other three operations I've cut by a factor of two.
+[00:55:21] Just by that shift.
+[00:55:24] Now there's some good news and bad news here.
+[00:55:27] The good news is if this is integer arithmetic,
+[00:55:30] we know already, you know that two's complement arithmetic is
+[00:55:35] arithmetic is associative and commutative.
+[00:55:40] So it really doesn't matter for both multiplication and addition.
+[00:55:44] So it really doesn't matter what order I combine these elements in.
+[00:55:47] I'm going to get the exact same answer no matter what.
+[00:55:50] But you also saw for floating point, that's not the case.
+[00:55:53] So with floating point that shift shifting these parentheses
+[00:55:58] because of rounding possibilities and even potentially overflow,
+[00:56:03] you might get different values,
+[00:56:05] results from these computations.
+[00:56:08] But then again, if you think about, you know, is that really going to happen?
+[00:56:11] Chances are no, that it's not really going to affect the outcome of your program.
+[00:56:17] But it's enough of a change that most C compilers, or most compilers, period, will not make any change that
+[00:56:24] changes associativity, because they're very conservative when it comes to floating point.
+[00:56:30] So that's something you as an application programmer has to know well enough.
+[00:56:35] Is this a valid?
+[00:56:36] can I do this transformation without messing things up?
+[00:56:38] And now what I'll say is now there's a new set of bounds.
+[00:56:46] So a bound is what would appear to be sort of the best you can do based on some constraint in the program.
+[00:56:52] And before it was saying, well, the latency, the total time for a given operation was a bound.
+[00:56:59] And now I say, well, there's an even more fundamental bound, which I'll call the throughput bound, which is just based on,
+[00:57:08] I only have so much hardware out there, and I can only pump it so fast.
+[00:57:13] So for example, these two, the throughput bound is one, because I only have, that, that actually
+[00:57:27] becomes limited by the requirement that I'm having to read from memory, and I have two
+[00:57:34] different load units.
+[00:57:35] Oh, no, I'm sorry.
+[00:57:40] I only have one multiplier for integers and one for addition.
+[00:57:46] The throughput bound for these two actually is just a half, because it turns out there's some odd part of the hardware design that has two floating point multipliers, but only one floating point adder.
+[00:57:58] And we'll see that we can actually make this multiplication code run faster than addition code.
+[00:58:04] And over here, again, my limit will be that I only have two load units, and I have to be an
+[00:58:10] And I have to read, for every element I'm computing, I have to be reading one element
+[00:58:14] element from memory, so I can't get below that.
+[00:58:21] Okay, so, but we saw this transformation now is let us break out of this latency limitation and
+[00:58:27] get something closer to throughput.
+[00:58:30] Here's another technique that can be used to, again, sort of get more parallelism going.
+[00:58:36] And I call this multiple accumulators.
+[00:58:38] And the idea is, let's imagine that we have the odd-numbered elements.
+[00:58:44] and the even-numbered elements in the array.
+[00:58:46] And we can compute separate sums or products of those two sets of elements, and then at the very end, combine them together.
+[00:58:57] So this is another form of an associativity transformation.
+[00:59:01] You're changing the order in which we combine things together.
+[00:59:05] It's just that we're doing it in this sort of odd-even manner, or in general, every it's
+[00:59:11] do it by some parameter I.
+[00:59:18] And it has the same issues that if it's integer arithmetic, it's fine.
+[00:59:22] If it's floating point, there's a risk of changing the behavior of the program.
+[00:59:28] But you'll see that, again, we get a cutting in half here and a little bit below one for integer
+[00:59:35] addition. And again, we can think of it by looking at these pictures of what gets computed, and
+[00:59:44] you see what we're doing is we're computing, here are all the even numbers,
+[00:59:49] even numbered elements being combined, and here are all the odd ones, and at the very end,
+[00:59:53] we're combining those together.
+[00:59:57] And so we can generalize this.
+[00:59:59] If we can unroll by a factor of K, of L, and we can accumulate k results in parallel, and we can accumulate
+[01:00:06] k results in parallel, and we can use various values of L and K for it.
+[01:00:12] In general, L has to be a multiple of K.
+[01:00:16] And so you run it out and you can get, for floating point multiply, you can actually get it down almost to this
+[01:00:26] this throughput bound of 0.5.
+[01:00:37] This is incorrect.
+[01:00:38] This is integer addition.
+[01:00:40] That should say intedition.
+[01:00:43] You can, again, get it down to around 0.5.5.
+[01:00:47] And in general, by sort of picking the best
+[01:00:51] parameters, I can get very close to the throughput bound of this processor.
+[01:00:58] So I've been able to take something, remember it originally was 20 clock cycles than 10, and now I'm
+[01:01:05] getting it down to one or fewer clock cycles per element.
+[01:01:08] So now just is the final step is, okay, is that as good as it go?
+[01:01:16] Actually, no. You remember, when I talked about floating point, I mentioned that there's
+[01:01:23] this special set of registers that are on an x86 that were called XMM registers on the shark machines.
+[01:01:32] And now this has well, this newer generation, has something called YMM registers, which have the feature being twice as big as XMM registers.
+[01:01:41] So, in particular, these registers are 32 bytes long. And there's a new version coming out within a year or something.
+[01:01:55] they call it AVX 512, where the register is 512 bits, so that's 256 bytes long.
+[01:02:04] No, it's 512, excuse me, it's 64 bytes, right?
+[01:02:11] 64 bytes.
+[01:02:12] So it'll be twice as big as these.
+[01:02:14] And as I mentioned before, you can think of these as a way of operating on 32 individual characters,
+[01:02:22] or I can treat them as floating point, and we see.
+[01:02:26] You saw before that nowadays the regular floating point makes use of sort of the low order for eight bytes of these registers.
+[01:02:35] But there's also instructions called vector addition where one instruction has the effect of doing eight floating point additions at once on float data.
+[01:02:50] And on double precision, its counterpart does four of them at once on these.
+[01:02:55] And that hardware is there.
+[01:02:59] It's just sitting there waiting to use, and it seldom gets fired up to really make use of it.
+[01:03:05] But so that floating point multiplier that can do a floating point multiplication in three clock cycles and is fully pipelined can actually do eight floating point multiplications in parallel and pipelined in three clock cycles.
+[01:03:24] And as I mentioned.
+[01:03:28] As I mentioned, the shark machines has an earlier version where the numbers are half of these.
+[01:03:33] So it can do four single precision or two double precision at once.
+[01:03:39] And if I write code that uses that uses that what I call vector code, then you can see I can drop by a factor of about four across the board here and make it run much faster.
+[01:03:55] So this 06 is really .0625, right?
+[01:03:59] It's doing 16 operations per clock cycle on that.
+[01:04:05] And can't quite hit the vector throughput bound, but in general, making this thing run much faster.
+[01:04:18] And so the people really worry about, and you can imagine these instructions were introduced for
+[01:04:23] things like video processing, image processing, sort of signal processing where
+[01:04:30] performance really matters. How fast you can display an image, how fast you can rotate something, you
+[01:04:38] know, how fast you can perform graphics makes a big difference. In video games are one
+[01:04:43] of the big drivers, but even for sort of other operations you might do on images.
+[01:04:49] And so these instructions were really designed to do it. And people write code for those kind
+[01:04:53] applications get pretty good at writing code in a way that they
+[01:04:57] can do this vectorize what's called vectorizing and unfortunately so the Intel
+[01:05:03] Intel compiler will actually automatically do some of this for you a GCCC they
+[01:05:08] attempted to implement it and it didn't work very well so I think they
+[01:05:11] discontinued it it turns out there's a web aside so this is on the web from
+[01:05:18] the book's web page that describes how to do this programming if you're
+[01:05:23] interested there's extensions to GCC that are very funky really weird
+[01:05:28] stuff but you can write code that then will get compiled down to make use of these
+[01:05:36] kind of instructions and that's how I did it and how I got these performance results okay
+[01:05:44] so that shows you if if you really want to but that's very machine-specific that will
+[01:05:49] only work on well you have to you can actually tune
+[01:05:55] so it's easy to compile it to go between different machines but it's still
+[01:06:00] fairly specific and very specific to GCC in fact so that sort of shows you though if
+[01:06:08] you really want to push it what you can do now let's get back to one of the things I told
+[01:06:14] you about how you can if you think of your program as a very long linear sequence of
+[01:06:19] instructions then the thing is trying to grab as many of those and pull them
+[01:06:25] apart as fast as it can but of course you know your program is actually typically a loop
+[01:06:30] and there aren't many instructions in that loop so how is it turning that into a
+[01:06:35] linear sequence well that relies on an idea of how do you handle branches so
+[01:06:42] typically the program's you know fetching ahead grabbing instructions and it will come to a
+[01:06:49] a branch instruction a conditional jump of some sort and there it
+[01:06:56] has a dilemma because in general this branch could either I'm sorry could either be
+[01:07:05] taken meaning it will go to the branch target or it could do what's called
+[01:07:09] fall through meaning it the test fails and so it just continues execution and
+[01:07:14] there's no way a priority to know what will happen these can often be data
+[01:07:19] dependent and so the way this is handled on a modern
+[01:07:26] processor is by doing what's known as branch prediction which is essentially just
+[01:07:30] guess which way is this branch going to go is it going to be taken or not and you
+[01:07:35] predict and then you start executing along the predicted direction but do it in a
+[01:07:40] way that if you make a mistake that the you haven't caused irreparable harm to the
+[01:07:45] program and we'll see what that means so what really happens
+[01:07:50] then is up here there's a lot of logic that's trying to suck out instructions and
+[01:07:56] then there's a branch unit that's being basically coming along later and saying
+[01:08:02] yeah you're okay you predicted that correctly so you can keep going or it will
+[01:08:08] throw up a flag and say oh oh wait a minute stop your misprediction you
+[01:08:13] mispredicted this branch way back 100 clock cycles ago it's not that
+[01:08:17] long ago but some number of clock cycles ago you've got to fix it and so so the
+[01:08:25] handle way of jumps then becomes more a case of of of guessing up here and
+[01:08:30] then either confirming or denying that guess down below so in general then if
+[01:08:43] you it will predict it one way and begin executing.
+[01:08:46] So imagine, for example, in a loop like I've shown you that you predict that the branch will be taken,
+[01:08:53] that you'll go back to the start of the loop again.
+[01:08:55] That's actually a pretty good guess.
+[01:08:58] It's a good guess it's told you hit the end of the loop.
+[01:09:01] But let's just guess that way.
+[01:09:03] And so the program will just keep guessing that the branch will be taken and by that means by all
+[01:09:12] those guesses basically create this long linear sequence of instructions
+[01:09:17] that can be pulled in and executed and in and in general some of them will be fetched and
+[01:09:26] some of them will be fetched and some of them you'll actually have done the the
+[01:09:28] operations that are called for in the instruction and then what happens is if if
+[01:09:35] the flag goes up to say no this was invalid then what will happen is it will
+[01:09:42] happen is it will go back and cancel all the instructions that
+[01:09:48] have been fetched and executed and the way it does that is you notice all these
+[01:09:54] instructions only modify registers and it has multiple copies of all the
+[01:10:00] registers going back these are the register these are the values that I'm sure of
+[01:10:05] these are sort of speculative values pending updates to them and so when it comes
+[01:10:10] time to cancel it just cancels out all those pending updates and goes back to
+[01:10:16] values that it's certain of question the there's a big block they call the register
+[01:10:26] renaming unit which is sort of multiple copies of of all the registers as they
+[01:10:31] get accumulated it always has many more it will typically have several hundred
+[01:10:45] of these sort of virtual registers to keep pending copies to the actual registers.
+[01:10:51] It does.
+[01:10:54] It stores, you know, here's the old value, here's the first update, here's the second update, here's the third.
+[01:11:00] And it keeps track of all the, you can imagine why this is not a something you learn in a one-semester course.
+[01:11:08] Right, that, to keep track of all those different things flying by and make sure that it works is a pretty tricky business.
+[01:11:16] But the conceptually, it's a pretty simple idea, that it just races off, does a lot of things based purely on
+[01:11:23] speculation and then only if it makes a mistake it goes, uh-oh, and it sort of
+[01:11:28] rolls back to as if it would only execute up to a certain point, and then it moves forward,
+[01:11:34] and starts in going the correct way.
+[01:11:40] So, and it, so, and it can get away with this.
+[01:11:43] It's very interesting and tricky stuff.
+[01:11:46] But you remember, we talked early in the course, about the difference between using conditional moves
+[01:11:53] and conditional jumps to implement conditional operations.
+[01:11:57] And conditional moves can take place totally within the structure of this pipeline.
+[01:12:04] But a conditional jump, if it's an unpredictable branch, the problem is it might go off executing
+[01:12:11] and make, do a lot of wasted work, but even worse than when it gets back and has to restart,
+[01:12:17] it takes a while to sort of fill up all the buffers in the system and get the whole thing running at full
+[01:12:23] So that kind of finishes up then the way I describe it is, first of all,
+[01:12:33] don't do anything stupid even, and stupid is probably it's too strong a word.
+[01:12:38] Don't do, sort of keep in mind there's certain things that you should as a programmer be doing all the time.
+[01:12:45] And they're not obvious, perhaps.
+[01:12:47] And then begin thinking about tuning and getting some instruction level parallelism.
+[01:12:52] And I describe it as for the machine, but as I said, pretty,
+[01:12:56] much all processors nowadays, it's a class of machines.
+[01:13:00] And so these general techniques will work that, those ideas of changing the associativity, they'll
+[01:13:06] work whether it's, you know, the arm processor built into my cell phone or the X-86 processor built
+[01:13:13] into your laptop or one of the shark machines.
+[01:13:16] They all have the same general implementation structures.
+[01:13:20] So these techniques will work across all of them.
+[01:13:23] Okay.
+[01:13:25] That'll do us for today.
+[01:13:27] Thank you.

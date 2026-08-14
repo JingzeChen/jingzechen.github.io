@@ -1,0 +1,794 @@
+[00:00:00] Well, good afternoon, everybody. Welcome. Good to see you.
+[00:00:05] Today we're going to continue our study of exceptional control flow by looking at some higher level mechanisms known as Linux signals and C non-local jumps.
+[00:00:17] Now, we're going to spend most of our time looking at signals because they have a lot of subtleties, the semantics can be kind of confusing.
+[00:00:26] So we're going to spend most of our time there. And I'll mention
+[00:00:31] the idea of non-local jumps, but for details on those, you'll want to look in your
+[00:00:38] textbook and in the slides at the supplemental slides at the end of this slide deck.
+[00:00:46] Now, to motivate the notion of signals, I want to talk a little bit about shell programs.
+[00:00:56] Now, as we mentioned last time, there's only one way to create processes on a Linux system, and that's
+[00:01:02] using the fork call. In fact, all of the processes on the system actually
+[00:01:09] form a hierarchy. So that the very first process created when you boot the system up is the
+[00:01:15] init process, which has a process ID of one. And then all other processes on the system
+[00:01:20] are descendants of that, of that init process. Now, the init process, when it starts up,
+[00:01:28] it creates demons, which are long-running programs that provide
+[00:01:32] services typically. So, for example, a web server, other kinds of services that you always
+[00:01:40] want running on the system. And then eventually it creates a login, so-called log-in shells, which provide
+[00:01:47] the command line interface to users. So when you log into a Linux system, what you eventually
+[00:01:54] get to is a login shell that's expecting you to type commands. Now, the
+[00:02:02] Log-in shells, execute programs on your behalf.
+[00:02:09] So when we type something into the shell, say we type the L-S command, command.
+[00:02:14] We're asking, we're asking the shell to run the executable program called L-S.
+[00:02:23] And so what the shell will do is it will create a child, and then it will execute
+[00:02:27] LS within that child process. And it's possible that that process may create
+[00:02:35] other other child processes. So a shell is an application program, no different
+[00:02:43] from any other program, that executes programs on the behalf of users. The default
+[00:02:51] shell for Linux is called Bash, but there's other shells that that were created on
+[00:02:56] earlier, with earlier versions of
+[00:03:01] of UNIX.
+[00:03:03] S.H was the original shell, it's called the Bourne shell,
+[00:03:06] because it was created by Stephen Bourne.
+[00:03:08] And when Berkeley came out with their distribution of Unix,
+[00:03:11] they created a shell called CSH.
+[00:03:15] Now, the execution in a shell is a shell is a sequence of read
+[00:03:21] and evaluate steps.
+[00:03:23] So first, a shell prints out a prompt, and then it waits for,
+[00:03:27] it waits for you to type something in on the command line and hit
+[00:03:30] return.
+[00:03:31] And typically what you're typing in is a command, which is just, so the first thing you type is a command, and then you follow that with optional arguments separated by spaces.
+[00:03:45] Okay. So once you hit, once you type in a command and those optional arguments and hit return, the shell checks for the end of file character, which is a control D, D to a terminal, and if so it exits,
+[00:04:01] it exits otherwise it evaluates that command line.
+[00:04:06] And the evaluation consists, and then when it returns from the evaluation, it just does the same
+[00:04:13] thing over it.
+[00:04:15] Now the evaluation consists of the following kinds of steps.
+[00:04:21] First, it parses the command line and by, and in the process, so it takes the command line,
+[00:04:31] which in this example is in buff, buff, and it produces an RV, and in the process, so it takes the command line, and it
+[00:04:33] it produces an ARGV array, where ARG V is a command, and then ARGV 1 and 2 and so on are the optional arguments.
+[00:04:41] And the convention in a shell is that if the command line is terminated by an ampersand, then you're
+[00:04:51] asking the shell to run that job, to run that command in the background, meaning the shell won't
+[00:04:57] wait for that job to finish before it goes through its next read step. If it, if it, if the
+[00:05:04] the line that you type doesn't have an ampersand, then you're asking the shell to run
+[00:05:07] that job in the foreground, which means the shell will wait.
+[00:05:14] So first we parse this command line into an ARGV array and we return whether or not it was terminated
+[00:05:22] by an ampersand.
+[00:05:24] So BG for background.
+[00:05:26] If ARG0 was null, then that means we just hit a, we just hit return, right?
+[00:05:31] So it's an empty line.
+[00:05:33] So we'll just return and just ignore those.
+[00:05:36] Now a shell.
+[00:05:37] also implements what are called built-in commands.
+[00:05:42] So various things like jobs, BG, FG, are examples of built-in commands, which are examples of built-in commands,
+[00:05:50] which are just implemented in the shell itself.
+[00:05:53] So if you type, if the first thing you type, if the command you enter is a built-in, then the shell
+[00:06:00] will check that, it will check that, it will check ARGV-0 to see if it's a built-in command.
+[00:06:07] And if it is, it'll just execute it'll just execute it.
+[00:06:08] it, whatever it is you asked it to do.
+[00:06:14] Okay.
+[00:06:15] Otherwise, if it's not a built-in, then that means that you're asking the shell to run some program.
+[00:06:21] Okay.
+[00:06:22] So in that case, the shell will fork a child, and then the child will execute that program by
+[00:06:30] calling exec VE, passing as the first argument, the name of the command, and as the second
+[00:06:37] and third arguments, ARV, and the environment, respectively.
+[00:06:42] Now, exec VE, if you recall from last time, never returns unless there's an error.
+[00:06:47] So we check the return value for exec VE, and if it returns less than 0, in fact, the only time it'll return, if it does return, it'll always return minus 1.
+[00:07:02] But we're just being careful here.
+[00:07:05] So we check that for an error and print an error message if we find an error, and then, and print an error message if we find an error.
+[00:07:12] exit.
+[00:07:13] So once the, once the, once the, once the parent gets control again, then it waits for that foreground
+[00:07:24] job to terminate.
+[00:07:25] Okay, so if it's not a background job, then it waits for it to terminate by calling wait-pid and waiting
+[00:07:34] for that child, that foreground job to terminate, and then, and reaping it.
+[00:07:39] Otherwise, if it's a background job, it just prints a message and goes on.
+[00:07:44] So this is really interesting, right?
+[00:07:46] That there's really, the only difference between a foreground job and a background job is just that the shell does a weight pit on that job or not, right?
+[00:07:54] So otherwise, there's really, there's really no difference.
+[00:07:59] Now, what's the problem, there's a problem with our example shell, and that the problem is that we're doing the right thing for the foreground job.
+[00:08:10] We always have to reap these children so they, they, uh, so that they're, they're, they're state,
+[00:08:17] can be released.
+[00:08:20] But we're not, we're not doing anything to reap any background jobs, right?
+[00:08:24] When if it's a background job, so if not BG, we're just printing a message and then we're
+[00:08:29] returning and then we're returning and then we're continuing with this read-evaluate step
+[00:08:34] and never, never going back and taking care of that, of that background job.
+[00:08:40] So this is a problem because that the background job will eventually become, if we
+[00:08:46] we have enough of those jobs, we create a memory leak that could crash the system, right?
+[00:08:50] So this is an error. So what are we going to do about this? Well, it turns out that exceptional control flow
+[00:08:57] will help us solve this problem. And what happens is that the kernel will notify the shell
+[00:09:06] when any of its children terminate. Okay? And then the shell can can then react to that and issue a weight pit.
+[00:09:15] And this notification mechanism that the kernel uses is something called a signal.
+[00:09:26] So a signal is a signal is a small message that the kernel delivers to a process to notify it that there's been some event in the system.
+[00:09:37] Now, so this is very similar to the exceptions that we studied the last time, right, except it's it's all implemented in software.
+[00:09:49] Now, signals are always sent from the kernel, but sometimes they're sent at the request of another process.
+[00:09:57] Right? Sometimes the kernel will notice that there's some event.
+[00:10:01] Other times, another process will ask the kernel to send a message to some other process.
+[00:10:08] Now, we say that it's a small message because the only information that's contained in a signal is its unique integer ID.
+[00:10:18] and the fact that it was it was delivered.
+[00:10:23] Okay, so that's, so that there's nothing else in a signal except except that it arrived and that it has some, some, some unique ID.
+[00:10:32] Now, examples of these are the sig-int. So signals have this, this unique ID, and then they also have a name.
+[00:10:41] So the sig-int is what the, when you type Control C, and then they also have a name.
+[00:10:49] on the command line, the colonel sends a Cig-int to every any processes in the
+[00:10:56] foreground.
+[00:10:57] And the default action of receiving a Cig-int is to terminate.
+[00:11:00] So this is how if you're running a foreground job, you hit Control C, you get the prompt back
+[00:11:05] because it kills that job.
+[00:11:09] Sig-kill, number nine, can be used to terminate any program.
+[00:11:14] So these two have, SIG-int and SIG-Kill have the same effect on the same effect on the
+[00:11:19] effect on the programs that they kill the program.
+[00:11:23] The unique aspect of SIG-Kill is that there's no way to ignore it or override it.
+[00:11:30] Okay, so this is like the fail-safe.
+[00:11:32] As we'll see, there are there are ways to catch and ignore other signals like SIG-int.
+[00:11:39] SIG-SEG-V is the, our favorite seg-fault, segmentation violation.
+[00:11:44] So if you access a region of memory that's protected or
+[00:11:48] or not legal, then your program will, the kernel will send your, that process, a SIG-Seg-Seg-V signal, and the default,
+[00:12:02] the default effect of that is to terminate the program.
+[00:12:07] Sig-A-A-Larm is a way within your program you can arrange for a signal to be sent to yourself.
+[00:12:12] So you can say, inside your program, send me a SIG alarm signal signal in
+[00:12:18] three seconds.
+[00:12:19] Something like that.
+[00:12:20] So this is a way to do things like you can set up timers, you can set up timeouts,
+[00:12:25] like if you want to, if you want to, if you want to set a timeout value and you're doing
+[00:12:30] some some work and you want to guard against that work taking exceptionally long time,
+[00:12:36] you can, you can use SIG alarm to set a timeout.
+[00:12:40] And then a very important one, as we'll see, that will be very important for our shell,
+[00:12:45] is the SIG child signal, which the kernel sends to
+[00:12:49] to a parent every time one of its children terminates or stops.
+[00:12:54] Okay.
+[00:12:56] So this, as we'll see, now, we'll see this is how we're going,
+[00:13:00] this is how our shell is going to actually reap its,
+[00:13:03] all of its children, right?
+[00:13:05] It's by taking advantage of this sig-child signal.
+[00:13:09] But before I can show you that,
+[00:13:11] we need to go through a number of concepts
+[00:13:14] around signals.
+[00:13:19] Okay.
+[00:13:20] Like I said, the
+[00:13:21] the semantics of signals, it's probably one of the thorniest aspects of Linux.
+[00:13:28] It was developed very early in the lifespan of Linux when, and it maybe wasn't as clean as it could be, right?
+[00:13:41] So in order to get a handle on signals, we're going to have to be very careful about defining terms
+[00:13:46] and very careful about the way we talk about them.
+[00:13:49] So we say that the kernel sends,
+[00:13:52] sends or delivers a signal to some destination process.
+[00:13:58] And it does this by setting some state in the context of the destination process.
+[00:14:05] Now, nothing happens except that some bits get changed in the destination process context.
+[00:14:14] Okay, there's no, there's no impact of, immediate impact of sending a signal.
+[00:14:19] Now a kernel sends a signal,
+[00:14:25] either because it detected some event in the system,
+[00:14:29] like a child process is terminated, for example,
+[00:14:33] or another process has asked the kernel to send,
+[00:14:38] to deliver a process, a signal on its behalf.
+[00:14:43] And there's a number of ways to do that.
+[00:14:45] One of them is with the kill system call.
+[00:14:47] It's kind of an unfortunate term, isn't it?
+[00:14:51] I mean, the, so kill is a general way to send signals.
+[00:14:55] And the, the, the, the,
+[00:14:57] The impact is sometimes not to kill the program, right?
+[00:15:02] But for some reason, they chose to call it kill.
+[00:15:08] Now, the destination process receives a signal when it's forced by the kernel to act in some way,
+[00:15:18] to react in some way, to the delivery of a signal.
+[00:15:22] So these are two very different things.
+[00:15:24] Sending a signal sets state in the context of the destination process.
+[00:15:30] Receiving a signal is what happens when.
+[00:15:32] the destination process is finally forced by the kernel to act in some way, to react in some way.
+[00:15:40] Now, some possible ways to react are to just ignore the signal, okay? To terminate the
+[00:15:50] process, or to catch the signal by executing a user-level function called a signal handler.
+[00:15:58] So in this case, when we, when we catch signals, it's very similar to the signal handler.
+[00:16:03] and execute a signal handler. It's very similar to executing an exception handler
+[00:16:10] in response to some kind of event in the system.
+[00:16:14] Now the difference is that exception handlers are in the kernel. Signal handlers are actually
+[00:16:19] just in your C code. And they execute in your process.
+[00:16:25] So the way to think about if we catch a signal by executing a signal handler, we have our process.
+[00:16:35] We have our process executing instructions, and then a signal is received by that process.
+[00:16:43] So the kernel passes control to a signal handler, which is also just in the code that's executing in the current process.
+[00:16:52] It's just a function in our C code.
+[00:16:56] The signal handler runs, and when it returns, it eventually returns back to the next instruction, and then we continue.
+[00:17:04] So it's just like kind of like an interrupt.
+[00:17:06] kind of like an interrupt, right?
+[00:17:07] We just temporarily pause what we're doing in our code to execute this handler before just continuing on.
+[00:17:16] Okay, now we say that a signal is pending if it's been sent by the kernel but not yet received.
+[00:17:28] Okay.
+[00:17:29] So at any given point in time, there can only be one pending signal of any particular type.
+[00:17:37] So this has very important consequences for using signals.
+[00:17:41] because you can't cue signals up, right?
+[00:17:43] At any point in time, there's, there can only be one pending
+[00:17:47] SIG child signal, for example, or SIG-int signal.
+[00:17:51] And if a subsequent SIG-child signal, say, is sent, it just overrides,
+[00:17:57] well, you can think of it as, it has no impact.
+[00:18:01] It's just discarded, right, if there's already a pending signal.
+[00:18:04] So they don't queue up in any meaningful way.
+[00:18:07] Now, a process can block the receipt of certain signals.
+[00:18:12] signals.
+[00:18:13] Now, it can't stop signals from being delivered, but it can stop the process from having to react to
+[00:18:21] react to that signal when it's received.
+[00:18:24] Okay.
+[00:18:28] So blocked signals can be delivered, but they won't be received until the signals unblocked.
+[00:18:39] And pending signals are received at most once.
+[00:18:42] Now, the kernel keeps track of these pending and blocked signals in bit vectors that
+[00:18:53] we'll call pending and blocked.
+[00:18:55] And pending represents the set of pending signals, right,
+[00:18:59] where each bit in the pending bit vector corresponds to some particular signal.
+[00:19:05] Okay, so this is why they can't be cued, right?
+[00:19:07] Because there's only one bit, for any signal K, there's only one bit in the bit vector.
+[00:19:13] And if we, and when we deliver a signal, we're just setting, we'll set that bit, the kernel will set that bit.
+[00:19:18] If we deliver another signal of the same type, it'll just set that bit again,
+[00:19:22] which has no effect.
+[00:19:27] Now the kernel sets that the bit and pending when the signals delivered and it clears it clears
+[00:19:32] it when the signals received.
+[00:19:36] And the kernel also provides mechanism for users to block signals with this blocked bit
+[00:19:43] vector.
+[00:19:43] So the blocked bit vector is the same size as the pending bit vector.
+[00:19:47] Turns out it's just a 32-bit int, okay.
+[00:19:52] And it can be set and cleared, the bits in that can be set and cleared using
+[00:19:56] the SIGPROC-Mask system call.
+[00:19:59] Okay, now the blocked, in the Linux literature, the blocked bit vector is also called the signal mask.
+[00:20:10] Okay, now we're, I want to look in a little more detail about sending and receiving signals.
+[00:20:14] So let's start first with sending signals. First, we need to understand the idea of a process
+[00:20:21] group. So every process belongs to exactly one process group. And those, so here
+[00:20:29] I'm showing a shell that's in process group.
+[00:20:31] It has a process ID of 10 and a process group ID of 10.
+[00:20:37] The shell created a foreground job, which has a process ID of 20 and a process group ID of 20.
+[00:20:45] And then all of the children that this foreground job created have the same process group ID of 20.
+[00:20:54] So these process groups can be set by a system called set process group ID.
+[00:21:00] And you can fetch that process group ID.
+[00:21:03] And you can fetch that process group.
+[00:21:04] using the get process group system call.
+[00:21:07] So you can see in this example, what the shell has done is it created a foreground child.
+[00:21:13] So it created this child and it changed the process group ID to be equal to
+[00:21:19] be equal to the process ID of the child.
+[00:21:22] And then when this child created other child, children, they just inherited the same process group ID.
+[00:21:31] Okay.
+[00:21:35] Now this notion of a process group is useful.
+[00:21:37] is useful because it allows you to send signals to groups of processes at the same time.
+[00:21:44] And you can do that with a program called kill, which is typically in slash bin directory.
+[00:21:51] And that the kill program, you can use the kill program to send an arbitrary signal to either
+[00:21:56] an individual process or all the processes in one process group.
+[00:22:03] So let's look at an example. This program, this Forks program, this Forks program, and
+[00:22:08] creates two children, with each of which has a process group of
+[00:22:16] a 24817. And of course, they have different process, they have different process IDs.
+[00:22:22] And so if we do a PS, we see these two, we see these two processes running. And these just go into loop, so they'll just run continuously.
+[00:22:34] Okay. Now we can, we can use kill to kill.
+[00:22:41] to kill an individual process.
+[00:22:44] For example, so if we call it, the first argument indicates what signal you want to send.
+[00:22:51] So in this case, it's signal 9, which is the sig-kill signal.
+[00:22:56] So kill minus 9 is a very typical, usually if you want to kill processes, you just kill minus 9.
+[00:23:04] And actually, one of my favorite auto lab nicknames for 213 was the nickname was the nickname was kill minus
+[00:23:13] So then the second argument is the, if it's, is the, is the process ID.
+[00:23:23] So this is asking, this is asking the kernel to kill process ID 24818 by sending it a sig-kill signal.
+[00:23:33] Now, if the, if the process ID is preceded by a dash, then it sends a sig-kill to every
+[00:23:43] process in process group to then it it treats this argument as a process group
+[00:23:48] and then it sends a signal to every process in that process group so in this case it
+[00:23:54] will send a sig-kill to both of these both of these children processes and then
+[00:24:01] afterwards we if we do a PS we see that those processes are gone okay that it really
+[00:24:07] did work that way now another way to send signals is by typing either control C or
+[00:24:15] Z to the command line.
+[00:24:20] Control C causes the kernel to send a CIG-int to every job in the foreground process group, and Control
+[00:24:26] Z causes it to send a S-C-T-stop signal to every job in the in the foreground process group.
+[00:24:36] The default action for SIG-int is to terminate the process.
+[00:24:39] The default action for the SIG-T-stop is to suspend the process, stop it, stop it until it receives
+[00:24:45] a C-O-N-T signal.
+[00:24:55] So you can see an example of this.
+[00:24:57] Here we have a program that creates a parent and a child running in the foreground.
+[00:25:05] So the parents running in the foreground.
+[00:25:07] Now when we type Control Z to the command line, the shell notifies us that it's suspended that process.
+[00:25:16] And if we do a PS, we can see the parent and the child
+[00:25:21] indeed are suspended so the PS indicates that it's suspended or stopped using T.
+[00:25:29] Now next we type in the built-in, the shell built-in, which is FG, and FG restores those suspended jobs to the foreground.
+[00:25:42] So after typing FG, now we're running this our program again in the foreground.
+[00:25:51] And then we can kill it by typing Control C, which elicits a C
+[00:25:56] whose default action is to terminate.
+[00:25:59] And then when we do a PS, we see that indeed that they're gone.
+[00:26:03] Now, the third way that we can send signals is by using the kill system call.
+[00:26:13] So here's an example of how that works.
+[00:26:18] So in this, in this example, we're creating N children,
+[00:26:22] each of which goes into an infinite loop,
+[00:26:25] and we're recording the process idea of each child that we create.
+[00:26:32] And then in it, we go, in another,
+[00:26:34] We go through and we kill each of those child processes by using the kill function,
+[00:26:41] passing it the process ID, and the signal that we want sent to that process.
+[00:26:47] Okay.
+[00:26:48] And then we do our due diligence and reap each one of those children that we've terminated.
+[00:26:54] Now, this isn't strictly necessary because we're going to exit.
+[00:26:59] As soon as this fork 12 function returns, we're going to exit the code.
+[00:27:04] So we're going to exit the code.
+[00:27:05] But we're just being, you know, careful here and maybe a little pedantic.
+[00:27:10] But, okay, now let's look at how a process receives signals.
+[00:27:20] Now suppose process A is running along, executing its user code, and then there's a control passes into the kernel because of some exception.
+[00:27:36] Now, that exception can be either a timer going off, maybe an interrupt, or it can be a
+[00:27:42] a trap, you know, user calls a system call, okay, but it's always caused the trap into
+[00:27:50] the, or the transfer and control into the kernel is always caused by some exception.
+[00:27:56] So at this point, the kernel, calls its scheduler function, and it decides to do a context
+[00:28:04] switch from process A to process B. And it gets process B all set up, and right before it returns from
+[00:28:15] that exception and right before it's ready to pass control back to the user code
+[00:28:23] and process B, it checks for any signals that, any pending signals. Okay. And it does this by
+[00:28:34] computing a bit vector, PNB, so pending non-blocked, which is the logical end of the pending
+[00:28:42] bit vector and the inverse of the blocked bit vector.
+[00:28:47] So PNB is a list of all the pending signals that aren't blocked. Okay, so these are all
+[00:28:54] the pending signals that should be received. If now if PNB is all zeros, then
+[00:29:01] there's no pending signals, so it just returns, it passes control back, it passes
+[00:29:08] control back to process B, which can continue executing. However, if PNB is non-zero, then it
+[00:29:15] chooses the smallest non-zero bit in PNB and it forces process P to receive that signal,
+[00:29:23] the corresponding signal. The receipt of the signal triggers some action in the process. And then we repeat
+[00:29:37] that for all the non-zero signals K that, or non-zero bits that are set in PNB.
+[00:29:45] And finally, when we've gone through all the non-zero bits, then we pass control
+[00:29:50] to the next instruction in the process P.
+[00:29:57] So the receipt of a signal always triggers some action, which is either the process terminates, the process
+[00:30:08] stops until it's restarted by a sig-cont signal, the process ignores the signal. Okay, so that's,
+[00:30:16] there's always some predefined default action. But we can modify that, that default action, but we can modify
+[00:30:23] that default action by using a function, a system call called signal.
+[00:30:30] So we can, now signal is a little, that's another sort of misleading kind of term, just like kill,
+[00:30:37] right? Because when we send a signal to a process, we don't always want to kill it.
+[00:30:41] And signal doesn't actually signal anything. It just, it just modifies the default action
+[00:30:47] associated with some signal. Okay, so if the signal function takes a signal function takes a signal number,
+[00:30:55] and then specifies a change in the default action for that signal.
+[00:31:02] And those default actions can be either to ignore the signal, okay, ignore signals of type signal,
+[00:31:10] revert to the default behavior for that signal, or we can give it, or it can be the address of a user-level
+[00:31:21] level signal handler, which is a function that we've declared in our C program.
+[00:31:26] Okay. There's nothing special about the function. It has a certain prototype. It takes a single argument, which is the signal number. So when that function gets called, in response to receiving a signal, in response to receiving a signal number, that argument will be set to the signal number.
+[00:31:43] Okay. So calling signal with a, and specifying a signal handler is called installing a handler, and then executing the handler is referred to as catching or executing the handler, and then executing.
+[00:32:00] They are handling the signal.
+[00:32:03] And, and this, this handler then, is just like an exception handler.
+[00:32:07] When it returns, it will, when it's executed, it will interrupts the, whatever is currently executing in the process.
+[00:32:16] And when it returns, it'll return back to that point and continue executing.
+[00:32:23] Okay, so here's a simple example of, um, of installing a handler.
+[00:32:28] So here in Maine, we're, we're going to install a SIG-int handler.
+[00:32:33] which is called Sigint underscore handler, which is defined up here.
+[00:32:40] And the prototype for this function is returns nothing, and it takes a single integer argument, which is the signal number, and returns nothing.
+[00:32:50] Okay.
+[00:32:51] And after we install that handler, then we're going to execute the pause syscall, which just waits for a signal handler to execute
+[00:32:58] a signal handler to execute. Okay, so pause terminates the current, or suspends
+[00:33:02] the current process until a signal is received and a handler executes in that process. And
+[00:33:09] then pause, then pause returns. So we're going to wait until a sigint happens. So
+[00:33:16] sigint recall is when we type control C. So when you were doing your bombs, did, did
+[00:33:24] did you panic at some point and try to hit control C to get out of it? Okay. So that
+[00:33:29] That snarky message you got, that was, we did that by installing a signal,
+[00:33:34] a sig-int handler in, in your bomb.
+[00:33:37] Okay, so when you type Control C, that elicits a
+[00:33:43] a sig-int, when that sig-int is received, we printed this message and then
+[00:33:49] eventually let you exit.
+[00:33:52] Now, signals are another examples of concurrency. Now, we've seen
+[00:34:03] concurrency.
+[00:34:04] earlier in the form of processes, right?
+[00:34:08] Concurrent flows overlapping in time.
+[00:34:13] Okay. Logical flows overlapping in time.
+[00:34:16] By definition are concurrent.
+[00:34:19] Now, with processes, because they have separate address spaces,
+[00:34:26] those concurrent flows never interfere with each other.
+[00:34:29] Right? So in some sense, processes are very easy to deal with
+[00:34:33] and we don't really have to worry about one process
+[00:34:37] doesn't have to worry about being interfered with by another process.
+[00:34:43] In fact, you have to go to great lengths to share, like to share things between processes.
+[00:34:48] You have to use specific system calls in order to say share memory between two processes.
+[00:34:55] Now, signals are another form of concurrency. This is the second time in this class that you've experienced
+[00:35:02] concurrency. And so a signal is just a concurrent flow, it's just a logical flow. So a
+[00:35:09] The handler is just another logical flow that runs concurrently with your program.
+[00:35:15] So we're, let's say we're executing a while loop in Process A, okay, and that while loop is executing.
+[00:35:23] And then process A receives a signal, a signal which causes a transfer of control to this handler.
+[00:35:32] This handler executes, so this is a concurrent flow that overlaps in time with the while loop in process A.
+[00:35:40] Eventually, this handler returns, and we return back to process A.
+[00:35:48] Now, one of the reasons signals are so tricky is because of this overlapping concurrent flow, this concurrency, because the signal handler runs in the same process as the main program.
+[00:36:06] So it shares all the global variables of that program.
+[00:36:10] So that signal handler is a function that you've declared and it has access to all the state, all the global state in the program.
+[00:36:22] Okay. And the existence of this shared global state can create real problems, right?
+[00:36:28] And we'll, we'll get into more details about some of those problems.
+[00:36:42] So another way to look at these signal handlers as concurrent flows is using this context switch diagram.
+[00:36:50] So suppose we're executing in process A, and now at some point a signal is delivered to process A.
+[00:37:01] Now nothing happens, right? Just the pending bit gets set in process A at this point.
+[00:37:06] Now at some point, there's a transfer of control into the kernel, and the kernel decides to do a context switch from A to B, and now B gets to run for a while.
+[00:37:20] There's another transfer of control to the kernel.
+[00:37:22] and the kernel decides to schedule process A.
+[00:37:27] And now right before it returns control to process A, it notices, it notices that the pending bit for this signal is set,
+[00:37:37] so it causes process A to receive that signal.
+[00:37:40] So that executes the handler code.
+[00:37:43] When the handler returns, it returns for briefly to the kernel, which then transfers control back
+[00:37:49] back to the next instruction that the process was going to execute.
+[00:37:53] to execute.
+[00:37:54] Now handlers are also tricky because they can be interrupted by other handlers.
+[00:38:01] So suppose we have our main program that catches a signal S, which causes a transfer of control
+[00:38:10] to Handler S. And then while Handler S, oh, did you have a question?
+[00:38:15] Oh, okay. While Handler S is executing, the program catches signal T, the program catches signal T.
+[00:38:28] which causes a transfer of control to the handler for T.
+[00:38:36] And then when that handler returns, it returns to the point, to the, to the instruction in Handler S that was where it was interrupted.
+[00:38:45] And then Handler S continues its execution.
+[00:38:49] And eventually it returns back to the point in the main program where it was interrupted.
+[00:38:54] Now, signals that the kernel always blocks pending signals of the type
+[00:39:05] currently being handled.
+[00:39:07] So a handler for a signal of type T can't be interrupted
+[00:39:12] by the receipt of another signal of that same type.
+[00:39:16] Okay, it can be, as I showed in the previous slide, it can be interrupted by a signal of another type,
+[00:39:21] but not by a signal of the same type.
+[00:39:23] So that's sort of an implicit form of blocking.
+[00:39:28] But there's the kernel also provides a system call that allows you to explicitly block
+[00:39:35] and unblock signals in the form of the
+[00:39:39] SIGPROC function.
+[00:39:42] And then there's associated, so this allows you to block and unblock a set of signals
+[00:39:49] and then there's some support functions that allow you to create those sets.
+[00:39:55] So just think of these as bit vectors and these functions will set and set and reset and reset the bits in those bit vectors.
+[00:40:05] So let's see how we can use SIG PROC mask to temporarily block and unblock a signal.
+[00:40:13] So this is going to turn out to be very important for you when you, working on your shells, which is your next lab assignment.
+[00:40:21] Okay.
+[00:40:26] So what we do, we'll use SIG empty set to create an empty mask.
+[00:40:29] So this is a mask with all zeros, okay, with no elements in the set.
+[00:40:34] And then we're going to add a single element to the set,
+[00:40:37] which is SIG-int. And now we have some code that we don't want to be interrupted by the seed of SIG-int.
+[00:40:48] So we want to temporarily block the receipt of SIG-int signals. And we do it by calling SIG-PROC
+[00:40:57] with the command, say, I want to block the signals that are in the set specified by mask.
+[00:41:09] And I'll assign the, so this will become my new mask.
+[00:41:16] So this becomes the new blocked bit vector.
+[00:41:20] Okay. Or the not the, the new signal mask.
+[00:41:24] And it makes a copy of the old one and stores it at the address specified in the third argument.
+[00:41:31] So at this point, after we return from SIG PROC mask, SIGN signals are blocked and they won't be received.
+[00:41:39] And then we, so we can execute
+[00:41:43] this code knowing that we won't be interrupted by receipt of a SIG-int.
+[00:41:50] And then we can restore the previous block set by using the SIG-set mask operation and
+[00:41:58] passing in the previous mask that we saved up here when we initially blocked SIG-In.
+[00:42:10] Okay, so signals and signal handling is a really tricky business. And there's sort
+[00:42:16] of three things that make them so tricky and kind of nasty, really.
+[00:42:21] One is that you have to be very careful to write handlers that are safe.
+[00:42:27] Okay, so there's, you can write signal handlers that are unsafe in the sense that they'll create a deadlock in your program.
+[00:42:35] Okay.
+[00:42:37] Or you can, or you can write signal handlers that'll corrupt a global data structure that's being modified by the main program.
+[00:42:46] So, I mean, imagine, imagine your main programming is updating some, um,
+[00:42:52] some data structure like a linked list.
+[00:42:55] And right in the middle of updating that data structure,
+[00:42:58] when it's no longer consistent,
+[00:43:00] the program gets interrupted by the receipt of a signal.
+[00:43:04] And if that signal handler is updating that same data structure,
+[00:43:08] reading that structure or modifying it,
+[00:43:11] then it's going to encounter it in an inconsistent state
+[00:43:15] and you're in trouble.
+[00:43:17] Okay.
+[00:43:18] So this, the fact that it's the fact that it's,
+[00:43:24] the fact that it's easy,
+[00:43:26] to write signal handlers that are unsafe is one aspect that makes them tough to deal with.
+[00:43:32] Another aspect is they have this funny semantics that signals aren't queued.
+[00:43:37] And so if you're not really careful about this, it's very easy to use the receipt of signals to count events.
+[00:43:46] And you can't do that.
+[00:43:48] If signals were queued, you could use the receipt of a signal to count events in the system,
+[00:43:53] but you can't do it because their signals aren't queued.
+[00:43:55] signals aren't queued.
+[00:43:58] And then a third aspect of signals, which makes them tough, is that
+[00:44:02] they're not even portable across different versions of Linux.
+[00:44:06] Okay.
+[00:44:07] So if you use Solaris or some form of BSD, it's not necessarily,
+[00:44:13] the signal handling semantics aren't necessarily the same as they are in Linux.
+[00:44:17] Okay.
+[00:44:18] So we'll look at all three of these in a little more detail.
+[00:44:21] First, we'll start with writing safe handlers.
+[00:44:27] So let me give you some guidelines.
+[00:44:29] for how to write safe handlers.
+[00:44:33] And this is just the collection of,
+[00:44:36] this is just a collection of sort of collected wisdom from various sources.
+[00:44:44] But it covers a lot of aspects of signal handlers.
+[00:44:49] So the first guideline is to keep your handlers as simple as possible.
+[00:44:53] For example, the simplest possible handler I can think of
+[00:44:56] just sets a global variable and then it returns.
+[00:44:59] And in fact,
+[00:45:01] In fact, the CMU cert, provides guidelines for sort of compliant programs.
+[00:45:11] And this is the only signal handler that they allow.
+[00:45:16] This is the only compliant signal handler.
+[00:45:18] One that just sets a global variable and then returns.
+[00:45:22] Okay.
+[00:45:26] Guideline number one, call only functions in your handlers that are, that have this property of async signal safety.
+[00:45:33] Okay.
+[00:45:35] We'll look at this in a second.
+[00:45:37] But I want to point out that printf, S printf,
+[00:45:39] Maliq, exit,
+[00:45:41] functions that are very common and commonly used are not safe.
+[00:45:45] Guideline number two is to always save and restore error no
+[00:45:53] on entry and exit.
+[00:45:55] So you know, error no is a global,
+[00:45:57] a global variable that's set whenever there's an error
+[00:46:00] in a system level function.
+[00:46:02] So you need to save and, you need to save and restore it on entry and exit
+[00:46:06] so that it doesn't get over.
+[00:46:07] It doesn't get overwritten if you're interrupted by another handler.
+[00:46:16] Okay, if you're accessing any shared data structures inside a signal handler that are also accessed by your main routine, then you need to temporarily block signals while you access that data structure,
+[00:46:30] both in the main routine and your signal handler.
+[00:46:33] And the reason for this is what I described earlier.
+[00:46:36] If your main routine is updating that global data structure and then it gets interrupted,
+[00:46:40] and the signal handler is reading that data structure, it's going to find it in an inconsistent state, and bad things will happen.
+[00:46:51] Okay, you want to be sure to declare any global variables that are shared between signal handlers and the main routine as volatile.
+[00:46:58] Okay, the volatile attribute will prevent the compiler from putting that value in a register.
+[00:47:07] So if you declare a global variable as volatile, it will always be, reads and writes will always go to and from memory.
+[00:47:14] Okay, so this is very important.
+[00:47:17] You might, if you don't declare these global variables as volatile, and the compiler chooses to put one of those in a register, then you may miss that variable being updated.
+[00:47:32] So suppose your signal handler is setting a global variable.
+[00:47:39] And now suppose your main routine is spinning, waiting for that global variable to get set.
+[00:47:46] Well, if it's in a register, the right to that variable will just update.
+[00:47:49] just update the register, right?
+[00:47:52] And so your main routine is in danger of just spinning forever, not, not seeing the change.
+[00:47:58] Okay, so always use volatile to, so that they're not stored in registers.
+[00:48:04] And then if you have, if you have a special kind of global called a flag, which by definition is a variable that's only read or written, not incremented or updated, it's just read or written,
+[00:48:20] If you have a variable with that property, then you can declare it with the
+[00:48:25] the SIG atomic T attribute.
+[00:48:28] And if you do that, then the system guarantees that reads and writes to that variable will be atomic.
+[00:48:35] So you don't have to, in other words, you don't have to protect accesses
+[00:48:39] to these shared, to accesses or references to those global variables.
+[00:48:44] Okay, and so by this by atomic, what means that the, the read or right of that flag,
+[00:48:50] will always happen in one uninterruptible step.
+[00:48:54] Okay, one uninterruptible load or store, particular.
+[00:48:58] Now, in practice, on most systems, the SIG-Atomic T is an int.
+[00:49:05] Okay, it's, so you can, you can read or write an int with one instruction.
+[00:49:10] Okay, so it's, it's atomic.
+[00:49:12] But if you want to be portable, you declare it with SIG-atomic T, and then it'll, it'll work on all systems.
+[00:49:21] systems.
+[00:49:24] Okay, we mentioned this property of async signal safety.
+[00:49:29] Now a function is safe to be used inside of a signal handler if it's either reentrant, okay, or
+[00:49:37] if it can't be interrupted by signals.
+[00:49:39] And a reent function, as we'll see when we study threads, is a function where all of its, all of
+[00:49:45] the data that it accesses is on its own stack.
+[00:49:51] So no global variables, no pointers to global variables, everything's stored on the stack.
+[00:49:55] locally. So that means you can be, it's called reentrant
+[00:50:00] because you can have multiple instances of that function and they all have their own
+[00:50:04] separate copies of all of the variables that they're using. Now the POSIX standard
+[00:50:12] guarantees 117 different functions to be async signal saved. These include
+[00:50:21] underscore exit, right, weight, weight, pit, sleep, kill. But unfortunately, there's
+[00:50:27] some very popular functions that aren't on this.
+[00:50:29] list, printf, S printf, things that you really want to use.
+[00:50:33] And in fact, write is the only output function that's async signal safe.
+[00:50:38] So this is kind of a problem because especially when, you know, you'd often like your
+[00:50:48] signal handlers to output information, but you can't, if you want to really be pedantic and careful,
+[00:50:54] you can't use printf. In fact, it's possible to write a program. And I'll try to, I'll try to,
+[00:51:02] it's possible to write a program that does a tight loop of printfs in the main routine
+[00:51:09] and then a steady stream of interreps which execute a
+[00:51:15] handleer which also does a printf.
+[00:51:21] Now, the printf call has to acquire what's called a lock on the terminal.
+[00:51:29] Okay, each printf, inside that library function, it acquires a lock, which means only one
+[00:51:36] instance of printf can write to the terminal at any point in time.
+[00:51:41] If another function tries to acquire that lock, it has to wait until whatever function owns the
+[00:51:49] lock releases it.
+[00:51:51] Okay, so a lock prevents, a lock is a way for, to get mutually exclusive access to shared
+[00:51:57] resources.
+[00:52:00] So if we have a tight loop in our main routine with executing printf, imagine what happens if one
+[00:52:08] of those printups acquires a lock on the terminal and then gets interrupted
+[00:52:14] now by the receipt of a signal now within the signal handler it calls another printf
+[00:52:20] and that printf tries to acquire that lock and it blocks forever because nothing's
+[00:52:28] going to release that lock because the the main routine was interrupted by the
+[00:52:32] handler so you have what's called a classical a classical a classical condition
+[00:52:39] called deadlock which is we have a process
+[00:52:42] waiting for an event that will never occur.
+[00:52:44] In this case, the printf and the signal handler is waiting for a lock to be released that will never be released.
+[00:52:51] So it's interesting, you can try this. It's, it's not too hard to create this deadlock situation.
+[00:53:02] So to deal with this, I really didn't want to tell you guys that you couldn't have any output in your programs.
+[00:53:07] And Wright's a very difficult thing to deal with.
+[00:53:10] So I created a small little library.
+[00:53:14] called the Safe I.O.O. library consists of three routines, and they're available
+[00:53:22] to you in the CSAPP.c file, which is distributed on the website. And it consists of three reent
+[00:53:31] routines. SIO put S-S prints a string, put L prints along, prints along, and SIO error
+[00:53:40] prints along and SIO error prints a message and then exits.
+[00:53:51] So you can safely use, take my word for it, you can safely use this in your signal handlers.
+[00:53:57] So if we were going to rewrite our sig-int handler from the binary bomb, we could rewrite it like
+[00:54:04] this and now we have every function is async signal safe. All right, now signals are also tough because
+[00:54:13] of this funky non-kewing semantics. And so it's really easy to make mistakes when you have
+[00:54:24] an implicit assumption that the receipt of a signal that can be used to count the occurrence of an event.
+[00:54:35] So let's look at this, let's look at this example program. We install a SIG Child Handler. Okay, and this is, actually, this, this sort of I want
+[00:54:46] to close the loop, remember when we talked about our example shell, we're wondering,
+[00:54:51] how are we going to reap those background children? Well, we do it by installing a SIG child handle
+[00:54:56] like we're doing in this example. So this, here we have a program that installs this SIG child
+[00:55:03] handler, and then it creates N different child processes, where each child sleeps for a little
+[00:55:11] bit and exits. And then it spins until
+[00:55:18] the C-count variable becomes zero.
+[00:55:24] The parent, I'm sorry, the parent spins until the c-count variable becomes zero.
+[00:55:31] Now in the, in our child handler, we have a global that's initialized to zero, c-count.
+[00:55:44] And then we wait, we're going to wait, so this child, when the child handler gets called, that means it's called because we received a C-child signal.
+[00:55:52] So in our, in our handler, we're going to wait.
+[00:55:54] we're going to reap that child by calling weight, and then we'll decrement
+[00:56:02] C count. Okay. So once all of the children have been, have been reaped, C count will be zero,
+[00:56:11] and then the parent can exit this wild loop. Okay, now in this particular example, N was 5, but when
+[00:56:20] we run this code, we only, the handler only gets called twice. Okay, so the handler only gets called twice. Okay, so
+[00:56:30] the message handler reaped child only gets executed twice, right, which means
+[00:56:36] the handler was only called twice. We created five children. We terminated five children, but we only
+[00:56:44] reaped two. Okay, so that the problem is that when we, the problem is that we assumed that the receipt,
+[00:56:54] that the, um, that the execution of the child handler corresponded to the single receipt of a
+[00:57:02] single sig child signal, okay?
+[00:57:05] When in reality, these signals aren't queued.
+[00:57:10] We had, in reality, multiple sig-child signals were delivered to that child, which kept
+[00:57:16] overriding that bit in the pending bit vector.
+[00:57:20] And the delivery of those signals didn't have, didn't cause any reaction in the process until
+[00:57:27] that process was just about ready to be rescheduled.
+[00:57:30] And only then was where it was a signal received, but even
+[00:57:34] even though, like, say, three signals were delivered, only one was received.
+[00:57:38] Okay. So you can't use events. In this case, we're using event, we're using signals to count events, which in this case,
+[00:57:48] which in this case, is the termination of a child. Okay, so the receipt of a signal, in this case, it only indicates that at least one child terminated, right? Not not one child terminated. All we can infer from the receipt of that
+[00:58:07] is that at least one child has terminated.
+[00:58:12] Okay, so to fix that, when we receive a SIG child, we have to put, we have to put the weight that's reaping our children.
+[00:58:23] We have to put that in this, in a loop.
+[00:58:26] So we have to assume that the receipt of a SIG child, if we get a SIG child, there could be multiple terminated children that we have to, that we have to reap.
+[00:58:38] And so we put that we put that in this,
+[00:58:40] loop and we execute this loop until there's no more terminated children, in which case,
+[00:58:46] wait, we'll exit with an error code of minus 1 and an error know of E child. So this isn't really
+[00:58:55] an error. It's just, it just means there's no more terminated children. So we check as long as if our
+[00:59:00] error knows, not E child, then we have an error. Otherwise, we terminated normally, as we
+[00:59:06] expected. Now, if we run this code, now we see that we reap all five children
+[00:59:14] as we should. Okay, so let's the litany of problems with signals. First, it's easy to write
+[00:59:25] handlers that aren't safe. Second, it's easy to get the semantics wrong. Third, they're
+[00:59:32] often not even portable across different versions of Unix. So there's some older systems, I don't
+[00:59:39] There's some earlier versions of Unix that after you catch a signal, it restores
+[00:59:47] the default action. So you have to reinstall the handler every time a handler gets called, you have to
+[00:59:54] re-install that handler by calling signal inside the handler itself. We don't have to do that for
+[01:00:00] that for Linux systems. On some systems, when you have so-called slow syscalls, for
+[01:00:10] example, read, you know, if you do a read system call, the kernel doesn't wait
+[01:00:16] around for that data to arrive. It's, you know, it sends a request to the disk controller and
+[01:00:24] then it schedules another process, right? So in a way that the read call is sort of, and
+[01:00:29] then only when the data arrives and the interrupt comes in and announcing that
+[01:00:34] the data arrives, does that read call finish and then restore and return. So you
+[01:00:40] you can think of read is actually kind of broken up into two parts, right?
+[01:00:44] And so the functions like read, these kind of functions are called slow syscalls.
+[01:00:54] And on some systems, if the process receives a signal before a slow system call has finished, the
+[01:01:04] kernel will just abort that system call and return from that system call with an error.
+[01:01:09] Okay.
+[01:01:10] So from user's point of view,
+[01:01:13] you're doing a read call and it returns with this this e-inter signal, this
+[01:01:18] E-inter error. You did nothing wrong. You just happened to have the bad luck of being
+[01:01:23] interrupted by some signal. And so in your user code, you have to check for that. And if if a
+[01:01:29] slow system call like read is interrupted by signal, you have to redo it. So you have to put,
+[01:01:34] which is really a pain, right, because you have to put these these read calls in a loop and
+[01:01:39] keep looping until it succeeds.
+[01:01:42] And finally, some systems don't block signals of the type being handled.
+[01:01:48] So the solution for this is a replacement for signal.
+[01:01:52] So the problem is with the signal syscall.
+[01:01:55] And the solution is a newer syscall called SIG action, which provides a mechanism, a replacement for signal
+[01:02:02] that provides a mechanism for portable and predictable signal handling.
+[01:02:08] And so what I've done, what I've done is created a wrapper called uppercase
+[01:02:13] signal that takes the same arguments as the signal call, but inside it calls the
+[01:02:22] the SIG action function to get portable signal handling. And so it's it's not really
+[01:02:29] important to go into detail about this. The point is, in your code, you always want
+[01:02:37] to call uppercase signal using the wrapper that provided in CSAPP.C. And then,
+[01:02:44] And if you do that, then you'll always block signals of the type being handled.
+[01:02:48] The system will automatically restart slow sys calls that have been interrupted by signals.
+[01:02:55] Okay, so fortunately, there's an easy fix for this.
+[01:03:01] Now let's, let's finish up with, there's some interesting, I mentioned that signals are
+[01:03:11] difficult because of the fact that they're concurrent flows.
+[01:03:15] So I want to look at some sort of subtle issues that you can run into because of this concurrency.
+[01:03:20] And I want to talk about how to identify those errors and how to fix them.
+[01:03:27] So here's a program that this is like a simple shell program that maintains a jobs list, right?
+[01:03:39] So every time it creates a new child, it adds it to the jobs list.
+[01:03:44] And every time that child terminates, it removes it removes it from the jobs list.
+[01:03:48] Okay?
+[01:03:49] So, so our simple shell, just in a loop, it just in a loop, it just
+[01:03:57] creates a child and then executes a program within that child.
+[01:04:02] And then in the parent, it correctly blocks all of the signals temporarily while it adds a job to the job queue.
+[01:04:13] And then it unblocks and then it unblocks those signals.
+[01:04:18] Okay, so this is correct in that it's protecting access to this shared job queue because that that job queue is also manipulated by the SIG child handler.
+[01:04:32] So when a child terminates and the parent receives the sig child, this handler runs,
+[01:04:40] and this handler goes through and it reaps all of the children, potentially terminated children.
+[01:04:48] And then for each one, it deletes that that job from the job queue.
+[01:04:53] All right?
+[01:04:53] So here's a classic case.
+[01:04:55] We have two concurrent flows, our main routine and our signal handler.
+[01:05:01] They're each accessing a shared data.
+[01:05:03] structure, in this case the job queue, and they're correctly blocking signals while they update this job queue.
+[01:05:16] But this program has a really subtle and nasty bug in it. Can you see what it is?
+[01:05:26] What's a sequence of events that would cause this program to fail?
+[01:05:37] Yes. Exactly. That's exactly it's exactly it. So is it possible that the child process
+[01:05:53] could terminate before the parent has a chance to add that job to the queue.
+[01:05:57] And the answer is yes, right?
+[01:05:59] You cannot make any assumptions about the execution ordering of the child in the process
+[01:06:05] or about how long they run.
+[01:06:07] Right? So it's, it's very possible that the child can,
+[01:06:12] after the fore, control returns to the child instead of the parent,
+[01:06:17] and then the child terminates before the parent ever has a chance to add that job to the job case.
+[01:06:22] to the job queue.
+[01:06:23] So now what's happened is that the child is deleting a job that hasn't been added to the job queue.
+[01:06:36] And now when the parent finally gets around to running, it adds that job to the job queue, and that job
+[01:06:41] will never be deleted.
+[01:06:44] So this is the kind of subtle, nasty, horrible kind of bug that you run into when you're dealing
+[01:06:51] with concurrency. Trying to keep track of all of these interleaving of events can just
+[01:06:57] make your head explode. All right. Now, and it happens and signal, it happens with any kind of concurrency
+[01:07:05] where you have concurrent flows accessing shared resources and signal handlers are no different.
+[01:07:11] Now we'll look at principled ways where we can deal with this kind of sharing when we study threads
+[01:07:15] later on. But I just want to point this out to you and scare you a little bit. All right, so
+[01:07:24] So here's how we would fix that.
+[01:07:27] What we have to do is somehow avoid the, avoid the, avoid the, the, the, the, avoid the possibility of the child
+[01:07:36] handler executing before the parent can add the corresponding job to the job queue.
+[01:07:44] Now we can't control whether the child executes first or the parent executes first,
+[01:07:50] and we can't control how long the child runs, but we can't control how long the child runs, but we can't control when the
+[01:07:56] The SIG child handler runs because we can block signals.
+[01:08:00] So what we'll do, we'll modify our program to, we'll use SIGPROC mask to block SIGCHILD
+[01:08:10] signals before we create the child, okay.
+[01:08:15] So at this point, after this invocation of SIGPROC, SigChild signals are blocked.
+[01:08:22] Okay, then we create the child, and before we do our execVE, since we don't know that
+[01:08:29] child may need to reap its children, right? We don't know if it, by default,
+[01:08:36] children inherit the blocked bit vector of their parents. Okay, so when this child runs, after it
+[01:08:46] returns from fork, at this point, right after the fork, a SIG child is blocked in the child as well.
+[01:08:51] Right, so if we didn't do anything, if the child created children and try to reap, you know, reap them
+[01:08:59] with a SIG child handler, that SIG child wouldn't run. So that would be a problem.
+[01:09:03] So in the child, before we execute the program itself, we unblock SIG child. And this was an example
+[01:09:10] that I was alluding to last time of how it's useful sometimes to separate creating processes with executing
+[01:09:18] programs. So this allows us to get our signal mask set up the way we want it before we run
+[01:09:25] our program in the child. So now, even if the child terminates early, the
+[01:09:36] SIG child handler won't run until after we've added the job to the job queue because we don't
+[01:09:45] unblock SIG child until after the, until after we call ad job. Okay, now there's another,
+[01:09:59] so this, this sort of scenario will be very relevant to you when you do your shell lab.
+[01:10:04] Okay.
+[01:10:05] So you want to be careful not to make that mistake.
+[01:10:12] Another thing that you're going to need to do in your shell lab.
+[01:10:17] Now, you remember in our simple shell example, we did the weight inside the main routine.
+[01:10:22] So we waited for foreground jobs using weight.
+[01:10:25] But now in a real shell, we're going to have our SIG child handler do all the weights, call all the weights.
+[01:10:32] And it, so we can't put the weight has to go in the SIG child handler, can't go in the main routine.
+[01:10:40] Okay.
+[01:10:41] So if we can't put a weight in the main routine, how are we going to, how are we going to detect that our foreground job is finished?
+[01:10:53] Right? So somehow, so what we could do, we could define in the SIG child handler, when we reap the foreground job, right?
+[01:11:07] We've created a foreground job. When we reap that foreground job, we could set this global flag, we could declare the process, this
+[01:11:17] process ID variable, PID as a global flag, and then just assign the process ID of
+[01:11:24] the, of the, of the, of the foreground job. Okay, so in this, this is an example of a handler. It's
+[01:11:32] just, all it does, it sets a flag and then exits. And then in our main routine, okay, we want to, we want to
+[01:11:43] we want to block SIG child just by, just like before, okay, to avoid that, that race condition between
+[01:11:49] between the parent and the child. And then we create, and then we
+[01:11:55] create the child, and then in the, and then the parent, we set PID to zero, okay?
+[01:12:04] Then we unblock SIG child, and then we wait for the SIG child handler to run and set PID to non-zero.
+[01:12:13] Okay. Okay. Okay, everybody see that? I mean, this, so this is correct, right? But it's extremely
+[01:12:21] wasteful, right? We're spinning, we're using valuable processor cycles in this tight spin loop, just
+[01:12:30] executing over and over and over and over and over and over for who knows how long.
+[01:12:35] Okay, so that's not a good, that's not a good solution.
+[01:12:38] All right, so let's look at a couple other things we might consider, and that have been considered
+[01:12:44] by generations of 213 students.
+[01:12:49] So one thing, you might think, well, I'll just, instead of just putting a semicolon here,
+[01:12:55] I'll pause, and then I'll wait for the SIG child handler to run, and then I'll go back up,
+[01:13:05] and I'll check PID again.
+[01:13:09] Now, you have to put this in a loop.
+[01:13:10] It still has to be in a loop because we have other signal handlers in our program.
+[01:13:16] We have a SIG-int handler.
+[01:13:18] So it might be if we do the pause here and the SIG-A-N comes in and the SIG-N handler runs,
+[01:13:23] that would cause us to exit the pause function and go back up.
+[01:13:27] So we have to keep checking P-I-D because we're not sure.
+[01:13:30] We have to keep checking for the specific signal handler, sig-child handler,
+[01:13:35] to run instead of other handlers that might run.
+[01:13:40] But this is actually wrong because it has a race.
+[01:13:46] Can you see what the race is?
+[01:13:54] What's wrong with this?
+[01:13:55] There's a good chance that this thing will block forever.
+[01:14:04] Yes?
+[01:14:16] Yeah, that's, so the problem, the problem with this is like,
+[01:14:21] so if the signal is received after PID is checked,
+[01:14:27] but before the pause executes,
+[01:14:29] Okay, which is possible, right?
+[01:14:33] It's unlikely, but it's possible.
+[01:14:38] If that signals arrives here, then the handler will set PID to non-zero, and then we'll execute the pause, and then we'll execute the pause, and the pause will be blocked forever waiting for a signal that'll never arrive, right?
+[01:14:53] Because the SigChile signal already came.
+[01:14:56] Very subtle, right?
+[01:14:59] So this code looks okay, it looks benign, but it's wrong.
+[01:15:02] but it's wrong and and your program would just hang forever so we say
+[01:15:10] well okay that's no good we could replace the pause with a sleep so we could say let's let's
+[01:15:15] check PID and then sleep for some predetermined amount of time in this case one
+[01:15:22] second and then go back up and check PID again so this while this is correct it's way
+[01:15:30] too slow right we're asking the system to wait for a second which is an eternity
+[01:15:34] And there's forms of sleep,
+[01:15:37] nanosecond, where you can wait, instead of units of
+[01:15:40] seconds, you can wait in units of nanoseconds.
+[01:15:42] But what value do you use, right?
+[01:15:44] If it's, it's, so that's, if you choose a value that's too large,
+[01:15:49] then you have this problem, this slowness problem.
+[01:15:52] If you choose a sleep time that's too small,
+[01:15:55] then you have the other problem that it's inefficient.
+[01:15:59] So the solution is to use Sigsispend, which is the last
+[01:16:04] last thing we're going to look at today.
+[01:16:07] So SIG suspend is a function that takes a signal mask, and it's equivalent to an uninterruptible
+[01:16:16] version of these three statements.
+[01:16:19] So we block the signals that are specified in the signal mask.
+[01:16:25] And then it's atomic in the sense that after that this, this, these two statements can't be interrupted.
+[01:16:35] They're always executed together.
+[01:16:37] Okay, so we block these signals, and then we execute the
+[01:16:41] pause. So there's no chance of a signal interrupting this program in between the
+[01:16:50] SIG PROC mask and the pause. Okay. And then when a signal does come in and the
+[01:17:00] execution of the handler causes pause to exit, then we set the mask back to what it was
+[01:17:05] before. Okay. So the proper way then to wait for a signal is to use SIG suspend in the
+[01:17:13] following way. So here's our, here's our program again. We, before we create
+[01:17:19] the child, we block SIG child, then we create the child, and now we're going to wait for the
+[01:17:25] SIG child to be received. Now SIG child is still blocked. Okay, so there's no danger
+[01:17:33] of the SIG child handle or running. Okay, so we set that global variable to zero.
+[01:17:40] And then while it's, while it's non-zero, we repeatedly call SIG suspend. And so
+[01:17:46] SIG suspend is using the previous mask that was set up here.
+[01:17:50] So SIGSyspend is using the mask where SIG child is unblocked.
+[01:17:55] Okay, when we, when we entered this first SIGPROC mask, SIG child was unblocked.
+[01:18:01] So this allows inside the SIG suspend, SIG child is unblocked.
+[01:18:09] Okay, so it allows for the handler now to be received or to be executed.
+[01:18:15] Okay, so when it, and it does it does it.
+[01:18:20] safely because of the atomic nature of those first two instructions.
+[01:18:27] So once the, so it's possible that the implicit pause inside of SIG child could be interrupted by, say,
+[01:18:35] another signal, like SIG int, okay, in which case we'd loop back up, we'd notice that PID
+[01:18:42] was still zero, and we'd go back into SIG suspend with, with SIG child unblocked.
+[01:18:48] Okay? So that makes sense to everybody?
+[01:18:50] And now, so this is exactly the behavior we want.
+[01:18:52] We're not wasting resources, but we've eliminated the race.
+[01:18:59] Okay, so that's it for today.
+[01:19:01] If you're interested, non-local jumps are this weird thing in C that allows a function to return to some other function that didn't call it.
+[01:19:11] But it's described in your textbook and also in some additional slides here if you're interested.

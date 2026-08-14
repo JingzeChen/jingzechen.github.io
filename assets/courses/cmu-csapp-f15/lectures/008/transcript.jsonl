@@ -1,0 +1,809 @@
+{"id": 0, "start": 0.0, "end": 29.72, "text": "Okay, so continuing on with the saga of machine level programming, we're in number four of our series of this, and I think that the total will be five, so we're almost through, and I realize that this is a lot of material for the course. It's essentially a third of the course, if you think about, well, no, not that much, but it's a lot of the course, and part that we consider very central to it.", "source": "faster-whisper"}
+{"id": 1, "start": 29.72, "end": 38.42, "text": "So a lot of this involves, since we're talking about a particular machine, the Intel X86-64 machines,", "source": "faster-whisper"}
+{"id": 2, "start": 38.96, "end": 47.74, "text": "a lot of it's kind of low-level nitty-gritty stuff, but part of what we hope you also are understanding is some of the general principles involved, too.", "source": "faster-whisper"}
+{"id": 3, "start": 48.28, "end": 56.53, "text": "And you'll find if you move from this machine to another machine, sort of learning your first assembly language is your hardest one.", "source": "faster-whisper"}
+{"id": 4, "start": 56.53, "end": 58.67, "text": "Learning successive ones is a lot easier.", "source": "faster-whisper"}
+{"id": 5, "start": 58.67, "end": 64.65, "text": "So today we're going to talk about data representations.", "source": "faster-whisper"}
+{"id": 6, "start": 64.65, "end": 74.2, "text": "So far, all the programs we've looked at have been either just manipulating integers or long integers and pointers.", "source": "faster-whisper"}
+{"id": 7, "start": 74.2, "end": 79.2, "text": "So that's all what we'd call scalar data, data that's not in any aggregated form.", "source": "faster-whisper"}
+{"id": 8, "start": 79.2, "end": 87.2, "text": "Today we'll look at places where data gets collected into, you put together multiple data elements.", "source": "faster-whisper"}
+{"id": 9, "start": 87.2, "end": 90.2, "text": "And in C, there's really two ways to do that. One is with array.", "source": "faster-whisper"}
+{"id": 10, "start": 90.2, "end": 97.2, "text": "with arrays where you can create many copies or many copies of an identical", "source": "faster-whisper"}
+{"id": 11, "start": 97.2, "end": 101.2, "text": "data type. You can have an array of an array of ints, an array of pointers.", "source": "faster-whisper"}
+{"id": 12, "start": 101.2, "end": 110.2, "text": "A second is where you have structs. So you create a small collection of values that can be of different", "source": "faster-whisper"}
+{"id": 13, "start": 110.2, "end": 115.2, "text": "data types, and each one you access by its name or a tag.", "source": "faster-whisper"}
+{"id": 14, "start": 115.2, "end": 119.2, "text": "And it turns out those definitions can be recursive.", "source": "faster-whisper"}
+{"id": 15, "start": 119.2, "end": 126.2, "text": "recursive so you can have arrays of structs and structs with arrays and nest it to an arbitrary degree.", "source": "faster-whisper"}
+{"id": 16, "start": 126.2, "end": 133.2, "text": "And what we'll see is both how it's represented in the machine memory and also then what the code looks", "source": "faster-whisper"}
+{"id": 17, "start": 133.2, "end": 137.2, "text": "like that will manipulate these different data structures.", "source": "faster-whisper"}
+{"id": 18, "start": 137.2, "end": 144.77, "text": "And the main thing to see is that there's no, at the machine code level, there's no notion", "source": "faster-whisper"}
+{"id": 19, "start": 144.77, "end": 156.97, "text": "There's no notion of an array that you'd have at a high level except to think of it as a collection of bytes that you can are in contiguous part of storage.", "source": "faster-whisper"}
+{"id": 20, "start": 156.97, "end": 161.57, "text": "And same with a struct is just allocated as a collection of bytes.", "source": "faster-whisper"}
+{"id": 21, "start": 162.07, "end": 174.43, "text": "And it's the job of the C compiler then to generate the appropriate code to allocate that memory to allocate that memory to get the right value when you refer to some element of a struct or an array.", "source": "faster-whisper"}
+{"id": 22, "start": 174.77, "end": 190.38, "text": "But the good news is this is such a commonplace type of requirement for a programming language that the machine gives you sort of instructions that the machine gives you sort of instructions that you'll see now they make perfect sense.", "source": "faster-whisper"}
+{"id": 23, "start": 190.38, "end": 196.33, "text": "They're exactly designed for this particular class of applications.", "source": "faster-whisper"}
+{"id": 24, "start": 196.33, "end": 201.33, "text": "So we'll talk about a structs and then structures or structs.", "source": "faster-whisper"}
+{"id": 25, "start": 201.33, "end": 206.97, "text": "And I'll also mention we'll do a little bit, well, I'll give you a glimpse of floating point today today too, because it's", "source": "faster-whisper"}
+{"id": 26, "start": 206.97, "end": 211.41, "text": "it's worth knowing how floating point arithmetic is implemented as well on a machine.", "source": "faster-whisper"}
+{"id": 27, "start": 212.38, "end": 215.94, "text": "So the basic idea of array allocation is fairly straightforward.", "source": "faster-whisper"}
+{"id": 28, "start": 216.62, "end": 227.05, "text": "If you have an array with n elements, then that's represented by enough bytes in memory all in one span", "source": "faster-whisper"}
+{"id": 29, "start": 227.05, "end": 233.27, "text": "to hold that much data. So if the underlying data type, say it's an int,", "source": "faster-whisper"}
+{"id": 30, "start": 233.27, "end": 241.99, "text": "or a care is a single byte data type, so to have an array of 12 cares takes 12 bytes.", "source": "faster-whisper"}
+{"id": 31, "start": 242.79, "end": 248.09, "text": "An int takes 4 bytes, so to have an array of 5 ints takes 20 bytes.", "source": "faster-whisper"}
+{"id": 32, "start": 248.75, "end": 253.93, "text": "You get the idea. You just multiply the size of the underlying data type by the number of elements,", "source": "faster-whisper"}
+{"id": 33, "start": 253.93, "end": 256.77, "text": "and that's how big the array has to be in terms of bytes.", "source": "faster-whisper"}
+{"id": 34, "start": 257.87, "end": 263.03, "text": "And we've already seen that, and the care is one byte, and it is 4.", "source": "faster-whisper"}
+{"id": 35, "start": 263.69, "end": 267.69, "text": "A double or a long would be 8 bytes and so would be a pointer.", "source": "faster-whisper"}
+{"id": 36, "start": 267.69, "end": 272.75, "text": "So those are all different amounts of storage.", "source": "faster-whisper"}
+{"id": 37, "start": 272.75, "end": 281.04, "text": "And you see in this diagram, we use the X denotes the starting address of the beginning of this region of memory.", "source": "faster-whisper"}
+{"id": 38, "start": 281.04, "end": 288.07, "text": "And so we can use address computation to compute offsets", "source": "faster-whisper"}
+{"id": 39, "start": 288.07, "end": 293.17, "text": "by adding numbers to x to get the address to x to get the address of particular element.", "source": "faster-whisper"}
+{"id": 40, "start": 293.17, "end": 295.17, "text": "of particular elements of this array.", "source": "faster-whisper"}
+{"id": 41, "start": 295.17, "end": 297.17, "text": "And that's exactly what the code does.", "source": "faster-whisper"}
+{"id": 42, "start": 297.17, "end": 302.67, "text": "So in general, then, if you imagine an array A", "source": "faster-whisper"}
+{"id": 43, "start": 302.67, "end": 306.67, "text": "has some underlying type T, what the elements of the", "source": "faster-whisper"}
+{"id": 44, "start": 306.67, "end": 309.67, "text": "elements of the array are, and some number of elements in that array", "source": "faster-whisper"}
+{"id": 45, "start": 309.67, "end": 315.09, "text": "in the declaration L, then we will,", "source": "faster-whisper"}
+{"id": 46, "start": 315.09, "end": 319.57, "text": "that declaration actually does two things.", "source": "faster-whisper"}
+{"id": 47, "start": 319.57, "end": 324.92, "text": "One is it allocates enough bytes of storage to hold the entire array.", "source": "faster-whisper"}
+{"id": 48, "start": 324.92, "end": 328.92, "text": "And the second, from a programming language perspective,", "source": "faster-whisper"}
+{"id": 49, "start": 328.92, "end": 333.92, "text": "the identifier of the array A, can in some ways be treated like a", "source": "faster-whisper"}
+{"id": 50, "start": 333.92, "end": 336.92, "text": "pointer, that you can do pointer arithmetic off of it.", "source": "faster-whisper"}
+{"id": 51, "start": 336.92, "end": 341.92, "text": "And that's one of the features of C that is, was fairly unique to", "source": "faster-whisper"}
+{"id": 52, "start": 341.92, "end": 345.92, "text": "see when it was created and is still unique to this day,", "source": "faster-whisper"}
+{"id": 53, "start": 345.92, "end": 351.92, "text": "this idea of the sort of interchangeability of pointers and arrays,", "source": "faster-whisper"}
+{"id": 54, "start": 351.92, "end": 353.92, "text": "array identifiers.", "source": "faster-whisper"}
+{"id": 55, "start": 353.92, "end": 354.92, "text": "So, for example,", "source": "faster-whisper"}
+{"id": 56, "start": 354.92, "end": 361.92, "text": "I can use an array notation to say val of four is element four of this array, and it's a five-element array,", "source": "faster-whisper"}
+{"id": 57, "start": 361.92, "end": 364.92, "text": "array, so that would just be this final element.", "source": "faster-whisper"}
+{"id": 58, "start": 364.92, "end": 376.59, "text": "But I can also just refer to Val, and its underlying data type is as an int star, it's a pointer to ints.", "source": "faster-whisper"}
+{"id": 59, "start": 376.59, "end": 378.59, "text": "And its value would be x.", "source": "faster-whisper"}
+{"id": 60, "start": 378.59, "end": 380.59, "text": "It's just a pointer.", "source": "faster-whisper"}
+{"id": 61, "start": 380.59, "end": 384.59, "text": "A pointer is, remember, an address, and it's just the address of the address of the beginning of the array.", "source": "faster-whisper"}
+{"id": 62, "start": 384.59, "end": 393.69, "text": "the array. And I can do pointer arithmetic on Val, which as you know in C, and this is a little", "source": "faster-whisper"}
+{"id": 63, "start": 393.69, "end": 399.69, "text": "confusing, we'll have to, we'll go back and forth because in C when you do pointer arithmetic,", "source": "faster-whisper"}
+{"id": 64, "start": 399.69, "end": 404.69, "text": "like you say, you know, P plus plus for a pointer.", "source": "faster-whisper"}
+{"id": 65, "start": 404.69, "end": 406.69, "text": "Let me just give you an example.", "source": "faster-whisper"}
+{"id": 66, "start": 406.69, "end": 415.7, "text": "So if you had something like care star p as a declaration, and you said p is equal to some string s,", "source": "faster-whisper"}
+{"id": 67, "start": 415.7, "end": 424.62, "text": "string S and then you say P plus plus. So you're incrementing that pointer.", "source": "faster-whisper"}
+{"id": 68, "start": 424.62, "end": 436.3, "text": "In this case, you're incrementing it by one because the underlying data type is a care.", "source": "faster-whisper"}
+{"id": 69, "start": 436.3, "end": 456.82, "text": "But if you said something like int star, I'll call it IP, and I have a different pen, and I", "source": "faster-whisper"}
+{"id": 70, "start": 456.82, "end": 467.19, "text": "said, you know, IP plus, plus, then IP would get IP plus what? Does anyone know?", "source": "faster-whisper"}
+{"id": 71, "start": 469.21, "end": 479.48, "text": "Four, yes. So it's a confusion. And C, this remember, is the same as saying IP plus equals 1.", "source": "faster-whisper"}
+{"id": 72, "start": 481.3, "end": 486.62, "text": "But what you're actually doing is incrementing that the number of the value of P by", "source": "faster-whisper"}
+{"id": 73, "start": 486.62, "end": 492.47, "text": "four, because you want a pointer when you jump from", "source": "faster-whisper"}
+{"id": 74, "start": 492.49, "end": 498.47, "text": "one place to another, you want it to increment by enough bytes to point to the next", "source": "faster-whisper"}
+{"id": 75, "start": 498.47, "end": 506.2, "text": "integer in this case for IP.", "source": "faster-whisper"}
+{"id": 76, "start": 506.2, "end": 518.28, "text": "And so similarly, VAL plus 1 denotes this value, X plus 4, because it's the address of the next integer in", "source": "faster-whisper"}
+{"id": 77, "start": 518.28, "end": 520.9, "text": "the array.", "source": "faster-whisper"}
+{"id": 78, "start": 520.9, "end": 527.9, "text": "the way, the one thing different between an array and a pointer is I can't say val plus plus, right?", "source": "faster-whisper"}
+{"id": 79, "start": 527.9, "end": 535.24, "text": "I can't change the value of val. It's fixed by the declaration. Whereas a pointer, I can increment it,", "source": "faster-whisper"}
+{"id": 80, "start": 535.24, "end": 545.52, "text": "I can change it in various ways. And similarly, ampersand val of 2 says, give me the address of the", "source": "faster-whisper"}
+{"id": 81, "start": 545.52, "end": 552.19, "text": "second element of the array. So that would be at x plus 8. And this is", "source": "faster-whisper"}
+{"id": 82, "start": 552.21, "end": 567.44, "text": "So again, one of the fundamental properties of C that basically in C, if you take a pointer,", "source": "faster-whisper"}
+{"id": 83, "start": 578.62, "end": 591.77, "text": "that's weird, this is an I and not very well written, these are equivalent statements, right?", "source": "faster-whisper"}
+{"id": 84, "start": 591.83, "end": 594.09, "text": "They're just two notations for the same thing.", "source": "faster-whisper"}
+{"id": 85, "start": 594.09, "end": 604.47, "text": "So on the upper part, it says IP plus 2, meaning actually add 8 to IP to IP, and then de-reference", "source": "faster-whisper"}
+{"id": 86, "start": 604.47, "end": 611.75, "text": "that it's the same as finding the second element of array, an imaginary array, where IP", "source": "faster-whisper"}
+{"id": 87, "start": 611.75, "end": 615.21, "text": "indicates the beginning of the array.", "source": "faster-whisper"}
+{"id": 88, "start": 615.21, "end": 620.55, "text": "So that's a very fundamental principle of C that, again, this whole idea of point of arithmetic", "source": "faster-whisper"}
+{"id": 89, "start": 620.55, "end": 622.79, "text": "is fairly unique to C. Question?", "source": "faster-whisper"}
+{"id": 90, "start": 622.79, "end": 626.08, "text": "Pardon?", "source": "faster-whisper"}
+{"id": 91, "start": 626.08, "end": 626.84, "text": "Yes.", "source": "faster-whisper"}
+{"id": 92, "start": 626.84, "end": 635.08, "text": "The compiler will happily let you use negative values for array indices.", "source": "faster-whisper"}
+{"id": 93, "start": 635.08, "end": 668.13, "text": "And it will give you a potentially undefined value, but there's nothing in C that prevents you from giving out of bounds either numbers that are too big for an array or too small for an array. There's no bounds. Yes. So the question is becoming, what about negative indices? And the answer is very simple. Because in other words, in general,", "source": "faster-whisper"}
+{"id": 94, "start": 668.15, "end": 678.16, "text": "general, something like IP plus x, maybe a, can you see this?", "source": "faster-whisper"}
+{"id": 95, "start": 678.16, "end": 707.12, "text": "Should I turn on, kind of bright, is really equivalent to i p plus 4x. So this. So this is the notation, it's really hard to read, isn't it? And the right-hand side is the computation. So you, in C, you write it's really hard to read it's a computation. And the right hand side is the computation, so it's the", "source": "faster-whisper"}
+{"id": 96, "start": 707.12, "end": 714.4, "text": "computation. So you in C, you write it using, you don't have to give scaling factors", "source": "faster-whisper"}
+{"id": 97, "start": 714.4, "end": 722.33, "text": "for your data types, otherwise it would drive you out of your mind. But you, secretly underneath, when the", "source": "faster-whisper"}
+{"id": 98, "start": 722.33, "end": 728.02, "text": "compiler generates the code, and we'll see examples of this, it's scaling everything. So now", "source": "faster-whisper"}
+{"id": 99, "start": 728.02, "end": 733.57, "text": "the question that is being asked is, what if X is a negative number? Well, the rule still applies.", "source": "faster-whisper"}
+{"id": 100, "start": 733.57, "end": 737.39, "text": "It's just that the final result will be less than IP instead of greater", "source": "faster-whisper"}
+{"id": 101, "start": 737.41, "end": 743.62, "text": "than IP. But it's totally valid C. And there's actually times you will use it in", "source": "faster-whisper"}
+{"id": 102, "start": 743.62, "end": 746.2, "text": "this term, I can promise you. Yes, question.", "source": "faster-whisper"}
+{"id": 103, "start": 746.2, "end": 752.2, "text": "Is it a 2 plus IP? And if that is the case, then how does it take...", "source": "faster-whisper"}
+{"id": 104, "start": 752.2, "end": 760.68, "text": "No, you can't write 2 plus IP. Try it. I'm pretty sure you can't do that with point of arithmetic.", "source": "faster-whisper"}
+{"id": 105, "start": 761.92, "end": 765.62, "text": "Try, try, if somebody wants to type in some code and do it. I don't think you can do that.", "source": "faster-whisper"}
+{"id": 106, "start": 766.36, "end": 770.58, "text": "But if you did, it would have to figure it out that, you know, the parser knows the", "source": "faster-whisper"}
+{"id": 107, "start": 770.58, "end": 775.51, "text": "data types of its two arguments. So yeah, you could probably do it. I've never seen this.", "source": "faster-whisper"}
+{"id": 108, "start": 775.93, "end": 780.03, "text": "You could do it, but the compiler would know that one of the arguments is a pointer and therefore", "source": "faster-whisper"}
+{"id": 109, "start": 780.03, "end": 786.4, "text": "scale the other. What you can't do is add two pointers. You can take the difference of two", "source": "faster-whisper"}
+{"id": 110, "start": 786.4, "end": 793.8, "text": "pointers. This is obscure. I'm not even going to tell you about this. Look it up in K&R. But you can do", "source": "faster-whisper"}
+{"id": 111, "start": 793.8, "end": 799.32, "text": "arithmetic, but you can only, for addition, it can only be one pointer and one, and then the other", "source": "faster-whisper"}
+{"id": 112, "start": 799.32, "end": 801.26, "text": "has to be a regular integer value.", "source": "faster-whisper"}
+{"id": 113, "start": 801.38, "end": 803.38, "text": "and it will scale it appropriately.", "source": "faster-whisper"}
+{"id": 114, "start": 803.38, "end": 805.38, "text": "So I believe you can do it.", "source": "faster-whisper"}
+{"id": 115, "start": 805.38, "end": 810.38, "text": "It's just somebody will smack you on the back of the hand if you actually write code that way.", "source": "faster-whisper"}
+{"id": 116, "start": 810.38, "end": 812.89, "text": "But not the compiler.", "source": "faster-whisper"}
+{"id": 117, "start": 812.89, "end": 820.85, "text": "So in particular, you know, you can, if you go beyond the bounds of an array,", "source": "faster-whisper"}
+{"id": 118, "start": 820.85, "end": 825.85, "text": "you'll get whatever is beyond the bounds of that array,", "source": "faster-whisper"}
+{"id": 119, "start": 825.85, "end": 830.85, "text": "and it might be an invalid or it might not even be a valid address and you get a segmentation fault,", "source": "faster-whisper"}
+{"id": 120, "start": 830.85, "end": 832.85, "text": "but more typically you'll get some.", "source": "faster-whisper"}
+{"id": 121, "start": 832.85, "end": 837.3, "text": "some whatever happens to be there.", "source": "faster-whisper"}
+{"id": 122, "start": 837.3, "end": 840.3, "text": "And that's not so bad when you read it, but you can also potentially write it,", "source": "faster-whisper"}
+{"id": 123, "start": 840.3, "end": 843.3, "text": "as we can also potentially write it, as we saw before,", "source": "faster-whisper"}
+{"id": 124, "start": 843.3, "end": 846.62, "text": "and corrupt data that's already in memory.", "source": "faster-whisper"}
+{"id": 125, "start": 846.62, "end": 849.62, "text": "So here's again the same statement I was making before", "source": "faster-whisper"}
+{"id": 126, "start": 849.62, "end": 854.62, "text": "that IP val plus i just get scaled.", "source": "faster-whisper"}
+{"id": 127, "start": 854.62, "end": 864.54, "text": "The value computed would be the starting address plus four times whatever i is.", "source": "faster-whisper"}
+{"id": 128, "start": 864.54, "end": 867.54, "text": "So let's look at, so that's sort of, that's all C.", "source": "faster-whisper"}
+{"id": 129, "start": 867.54, "end": 872.54, "text": "That's all C. Everything I said before is just basic C stuff.", "source": "faster-whisper"}
+{"id": 130, "start": 872.54, "end": 876.54, "text": "Now let's start looking at the actual machine code involved.", "source": "faster-whisper"}
+{"id": 131, "start": 876.54, "end": 886.02, "text": "And so I made up this example here where I declare three arrays each with five ints.", "source": "faster-whisper"}
+{"id": 132, "start": 886.02, "end": 892.02, "text": "And I go through what is considered sort of good form when you're building up data", "source": "faster-whisper"}
+{"id": 133, "start": 892.02, "end": 897.02, "text": "that instead of having arbitrary constant sprinkled through your program,", "source": "faster-whisper"}
+{"id": 134, "start": 897.02, "end": 899.02, "text": "often called magic numbers,", "source": "faster-whisper"}
+{"id": 135, "start": 899.02, "end": 902.02, "text": "that you instead use a pound define,", "source": "faster-whisper"}
+{"id": 136, "start": 902.02, "end": 905.02, "text": "and you give it some meaningful name and some documentation,", "source": "faster-whisper"}
+{"id": 137, "start": 905.02, "end": 909.02, "text": "usually at the top of a file or in a .", "source": "faster-whisper"}
+{"id": 138, "start": 909.02, "end": 912.06, "text": "And then the type def is a very handy way", "source": "faster-whisper"}
+{"id": 139, "start": 912.06, "end": 915.06, "text": "if you're going to create complex data structures,", "source": "faster-whisper"}
+{"id": 140, "start": 915.06, "end": 918.06, "text": "I highly recommend you sort of break that into type defts", "source": "faster-whisper"}
+{"id": 141, "start": 918.06, "end": 922.06, "text": "because the declaration, notation,", "source": "faster-whisper"}
+{"id": 142, "start": 922.06, "end": 925.06, "text": "and C gets fairly obscure fairly quickly.", "source": "faster-whisper"}
+{"id": 143, "start": 925.06, "end": 927.06, "text": "But all this is saying is saying is,", "source": "faster-whisper"}
+{"id": 144, "start": 927.06, "end": 936.06, "text": "The data type I'm going to call a zipdage is defined to be five, an array of five ints.", "source": "faster-whisper"}
+{"id": 145, "start": 936.06, "end": 943.06, "text": "And now whenever I say zipdage something, I'm just popping down, I'm saying this is an array of five inch.", "source": "faster-whisper"}
+{"id": 146, "start": 943.06, "end": 952.26, "text": "And so I created three of them with the appropriate zip codes for the schools represented here.", "source": "faster-whisper"}
+{"id": 147, "start": 952.26, "end": 959.24, "text": "And now I'm just making up for sake of presentation, actual addresses for the", "source": "faster-whisper"}
+{"id": 148, "start": 959.26, "end": 962.16, "text": "In general, you don't have any control over that.", "source": "faster-whisper"}
+{"id": 149, "start": 962.8, "end": 967.02, "text": "And I made it up so that they all happen to be in contiguous part of memory.", "source": "faster-whisper"}
+{"id": 150, "start": 967.32, "end": 970.48, "text": "And again, there's no fundamental reason that should be true.", "source": "faster-whisper"}
+{"id": 151, "start": 970.64, "end": 975.52, "text": "So you can never trust what particular address anything's ever going to be allocated at.", "source": "faster-whisper"}
+{"id": 152, "start": 975.84, "end": 980.94, "text": "But you are certain that each of these blocks will be a contiguous collection of 20 bytes.", "source": "faster-whisper"}
+{"id": 153, "start": 983.5, "end": 990.87, "text": "So here's some example code then to say, I want to retrieve for one of these,", "source": "faster-whisper"}
+{"id": 154, "start": 990.87, "end": 992.87, "text": "I want to retrieve", "source": "faster-whisper"}
+{"id": 155, "start": 992.87, "end": 994.87, "text": "an element", "source": "faster-whisper"}
+{"id": 156, "start": 994.87, "end": 996.9, "text": "whose index is digit.", "source": "faster-whisper"}
+{"id": 157, "start": 996.9, "end": 1000.16, "text": "And this gets turned into the following code.", "source": "faster-whisper"}
+{"id": 158, "start": 1000.16, "end": 1001.16, "text": "So remember,", "source": "faster-whisper"}
+{"id": 159, "start": 1001.16, "end": 1004.16, "text": "the first argument, which will be a pointer now,", "source": "faster-whisper"}
+{"id": 160, "start": 1004.16, "end": 1007.25, "text": "will be passed in register RDI.", "source": "faster-whisper"}
+{"id": 161, "start": 1007.25, "end": 1010.25, "text": "And the second will be an int", "source": "faster-whisper"}
+{"id": 162, "start": 1010.25, "end": 1012.25, "text": "will be passed in register RSI.", "source": "faster-whisper"}
+{"id": 163, "start": 1012.25, "end": 1015.6, "text": "And what I want to get out of this is an", "source": "faster-whisper"}
+{"id": 164, "start": 1015.6, "end": 1018.15, "text": "int. And so you see that it", "source": "faster-whisper"}
+{"id": 165, "start": 1018.15, "end": 1021.15, "text": "here's where that scaled addressing, this is", "source": "faster-whisper"}
+{"id": 166, "start": 1021.15, "end": 1033.18, "text": "this is exactly what it was designed for and why they went to the trouble of adding this sort of fancy address modes to x86 because this is such a common thing.", "source": "faster-whisper"}
+{"id": 167, "start": 1033.18, "end": 1041.18, "text": "So remember what this says is take RDI and add to it what you get by multiplying RSI by 4.", "source": "faster-whisper"}
+{"id": 168, "start": 1041.18, "end": 1043.24, "text": "So you scale that.", "source": "faster-whisper"}
+{"id": 169, "start": 1043.24, "end": 1046.24, "text": "And of course that's exactly the computation we want to do.", "source": "faster-whisper"}
+{"id": 170, "start": 1046.24, "end": 1051.22, "text": "If we compare it to, you know, this is what we're trying to get computer.", "source": "faster-whisper"}
+{"id": 171, "start": 1051.24, "end": 1060.04, "text": "it's exactly this computation here.", "source": "faster-whisper"}
+{"id": 172, "start": 1060.04, "end": 1065.2, "text": "And that gives us an address.", "source": "faster-whisper"}
+{"id": 173, "start": 1065.2, "end": 1067.2, "text": "And then we're reading from that address.", "source": "faster-whisper"}
+{"id": 174, "start": 1067.2, "end": 1070.68, "text": "And we're going to copy it in E-A-X.", "source": "faster-whisper"}
+{"id": 175, "start": 1070.68, "end": 1071.68, "text": "Remember this is an int.", "source": "faster-whisper"}
+{"id": 176, "start": 1071.68, "end": 1073.68, "text": "So it will be in the E-version,", "source": "faster-whisper"}
+{"id": 177, "start": 1073.68, "end": 1076.68, "text": "the lower 4 bytes of register R-A-X.", "source": "faster-whisper"}
+{"id": 178, "start": 1076.68, "end": 1078.68, "text": "And that's all the code it takes", "source": "faster-whisper"}
+{"id": 179, "start": 1078.68, "end": 1080.68, "text": "to implement this particular operation.", "source": "faster-whisper"}
+{"id": 180, "start": 1080.68, "end": 1081.68, "text": "Yes.", "source": "faster-whisper"}
+{"id": 181, "start": 1081.68, "end": 1084.68, "text": "So RDI is the base address of the array.", "source": "faster-whisper"}
+{"id": 182, "start": 1084.68, "end": 1087.86, "text": "Yes.", "source": "faster-whisper"}
+{"id": 183, "start": 1087.86, "end": 1088.86, "text": "Yes.", "source": "faster-whisper"}
+{"id": 184, "start": 1088.86, "end": 1090.37, "text": "Yeah.", "source": "faster-whisper"}
+{"id": 185, "start": 1090.37, "end": 1091.37, "text": "This is a typo.", "source": "faster-whisper"}
+{"id": 186, "start": 1091.37, "end": 1092.37, "text": "Thank you.", "source": "faster-whisper"}
+{"id": 187, "start": 1092.37, "end": 1093.6, "text": "Thanks for pointing that out.", "source": "faster-whisper"}
+{"id": 188, "start": 1093.6, "end": 1094.6, "text": "I'll make a note of that.", "source": "faster-whisper"}
+{"id": 189, "start": 1094.6, "end": 1095.6, "text": "Right.", "source": "faster-whisper"}
+{"id": 190, "start": 1095.6, "end": 1098.42, "text": "So this slide is incorrect.", "source": "faster-whisper"}
+{"id": 191, "start": 1098.42, "end": 1099.42, "text": "And I'll fix that.", "source": "faster-whisper"}
+{"id": 192, "start": 1099.42, "end": 1100.42, "text": "So this slide is incorrect.", "source": "faster-whisper"}
+{"id": 193, "start": 1100.42, "end": 1102.74, "text": "And I'll fix that.", "source": "faster-whisper"}
+{"id": 194, "start": 1102.74, "end": 1105.74, "text": "So this should be RDI plus 4 RSI.", "source": "faster-whisper"}
+{"id": 195, "start": 1105.74, "end": 1106.9, "text": "Right.", "source": "faster-whisper"}
+{"id": 196, "start": 1106.9, "end": 1110.05, "text": "Thanks for noting that.", "source": "faster-whisper"}
+{"id": 197, "start": 1110.05, "end": 1117.52, "text": "Let me make it back here.", "source": "faster-whisper"}
+{"id": 198, "start": 1117.52, "end": 1121.72, "text": "Okay.", "source": "faster-whisper"}
+{"id": 199, "start": 1121.72, "end": 1127.56, "text": "And so now let's just look at another,", "source": "faster-whisper"}
+{"id": 200, "start": 1127.56, "end": 1129.97, "text": "just some code.", "source": "faster-whisper"}
+{"id": 201, "start": 1129.97, "end": 1132.97, "text": "In particular, what if I wanted to go", "source": "faster-whisper"}
+{"id": 202, "start": 1132.97, "end": 1137.97, "text": "one of these arrays, and for every element of the array, add one to it.", "source": "faster-whisper"}
+{"id": 203, "start": 1137.97, "end": 1141.0, "text": "So increment every single element by one.", "source": "faster-whisper"}
+{"id": 204, "start": 1141.0, "end": 1148.0, "text": "Well, first of all, you can see that we're setting up a loop, and it uses the jump to middle business", "source": "faster-whisper"}
+{"id": 205, "start": 1148.0, "end": 1152.23, "text": "where the initial part is to jump to the test.", "source": "faster-whisper"}
+{"id": 206, "start": 1152.23, "end": 1160.23, "text": "And all the testing involves, we're using RAXs for I here, and we're incrementing it and", "source": "faster-whisper"}
+{"id": 207, "start": 1160.23, "end": 1166.34, "text": "it and comparing it at various places.", "source": "faster-whisper"}
+{"id": 208, "start": 1166.34, "end": 1172.88, "text": "But here's the line of code that does all the real work.", "source": "faster-whisper"}
+{"id": 209, "start": 1172.88, "end": 1180.07, "text": "Again, it's taking the ith element, which I is in RAX,", "source": "faster-whisper"}
+{"id": 210, "start": 1180.07, "end": 1186.07, "text": "scale it by 4, adding it to the base of the array,", "source": "faster-whisper"}
+{"id": 211, "start": 1186.07, "end": 1188.07, "text": "and that gives us an address.", "source": "faster-whisper"}
+{"id": 212, "start": 1188.07, "end": 1194.07, "text": "And now, remember, you can have an arithmetic instruction where the second operand", "source": "faster-whisper"}
+{"id": 213, "start": 1194.07, "end": 1197.07, "text": "The destination is a memory reference.", "source": "faster-whisper"}
+{"id": 214, "start": 1197.07, "end": 1203.77, "text": "And what this actually requires is to first read the original value from the memory,", "source": "faster-whisper"}
+{"id": 215, "start": 1203.77, "end": 1208.35, "text": "do the addition, and then store the result back in memory.", "source": "faster-whisper"}
+{"id": 216, "start": 1208.35, "end": 1217.6, "text": "So this one instruction is exactly doing this plus plus operation on this stored data in the array.", "source": "faster-whisper"}
+{"id": 217, "start": 1217.6, "end": 1230.98, "text": "By the way, I should mention the whole idea of pointer arithmetic and C was", "source": "faster-whisper"}
+{"id": 218, "start": 1230.98, "end": 1237.98, "text": "C was really people who had programmed an assembly code for most of their lives thinking about,", "source": "faster-whisper"}
+{"id": 219, "start": 1237.98, "end": 1240.98, "text": "how could I make this look like a high-level language,", "source": "faster-whisper"}
+{"id": 220, "start": 1240.98, "end": 1247.98, "text": "but keep all the flexibility, all the tricks I learned to play at assembly code in a programming language.", "source": "faster-whisper"}
+{"id": 221, "start": 1247.98, "end": 1251.98, "text": "Because it was designed, it was originally designed to implement an operating system,", "source": "faster-whisper"}
+{"id": 222, "start": 1251.98, "end": 1253.98, "text": "the UNIX operating system.", "source": "faster-whisper"}
+{"id": 223, "start": 1253.98, "end": 1257.98, "text": "And historically operating systems were written directly in assembly code.", "source": "faster-whisper"}
+{"id": 224, "start": 1257.98, "end": 1259.98, "text": "And these people,", "source": "faster-whisper"}
+{"id": 225, "start": 1259.98, "end": 1267.33, "text": "again and Dennis Richie and realize that the way to do this is to sort of build", "source": "faster-whisper"}
+{"id": 226, "start": 1267.33, "end": 1277.24, "text": "a point arithmetic into a programming language. So anyways, the reason I'm saying this is you see a pretty", "source": "faster-whisper"}
+{"id": 227, "start": 1277.24, "end": 1284.8, "text": "close correspondence here between instructions in machine code and constructs in a", "source": "faster-whisper"}
+{"id": 228, "start": 1284.8, "end": 1290.16, "text": "program in the C programming language. And that whole plus plus operator and plus equals", "source": "faster-whisper"}
+{"id": 229, "start": 1290.16, "end": 1293.96, "text": "is sort of something you see variations of in assembly code.", "source": "faster-whisper"}
+{"id": 230, "start": 1293.96, "end": 1298.56, "text": "Okay, so that's a sort of single-dimension array.", "source": "faster-whisper"}
+{"id": 231, "start": 1298.56, "end": 1319.04, "text": "And I'd like to just change things up a little bit by having us look at what the real difference is between arrays and pointers in a programming language in C.", "source": "faster-whisper"}
+{"id": 232, "start": 1319.04, "end": 1324.27, "text": "And so I have a couple of these examples that I'll be a problem.", "source": "faster-whisper"}
+{"id": 233, "start": 1324.29, "end": 1327.04, "text": "bring out one by one.", "source": "faster-whisper"}
+{"id": 234, "start": 1327.04, "end": 1331.32, "text": "But the idea of this is, you see the declaration on the left.", "source": "faster-whisper"}
+{"id": 235, "start": 1331.32, "end": 1338.15, "text": "There's something called A1 and something called A2, so call those A sub n.", "source": "faster-whisper"}
+{"id": 236, "start": 1338.15, "end": 1345.52, "text": "And now what I want to know for each of these is, does it compile?", "source": "faster-whisper"}
+{"id": 237, "start": 1345.52, "end": 1348.26, "text": "Is this a valid statement in C?", "source": "faster-whisper"}
+{"id": 238, "start": 1348.26, "end": 1351.7, "text": "Second, would this potentially give me a null pointer reference?", "source": "faster-whisper"}
+{"id": 239, "start": 1351.7, "end": 1355.78, "text": "Because I'm referencing a pointer reference for which", "source": "faster-whisper"}
+{"id": 240, "start": 1355.8, "end": 1362.89, "text": "the I haven't actually allocated space for that that that pointer is indicating.", "source": "faster-whisper"}
+{"id": 241, "start": 1362.89, "end": 1370.75, "text": "I haven't initialized the pointer to a valid memory reference. And then finally, if I were to use the", "source": "faster-whisper"}
+{"id": 242, "start": 1370.75, "end": 1381.63, "text": "size of operator on that particular value with that, including for the case where there's", "source": "faster-whisper"}
+{"id": 243, "start": 1381.63, "end": 1394.7, "text": "a star in front of it. And part of this is to understand the difference then between", "source": "faster-whisper"}
+{"id": 244, "start": 1394.72, "end": 1396.72, "text": "an array and a pointer.", "source": "faster-whisper"}
+{"id": 245, "start": 1396.72, "end": 1399.72, "text": "And the main reason this, the main factor is an array,", "source": "faster-whisper"}
+{"id": 246, "start": 1399.72, "end": 1402.82, "text": "when you declare an array and see,", "source": "faster-whisper"}
+{"id": 247, "start": 1402.82, "end": 1406.85, "text": "you're both, you're actually allocating space.", "source": "faster-whisper"}
+{"id": 248, "start": 1406.85, "end": 1410.01, "text": "Space is being allocated somewhere for it.", "source": "faster-whisper"}
+{"id": 249, "start": 1410.01, "end": 1414.01, "text": "And you're creating using allowed to now use", "source": "faster-whisper"}
+{"id": 250, "start": 1414.01, "end": 1418.01, "text": "use the array name in pointer arithmetic.", "source": "faster-whisper"}
+{"id": 251, "start": 1418.01, "end": 1421.04, "text": "Whereas when you just declare an array, a pointer,", "source": "faster-whisper"}
+{"id": 252, "start": 1421.04, "end": 1424.04, "text": "a pointer, all you're allocating is the space for the", "source": "faster-whisper"}
+{"id": 253, "start": 1424.04, "end": 1430.76, "text": "the pointer itself and not for anything that it's, uh, you're pointing to.", "source": "faster-whisper"}
+{"id": 254, "start": 1430.76, "end": 1442.38, "text": "So, um, just to, you've probably figured out that these both compile, let me get my cheap sheet,", "source": "faster-whisper"}
+{"id": 255, "start": 1442.38, "end": 1443.79, "text": "Andy.", "source": "faster-whisper"}
+{"id": 256, "start": 1443.79, "end": 1454.51, "text": "Uh, but what would be the size of A1 here if I ran the size of operator on it?", "source": "faster-whisper"}
+{"id": 257, "start": 1454.51, "end": 1465.59, "text": "Let's do the easier one.", "source": "faster-whisper"}
+{"id": 258, "start": 1465.59, "end": 1466.79, "text": "What's the size of A2?", "source": "faster-whisper"}
+{"id": 259, "start": 1466.79, "end": 1469.66, "text": "Hmm?", "source": "faster-whisper"}
+{"id": 260, "start": 1469.66, "end": 1472.2, "text": "Eight.", "source": "faster-whisper"}
+{"id": 261, "start": 1472.2, "end": 1474.18, "text": "Because it's a pointer.", "source": "faster-whisper"}
+{"id": 262, "start": 1474.18, "end": 1477.38, "text": "What's the size of A1?", "source": "faster-whisper"}
+{"id": 263, "start": 1477.38, "end": 1481.8, "text": "A1 is an array of three ints.", "source": "faster-whisper"}
+{"id": 264, "start": 1481.8, "end": 1488.54, "text": "12, right?", "source": "faster-whisper"}
+{"id": 265, "start": 1488.54, "end": 1491.18, "text": "And those aren't null.", "source": "faster-whisper"}
+{"id": 266, "start": 1491.18, "end": 1493.39, "text": "Oops.", "source": "faster-whisper"}
+{"id": 267, "start": 1493.39, "end": 1502.04, "text": "And now if I said star A1 or star A2,", "source": "faster-whisper"}
+{"id": 268, "start": 1502.04, "end": 1506.0, "text": "those would both compile.", "source": "faster-whisper"}
+{"id": 269, "start": 1506.0, "end": 1515.06, "text": "Could either of them possibly give you a null", "source": "faster-whisper"}
+{"id": 270, "start": 1515.06, "end": 1517.06, "text": "de-reference?", "source": "faster-whisper"}
+{"id": 271, "start": 1517.06, "end": 1525.58, "text": "Yeah.", "source": "faster-whisper"}
+{"id": 272, "start": 1525.58, "end": 1528.67, "text": "Oh yes, the pointer itself is null, but that", "source": "faster-whisper"}
+{"id": 273, "start": 1528.67, "end": 1531.66, "text": "I haven't de-referenced it yet.", "source": "faster-whisper"}
+{"id": 274, "start": 1531.66, "end": 1538.66, "text": "de-referenced it yet. It's a null pointer, but I haven't, it's not a bad, potentially bad reference.", "source": "faster-whisper"}
+{"id": 275, "start": 1538.66, "end": 1545.66, "text": "Right? It's not a runtime, I won't create a runtime error if I just say A2 in my code, okay?", "source": "faster-whisper"}
+{"id": 276, "start": 1545.66, "end": 1551.66, "text": "So you're a step ahead of me, basically. So you kind of answered the second question, though.", "source": "faster-whisper"}
+{"id": 277, "start": 1551.66, "end": 1556.66, "text": "This one could give you a null pointer error if you try to dereference a pointer that hasn't been", "source": "faster-whisper"}
+{"id": 278, "start": 1556.66, "end": 1560.66, "text": "initialized. It doesn't point to anything. Whereas this one is fine.", "source": "faster-whisper"}
+{"id": 279, "start": 1560.66, "end": 1562.4, "text": "fine.", "source": "faster-whisper"}
+{"id": 280, "start": 1562.4, "end": 1567.4, "text": "And now what's the size of A1 of star A1?", "source": "faster-whisper"}
+{"id": 281, "start": 1567.4, "end": 1569.2, "text": "4.", "source": "faster-whisper"}
+{"id": 282, "start": 1569.2, "end": 1571.2, "text": "And what about star A2?", "source": "faster-whisper"}
+{"id": 283, "start": 1571.2, "end": 1574.7, "text": "4. Yeah.", "source": "faster-whisper"}
+{"id": 284, "start": 1574.7, "end": 1577.41, "text": "Because they're both pointers to ints.", "source": "faster-whisper"}
+{"id": 285, "start": 1577.41, "end": 1581.41, "text": "So one way to think about that is as a picture.", "source": "faster-whisper"}
+{"id": 286, "start": 1581.41, "end": 1590.11, "text": "A1 is like we've been showing here.", "source": "faster-whisper"}
+{"id": 287, "start": 1590.11, "end": 1594.5, "text": "It's an array of 4 ints.", "source": "faster-whisper"}
+{"id": 288, "start": 1594.5, "end": 1598.5, "text": "And when I declare A1, I'm allocating also the program", "source": "faster-whisper"}
+{"id": 289, "start": 1598.5, "end": 1604.82, "text": "the program is allocating 12 bytes of storage that's able to hold that.", "source": "faster-whisper"}
+{"id": 290, "start": 1604.82, "end": 1614.21, "text": "A2, on the other hand, is just a pointer, which I'll show there.", "source": "faster-whisper"}
+{"id": 291, "start": 1614.21, "end": 1619.21, "text": "And so it's 8 bytes long, but it doesn't point to anything.", "source": "faster-whisper"}
+{"id": 292, "start": 1619.21, "end": 1623.21, "text": "So that's what I meant that if you tried to say star A2,", "source": "faster-whisper"}
+{"id": 293, "start": 1623.21, "end": 1628.21, "text": "you'd potentially have a null pointer de-reference there.", "source": "faster-whisper"}
+{"id": 294, "start": 1628.21, "end": 1631.5, "text": "And so that's why this is 8 and this is 12.", "source": "faster-whisper"}
+{"id": 295, "start": 1631.5, "end": 1634.23, "text": "So those were the warm-up ones.", "source": "faster-whisper"}
+{"id": 296, "start": 1634.23, "end": 1636.23, "text": "Let's make it a little more interesting.", "source": "faster-whisper"}
+{"id": 297, "start": 1636.23, "end": 1652.98, "text": "These aren't in the slides you'll notice, but I'm going to, I'll update the slides to include these later.", "source": "faster-whisper"}
+{"id": 298, "start": 1652.98, "end": 1659.84, "text": "But I think the point that if you find this confusing,", "source": "faster-whisper"}
+{"id": 299, "start": 1659.84, "end": 1667.84, "text": "it's a sign that you really, really, really, really need to understand what a pointer is", "source": "faster-whisper"}
+{"id": 300, "start": 1667.84, "end": 1671.84, "text": "and what an array is and how they're the same and how they're different,", "source": "faster-whisper"}
+{"id": 301, "start": 1671.84, "end": 1678.94, "text": "different because it's a it's a core part of programming and C that will lead to", "source": "faster-whisper"}
+{"id": 302, "start": 1678.94, "end": 1686.22, "text": "endless hours of confusion if you don't really have this wired down pretty strongly.", "source": "faster-whisper"}
+{"id": 303, "start": 1686.22, "end": 1693.38, "text": "So let me just give you a preview of what's so interesting about this is I'm going to give you", "source": "faster-whisper"}
+{"id": 304, "start": 1693.38, "end": 1698.5, "text": "some numbers and then we're going to have to explain how those numbers come around.", "source": "faster-whisper"}
+{"id": 305, "start": 1698.5, "end": 1720.89, "text": "So let's try and understand what's happening here. And you see that all of you", "source": "faster-whisper"}
+{"id": 306, "start": 1720.91, "end": 1724.91, "text": "of these declarations involve some combination of pointer and array.", "source": "faster-whisper"}
+{"id": 307, "start": 1724.91, "end": 1729.91, "text": "And the question is, is it a pointer to an array? Is it an array? Is it an array of pointers? And", "source": "faster-whisper"}
+{"id": 308, "start": 1729.91, "end": 1737.36, "text": "it an array of pointers? And the answer to those will depend on the particular syntax.", "source": "faster-whisper"}
+{"id": 309, "start": 1737.36, "end": 1741.36, "text": "So, of course, the first one is one you've already seen before.", "source": "faster-whisper"}
+{"id": 310, "start": 1741.36, "end": 1747.45, "text": "And so you know that compiles, and it's not null. And you can dereference it,", "source": "faster-whisper"}
+{"id": 311, "start": 1747.45, "end": 1752.43, "text": "and it's not null. But if you try to say star star a1,", "source": "faster-whisper"}
+{"id": 312, "start": 1752.45, "end": 1771.64, "text": "that's not valid. It won't even compile because you're trying to here take the data type of star A.N is int. And then you're trying to take a D-reference and int. So that won't compile and therefore you can't even test it.", "source": "faster-whisper"}
+{"id": 313, "start": 1771.64, "end": 1783.82, "text": "Okay. The question is for these other three, you can see that somehow one is a, well, let's look at the bottom two first.", "source": "faster-whisper"}
+{"id": 314, "start": 1783.82, "end": 1794.07, "text": "So the one on the bottom says that, and this is part of, and there's actually a really great section in", "source": "faster-whisper"}
+{"id": 315, "start": 1794.07, "end": 1800.49, "text": "Kurnagena and Richie that I highly encourage you, which is how to read pointers, how to read declarations, and C.", "source": "faster-whisper"}
+{"id": 316, "start": 1800.49, "end": 1816.96, "text": "And the basic rule is you start from the inside and you work your way outward. So that declaration of A3 says that, um, with that parentheses,", "source": "faster-whisper"}
+{"id": 317, "start": 1816.96, "end": 1837.64, "text": "it says A3 is a, what is a 3? A3 is a pointer, that two parentheses around it.", "source": "faster-whisper"}
+{"id": 318, "start": 1838.52, "end": 1877.05, "text": "What does it point to? It points to an array of three ints. Okay? So we can diagram A3 then to be something like this. A3 is a pointer. Like I said, read it from the inside out.", "source": "faster-whisper"}
+{"id": 319, "start": 1877.05, "end": 1881.43, "text": "A3 is a pointer.", "source": "faster-whisper"}
+{"id": 320, "start": 1881.43, "end": 1882.71, "text": "And what does it point to?", "source": "faster-whisper"}
+{"id": 321, "start": 1882.71, "end": 1885.51, "text": "It points to an array of three elements.", "source": "faster-whisper"}
+{"id": 322, "start": 1885.51, "end": 1887.15, "text": "And what type of elements are they?", "source": "faster-whisper"}
+{"id": 323, "start": 1887.15, "end": 1888.51, "text": "They're ints.", "source": "faster-whisper"}
+{"id": 324, "start": 1888.51, "end": 1893.96, "text": "So you're sort of reading outward and picking up pieces", "source": "faster-whisper"}
+{"id": 325, "start": 1893.96, "end": 1897.54, "text": "from the right end from the left as you do this.", "source": "faster-whisper"}
+{"id": 326, "start": 1897.54, "end": 1902.56, "text": "And so when you know that, this all makes sense that these numbers,", "source": "faster-whisper"}
+{"id": 327, "start": 1902.56, "end": 1906.15, "text": "the size of A3 itself is eight.", "source": "faster-whisper"}
+{"id": 328, "start": 1906.15, "end": 1909.59, "text": "But since it points to an array of three ints, the size of", "source": "faster-whisper"}
+{"id": 329, "start": 1909.61, "end": 1922.82, "text": "star A3 is 12. And then star star star A3 would indicate this particular element of the array, and so it sizes four.", "source": "faster-whisper"}
+{"id": 330, "start": 1924.61, "end": 1931.57, "text": "So these all compile, but which of them could cause a null pointer de-references? Which are the last two?", "source": "faster-whisper"}
+{"id": 331, "start": 1937.38, "end": 1949.84, "text": "Yes? You can flip the coins? Yes. Well, I'm only looking at it. I'm trying to fill in A3 right now.", "source": "faster-whisper"}
+{"id": 332, "start": 1950.64, "end": 1951.88, "text": "So A3 is fine.", "source": "faster-whisper"}
+{"id": 333, "start": 1952.06, "end": 1958.57, "text": "But if I said star A3, could that have a null pointer problem?", "source": "faster-whisper"}
+{"id": 334, "start": 1958.57, "end": 1959.57, "text": "Yes.", "source": "faster-whisper"}
+{"id": 335, "start": 1959.57, "end": 1962.52, "text": "Why?", "source": "faster-whisper"}
+{"id": 336, "start": 1962.52, "end": 1971.81, "text": "Because when I declare A3 here, all I'm declaring is this particular, I'm only allocating enough storage for that pointer.", "source": "faster-whisper"}
+{"id": 337, "start": 1971.81, "end": 1975.31, "text": "I haven't initialized, I haven't allocated the space for an array.", "source": "faster-whisper"}
+{"id": 338, "start": 1975.31, "end": 1978.81, "text": "I haven't initialized A3 to actually point to an array.", "source": "faster-whisper"}
+{"id": 339, "start": 1978.81, "end": 1979.81, "text": "So it could be a null pointer.", "source": "faster-whisper"}
+{"id": 340, "start": 1979.81, "end": 1984.79, "text": "It could be an arbitrary junk, but the chances of it actually pointing to an array of three", "source": "faster-whisper"}
+{"id": 341, "start": 1984.81, "end": 1991.37, "text": "is highly unlikely. So this would be potentially bad and therefore double star is", "source": "faster-whisper"}
+{"id": 342, "start": 1991.37, "end": 2004.55, "text": "doubly bad, right? Okay, so now let's look at A4. So A4, to understand that, you actually", "source": "faster-whisper"}
+{"id": 343, "start": 2004.55, "end": 2015.38, "text": "have to look at the charts in C, the precedent chart, which if you're like me, your book falls", "source": "faster-whisper"}
+{"id": 344, "start": 2015.38, "end": 2020.28, "text": "open to that precedence chart, the different operators and what levels they are.", "source": "faster-whisper"}
+{"id": 345, "start": 2020.83, "end": 2026.83, "text": "And one thing you'll see is that level one of precedents, the highest precedents,", "source": "faster-whisper"}
+{"id": 346, "start": 2026.83, "end": 2032.76, "text": "the highest precedents include square brackets, and level two includes star.", "source": "faster-whisper"}
+{"id": 347, "start": 2032.76, "end": 2038.65, "text": "In other words, bracket is higher precedence than star.", "source": "faster-whisper"}
+{"id": 348, "start": 2038.65, "end": 2046.9, "text": "So this particular statement here, the binding is actually like this.", "source": "faster-whisper"}
+{"id": 349, "start": 2046.9, "end": 2058.21, "text": "It says that A4 is an array of three elements.", "source": "faster-whisper"}
+{"id": 350, "start": 2058.21, "end": 2068.88, "text": "and those elements are pointers and they point to ints.", "source": "faster-whisper"}
+{"id": 351, "start": 2068.88, "end": 2070.24, "text": "All right?", "source": "faster-whisper"}
+{"id": 352, "start": 2070.24, "end": 2076.24, "text": "So A4 is an array.", "source": "faster-whisper"}
+{"id": 353, "start": 2076.24, "end": 2081.41, "text": "Can you see this?", "source": "faster-whisper"}
+{"id": 354, "start": 2081.41, "end": 2090.41, "text": "But each of those elements is pointing to an int somewhere, hopefully.", "source": "faster-whisper"}
+{"id": 355, "start": 2090.41, "end": 2098.19, "text": "And so let's see if that matches the numbers we got.", "source": "faster-whisper"}
+{"id": 356, "start": 2098.19, "end": 2102.19, "text": "So the size of A4 is 24 because it's 8 times 3.", "source": "faster-whisper"}
+{"id": 357, "start": 2102.19, "end": 2105.64, "text": "If I were to de-reference", "source": "faster-whisper"}
+{"id": 358, "start": 2105.64, "end": 2106.64, "text": "a4,", "source": "faster-whisper"}
+{"id": 359, "start": 2107.64, "end": 2113.05, "text": "would just indicate this particular pointer.", "source": "faster-whisper"}
+{"id": 360, "start": 2113.05, "end": 2119.53, "text": "A4 is an array of pointers. So when I get an element out of that array,", "source": "faster-whisper"}
+{"id": 361, "start": 2119.53, "end": 2122.53, "text": "what I'll get is a pointer.", "source": "faster-whisper"}
+{"id": 362, "start": 2122.53, "end": 2128.72, "text": "And so A4 is a pointer, and so it's also 8.", "source": "faster-whisper"}
+{"id": 363, "start": 2128.72, "end": 2135.04, "text": "But if I now do a second D-reference, then I'll get an int,", "source": "faster-whisper"}
+{"id": 364, "start": 2135.04, "end": 2138.03, "text": "and its size is 4.", "source": "faster-whisper"}
+{"id": 365, "start": 2138.03, "end": 2139.03, "text": "Okay?", "source": "faster-whisper"}
+{"id": 366, "start": 2139.03, "end": 2144.38, "text": "These all compile.", "source": "faster-whisper"}
+{"id": 367, "start": 2144.38, "end": 2159.51, "text": "So could I have a, could star A4 then cause problems as far as a null pointer or a bad pointer?", "source": "faster-whisper"}
+{"id": 368, "start": 2159.51, "end": 2163.07, "text": "No.", "source": "faster-whisper"}
+{"id": 369, "start": 2163.07, "end": 2165.8, "text": "That's right.", "source": "faster-whisper"}
+{"id": 370, "start": 2165.8, "end": 2167.8, "text": "No is the correct answer.", "source": "faster-whisper"}
+{"id": 371, "start": 2167.8, "end": 2169.8, "text": "No is yes.", "source": "faster-whisper"}
+{"id": 372, "start": 2169.8, "end": 2174.9, "text": "Because you've A4, this, your, A4 is an array.", "source": "faster-whisper"}
+{"id": 373, "start": 2174.9, "end": 2180.9, "text": "You've defined an array and arrays get allocated by their declaration.", "source": "faster-whisper"}
+{"id": 374, "start": 2180.9, "end": 2187.9, "text": "declaration as a three element array. On the other hand, this could give you a no pointer", "source": "faster-whisper"}
+{"id": 375, "start": 2187.9, "end": 2195.9, "text": "because I haven't initialized the array to anything. So, for example, if it were initialized to all zeros,", "source": "faster-whisper"}
+{"id": 376, "start": 2195.9, "end": 2206.15, "text": "it would just be three null pointers in that array. So this is sort of the stuff, the nitty gritties of C.", "source": "faster-whisper"}
+{"id": 377, "start": 2206.15, "end": 2207.15, "text": "Question, yes.", "source": "faster-whisper"}
+{"id": 378, "start": 2207.15, "end": 2213.96, "text": "How does it know that the size of C12? Like I thought in C, they didn't really know.", "source": "faster-whisper"}
+{"id": 379, "start": 2213.96, "end": 2216.96, "text": "know how many things are in an array?", "source": "faster-whisper"}
+{"id": 380, "start": 2216.96, "end": 2227.38, "text": "The question is, how the compiler, what I'm, I'll answer your question by saying, remember, the compiler knows a lot.", "source": "faster-whisper"}
+{"id": 381, "start": 2227.38, "end": 2234.57, "text": "In particular, I've declared this to be an array of three pointers. I'm compiling for a machine", "source": "faster-whisper"}
+{"id": 382, "start": 2234.57, "end": 2242.15, "text": "where pointers are 8 bytes, and so the compiler knows it has to be 24 bytes. In general, when you're", "source": "faster-whisper"}
+{"id": 383, "start": 2242.15, "end": 2244.15, "text": "when you're referencing in C, there's no.", "source": "faster-whisper"}
+{"id": 384, "start": 2244.15, "end": 2251.15, "text": "There's no, you know, the machine doesn't have built into it any bounds and doesn't do bounds checking for you.", "source": "faster-whisper"}
+{"id": 385, "start": 2251.15, "end": 2254.15, "text": "But that's in the runtime execution.", "source": "faster-whisper"}
+{"id": 386, "start": 2254.15, "end": 2264.52, "text": "But in C if I, when I declare something, it's known, it has to be known at that point when the declaration occurs.", "source": "faster-whisper"}
+{"id": 387, "start": 2264.52, "end": 2266.58, "text": "Question.", "source": "faster-whisper"}
+{"id": 388, "start": 2277.06, "end": 2282.41, "text": "The empty bracket is just another name for a pointer.", "source": "faster-whisper"}
+{"id": 389, "start": 2282.41, "end": 2285.41, "text": "It's usually it's just given his arguments.", "source": "faster-whisper"}
+{"id": 390, "start": 2285.41, "end": 2287.41, "text": "There's some restrictions on it.", "source": "faster-whisper"}
+{"id": 391, "start": 2287.41, "end": 2290.41, "text": "But when you use the empty bracket notation in C,", "source": "faster-whisper"}
+{"id": 392, "start": 2290.41, "end": 2292.41, "text": "it's equivalent to doing a pointer declaration.", "source": "faster-whisper"}
+{"id": 393, "start": 2292.41, "end": 2294.41, "text": "You're not allocating any space for it.", "source": "faster-whisper"}
+{"id": 394, "start": 2294.41, "end": 2298.5, "text": "By saying A1, bracket 3,", "source": "faster-whisper"}
+{"id": 395, "start": 2298.5, "end": 2301.5, "text": "we actually mean allocated an array on the stack.", "source": "faster-whisper"}
+{"id": 396, "start": 2301.5, "end": 2302.5, "text": "Yes.", "source": "faster-whisper"}
+{"id": 397, "start": 2302.5, "end": 2307.5, "text": "Right here, it really means when you declare an array and you give a number,", "source": "faster-whisper"}
+{"id": 398, "start": 2307.5, "end": 2311.63, "text": "number the size of that array, it really allocates that memories.", "source": "faster-whisper"}
+{"id": 399, "start": 2311.63, "end": 2312.63, "text": "Question?", "source": "faster-whisper"}
+{"id": 400, "start": 2312.63, "end": 2319.12, "text": "Yes. Oh, yes. And that's the final one. You'll notice that the", "source": "faster-whisper"}
+{"id": 401, "start": 2319.12, "end": 2323.12, "text": "numbers for A2 and A4 are the same, and the reason is it's the same thing.", "source": "faster-whisper"}
+{"id": 402, "start": 2323.12, "end": 2327.12, "text": "And that, again, goes by the precedence rules of C.", "source": "faster-whisper"}
+{"id": 403, "start": 2327.12, "end": 2334.67, "text": "That A2 first binds this way and then this way.", "source": "faster-whisper"}
+{"id": 404, "start": 2334.67, "end": 2339.86, "text": "And so A2 and A4 are synonymous just with less parentheses.", "source": "faster-whisper"}
+{"id": 405, "start": 2339.86, "end": 2343.8, "text": "Okay.", "source": "faster-whisper"}
+{"id": 406, "start": 2343.8, "end": 2351.8, "text": "So that was a bit of an aside. But as you can see, I think this is the kind of thing that will really probe your understanding.", "source": "faster-whisper"}
+{"id": 407, "start": 2351.8, "end": 2359.8, "text": "And now, you know, as a beginning C programmer where you don't have a very good sense of the underlying representation of a program,", "source": "faster-whisper"}
+{"id": 408, "start": 2359.8, "end": 2361.8, "text": "it's really hard to figure these things out.", "source": "faster-whisper"}
+{"id": 409, "start": 2361.8, "end": 2367.84, "text": "But now that you know what it means to compile code, and you can actually look at compiled code,", "source": "faster-whisper"}
+{"id": 410, "start": 2367.84, "end": 2373.12, "text": "that'll sort of clear up a lot of the what's really going on in a program.", "source": "faster-whisper"}
+{"id": 411, "start": 2373.12, "end": 2379.16, "text": "going on in a program.", "source": "faster-whisper"}
+{"id": 412, "start": 2379.16, "end": 2385.35, "text": "So let's now generalize from one dimension to two just to make life a little more interesting.", "source": "faster-whisper"}
+{"id": 413, "start": 2385.35, "end": 2393.35, "text": "And again, it's an important principle to understand that when you want to declare a multidimensional array", "source": "faster-whisper"}
+{"id": 414, "start": 2393.35, "end": 2399.51, "text": "in C, you do it by a sequence of brackets with the bounds for each one.", "source": "faster-whisper"}
+{"id": 415, "start": 2399.51, "end": 2413.12, "text": "And the reason for that is actually there, it will see that it has to do with this notation that we just", "source": "faster-whisper"}
+{"id": 416, "start": 2413.14, "end": 2414.14, "text": "went through.", "source": "faster-whisper"}
+{"id": 417, "start": 2414.14, "end": 2436.07, "text": "So if I say int, it turns out that I can read it like this,", "source": "faster-whisper"}
+{"id": 418, "start": 2436.07, "end": 2442.15, "text": "that A is an array of three elements.", "source": "faster-whisper"}
+{"id": 419, "start": 2442.15, "end": 2448.65, "text": "And each of those elements is in itself an array of five elements", "source": "faster-whisper"}
+{"id": 420, "start": 2448.65, "end": 2452.09, "text": "of type int.", "source": "faster-whisper"}
+{"id": 421, "start": 2452.09, "end": 2456.09, "text": "And we'll get back to that, but that kind of explains", "source": "faster-whisper"}
+{"id": 422, "start": 2456.09, "end": 2460.32, "text": "everything I'm about to tell you in this picture.", "source": "faster-whisper"}
+{"id": 423, "start": 2460.32, "end": 2465.64, "text": "So in particular, if I declare an array with our,", "source": "faster-whisper"}
+{"id": 424, "start": 2465.64, "end": 2472.67, "text": "rows and C columns, and you think of it mathematically as sort of a matrix, two-dimensional", "source": "faster-whisper"}
+{"id": 425, "start": 2472.67, "end": 2473.67, "text": "matrix.", "source": "faster-whisper"}
+{"id": 426, "start": 2473.67, "end": 2486.21, "text": "What it really does is it says, well, see as on the, yeah, I'm sorry,", "source": "faster-whisper"}
+{"id": 427, "start": 2486.21, "end": 2490.21, "text": "C actually ends up being the inner element.", "source": "faster-whisper"}
+{"id": 428, "start": 2490.21, "end": 2495.21, "text": "It says, first of all, I want, row 0 will be an array of", "source": "faster-whisper"}
+{"id": 429, "start": 2495.21, "end": 2499.37, "text": "c inns, c being the number of columns.", "source": "faster-whisper"}
+{"id": 430, "start": 2499.37, "end": 2504.53, "text": "being the number of columns, I'll put, so all the elements of row zero will come first,", "source": "faster-whisper"}
+{"id": 431, "start": 2504.53, "end": 2509.89, "text": "all the elements of row one come next, and so forth, up to the end of it all.", "source": "faster-whisper"}
+{"id": 432, "start": 2509.89, "end": 2516.09, "text": "And so the total allocation will be four times, the data size times the number of rows, times", "source": "faster-whisper"}
+{"id": 433, "start": 2516.09, "end": 2519.17, "text": "the number of columns bytes.", "source": "faster-whisper"}
+{"id": 434, "start": 2519.17, "end": 2524.07, "text": "But the reason why they're in that order, which is called row major order, because if we thought", "source": "faster-whisper"}
+{"id": 435, "start": 2524.07, "end": 2529.49, "text": "of it in these terms, we go through the first row and then the second row and the third row,", "source": "faster-whisper"}
+{"id": 436, "start": 2529.49, "end": 2539.29, "text": "precisely because of this notation.", "source": "faster-whisper"}
+{"id": 437, "start": 2539.29, "end": 2542.45, "text": "Let me write it down like this.", "source": "faster-whisper"}
+{"id": 438, "start": 2542.45, "end": 2550.43, "text": "Int of A, of, well, let me just use the one I've said.", "source": "faster-whisper"}
+{"id": 439, "start": 2550.43, "end": 2557.42, "text": "We can write this out as A is an array, a three-element array.", "source": "faster-whisper"}
+{"id": 440, "start": 2557.42, "end": 2572.37, "text": "It's over half, it's two-thirds.", "source": "faster-whisper"}
+{"id": 441, "start": 2572.37, "end": 2579.42, "text": "I'll just put it over here.", "source": "faster-whisper"}
+{"id": 442, "start": 2579.42, "end": 2584.49, "text": "Okay, so A is a three-element array, or general", "source": "faster-whisper"}
+{"id": 443, "start": 2584.51, "end": 2590.28, "text": "to this picture, A is an array of R elements.", "source": "faster-whisper"}
+{"id": 444, "start": 2590.28, "end": 2594.28, "text": "This is the first element, this is the second element, and this is the second element, and this is the", "source": "faster-whisper"}
+{"id": 445, "start": 2594.28, "end": 2596.5, "text": "the earth element.", "source": "faster-whisper"}
+{"id": 446, "start": 2596.5, "end": 2600.98, "text": "But what kind of elements are those?", "source": "faster-whisper"}
+{"id": 447, "start": 2600.98, "end": 2610.42, "text": "Each is an array of five inns.", "source": "faster-whisper"}
+{"id": 448, "start": 2610.42, "end": 2621.95, "text": "So within array A here, each subpart of A then,", "source": "faster-whisper"}
+{"id": 449, "start": 2621.95, "end": 2627.02, "text": "then, is an array of C-inths.", "source": "faster-whisper"}
+{"id": 450, "start": 2627.02, "end": 2628.02, "text": "And so,", "source": "faster-whisper"}
+{"id": 451, "start": 2628.02, "end": 2636.02, "text": "That's why logically the way these are organized actually comes from this declaration notation directly.", "source": "faster-whisper"}
+{"id": 452, "start": 2636.02, "end": 2639.9, "text": "And we'll see examples of that.", "source": "faster-whisper"}
+{"id": 453, "start": 2639.9, "end": 2652.73, "text": "So, for example, if I wanted to extend my zip-dage idea and introduce an array of four of these,", "source": "faster-whisper"}
+{"id": 454, "start": 2652.73, "end": 2655.86, "text": "I could declare it this way.", "source": "faster-whisper"}
+{"id": 455, "start": 2655.86, "end": 2660.86, "text": "And again, with, remember, I used a type-deaf to declare-def to declare zip-dif to", "source": "faster-whisper"}
+{"id": 456, "start": 2660.86, "end": 2667.95, "text": "require zipdage. But if I were to expand this out, it would be as if I was declaring this array", "source": "faster-whisper"}
+{"id": 457, "start": 2667.95, "end": 2674.95, "text": "PGH to be four rows and five columns. But what it really is, is an array of four elements,", "source": "faster-whisper"}
+{"id": 458, "start": 2674.95, "end": 2682.08, "text": "one, two, three, four, each of which is an array of five inch. Okay?", "source": "faster-whisper"}
+{"id": 459, "start": 2682.08, "end": 2691.22, "text": "So think of that nesting. When you read declarations, you start from the name of the element and you work your way out", "source": "faster-whisper"}
+{"id": 460, "start": 2691.24, "end": 2701.84, "text": "through these brackets and stars in some order.", "source": "faster-whisper"}
+{"id": 461, "start": 2701.84, "end": 2713.34, "text": "And so in particular, if I want to reference a particular element of an array, the general rule is wrong here.", "source": "faster-whisper"}
+{"id": 462, "start": 2713.34, "end": 2716.97, "text": "Oh.", "source": "faster-whisper"}
+{"id": 463, "start": 2716.97, "end": 2718.97, "text": "The general rule is this one.", "source": "faster-whisper"}
+{"id": 464, "start": 2718.97, "end": 2727.08, "text": "If I want to reference, I don't really, oh, I'm building up to it.", "source": "faster-whisper"}
+{"id": 465, "start": 2727.08, "end": 2740.03, "text": "building up to it. So, yes, this shows that A of I, I can actually just do the reference", "source": "faster-whisper"}
+{"id": 466, "start": 2740.03, "end": 2745.13, "text": "A of I. I don't have to give A of I of I of don't have to give A of I of J in C. And what that", "source": "faster-whisper"}
+{"id": 467, "start": 2745.13, "end": 2753.84, "text": "denotes is one of these are rows of the array, and each of which is an array of C elements of type", "source": "faster-whisper"}
+{"id": 468, "start": 2753.84, "end": 2762.02, "text": "int. And so imagine that in general we have K bytes for data type T, the underlying data type, and", "source": "faster-whisper"}
+{"id": 469, "start": 2762.02, "end": 2766.02, "text": "this case, t is an int, and k equals 4.", "source": "faster-whisper"}
+{"id": 470, "start": 2766.02, "end": 2773.22, "text": "But in general, the starting address then of row i would be gotten by multiplying the number", "source": "faster-whisper"}
+{"id": 471, "start": 2773.22, "end": 2783.88, "text": "of columns by k and then multiplying that by the row number.", "source": "faster-whisper"}
+{"id": 472, "start": 2783.88, "end": 2791.5, "text": "And now if within the array, I wanted to reference array element A sub iJ, then it comes out", "source": "faster-whisper"}
+{"id": 473, "start": 2791.5, "end": 2796.06, "text": "to this computation, you take the starting address, you scale, you scale,", "source": "faster-whisper"}
+{"id": 474, "start": 2796.08, "end": 2801.94, "text": "the row number by the number of columns, add to it which column you want, and then multiply", "source": "faster-whisper"}
+{"id": 475, "start": 2801.94, "end": 2814.68, "text": "that all by k. So the way to see that is, here, I can get to row number I by just scaling I by the number", "source": "faster-whisper"}
+{"id": 476, "start": 2814.68, "end": 2822.31, "text": "of columns times the size of the elements are four. And now I want to get to the jth element", "source": "faster-whisper"}
+{"id": 477, "start": 2822.31, "end": 2826.29, "text": "of this subarray here, and I can do that by scaling", "source": "faster-whisper"}
+{"id": 478, "start": 2826.31, "end": 2832.11, "text": "by 4 and adding it to the beginning of this subarray.", "source": "faster-whisper"}
+{"id": 479, "start": 2832.11, "end": 2836.41, "text": "And now I can just collect the fours together and that's what, and pull it outside here, and that's what,", "source": "faster-whisper"}
+{"id": 480, "start": 2836.41, "end": 2841.04, "text": "and pull it outside here, and that's what gives you this formula.", "source": "faster-whisper"}
+{"id": 481, "start": 2841.04, "end": 2849.2, "text": "So, again, the point of this is that this all kind of is a natural outcome of the declaration,", "source": "faster-whisper"}
+{"id": 482, "start": 2849.2, "end": 2857.41, "text": "and it's easy to think of it in terms of this storage model here of how the actual array is", "source": "faster-whisper"}
+{"id": 483, "start": 2857.43, "end": 2873.29, "text": "allocated. Okay, now a different style of declaration is imagine I create three of these arrays, and now I want to create an array", "source": "faster-whisper"}
+{"id": 484, "start": 2873.29, "end": 2892.33, "text": "and now I want to create an array that contains, uh, that points to these. So, this is a different data structure you'll observe from before. What univ now is an array of three pointers, and each of", "source": "faster-whisper"}
+{"id": 485, "start": 2892.33, "end": 2898.33, "text": "those pointers points to one of these arrays of five ints.", "source": "faster-whisper"}
+{"id": 486, "start": 2898.33, "end": 2910.18, "text": "And their underlying data type, by the way, of these elements are ints, right?", "source": "faster-whisper"}
+{"id": 487, "start": 2910.18, "end": 2916.37, "text": "And C does not differentiate, and C does not differentiate when you want to declare an array like this,", "source": "faster-whisper"}
+{"id": 488, "start": 2916.37, "end": 2923.37, "text": "you just say it's an int star. You don't say how many elements are the underlying array is.", "source": "faster-whisper"}
+{"id": 489, "start": 2923.37, "end": 2928.43, "text": "So you'll see by these picture that these are different data structures.", "source": "faster-whisper"}
+{"id": 490, "start": 2928.43, "end": 2929.6, "text": "So now let's see by this picture.", "source": "faster-whisper"}
+{"id": 491, "start": 2929.62, "end": 2935.69, "text": "Let's go through what the assembly code looks like to reference these two data structures.", "source": "faster-whisper"}
+{"id": 492, "start": 2935.69, "end": 2953.78, "text": "We didn't, did we do the, I'm sorry, I would have thought I'd have assembly code, I think there might be a missing slide here.", "source": "faster-whisper"}
+{"id": 493, "start": 2953.78, "end": 2990.62, "text": "So we'll, we'll see. So imagine I wanted to reference, I'm sorry, I'm confused why there's no, there should have been, I'm sorry, I'm sorry, this is, I'm pausing here, because I'm sorry.", "source": "faster-whisper"}
+{"id": 494, "start": 2990.62, "end": 3000.93, "text": "because I think I meant to have a slide that would show what the code looks like, and I don't.", "source": "faster-whisper"}
+{"id": 495, "start": 3000.93, "end": 3005.08, "text": "Okay, well, we're going to have to wing it.", "source": "faster-whisper"}
+{"id": 496, "start": 3005.08, "end": 3016.01, "text": "So if you wanted to, an assembly code then, reference an element of an array,", "source": "faster-whisper"}
+{"id": 497, "start": 3016.01, "end": 3022.55, "text": "like this a multidimensional array, what you'll see is that the code kind of builds up a computation like this.", "source": "faster-whisper"}
+{"id": 498, "start": 3022.55, "end": 3026.81, "text": "up a computation like this.", "source": "faster-whisper"}
+{"id": 499, "start": 3026.81, "end": 3036.25, "text": "And typically in the compiled code, the value of k is kind of a constant value, and if it's an array that's", "source": "faster-whisper"}
+{"id": 500, "start": 3036.25, "end": 3042.87, "text": "a ray that's been declared with a constant bounds, then the value of C will also be a constant.", "source": "faster-whisper"}
+{"id": 501, "start": 3042.87, "end": 3049.99, "text": "And so a piece of code for this, and that slide got omitted by accident, we'll basically take", "source": "faster-whisper"}
+{"id": 502, "start": 3049.99, "end": 3056.99, "text": "this value and use some combination of the memory referencing and shifting and LEA instructions", "source": "faster-whisper"}
+{"id": 503, "start": 3056.99, "end": 3063.92, "text": "and so forth to implement this computation and then do a de-reference.", "source": "faster-whisper"}
+{"id": 504, "start": 3063.92, "end": 3068.36, "text": "So let's look at this second example and there is code for this and it's actually a little", "source": "faster-whisper"}
+{"id": 505, "start": 3068.36, "end": 3074.57, "text": "bit more complex because this is going through two levels of interaction. So you'll see", "source": "faster-whisper"}
+{"id": 506, "start": 3074.57, "end": 3083.49, "text": "that to get the digit, a particular digit from a particular digit from a particular", "source": "faster-whisper"}
+{"id": 507, "start": 3083.51, "end": 3093.68, "text": "one of these universities then, it has to, first of all, figure out, do this", "source": "faster-whisper"}
+{"id": 508, "start": 3093.68, "end": 3100.18, "text": "de-reference, is get the a pointer to the beginning of the array, and that's what this", "source": "faster-whisper"}
+{"id": 509, "start": 3100.18, "end": 3101.5, "text": "reference is doing here.", "source": "faster-whisper"}
+{"id": 510, "start": 3108.89, "end": 3109.39, "text": "Okay.", "source": "faster-whisper"}
+{"id": 511, "start": 3110.11, "end": 3115.17, "text": "First of all, what it's doing is shifting RSA I left by 2, which is equivalent to scaling RSA, I left by 2,", "source": "faster-whisper"}
+{"id": 512, "start": 3115.17, "end": 3126.37, "text": "which is equivalent to scaling the digit by four, because it's getting ready to take that digit parameter and scale it appropriately.", "source": "faster-whisper"}
+{"id": 513, "start": 3126.37, "end": 3143.59, "text": "And then it takes that number and it adds to it the value I get by reading from the array Univ, but using the", "source": "faster-whisper"}
+{"id": 514, "start": 3143.59, "end": 3153.31, "text": "array univ, but using the index, scaling it by 8, to actually do a memory reference.", "source": "faster-whisper"}
+{"id": 515, "start": 3153.31, "end": 3158.29, "text": "So remember this instruction then, and it looks a little weird, is actually doing a memory reference", "source": "faster-whisper"}
+{"id": 516, "start": 3158.29, "end": 3163.42, "text": "here of this three-element array of called Univ.", "source": "faster-whisper"}
+{"id": 517, "start": 3163.42, "end": 3169.62, "text": "So it's reading from memory and doing an array index directly here by scaling, and now getting", "source": "faster-whisper"}
+{"id": 518, "start": 3169.62, "end": 3174.21, "text": "from that a pointer, adding to that the", "source": "faster-whisper"}
+{"id": 519, "start": 3174.23, "end": 3178.57, "text": "scaled value of the digit.", "source": "faster-whisper"}
+{"id": 520, "start": 3178.57, "end": 3190.27, "text": "And so that gives me a pointer now, as this notation shows, to the particular element I want, and", "source": "faster-whisper"}
+{"id": 521, "start": 3190.27, "end": 3192.83, "text": "now it does a dereference.", "source": "faster-whisper"}
+{"id": 522, "start": 3192.83, "end": 3198.56, "text": "So that's a pretty tough example to get as one of your first array ones.", "source": "faster-whisper"}
+{"id": 523, "start": 3198.56, "end": 3209.66, "text": "And as I said, I apologize for missing the reference to a particular element of this array", "source": "faster-whisper"}
+{"id": 524, "start": 3209.66, "end": 3215.96, "text": "this array is done entirely by computing scaling indices in appropriate ways.", "source": "faster-whisper"}
+{"id": 525, "start": 3215.96, "end": 3226.59, "text": "You want to take the array and scale the first index by 20 because each row is 20 elements,", "source": "faster-whisper"}
+{"id": 526, "start": 3226.59, "end": 3228.59, "text": "it's 5 times 4.", "source": "faster-whisper"}
+{"id": 527, "start": 3228.59, "end": 3235.04, "text": "And you want to scale the digit by 4 to select the particular element within that array.", "source": "faster-whisper"}
+{"id": 528, "start": 3235.04, "end": 3239.64, "text": "And so all this address computation takes place.", "source": "faster-whisper"}
+{"id": 529, "start": 3239.64, "end": 3243.02, "text": "takes place and then there's a single memory reference.", "source": "faster-whisper"}
+{"id": 530, "start": 3243.02, "end": 3246.52, "text": "Whereas in this data structure, you have to go through two memory references.", "source": "faster-whisper"}
+{"id": 531, "start": 3246.52, "end": 3252.88, "text": "First of all, you have to index and get the appropriate element here, but that's just a pointer now.", "source": "faster-whisper"}
+{"id": 532, "start": 3252.88, "end": 3259.46, "text": "And then we add an offset to that pointer to get the appropriate element in this array here,", "source": "faster-whisper"}
+{"id": 533, "start": 3259.46, "end": 3261.24, "text": "and then we read from that.", "source": "faster-whisper"}
+{"id": 534, "start": 3261.24, "end": 3266.88, "text": "So that's what this notation means is that I'm doing two memory references here and just one there.", "source": "faster-whisper"}
+{"id": 535, "start": 3266.88, "end": 3269.62, "text": "And it's a little bit curious because if you look at the C code,", "source": "faster-whisper"}
+{"id": 536, "start": 3269.64, "end": 3280.61, "text": "it looks the same, but the underlying data types are different, and so the references are different.", "source": "faster-whisper"}
+{"id": 537, "start": 3280.61, "end": 3290.61, "text": "Okay, so let's look at some other variations on this code, and these all will sort of fall out from these general principles I've described.", "source": "faster-whisper"}
+{"id": 538, "start": 3290.61, "end": 3303.16, "text": "So first of all, let's introduce an array, a 2 by 2, I'm sorry, a 16 by 16 array of ints, and it used to be in c, and it used to be in c,", "source": "faster-whisper"}
+{"id": 539, "start": 3303.16, "end": 3308.86, "text": "see if you wanted to do multidimensional arrays where the size of the array was not fixed at", "source": "faster-whisper"}
+{"id": 540, "start": 3308.86, "end": 3315.16, "text": "compile time, you basically had to implement your own version of that computation I showed before,", "source": "faster-whisper"}
+{"id": 541, "start": 3315.16, "end": 3327.48, "text": "of scaling the row number by the number of columns and adding to it J. So this is sort of classic C.", "source": "faster-whisper"}
+{"id": 542, "start": 3327.48, "end": 3333.46, "text": "I've written it as a macro here, but you can see it's just doing the row major scaling.", "source": "faster-whisper"}
+{"id": 543, "start": 3333.48, "end": 3336.52, "text": "directly here is address arithmetic.", "source": "faster-whisper"}
+{"id": 544, "start": 3336.52, "end": 3344.24, "text": "Now since a more recent generation of the C compiler, what they call C99, it was introduced in 1999,", "source": "faster-whisper"}
+{"id": 545, "start": 3344.24, "end": 3357.21, "text": "it was introduced in 1999, you can actually pass as a parameter and array where the number of elements", "source": "faster-whisper"}
+{"id": 546, "start": 3357.21, "end": 3361.53, "text": "in the array is also a parameter that's being passed to the function, uh, the function, is also a parameter that's being passed", "source": "faster-whisper"}
+{"id": 547, "start": 3361.53, "end": 3364.33, "text": "to the function.", "source": "faster-whisper"}
+{"id": 548, "start": 3364.33, "end": 3367.89, "text": "And similarly, you can declare an array to be of n elements,", "source": "faster-whisper"}
+{"id": 549, "start": 3367.89, "end": 3372.43, "text": "as long as n has been computed before it hits that array declaration.", "source": "faster-whisper"}
+{"id": 550, "start": 3372.43, "end": 3374.07, "text": "And the compiler will do the right thing.", "source": "faster-whisper"}
+{"id": 551, "start": 3374.07, "end": 3376.71, "text": "It will allocate the proper number of elements.", "source": "faster-whisper"}
+{"id": 552, "start": 3376.71, "end": 3394.91, "text": "Um, so let's just look at some of this code examples, and again, what we'll see", "source": "faster-whisper"}
+{"id": 553, "start": 3394.91, "end": 3399.99, "text": "here, and this will show you an example of the two direct, the kind of address computation", "source": "faster-whisper"}
+{"id": 554, "start": 3399.99, "end": 3400.73, "text": "that takes place.", "source": "faster-whisper"}
+{"id": 555, "start": 3400.75, "end": 3401.95, "text": "with a two-dimensional array.", "source": "faster-whisper"}
+{"id": 556, "start": 3403.28, "end": 3406.16, "text": "In this case, I know C is 16 and K is 4.", "source": "faster-whisper"}
+{"id": 557, "start": 3406.56, "end": 3411.96, "text": "So if I want to get element I subj, IJ, out of this array,", "source": "faster-whisper"}
+{"id": 558, "start": 3412.98, "end": 3418.08, "text": "then first of all, I'll scale I by 64,", "source": "faster-whisper"}
+{"id": 559, "start": 3419.88, "end": 3426.78, "text": "because that's, and I'll add that to the base, and then I'll scale RDX by 4, that's, and then I'll", "source": "faster-whisper"}
+{"id": 560, "start": 3426.78, "end": 3432.17, "text": "scale RDX by 4, that's j, and then I'll scale RDX by the base, and then I'll scale RDX by the", "source": "faster-whisper"}
+{"id": 561, "start": 3432.19, "end": 3436.03, "text": "this array and so and then do a memory reference there.", "source": "faster-whisper"}
+{"id": 562, "start": 3436.03, "end": 3443.77, "text": "So in the end, I'm doing, you see these two instructions have done the appropriate, the three", "source": "faster-whisper"}
+{"id": 563, "start": 3443.77, "end": 3449.61, "text": "instructions, have done the appropriate scaling of I and J, added them to the beginning address", "source": "faster-whisper"}
+{"id": 564, "start": 3449.61, "end": 3455.84, "text": "of A and done the computation.", "source": "faster-whisper"}
+{"id": 565, "start": 3455.84, "end": 3465.29, "text": "On the other hand, if it's a, one, the third example I showed where N is a parameter that's passed to the function,", "source": "faster-whisper"}
+{"id": 566, "start": 3465.29, "end": 3470.79, "text": "So it's not known at compile time how big a scaling factor to use.", "source": "faster-whisper"}
+{"id": 567, "start": 3470.79, "end": 3477.95, "text": "You'll see that it has to use a multiply instruction to do that, which is a relatively expensive instruction", "source": "faster-whisper"}
+{"id": 568, "start": 3477.95, "end": 3480.65, "text": "in terms of performance.", "source": "faster-whisper"}
+{"id": 569, "start": 3480.65, "end": 3484.17, "text": "And then once it has that, that's just n times i.", "source": "faster-whisper"}
+{"id": 570, "start": 3484.17, "end": 3491.35, "text": "And then it uses various combinations of LEAs and the scaling notation from before to", "source": "faster-whisper"}
+{"id": 571, "start": 3491.35, "end": 3495.27, "text": "compute an appropriate offset into the array to do the reference.", "source": "faster-whisper"}
+{"id": 572, "start": 3495.29, "end": 3499.22, "text": "So here I could do it with a shift.", "source": "faster-whisper"}
+{"id": 573, "start": 3499.22, "end": 3507.27, "text": "And here I had to introduce a multiply because I don't know in advance how big it is.", "source": "faster-whisper"}
+{"id": 574, "start": 3507.27, "end": 3524.67, "text": "If you want to torture yourself, here's an example I was going to go over,", "source": "faster-whisper"}
+{"id": 575, "start": 3524.67, "end": 3535.21, "text": "of triply nested possibilities and dereferencing of the same idea.", "source": "faster-whisper"}
+{"id": 576, "start": 3535.21, "end": 3545.68, "text": "But let's move on to pointers, to structs.", "source": "faster-whisper"}
+{"id": 577, "start": 3545.68, "end": 3548.68, "text": "So the idea of a struct is actually quite simple.", "source": "faster-whisper"}
+{"id": 578, "start": 3548.68, "end": 3554.84, "text": "Well, the base idea is simple and it gets more complicated.", "source": "faster-whisper"}
+{"id": 579, "start": 3554.84, "end": 3568.84, "text": "The idea of it is I want to, I declare a struct to have some number of fields, each of which can be an int, or it could be, in this case, a pointer, or it could be an array itself.", "source": "faster-whisper"}
+{"id": 580, "start": 3568.84, "end": 3578.19, "text": "But the rule is basically what I'll do is allocate enough space, if I introduce one of these structs, for all the different array elements.", "source": "faster-whisper"}
+{"id": 581, "start": 3578.19, "end": 3585.19, "text": "elements, fields in that are struct, and then I'll basically keep track, the compiler,", "source": "faster-whisper"}
+{"id": 582, "start": 3585.19, "end": 3594.19, "text": "we'll keep track of where each of these fields starts and generate the appropriate code to offset from the beginning.", "source": "faster-whisper"}
+{"id": 583, "start": 3594.19, "end": 3599.19, "text": "So the structure itself, the reference to it will be the beginning address of the struct,", "source": "faster-whisper"}
+{"id": 584, "start": 3599.19, "end": 3603.19, "text": "then I'll use appropriate offsets to get to the different fields.", "source": "faster-whisper"}
+{"id": 585, "start": 3603.19, "end": 3610.47, "text": "So here's an example of some", "source": "faster-whisper"}
+{"id": 586, "start": 3610.49, "end": 3620.83, "text": "imagine I have a struct, a pointer to one of these structures, and I have an index,", "source": "faster-whisper"}
+{"id": 587, "start": 3620.83, "end": 3630.86, "text": "and what I want to do is get to the, that appropriate part of array A within this struct.", "source": "faster-whisper"}
+{"id": 588, "start": 3630.86, "end": 3633.86, "text": "Well, array A is right at the beginning of the structure.", "source": "faster-whisper"}
+{"id": 589, "start": 3633.86, "end": 3641.86, "text": "So I can treat this just like I would any array reference, scaling IDX by 4 and adding it to the base", "source": "faster-whisper"}
+{"id": 590, "start": 3641.86, "end": 3643.36, "text": "to get the appropriate element.", "source": "faster-whisper"}
+{"id": 591, "start": 3643.36, "end": 3648.06, "text": "So I don't really have to do anything special for this one.", "source": "faster-whisper"}
+{"id": 592, "start": 3648.06, "end": 3652.56, "text": "Let's go get some other code that you'll typically see.", "source": "faster-whisper"}
+{"id": 593, "start": 3652.56, "end": 3657.13, "text": "Actually, this example is pretty involved.", "source": "faster-whisper"}
+{"id": 594, "start": 3657.13, "end": 3661.63, "text": "So I'm actually doing a whole bunch of stuff here with this one struct.", "source": "faster-whisper"}
+{"id": 595, "start": 3661.63, "end": 3667.32, "text": "First of all, I'm trying to retrieve element I from the structure.", "source": "faster-whisper"}
+{"id": 596, "start": 3667.32, "end": 3674.91, "text": "Then I'm using that to index into array A and", "source": "faster-whisper"}
+{"id": 597, "start": 3674.93, "end": 3676.93, "text": "insert a value into there.", "source": "faster-whisper"}
+{"id": 598, "start": 3676.93, "end": 3682.6, "text": "And then I'm updating this pointer to point to point to the next", "source": "faster-whisper"}
+{"id": 599, "start": 3682.6, "end": 3692.98, "text": "I'm, if this were a linked list, what I want to do is step to the next element of the list.", "source": "faster-whisper"}
+{"id": 600, "start": 3692.98, "end": 3697.98, "text": "So I need to retrieve the next field from here.", "source": "faster-whisper"}
+{"id": 601, "start": 3697.98, "end": 3704.98, "text": "And so these, so I'm actually making three references to this structure in this one rather small function.", "source": "faster-whisper"}
+{"id": 602, "start": 3704.98, "end": 3705.98, "text": "So let's try and figure it all out.", "source": "faster-whisper"}
+{"id": 603, "start": 3705.98, "end": 3710.32, "text": "and figure it all out.", "source": "faster-whisper"}
+{"id": 604, "start": 3710.32, "end": 3713.24, "text": "So first of all, I have to retrieve element I from it.", "source": "faster-whisper"}
+{"id": 605, "start": 3713.24, "end": 3718.26, "text": "And here you see that we know that element I is at offset 16.", "source": "faster-whisper"}
+{"id": 606, "start": 3718.26, "end": 3723.88, "text": "And so if, and here's where you see that displacement field being used in the memory reference,", "source": "faster-whisper"}
+{"id": 607, "start": 3723.88, "end": 3725.86, "text": "uh, exactly for this purpose.", "source": "faster-whisper"}
+{"id": 608, "start": 3725.86, "end": 3735.51, "text": "I want to take R, but add 16 to it to get a memory address that I can use for, um, for", "source": "faster-whisper"}
+{"id": 609, "start": 3735.51, "end": 3739.65, "text": "for I.", "source": "faster-whisper"}
+{"id": 610, "start": 3739.65, "end": 3742.07, "text": "And it, you see it actually uses move S and", "source": "faster-whisper"}
+{"id": 611, "start": 3742.09, "end": 3751.05, "text": "because I itself is an int, but I'm going to use it as an array index, in which case I have to scale it.", "source": "faster-whisper"}
+{"id": 612, "start": 3751.05, "end": 3757.05, "text": "I have to do address arithmetic using 8 byte quantities.", "source": "faster-whisper"}
+{"id": 613, "start": 3757.05, "end": 3764.36, "text": "So this actually retrieves the 4 byte value and does a sign extension on it.", "source": "faster-whisper"}
+{"id": 614, "start": 3764.36, "end": 3773.13, "text": "And now what I want to do is store at a val at element I.", "source": "faster-whisper"}
+{"id": 615, "start": 3773.13, "end": 3775.11, "text": "And so here you'll see that", "source": "faster-whisper"}
+{"id": 616, "start": 3775.13, "end": 3785.94, "text": "And it's using R-A-X is the value I've just computed for I, scaling it by 4,", "source": "faster-whisper"}
+{"id": 617, "start": 3785.94, "end": 3792.68, "text": "and using the starting address of the R, which happens to be the starting address of A as well,", "source": "faster-whisper"}
+{"id": 618, "start": 3792.68, "end": 3793.68, "text": "and doing a store.", "source": "faster-whisper"}
+{"id": 619, "start": 3793.68, "end": 3798.07, "text": "So that's sort of an array operation there.", "source": "faster-whisper"}
+{"id": 620, "start": 3798.07, "end": 3807.01, "text": "And then the next part is I'm going to offset 24, which is the", "source": "faster-whisper"}
+{"id": 621, "start": 3807.01, "end": 3815.01, "text": "position of next, read from that location, and store that in RDI, which is R.", "source": "faster-whisper"}
+{"id": 622, "start": 3815.01, "end": 3823.01, "text": "So this is the operation R gets R arrow next. And then the loop is I'm testing until R is null.", "source": "faster-whisper"}
+{"id": 623, "start": 3823.01, "end": 3830.93, "text": "So that's going on here. So you see that those three references to the struct were implemented", "source": "faster-whisper"}
+{"id": 624, "start": 3830.93, "end": 3836.89, "text": "using three instructions here. So it's a very direct mapping between the code here and the", "source": "faster-whisper"}
+{"id": 625, "start": 3836.89, "end": 3842.73, "text": "in the x86 instructions. And part of the x86 instructions, because this kind", "source": "faster-whisper"}
+{"id": 626, "start": 3842.73, "end": 3849.33, "text": "of stuff is so commonplace in programs, they kind of made the instructions map very directly toward these", "source": "faster-whisper"}
+{"id": 627, "start": 3849.33, "end": 3858.79, "text": "operations. And now you should probably see why all the bells and whistles are there for these address references.", "source": "faster-whisper"}
+{"id": 628, "start": 3858.79, "end": 3868.12, "text": "Question. What if I was three in this case? What if I was three? I'm sorry. I'm sorry.", "source": "faster-whisper"}
+{"id": 629, "start": 3868.12, "end": 3871.85, "text": "Because A is three elements.", "source": "faster-whisper"}
+{"id": 630, "start": 3871.85, "end": 3883.66, "text": "Oh, uh, A had, A has three elements. Yes. It will access, um, actually I think that's a typo.", "source": "faster-whisper"}
+{"id": 631, "start": 3883.66, "end": 3886.89, "text": "A is supposed to be four.", "source": "faster-whisper"}
+{"id": 632, "start": 3886.89, "end": 3889.08, "text": "Uh, regardless, regardless.", "source": "faster-whisper"}
+{"id": 633, "start": 3889.08, "end": 3894.21, "text": "So if I is four, it would access itself, yeah, and it would mess things up. Question.", "source": "faster-whisper"}
+{"id": 634, "start": 3894.21, "end": 3898.21, "text": "Um, this is a typo, by the way, that should be A of 4.", "source": "faster-whisper"}
+{"id": 635, "start": 3898.21, "end": 3903.27, "text": "So now point out there's a value of a value of zero in the register.", "source": "faster-whisper"}
+{"id": 636, "start": 3903.27, "end": 3907.27, "text": "Yes, a no pointer, a no is a zero.", "source": "faster-whisper"}
+{"id": 637, "start": 3907.27, "end": 3916.33, "text": "Um, so that's sort of the easy version of structs.", "source": "faster-whisper"}
+{"id": 638, "start": 3916.33, "end": 3918.33, "text": "Now let's make them a little harder.", "source": "faster-whisper"}
+{"id": 639, "start": 3918.33, "end": 3922.55, "text": "One is, uh, for reasons that are a bit obscure, uh,", "source": "faster-whisper"}
+{"id": 640, "start": 3922.55, "end": 3927.55, "text": "the machine generally prefers that if you have a data type,", "source": "faster-whisper"}
+{"id": 641, "start": 3927.55, "end": 3930.55, "text": "an underlying data type of k bytes,", "source": "faster-whisper"}
+{"id": 642, "start": 3930.55, "end": 3934.55, "text": "that the address that that starts at be a multiple of k.", "source": "faster-whisper"}
+{"id": 643, "start": 3934.55, "end": 3939.61, "text": "And so, uh, that that introduces a property", "source": "faster-whisper"}
+{"id": 644, "start": 3939.61, "end": 3948.57, "text": "we call alignment, which will actually, when a structure gets allocated, will, the compiler will actually", "source": "faster-whisper"}
+{"id": 645, "start": 3948.57, "end": 3956.36, "text": "insert some blank, unused bytes in the data structure in its allocation, just so that it can maintain", "source": "faster-whisper"}
+{"id": 646, "start": 3956.36, "end": 3957.76, "text": "this alignment.", "source": "faster-whisper"}
+{"id": 647, "start": 3957.76, "end": 3967.22, "text": "So for example, here, I is an int, and I want its address to be a multiple of four, and I'll give", "source": "faster-whisper"}
+{"id": 648, "start": 3967.22, "end": 3969.68, "text": "you a minute, why that's true.", "source": "faster-whisper"}
+{"id": 649, "start": 3969.7, "end": 3972.49, "text": "just so trust me for a minute.", "source": "faster-whisper"}
+{"id": 650, "start": 3972.91, "end": 3976.51, "text": "And so it will actually pad three unused bytes here", "source": "faster-whisper"}
+{"id": 651, "start": 3976.51, "end": 3979.49, "text": "because the first byte is being used by C.", "source": "faster-whisper"}
+{"id": 652, "start": 3980.21, "end": 3982.21, "text": "And in general, we'll see in the allocation,", "source": "faster-whisper"}
+{"id": 653, "start": 3982.37, "end": 3985.21, "text": "we're going to make sure that the pointer to this data structure", "source": "faster-whisper"}
+{"id": 654, "start": 3985.21, "end": 3986.85, "text": "is itself a multiple of eight.", "source": "faster-whisper"}
+{"id": 655, "start": 3987.51, "end": 3990.37, "text": "And the reason for that is because there's a double here,", "source": "faster-whisper"}
+{"id": 656, "start": 3991.03, "end": 3994.49, "text": "and it should reside on a boundary", "source": "faster-whisper"}
+{"id": 657, "start": 3994.49, "end": 3997.23, "text": "that its starting address should be a multiple of eight.", "source": "faster-whisper"}
+{"id": 658, "start": 3998.08, "end": 4000.16, "text": "And you'll see as long as this is eight,", "source": "faster-whisper"}
+{"id": 659, "start": 4000.18, "end": 4005.56, "text": "a multiple of eight, and this offset here is a multiple of eight, then this address", "source": "faster-whisper"}
+{"id": 660, "start": 4005.56, "end": 4006.7, "text": "will be a multiple of eight.", "source": "faster-whisper"}
+{"id": 661, "start": 4007.53, "end": 4009.35, "text": "So that's the idea of alignment.", "source": "faster-whisper"}
+{"id": 662, "start": 4011.79, "end": 4013.57, "text": "And so why is that true?", "source": "faster-whisper"}
+{"id": 663, "start": 4013.67, "end": 4021.38, "text": "Well, it's really a hardware issue, that the memory system is sort of, the actual hardware memory memory", "source": "faster-whisper"}
+{"id": 664, "start": 4021.38, "end": 4023.96, "text": "memory does not reference one byte at a time.", "source": "faster-whisper"}
+{"id": 665, "start": 4024.04, "end": 4030.1, "text": "It references, actually, in most machines nowadays, about 64 bytes at a time,", "source": "faster-whisper"}
+{"id": 666, "start": 4030.7, "end": 4031.58, "text": "depending on.", "source": "faster-whisper"}
+{"id": 667, "start": 4031.82, "end": 4034.72, "text": "various widths within the hardware.", "source": "faster-whisper"}
+{"id": 668, "start": 4034.72, "end": 4039.14, "text": "And in general, if a particular piece of data crosses", "source": "faster-whisper"}
+{"id": 669, "start": 4039.14, "end": 4046.54, "text": "the boundaries between two blocks that are because of a misaligned address, that will take extra", "source": "faster-whisper"}
+{"id": 670, "start": 4046.54, "end": 4051.06, "text": "steps by the hardware and potentially even the operating system to deal with.", "source": "faster-whisper"}
+{"id": 671, "start": 4051.06, "end": 4056.5, "text": "So just for efficiency reason, they say, do this alignment, trust me.", "source": "faster-whisper"}
+{"id": 672, "start": 4056.5, "end": 4061.8, "text": "In x86 machines, if you have unaligned data, it will execute just fine.", "source": "faster-whisper"}
+{"id": 673, "start": 4061.82, "end": 4063.74, "text": "it just might run a little bit more slowly.", "source": "faster-whisper"}
+{"id": 674, "start": 4064.28, "end": 4067.76, "text": "On some other machines, if you try to do an unaligned access,", "source": "faster-whisper"}
+{"id": 675, "start": 4067.88, "end": 4070.6, "text": "it will actually cause a memory fault.", "source": "faster-whisper"}
+{"id": 676, "start": 4071.42, "end": 4071.88, "text": "Question.", "source": "faster-whisper"}
+{"id": 677, "start": 4072.38, "end": 4075.26, "text": "If by default generates aligned data?", "source": "faster-whisper"}
+{"id": 678, "start": 4075.82, "end": 4076.12, "text": "Yes.", "source": "faster-whisper"}
+{"id": 679, "start": 4082.48, "end": 4085.7, "text": "The question was, how could you force it to generate unaligned data?", "source": "faster-whisper"}
+{"id": 680, "start": 4086.6, "end": 4088.74, "text": "I don't know if you could.", "source": "faster-whisper"}
+{"id": 681, "start": 4088.74, "end": 4096.62, "text": "And we'll talk about ways you can sort of be more clever in how you do your allocation", "source": "faster-whisper"}
+{"id": 682, "start": 4096.62, "end": 4099.04, "text": "to avoid wasting space.", "source": "faster-whisper"}
+{"id": 683, "start": 4101.24, "end": 4108.9, "text": "So in general then, we have, we're mostly looking here at data types that are either one, two, or four,", "source": "faster-whisper"}
+{"id": 684, "start": 4109.06, "end": 4110.0, "text": "eight bytes long.", "source": "faster-whisper"}
+{"id": 685, "start": 4110.6, "end": 4115.82, "text": "There are some 16-byte data types, but we won't be looking at those.", "source": "faster-whisper"}
+{"id": 686, "start": 4116.4, "end": 4122.36, "text": "And in general, with the address, then, you can tell the alignment of an address by how many zeros,", "source": "faster-whisper"}
+{"id": 687, "start": 4123.0, "end": 4127.94, "text": "if it's a power of two alignment, how many zeros are at the end of a bit-level representation?", "source": "faster-whisper"}
+{"id": 688, "start": 4127.96, "end": 4128.76, "text": "of that address.", "source": "faster-whisper"}
+{"id": 689, "start": 4130.85, "end": 4133.49, "text": "And so as we showed, in general, the C compiler,", "source": "faster-whisper"}
+{"id": 690, "start": 4133.69, "end": 4138.01, "text": "when it's creating the layout for a structure, a struct,", "source": "faster-whisper"}
+{"id": 691, "start": 4138.01, "end": 4143.7, "text": "a struct, will put in padding bytes in there to make the alignment work.", "source": "faster-whisper"}
+{"id": 692, "start": 4145.77, "end": 4151.77, "text": "The other thing it will do is, if it need be, it will add bytes to the end to make", "source": "faster-whisper"}
+{"id": 693, "start": 4151.77, "end": 4156.69, "text": "sure that the overall size of the data structure meets whatever underlying alignment", "source": "faster-whisper"}
+{"id": 694, "start": 4156.69, "end": 4157.81, "text": "requirement there is.", "source": "faster-whisper"}
+{"id": 695, "start": 4157.81, "end": 4159.57, "text": "And this one, because it contains a dot.", "source": "faster-whisper"}
+{"id": 696, "start": 4159.59, "end": 4166.94, "text": "the overall data structure has to be aligned on an 8 byte boundary.", "source": "faster-whisper"}
+{"id": 697, "start": 4166.94, "end": 4176.73, "text": "And the reasoning for that is, imagine I had an array of structs, of these structs in particular,", "source": "faster-whisper"}
+{"id": 698, "start": 4176.73, "end": 4184.61, "text": "then if I can assume that, if I can ensure that this array address is a multiple of 8,", "source": "faster-whisper"}
+{"id": 699, "start": 4184.61, "end": 4190.73, "text": "then you can see that each successive element of this array, each of these structs is a multiple", "source": "faster-whisper"}
+{"id": 700, "start": 4190.73, "end": 4196.43, "text": "of 8. And then within that struct, I've ensured that each field that requires an alignment", "source": "faster-whisper"}
+{"id": 701, "start": 4196.43, "end": 4204.93, "text": "by 8 is positioned with an offset that's a multiple of 8, and so it all works out. But if you tried to tinker", "source": "faster-whisper"}
+{"id": 702, "start": 4204.93, "end": 4221.15, "text": "with this by making this too short, then you start getting misaligned references. And so one thing", "source": "faster-whisper"}
+{"id": 703, "start": 4221.15, "end": 4226.99, "text": "you'll see is for every struct, the actual alignment requirement, depends on what's the sort of", "source": "faster-whisper"}
+{"id": 704, "start": 4226.99, "end": 4232.23, "text": "worst case alignment, the maximum alignment of any element. So this particular", "source": "faster-whisper"}
+{"id": 705, "start": 4232.23, "end": 4240.43, "text": "structure, for example, contains a float V, which has a size of 4. And so this would", "source": "faster-whisper"}
+{"id": 706, "start": 4240.43, "end": 4250.09, "text": "be an alignment of 4. And you'll see in the code, in general, when it has to, this,", "source": "faster-whisper"}
+{"id": 707, "start": 4250.09, "end": 4257.19, "text": "all this address arithmetic we've seen gets used in various different ways to scale values, compute", "source": "faster-whisper"}
+{"id": 708, "start": 4257.19, "end": 4262.11, "text": "offsets and so forth to get the appropriate elements.", "source": "faster-whisper"}
+{"id": 709, "start": 4262.11, "end": 4267.81, "text": "So your question before is, could I tell the compiler not to do alignment?", "source": "faster-whisper"}
+{"id": 710, "start": 4267.81, "end": 4277.16, "text": "And the better way is to declare your fields in a way that minimizes the amount of wasted space.", "source": "faster-whisper"}
+{"id": 711, "start": 4277.16, "end": 4285.56, "text": "So, for example, here, I wasted 3 bytes here and 3 bytes here to meet the alignment requirements.", "source": "faster-whisper"}
+{"id": 712, "start": 4285.56, "end": 4288.74, "text": "But if I just put I at the beginning and then C and D,", "source": "faster-whisper"}
+{"id": 713, "start": 4288.76, "end": 4308.94, "text": "I would have only wasted 2 bytes total. And in general, because all the alignment requirements are powers of 2, the sort of greedy algorithm works. It says, if I just take, put the biggest stuff at the beginning and then successfully smaller elements, I will be able to minimize any wasted space.", "source": "faster-whisper"}
+{"id": 714, "start": 4308.94, "end": 4319.5, "text": "And that's a general property. But this is a case where you as the writer of C code have that effect.", "source": "faster-whisper"}
+{"id": 715, "start": 4319.5, "end": 4322.36, "text": "The compiler will not do this for you automatically.", "source": "faster-whisper"}
+{"id": 716, "start": 4322.6, "end": 4322.9, "text": "Question.", "source": "faster-whisper"}
+{"id": 717, "start": 4322.9, "end": 4327.95, "text": "Why is that a part of the case of having an array?", "source": "faster-whisper"}
+{"id": 718, "start": 4328.59, "end": 4329.03, "text": "What's that?", "source": "faster-whisper"}
+{"id": 719, "start": 4330.13, "end": 4333.27, "text": "Oh, but remember, an array, I don't care about the array.", "source": "faster-whisper"}
+{"id": 720, "start": 4333.39, "end": 4335.19, "text": "I care about the array. I care about the elements of the array.", "source": "faster-whisper"}
+{"id": 721, "start": 4335.77, "end": 4342.59, "text": "Because this is only down at the lowest level where I'm accessing either a single int, a single double, or a pointer,", "source": "faster-whisper"}
+{"id": 722, "start": 4343.39, "end": 4345.55, "text": "and not all the rest of the stuff, remember.", "source": "faster-whisper"}
+{"id": 723, "start": 4345.61, "end": 4348.33, "text": "I never read an entire array from memory.", "source": "faster-whisper"}
+{"id": 724, "start": 4348.83, "end": 4350.65, "text": "So alignment only.", "source": "faster-whisper"}
+{"id": 725, "start": 4350.81, "end": 4358.4, "text": "It refers down to the primitive types, not the aggregate types.", "source": "faster-whisper"}
+{"id": 726, "start": 4358.4, "end": 4361.4, "text": "If this is confusing, the book covers this fairly carefully.", "source": "faster-whisper"}
+{"id": 727, "start": 4361.4, "end": 4367.16, "text": "So let me just finish up with a little glimpse of floating point.", "source": "faster-whisper"}
+{"id": 728, "start": 4367.16, "end": 4373.34, "text": "Floating point is a complicated history in x86.", "source": "faster-whisper"}
+{"id": 729, "start": 4373.34, "end": 4382.54, "text": "Back in the really ancient days, there was a chip that went with the 8086 processor called the 8087.", "source": "faster-whisper"}
+{"id": 730, "start": 4382.54, "end": 4385.54, "text": "And at the time it was a masterpiece of engineering.", "source": "faster-whisper"}
+{"id": 731, "start": 4385.54, "end": 4391.3, "text": "piece of engineering to be able to put all the hardware necessary to implement full", "source": "faster-whisper"}
+{"id": 732, "start": 4391.3, "end": 4393.82, "text": "I-Triple-E floating point on a single chip.", "source": "faster-whisper"}
+{"id": 733, "start": 4393.82, "end": 4402.1, "text": "And it was the first one of its type. In fact, it was sort of co-developed with the I-Triple-E", "source": "faster-whisper"}
+{"id": 734, "start": 4402.1, "end": 4408.31, "text": "floating point standard itself. But the programming model for it is horrendously awful and", "source": "faster-whisper"}
+{"id": 735, "start": 4408.31, "end": 4414.11, "text": "ugly. I used to, in older editions of the book, there were, it was in the first", "source": "faster-whisper"}
+{"id": 736, "start": 4414.11, "end": 4418.35, "text": "edition. It was in a web aside in the second edition. And now it's", "source": "faster-whisper"}
+{"id": 737, "start": 4418.35, "end": 4428.06, "text": "been expunged completely because it's so awful. But more recently, in the world of x86, they realized", "source": "faster-whisper"}
+{"id": 738, "start": 4428.06, "end": 4434.2, "text": "that to support things like video and all the stuff people actually do with their machines,", "source": "faster-whisper"}
+{"id": 739, "start": 4434.2, "end": 4441.66, "text": "they needed some more horsepower in numeric processing. And they implemented a class of", "source": "faster-whisper"}
+{"id": 740, "start": 4441.66, "end": 4452.32, "text": "instructions called SSE, which stands for SIMD, something SIMD", "source": "faster-whisper"}
+{"id": 741, "start": 4452.32, "end": 4458.8, "text": "execution. Anyways, and I'll show you in a minute what that means. And that's now, in the more", "source": "faster-whisper"}
+{"id": 742, "start": 4458.8, "end": 4465.85, "text": "recent versions of x86, this has been juiced up to something called AVX, which,", "source": "faster-whisper"}
+{"id": 743, "start": 4465.85, "end": 4471.89, "text": "but the shark machines support this, a version of what's called SSE. So let me just", "source": "faster-whisper"}
+{"id": 744, "start": 4471.89, "end": 4475.85, "text": "give you a feeling for that. And in particular, the shark machine support", "source": "faster-whisper"}
+{"id": 745, "start": 4475.85, "end": 4482.75, "text": "what's called SSE version 3. And what it is is that there's 16 special registers, distinct", "source": "faster-whisper"}
+{"id": 746, "start": 4482.75, "end": 4488.49, "text": "from the other registers we've talked about before, each of which has 16 bytes. And", "source": "faster-whisper"}
+{"id": 747, "start": 4488.49, "end": 4493.31, "text": "then there's operations that can operate on those and treat them in different ways. So", "source": "faster-whisper"}
+{"id": 748, "start": 4493.31, "end": 4500.68, "text": "So one is to treat this such a register as an array as an array of 16 cares, or as eight", "source": "faster-whisper"}
+{"id": 749, "start": 4500.68, "end": 4511.6, "text": "shorts or four ints or and also to support a double floating point arithmetic.", "source": "faster-whisper"}
+{"id": 750, "start": 4511.6, "end": 4517.96, "text": "So this stuff was sort of going on and somebody had the observation that said, well, I could just", "source": "faster-whisper"}
+{"id": 751, "start": 4517.96, "end": 4523.78, "text": "then sort of subset all this and implement the floating point operations directly using", "source": "faster-whisper"}
+{"id": 752, "start": 4523.78, "end": 4530.81, "text": "this SSE stuff and skip the old x-87 stuff. And so that's the way floating point", "source": "faster-whisper"}
+{"id": 753, "start": 4530.81, "end": 4535.31, "text": "voting point is now generated on, say, the shark machines and most recent machines.", "source": "faster-whisper"}
+{"id": 754, "start": 4536.62, "end": 4543.46, "text": "This is a, this is again an example of where the world is more complicated than it should have to be.", "source": "faster-whisper"}
+{"id": 755, "start": 4544.0, "end": 4551.44, "text": "So, for example, there is an instruction that says, add SS, so add a single scalar, is what that", "source": "faster-whisper"}
+{"id": 756, "start": 4551.44, "end": 4560.56, "text": "notation, add a single precision scalar, add a scalar, add a scalar single precision scalar, add a scalar,", "source": "faster-whisper"}
+{"id": 757, "start": 4561.14, "end": 4564.18, "text": "and it looks a little like. And it looks a little like the, uh, and it looks a scalar", "source": "faster-whisper"}
+{"id": 758, "start": 4564.18, "end": 4571.18, "text": "instructions, the ad Q instructions you've seen, that it increments, it adds the source to the", "source": "faster-whisper"}
+{"id": 759, "start": 4571.18, "end": 4580.03, "text": "destination. There's ways I can do four ads in a, all at the same time, using this is what they call", "source": "faster-whisper"}
+{"id": 760, "start": 4580.03, "end": 4594.47, "text": "CIMD execution, which stands for a single instruction, multiple data. One instruction, the add PS, P stands for P stands for pact, we'll do, we'll do, we'll perform", "source": "faster-whisper"}
+{"id": 761, "start": 4594.63, "end": 4597.97, "text": "that one instruction will do add with four different numbers.", "source": "faster-whisper"}
+{"id": 762, "start": 4599.58, "end": 4603.54, "text": "And similarly, you can do it with double precision.", "source": "faster-whisper"}
+{"id": 763, "start": 4603.74, "end": 4605.64, "text": "You can do one of them, you can do a PAP.", "source": "faster-whisper"}
+{"id": 764, "start": 4606.76, "end": 4611.32, "text": "And so actually, the underlying, and we'll see this when we'll look at code optimization,", "source": "faster-whisper"}
+{"id": 765, "start": 4612.22, "end": 4617.52, "text": "if you write code to make use of these instructions, you can really boost the performance of the computer.", "source": "faster-whisper"}
+{"id": 766, "start": 4618.85, "end": 4622.79, "text": "But this just gives you a flavor for what floating point code looks like.", "source": "faster-whisper"}
+{"id": 767, "start": 4623.07, "end": 4625.63, "text": "And the rules are pretty simple, that just as we saw before,", "source": "faster-whisper"}
+{"id": 768, "start": 4625.81, "end": 4629.81, "text": "that arguments get passed in registers.", "source": "faster-whisper"}
+{"id": 769, "start": 4629.81, "end": 4634.81, "text": "Well, floating point arguments get passed in these xMMM registers.", "source": "faster-whisper"}
+{"id": 770, "start": 4634.81, "end": 4635.81, "text": "XMMM.", "source": "faster-whisper"}
+{"id": 771, "start": 4635.81, "end": 4639.81, "text": "You don't have to memorize RDI, RSI, RSI, RDS.", "source": "faster-whisper"}
+{"id": 772, "start": 4639.81, "end": 4642.81, "text": "They're in XMMMMM, 0, 2.", "source": "faster-whisper"}
+{"id": 773, "start": 4642.81, "end": 4643.81, "text": "It's all very logical.", "source": "faster-whisper"}
+{"id": 774, "start": 4643.81, "end": 4648.81, "text": "And the return value is in XMMMMMM0, and all the registers are caller save.", "source": "faster-whisper"}
+{"id": 775, "start": 4648.81, "end": 4650.81, "text": "There's no call-y-save.", "source": "faster-whisper"}
+{"id": 776, "start": 4650.81, "end": 4653.81, "text": "So something like adding two floating point numbers", "source": "faster-whisper"}
+{"id": 777, "start": 4653.81, "end": 4655.81, "text": "will just look like,", "source": "faster-whisper"}
+{"id": 778, "start": 4655.81, "end": 4660.97, "text": "a single floating point addition instruction.", "source": "faster-whisper"}
+{"id": 779, "start": 4660.97, "end": 4663.61, "text": "Same with double.", "source": "faster-whisper"}
+{"id": 780, "start": 4663.61, "end": 4669.77, "text": "And if you mix together code that has a pointer and a floating point operator,", "source": "faster-whisper"}
+{"id": 781, "start": 4669.77, "end": 4673.77, "text": "the pointer will be passed in a regular register, RDI,", "source": "faster-whisper"}
+{"id": 782, "start": 4673.77, "end": 4676.77, "text": "and this double will be passed in XMMMM0.", "source": "faster-whisper"}
+{"id": 783, "start": 4676.77, "end": 4680.77, "text": "So it sort of, as it goes through the argument list,", "source": "faster-whisper"}
+{"id": 784, "start": 4680.77, "end": 4685.77, "text": "you sort of, in the particular order, if it's an integer or a pointer,", "source": "faster-whisper"}
+{"id": 785, "start": 4685.77, "end": 4688.77, "text": "it's in one of the R registers.", "source": "faster-whisper"}
+{"id": 786, "start": 4688.77, "end": 4690.77, "text": "And if it's a floating point value,", "source": "faster-whisper"}
+{"id": 787, "start": 4690.77, "end": 4693.77, "text": "it's in one of the XMM registers,", "source": "faster-whisper"}
+{"id": 788, "start": 4693.77, "end": 4698.2, "text": "and potentially interleaved.", "source": "faster-whisper"}
+{"id": 789, "start": 4698.2, "end": 4700.46, "text": "Almost done.", "source": "faster-whisper"}
+{"id": 790, "start": 4700.46, "end": 4704.46, "text": "And so this is a code that does this particular operation,", "source": "faster-whisper"}
+{"id": 791, "start": 4704.46, "end": 4707.46, "text": "and it's interesting because it's returning a,", "source": "faster-whisper"}
+{"id": 792, "start": 4707.46, "end": 4709.46, "text": "it's doing memory referencing,", "source": "faster-whisper"}
+{"id": 793, "start": 4709.46, "end": 4711.46, "text": "so again, there's instructions", "source": "faster-whisper"}
+{"id": 794, "start": 4711.46, "end": 4715.46, "text": "that will read from memory and copy into an XM register.", "source": "faster-whisper"}
+{"id": 795, "start": 4715.46, "end": 4717.75, "text": "You can add registers.", "source": "faster-whisper"}
+{"id": 796, "start": 4717.75, "end": 4724.75, "text": "you can make a copy from one XM register to another, and you can store results.", "source": "faster-whisper"}
+{"id": 797, "start": 4724.75, "end": 4731.75, "text": "So this code looks a lot like what you do in integer arithmetic, except it's using XMMM", "source": "faster-whisper"}
+{"id": 798, "start": 4731.75, "end": 4736.75, "text": "and special floating point instructions rather than the ones you've seen before.", "source": "faster-whisper"}
+{"id": 799, "start": 4736.75, "end": 4739.75, "text": "So the basic idea of it is fairly simple.", "source": "faster-whisper"}
+{"id": 800, "start": 4739.75, "end": 4744.75, "text": "It gets way more complicated because there are lots of instructions.", "source": "faster-whisper"}
+{"id": 801, "start": 4744.75, "end": 4746.75, "text": "Double, float, on and up.", "source": "faster-whisper"}
+{"id": 802, "start": 4746.75, "end": 4751.88, "text": "On and on and on, there's a special instruction to do square root and all this stuff.", "source": "faster-whisper"}
+{"id": 803, "start": 4751.88, "end": 4756.88, "text": "And the comparison stuff is really nasty and messy and hard to understand.", "source": "faster-whisper"}
+{"id": 804, "start": 4756.88, "end": 4761.91, "text": "And then you'll see various tricks to use constant values too.", "source": "faster-whisper"}
+{"id": 805, "start": 4761.91, "end": 4763.91, "text": "So it's covered in the book.", "source": "faster-whisper"}
+{"id": 806, "start": 4763.91, "end": 4766.91, "text": "We're not going to really talk about it much in this course.", "source": "faster-whisper"}
+{"id": 807, "start": 4766.91, "end": 4770.91, "text": "But the underlying, the basic principles of it are fairly straightforward.", "source": "faster-whisper"}
+{"id": 808, "start": 4770.91, "end": 4773.04, "text": "Okay, that'll do us for today.", "source": "faster-whisper"}

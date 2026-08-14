@@ -1,0 +1,3284 @@
+1
+00:00:00,180 --> 00:00:04,680
+So today's the second lecture about network programming.
+
+2
+00:00:04,820 --> 00:00:06,280
+We got started last time.
+
+3
+00:00:07,120 --> 00:00:13,880
+And as you probably saw last time, the APIs for this are really big and hairy and messy.
+
+4
+00:00:14,320 --> 00:00:29,980
+And it takes just a lot of time, in my own personal experience, of rereading, looking at code, looking at examples, rereading documentation, going back and forth over that a dozen or so times before it all really sinks in.
+
+5
+00:00:30,180 --> 00:00:34,660
+And it's one where it really helps a lot to look at example code.
+
+6
+00:00:34,660 --> 00:00:43,260
+And there's example code in the book in that CSAPP.C file that you've seen versions of in various forms.
+
+7
+00:00:44,640 --> 00:00:54,160
+So I can lecture for days and weeks, but this really won't all settle in until you've spent time studying yourself.
+
+8
+00:00:54,840 --> 00:00:59,780
+Anyways, I want to repeat and go back over a little bit of ground before.
+
+9
+00:00:59,780 --> 00:01:06,600
+But last time we talked about the idea of translating from a domain name, which is something
+
+10
+00:01:06,600 --> 00:01:19,460
+like www.cm.edu, to an IP address, which for IP version 4 is a 32-bit address, it's usually written
+
+11
+00:01:19,460 --> 00:01:26,190
+in dotted decimal form. And I showed you a program last time called host info that you could,
+
+12
+00:01:27,580 --> 00:01:29,600
+that we'll look actually at the code for.
+
+13
+00:01:29,600 --> 00:01:38,910
+And I just wanted to show you today. I just did one very small tweak to that program,
+
+14
+00:01:39,150 --> 00:01:40,410
+and I'll describe it today.
+
+15
+00:01:41,130 --> 00:01:48,870
+And the interesting thing is it lets you look at both IPV4 and IPV6.
+
+16
+00:01:49,450 --> 00:01:53,790
+And it's one of the interesting features of the code in the book, and it's new to the third edition,
+
+17
+00:01:53,790 --> 00:02:03,130
+is it uses a new API that lets you pretty easily write code that will work under either of these two versions of the Internet Protocol.
+
+18
+00:02:03,250 --> 00:02:14,770
+So, for example, with this slightly modified program, if I now look up the IP address for Facebook,
+
+19
+00:02:16,730 --> 00:02:19,070
+you'll see it comes back with two different ones.
+
+20
+00:02:21,110 --> 00:02:31,260
+And the first one is the familiar dotted decimal form, where each, recall that each of these digits,
+
+21
+00:02:31,260 --> 00:02:37,520
+it's a decimal representation of a single byte, so it's a number between zero and 255.
+
+22
+00:02:37,520 --> 00:02:45,950
+This is a IPV6 address, which as I told you, is 128 bits long.
+
+23
+00:02:46,110 --> 00:02:53,110
+So that's to the seventh, take away three, to the fifth, to the 5th, 32 bytes, right?
+
+24
+00:02:53,910 --> 00:03:01,860
+And it's usually written in this hex format with colons after every pair of bytes.
+
+25
+00:03:02,580 --> 00:03:05,640
+And I think the colon colon colon, colon just means that's a zero there.
+
+26
+00:03:05,640 --> 00:03:16,380
+One of the cute things Facebook did was embed F-A-C-E as a hex code inside of their IPV-6 address.
+
+27
+00:03:24,000 --> 00:03:32,850
+And it's really different. I get very different results running this at home than I do here.
+
+28
+00:03:33,150 --> 00:03:43,710
+And as I mentioned, you'll get different results running a DNS server, depending on the country, if you repeat the same thing over and over again, you'll get different results.
+
+29
+00:03:43,710 --> 00:03:50,310
+And that's because these very large companies are providing servers that are stationed all over the world.
+
+30
+00:03:51,010 --> 00:04:02,410
+And as a way to sort of balance out the load of the traffic, they also have multiple server addresses that then they kind of rotate through to give you so that different people will get served by different machines.
+
+31
+00:04:03,520 --> 00:04:11,680
+So you see, for example, Twitter or Google just gave me two addresses, an IPV4 and an IPV6 address.
+
+32
+00:04:11,680 --> 00:04:15,160
+Twitter gave me four different IPV4 addresses.
+
+33
+00:04:18,020 --> 00:04:20,760
+So let's look then at the code.
+
+34
+00:04:21,720 --> 00:04:24,820
+I'll go back through some of what we talked about last time.
+
+35
+00:04:25,080 --> 00:04:31,440
+I, quite honestly, I spent a fair amount of time looking at it so I can really understand it better
+
+36
+00:04:31,440 --> 00:04:34,200
+because it's pretty, it's not simple stuff.
+
+37
+00:04:35,140 --> 00:04:42,460
+But as I mentioned, as we went over last time, this is sort of this giant block diagram that shows
+
+38
+00:04:42,460 --> 00:04:47,820
+all the activity involved in setting up and running both a server and a client.
+
+39
+00:04:47,820 --> 00:04:57,360
+And just to repeat, the idea is you need to, the server needs to fire up, you can't contact a server
+
+40
+00:04:57,360 --> 00:05:02,120
+until that server exists. So it's, the server is the thing that has to exist first.
+
+41
+00:05:02,120 --> 00:05:09,820
+And all these steps are what are required for a server to begin on a machine and then to
+
+42
+00:05:09,820 --> 00:05:12,440
+to accept a connection request from a client.
+
+43
+00:05:12,460 --> 00:05:19,460
+Similarly, once the server is set, then the client can begin.
+
+44
+00:05:19,460 --> 00:05:22,460
+And it's like placing a call to the server.
+
+45
+00:05:22,460 --> 00:05:27,460
+And it makes a connection request, and that's accepted by the server.
+
+46
+00:05:27,460 --> 00:05:29,460
+And then what's called a session begins,
+
+47
+00:05:29,460 --> 00:05:37,460
+meaning an ability for these two machines to talk back and forth over an internet connection.
+
+48
+00:05:37,460 --> 00:05:42,460
+And they'll do it, this example I'll show is done by reading and writing
+
+49
+00:05:42,460 --> 00:05:46,460
+as if they were a file.
+
+50
+00:05:46,460 --> 00:05:49,460
+Each end looks like it's reading and writing a file.
+
+51
+00:05:49,460 --> 00:05:57,960
+And then once the client is done with whatever it's trying to get,
+
+52
+00:05:57,960 --> 00:06:03,340
+it will disconnect since we hang up its phone.
+
+53
+00:06:03,340 --> 00:06:08,570
+And then the listening, the server will detect this
+
+54
+00:06:08,570 --> 00:06:13,570
+by receiving an end of file when it attempts to read from the client.
+
+55
+00:06:13,570 --> 00:06:15,570
+And then it will close that connection.
+
+56
+00:06:15,570 --> 00:06:20,570
+But, and this I didn't have stated quite properly last time,
+
+57
+00:06:20,570 --> 00:06:22,570
+it's not going to actually shut down at that point.
+
+58
+00:06:22,570 --> 00:06:27,570
+It's just going to return back and accept a new connection request.
+
+59
+00:06:27,570 --> 00:06:29,570
+And this is what's known as an iterative server.
+
+60
+00:06:29,570 --> 00:06:32,570
+It can only handle a single client at a time.
+
+61
+00:06:32,570 --> 00:06:36,070
+Later in the course, we'll talk about how to do a multi-threaded server
+
+62
+00:06:36,070 --> 00:06:40,700
+that can handle multiple connections at one time.
+
+63
+00:06:40,700 --> 00:06:42,700
+So this is a pretty basic version.
+
+64
+00:06:42,700 --> 00:06:45,300
+So,
+
+65
+00:06:45,300 --> 00:06:52,300
+So the first step on either the client or the server side is this very hairy, messy,
+
+66
+00:06:52,300 --> 00:06:57,300
+relatively new API called Get Adder Info.
+
+67
+00:06:57,300 --> 00:07:01,300
+And the idea of Get Adder Info is it's a sort of kitchen sink,
+
+68
+00:07:01,300 --> 00:07:06,300
+or Swiss Army knife, if you know all those expressions.
+
+69
+00:07:06,300 --> 00:07:13,300
+It has a zillion features that sort of subsume a lot of other sort of individual protocols.
+
+70
+00:07:13,300 --> 00:07:14,300
+So for example, it's pretty much the same.
+
+71
+00:07:14,300 --> 00:07:18,300
+It's pretty much the same, whether it's IPV4, IPV6.
+
+72
+00:07:18,300 --> 00:07:27,620
+It lets you sort of go forward from a domain name to an IP address.
+
+73
+00:07:27,620 --> 00:07:31,620
+It lets you go backward from an IP address back to a domain name.
+
+74
+00:07:31,620 --> 00:07:33,620
+It supports all of those things.
+
+75
+00:07:33,620 --> 00:07:38,620
+It will let you look up what is the port number associated with an HTTP server.
+
+76
+00:07:38,620 --> 00:07:43,130
+So it will let you do all kinds of different things.
+
+77
+00:07:43,130 --> 00:07:44,130
+And as a result, it's a big.
+
+78
+00:07:44,130 --> 00:07:55,170
+it's a big and messy API with a zillion features and parameters and so forth.
+
+79
+00:07:55,170 --> 00:08:02,170
+So you recall from last time that the data structures we use to refer to a
+
+80
+00:08:02,170 --> 00:08:11,360
+connection, whether it's an IPV4 or an IPV6, a connection is called a sock adder.
+
+81
+00:08:11,360 --> 00:08:16,360
+And as I mentioned, this is sort of the C version of subtyping, if you know a language with a .
+
+82
+00:08:16,360 --> 00:08:19,360
+language with type inheritance.
+
+83
+00:08:19,360 --> 00:08:22,360
+This is how it's done in C. It's done by casting.
+
+84
+00:08:22,360 --> 00:08:26,360
+And so in particular, the sort of generic socket address,
+
+85
+00:08:26,360 --> 00:08:32,360
+all it needs to know is a 2 byte field at the front that specifies what kind of socket is this.
+
+86
+00:08:32,360 --> 00:08:38,900
+And then in particular, we'll be looking at what's called a socket or in,
+
+87
+00:08:38,900 --> 00:08:42,900
+which is an IPV4 version of a socket.
+
+88
+00:08:42,900 --> 00:08:46,880
+And so what it needs to know is a port number, which is a
+
+89
+00:08:46,900 --> 00:08:56,900
+2 byte integer and an IP address, which is a 4 byte address for IPV4.
+
+90
+00:08:56,900 --> 00:09:07,380
+Both of those are actually stored in this structure, as I mentioned, in big Indian order, even if you're running it on a little Indian machine.
+
+91
+00:09:07,380 --> 00:09:17,360
+And one of the interesting features of that, this API, this get adder info, is it's largely removed the need for you as a programmer to worry about
+
+92
+00:09:17,380 --> 00:09:22,380
+bite ordering, and that's a nice feature. So in general, for example,
+
+93
+00:09:22,380 --> 00:09:28,380
+and get adder info, if I want to pass in a port number, I'll pass it as a character string,
+
+94
+00:09:28,380 --> 00:09:33,380
+a string representation of a decimal number, in other words.
+
+95
+00:09:33,380 --> 00:09:43,380
+And then the code here within this API will automatically turn that into a 16-bit integer and put it in the proper byte order.
+
+96
+00:09:43,380 --> 00:09:46,380
+And same with how it takes use of this 32-by order.
+
+97
+00:09:46,380 --> 00:09:52,380
+of this 32-bit IP address and you want to get it into dotted decimal form.
+
+98
+00:09:52,380 --> 00:10:03,760
+It will do that for you without you having to worry about byte order. So it's kind of a nice thing.
+
+99
+00:10:03,760 --> 00:10:13,360
+So get adder info has a whole bunch of arguments and some of them are essentially outputs.
+
+100
+00:10:13,360 --> 00:10:21,360
+Some of them are inputs, things you're passing into the function, and others are really more like outputs, how it gets information back to you.
+
+101
+00:10:21,360 --> 00:10:23,470
+So in particular,
+
+102
+00:10:23,490 --> 00:10:37,810
+The first one is just the name of the host, and that can be either a domain name or a dotted decimal name or one of those funky looking things with the colons that you saw for IPV6.
+
+103
+00:10:37,810 --> 00:10:46,840
+The service is usually if you're looking up, so if we're using this to look up, that'll actually be a null pointer.
+
+104
+00:10:46,840 --> 00:10:53,820
+And basically what typically you'll have is one of those two will be a string and the other one of those two will be a string and the other one
+
+105
+00:10:53,840 --> 00:10:55,000
+will be a null pointer.
+
+106
+00:10:55,000 --> 00:11:01,060
+And the reason for that is the same function can be used either to look up a service like what
+
+107
+00:11:01,060 --> 00:11:09,550
+is the port number associated with HTTP, or it can be what is the IP address of www.cmU.
+
+108
+00:11:09,550 --> 00:11:12,010
+.
+
+109
+00:11:12,010 --> 00:11:22,590
+The hints is something that you're passing in, and it's basically as you fill in a small amount of fairly large body of information about what specifically are you looking for, you fill in a small amount of a small amount of a fairly large body of information about what
+
+110
+00:11:22,590 --> 00:11:32,590
+specifically are you looking for in this request? Are you looking for an IPV6 information? Are you looking for IPV4 and so forth?
+
+111
+00:11:32,590 --> 00:11:47,650
+And then what it returns back, and that's why you pass a star star star, is it will return back a linked list that it's generated of results.
+
+112
+00:11:47,650 --> 00:11:53,630
+And the reason for that, as I mentioned, as I mentioned, is that IP addresses are
+
+113
+00:11:53,650 --> 00:11:56,650
+are sort of many-to-many mapping potentially.
+
+114
+00:11:56,650 --> 00:12:01,650
+As you saw, it's possible for a single domain name to have multiple IP addresses.
+
+115
+00:12:01,650 --> 00:12:05,650
+It's possible for a single IP address to have multiple domain names.
+
+116
+00:12:05,650 --> 00:12:11,650
+And so this is how they handle that sort of fact that they return a whole list of results.
+
+117
+00:12:11,650 --> 00:12:17,450
+And associated with that, once that result gets used, once you're done with it,
+
+118
+00:12:17,450 --> 00:12:23,450
+you're supposed to call a function called free adder info that will basically dispose of all the elements of that link list.
+
+119
+00:12:23,450 --> 00:12:27,390
+link list. You don't have to do it yourself with free. And then there's
+
+120
+00:12:27,390 --> 00:12:33,970
+another helper function called GAR-stir error that you use if there's an error code to help you
+
+121
+00:12:33,970 --> 00:12:44,510
+interpret that error. And it returns an error code. So as I mentioned, it returns a linked list
+
+122
+00:12:44,510 --> 00:12:53,280
+that result is a linked list of these get of adder structs, adder infostructs. And the
+
+123
+00:12:53,280 --> 00:12:56,080
+adder infostructs. And the adder infostruct has a zillion fields.
+
+124
+00:12:56,520 --> 00:13:02,030
+some of which you'll use and some of which you won't.
+
+125
+00:13:02,030 --> 00:13:06,030
+This is, for example, when you're passing in hints,
+
+126
+00:13:06,030 --> 00:13:10,030
+hints is sort of what you're passing in, the information,
+
+127
+00:13:10,030 --> 00:13:14,030
+you know, some conditions about what you're looking for in this request.
+
+128
+00:13:14,030 --> 00:13:21,770
+And then what it, some of these you pass in and some of it returns.
+
+129
+00:13:21,770 --> 00:13:24,770
+And so some of these fields are ones that then you can use
+
+130
+00:13:24,770 --> 00:13:30,770
+when you're making calls to other socket functions in the socket library,
+
+131
+00:13:30,770 --> 00:13:34,770
+it'll fill in instead of you having to worry about what's the structure,
+
+132
+00:13:34,770 --> 00:13:40,770
+the format of a socket or in, and how do I convert into network order and stuff.
+
+133
+00:13:40,770 --> 00:13:42,770
+It will do all that for you.
+
+134
+00:13:42,770 --> 00:13:51,060
+So it's a little confusing to use, though, because sometimes the stuff you're providing
+
+135
+00:13:51,060 --> 00:13:59,390
+is stuff you're giving it, and sometimes it's stuff that it's returning back to you.
+
+136
+00:13:59,390 --> 00:14:00,390
+And then there's an inverse function.
+
+137
+00:14:00,390 --> 00:14:09,400
+inverse function that so get adder info is given a it's
+
+138
+00:14:09,400 --> 00:14:17,820
+actually give me the address information about some name and get name info is I
+
+139
+00:14:17,820 --> 00:14:23,520
+give you an an address and you give me back some documentation about it including
+
+140
+00:14:23,520 --> 00:14:30,300
+potentially a domain name so there you pass in as a the first argument is a sock adder
+
+141
+00:14:30,300 --> 00:14:31,300
+struck.
+
+142
+00:14:31,300 --> 00:14:34,300
+Remember for this lecture, and I think in the book,
+
+143
+00:14:34,300 --> 00:14:41,300
+in a few places we've sort of created a type-deaf to alias, so we don't have to say
+
+144
+00:14:41,300 --> 00:14:45,300
+struct-sockadder all over the place, but that's what the essay is.
+
+145
+00:14:45,300 --> 00:14:54,320
+And it will provide back information about that address.
+
+146
+00:14:54,320 --> 00:15:01,300
+So if you're passing in a 32-bit IP address, you can get it to return either a dotted decimal
+
+147
+00:15:01,320 --> 00:15:06,740
+version of that or to do the DNS lookup and have it come back with the domain
+
+148
+00:15:06,740 --> 00:15:11,210
+name for that.
+
+149
+00:15:11,210 --> 00:15:17,710
+So this is that program that I just demoed to you, this one called Host Info.
+
+150
+00:15:17,710 --> 00:15:23,830
+So all it's really going to do is use these features to all on the command line give a domain name,
+
+151
+00:15:23,830 --> 00:15:28,490
+say, and it will just come back with a list of IP addresses.
+
+152
+00:15:28,490 --> 00:15:35,380
+So, and this is pretty much the way you write code for this, get,
+
+153
+00:15:35,380 --> 00:15:42,800
+adder info API that you typically, so hints is the information I'm passing
+
+154
+00:15:42,800 --> 00:15:50,980
+about what it is I'm looking for here. And so you start typically by zeroing out that
+
+155
+00:15:50,980 --> 00:16:00,580
+entire field and then setting the particular things you want. So in particular, in this
+
+156
+00:16:00,580 --> 00:16:06,660
+code that's in the slides and the one I demoed to you last time, I'm only going to be looking
+
+157
+00:16:06,660 --> 00:16:09,340
+for IPV4 connections.
+
+158
+00:16:09,340 --> 00:16:15,000
+And so I use the constant called AFINet, which is defined in the sockets interface.
+
+159
+00:16:15,000 --> 00:16:21,460
+And also I'll say that I want a TCP connection, what's called a socket stream, which if you recall
+
+160
+00:16:21,460 --> 00:16:29,460
+is the sort of protocol that 99% of the IP traffic in the world is carrying is on TCP,
+
+161
+00:16:29,460 --> 00:16:37,280
+meaning it provides a somewhat higher level abstraction of what's going on of sending packets back and forth.
+
+162
+00:16:37,300 --> 00:16:41,300
+So that's as much hint as I'm giving it here.
+
+163
+00:16:41,300 --> 00:16:47,300
+And now I'm making a call to get adder info, and this argument is the name, which is I'm getting
+
+164
+00:16:47,300 --> 00:16:55,960
+it right off of the command line here, so in my demo it was always a domain name.
+
+165
+00:16:55,960 --> 00:16:58,460
+I'm passing a null for the service.
+
+166
+00:16:58,460 --> 00:17:05,600
+As I mentioned, this call you typically have one of the two are is null but not both.
+
+167
+00:17:05,600 --> 00:17:09,730
+is what I'm passing in is this is the kind of information I want.
+
+168
+00:17:09,730 --> 00:17:17,730
+And list P is a, will now become a pointer to the results that get returned by get adder info.
+
+169
+00:17:17,730 --> 00:17:27,400
+So that's the call in all of its query.
+
+170
+00:17:27,400 --> 00:17:35,170
+Okay. And now I want to go back, so I got one of those linked lists, and that will have a whole bunch of IP address,
+
+171
+00:17:35,170 --> 00:17:41,340
+potentially multiple IP addresses in it. Maybe just one, maybe none. But some number
+
+172
+00:17:41,360 --> 00:17:45,960
+of them in a linked list, and I want to walk through that list and get back the dotted
+
+173
+00:17:45,960 --> 00:17:52,360
+decimal version of all those names, or the colonized version of those IPV6 addresses. I don't
+
+174
+00:17:52,360 --> 00:18:00,100
+know how you refer to those, by the way. I know relatively little about IV6, I have to confess.
+
+175
+00:18:00,100 --> 00:18:05,880
+So then there's a function called get name info, which usually you use to take a socket
+
+176
+00:18:05,880 --> 00:18:12,080
+IP address, an IP address, and go backward and get a domain name. But if I tell it
+
+177
+00:18:12,100 --> 00:18:17,500
+by a flag, one of the final argument to it is a flag argument, and say,
+
+178
+00:18:17,500 --> 00:18:20,300
+what I want back from this is not a domain name.
+
+179
+00:18:20,300 --> 00:18:27,400
+I want it in this numeric format, either dotted decimal or the colons between hex digits.
+
+180
+00:18:28,680 --> 00:18:33,080
+So by passing that to get name info, what it's going to return,
+
+181
+00:18:33,080 --> 00:18:39,680
+and I'm passing in a buffer, meaning a CAR star, and some size of that buffer.
+
+182
+00:18:39,680 --> 00:18:42,460
+And it's going to fill that in with the string
+
+183
+00:18:42,480 --> 00:18:48,360
+representation of it. So you see, this is a way I'm going from the, if you look at this
+
+184
+00:18:48,360 --> 00:18:57,580
+is the actual sock adder of each of the list elements. I'm giving it, it's going from that
+
+185
+00:18:57,580 --> 00:19:04,670
+sock adder, which embedded within it, as you know, is the 4-byte IP address. And what
+
+186
+00:19:04,670 --> 00:19:09,610
+it's doing is it's taking that, flipping the bytes, well, and converting it to the
+
+187
+00:19:09,610 --> 00:19:15,510
+dot a decimal form. So this function can do a lot of different things and I'm using it for
+
+188
+00:19:15,510 --> 00:19:17,510
+that particular feature here. Question.
+
+189
+00:19:17,510 --> 00:19:19,610
+So with regard is that when P is
+
+190
+00:19:19,610 --> 00:19:23,890
+If P is null, then I won't go very far.
+
+191
+00:19:23,890 --> 00:19:25,880
+Hmm?
+
+192
+00:19:25,880 --> 00:19:27,560
+Yes.
+
+193
+00:19:27,560 --> 00:19:30,560
+Because, you know, it's a null terminated list. So.
+
+194
+00:19:30,560 --> 00:19:33,590
+Other questions? Good questions.
+
+195
+00:19:33,590 --> 00:19:36,590
+But that's exactly the code you saw running.
+
+196
+00:19:36,590 --> 00:19:42,090
+And all I did to generalize it to include IPV6 addresses,
+
+197
+00:19:42,090 --> 00:19:48,540
+was I commented out this line, say, I don't demand that it be a,
+
+198
+00:19:48,540 --> 00:19:54,540
+AFIN net is a shorthand for IPV4. So by commenting that out,
+
+199
+00:19:54,540 --> 00:20:01,540
+it said, okay, I'll get whatever TCP connections this domain will support,
+
+200
+00:20:01,540 --> 00:20:04,540
+and that will include IPV6 addresses.
+
+201
+00:20:04,540 --> 00:20:09,480
+So I thought it's pretty neat.
+
+202
+00:20:09,480 --> 00:20:13,480
+I mean, you have to be pretty nerdy, but I am pretty nerdy,
+
+203
+00:20:13,480 --> 00:20:14,480
+to think this kind of thing is neat, but that you can think this kind of thing is neat.
+
+204
+00:20:14,480 --> 00:20:19,480
+neat, but that you could write code in this way that whether you're doing, you know,
+
+205
+00:20:19,480 --> 00:20:25,480
+different versions of the Internet protocol, it's all one common body of code.
+
+206
+00:20:25,480 --> 00:20:29,180
+So we've seen demo with this.
+
+207
+00:20:29,180 --> 00:20:34,180
+Okay, so now let's jump into, that shows you sort of a little bit of this
+
+208
+00:20:34,180 --> 00:20:42,180
+get adder info API. Now let's jump into the the full-blown web server part.
+
+209
+00:20:42,180 --> 00:20:46,160
+And as I mentioned, in chronological order, you actually
+
+210
+00:20:46,180 --> 00:20:52,180
+want to set up the server first, but it's easiest to understand the code for the client,
+
+211
+00:20:52,180 --> 00:20:56,180
+because as you see, it has a couple fewer calls to make.
+
+212
+00:20:56,180 --> 00:21:00,180
+So let's go through the client and just imagine that somewhere out there there
+
+213
+00:21:00,180 --> 00:21:03,180
+there's a server that's waiting for us to connect to.
+
+214
+00:21:03,180 --> 00:21:12,830
+So this now doesn't perhaps, when you break it down, maybe this picture looks a little less daunting.
+
+215
+00:21:12,830 --> 00:21:18,810
+We already saw a get adder info is the way I'm going to get an
+
+216
+00:21:18,830 --> 00:21:33,830
+an IP address out of whatever I'm, where my server is. Socket, I mentioned this yesterday, or last time, it's just a local call that's used to allocate some data structures for this particular connection.
+
+217
+00:21:33,830 --> 00:21:45,830
+And then connect is like placing a call. It's an API, it's actually sending over the internet to the server some information saying, hey, I'd like to connect to you.
+
+218
+00:21:45,830 --> 00:21:48,600
+And then once the server,
+
+219
+00:21:48,600 --> 00:21:54,980
+once that connection is accepted, then I can begin my session.
+
+220
+00:21:54,980 --> 00:21:55,980
+So let's look at that.
+
+221
+00:21:55,980 --> 00:22:03,420
+So first of all, I have to go through all this rigum roll with get adder info,
+
+222
+00:22:03,420 --> 00:22:07,420
+but it will look pretty similar to what you've seen before.
+
+223
+00:22:07,420 --> 00:22:11,420
+Except I'm going to give a little more information because I want this to be,
+
+224
+00:22:11,420 --> 00:22:21,980
+I'm filling in a few more details here because I want to specify more features of this connection.
+
+225
+00:22:21,980 --> 00:22:22,980
+So I'm saying that it's a few more details here because I'm filling in a few more details here because I want to specify more features of this connection.
+
+226
+00:22:22,980 --> 00:22:27,400
+it's a TCP connection that's a SOX stream.
+
+227
+00:22:27,400 --> 00:22:31,400
+I'm saying that I'm going to give it a port number in a numeric form.
+
+228
+00:22:31,400 --> 00:22:37,400
+You could also say, as I mentioned, there's certain ports have standard names,
+
+229
+00:22:37,400 --> 00:22:44,400
+HTTP, SSH, and so forth, and you can actually pass in the string representation of those.
+
+230
+00:22:44,400 --> 00:22:49,500
+But I'm using this in a sort of idiosyncratic way here.
+
+231
+00:22:49,500 --> 00:22:53,570
+And then this feature, get adder,
+
+232
+00:22:53,590 --> 00:23:00,190
+is a parameter that's described in the book and they say it's a good idea to use it.
+
+233
+00:23:00,190 --> 00:23:06,110
+And then I'm making a call to my friend get adder info with these hints and it's going to return
+
+234
+00:23:06,110 --> 00:23:13,650
+back this linked list of representing the results of this request.
+
+235
+00:23:13,650 --> 00:23:18,440
+So basically a linked list of IP addresses.
+
+236
+00:23:18,440 --> 00:23:24,840
+And now just like you saw before, I'm going to walk that list with a, except now what I'm going to
+
+237
+00:23:25,000 --> 00:23:29,500
+and do is for each of those say, well, here's a number, let me give that a try.
+
+238
+00:23:29,500 --> 00:23:34,340
+And if that fails, here's another address, let me give that a try. So I'm going to just sequentially
+
+239
+00:23:34,340 --> 00:23:41,000
+try all the different addresses. You saw, for example, four potential addresses for Twitter.
+
+240
+00:23:41,000 --> 00:23:49,120
+I'll walk through all of those. And on each one, I'm going to call for a socket. And the socket
+
+241
+00:23:49,120 --> 00:23:56,880
+is the one that, as I said, it allocates some data structures. I talked about this
+
+242
+00:23:56,880 --> 00:24:01,920
+last time. That's why I'm rushing through it's pretty fast. But you'll notice that the fields
+
+243
+00:24:01,920 --> 00:24:11,270
+that you're filling in are actually all been generated for us by the get adder info call. So
+
+244
+00:24:11,270 --> 00:24:17,090
+whereas you used to have to remember, oh, this is a number, and it should be a short network order and
+
+245
+00:24:17,090 --> 00:24:24,190
+yada-da-da. Pretty much nowadays, you can just say, here, I'm just going to pass you this information
+
+246
+00:24:24,190 --> 00:24:35,870
+that this was returned by a function call.
+
+247
+00:24:35,870 --> 00:24:42,070
+And then, as I mentioned also last time, I know I went through it pretty fast last time, socket
+
+248
+00:24:42,070 --> 00:24:49,270
+actually returns back to you a file descriptor. And you recall a file descriptor is just a small integer.
+
+249
+00:24:49,270 --> 00:24:56,870
+It starts with zero, one, and two, and then it goes up from there. And so I'm going to interface
+
+250
+00:24:56,870 --> 00:25:02,960
+with this network code as if I'm talking through files. But it doesn't,
+
+251
+00:25:02,960 --> 00:25:07,820
+socket doesn't actually do anything as far as the internet goes. There's nothing going, there's not
+
+252
+00:25:07,820 --> 00:25:13,680
+even the, you know, serious effort within the operating system. Nothing goes over the network
+
+253
+00:25:13,680 --> 00:25:21,680
+here. So the real work here is, but it also allocates some, some local data
+
+254
+00:25:21,680 --> 00:25:29,160
+structures. And then what I'll do is I'll attempt to connect to the server. And again, you'll
+
+255
+00:25:29,160 --> 00:25:38,160
+see the various arguments I have to pass to the connect command, I get provided for me out of this call I made to get adder info.
+
+256
+00:25:38,160 --> 00:25:44,600
+And that's either going to work or it's not going to work. Similarly, the socket call is either going to work or not work.
+
+257
+00:25:44,600 --> 00:25:56,210
+It would be very unusual for a call to socket to socket to fail. But connect, for example, will fail if the server is not available or doesn't like you for some reason.
+
+258
+00:25:56,210 --> 00:26:02,370
+And so if that succeeds, I'm going to break out of this loop.
+
+259
+00:26:02,370 --> 00:26:11,690
+I'm going to then free this data structure and return the client, the file descriptor.
+
+260
+00:26:11,690 --> 00:26:19,950
+For the, this particular function, its job is to open a connection to a client and return a file descriptor for it.
+
+261
+00:26:19,950 --> 00:26:31,100
+And this is just what happens if you fall out of the loop, not having made any connections.
+
+262
+00:26:31,100 --> 00:26:31,600
+Okay.
+
+263
+00:26:31,600 --> 00:26:46,020
+So I know this is, I'm marching this fast, and as I said, I know from my own personal experience, I can attest that this stuff just takes time to understand because there's so many different features here.
+
+264
+00:26:46,020 --> 00:26:47,210
+Okay.
+
+265
+00:26:47,210 --> 00:27:01,340
+But that's the idea is we're going to, now on the server side, which as I mentioned, is actually what you do beforehand, because you can't really have a client connect to a server that doesn't exist.
+
+266
+00:27:01,340 --> 00:27:04,340
+It's just a little bit trickier to understand what's going on.
+
+267
+00:27:04,340 --> 00:27:08,530
+But you'll see the first two steps are the same. I need a socket.
+
+268
+00:27:08,530 --> 00:27:18,530
+But then remember, what I want to do is essentially set up a server that's listening on a particular port for clients to request on it.
+
+269
+00:27:18,530 --> 00:27:22,690
+And that's the function of the bind and the listen functions.
+
+270
+00:27:22,690 --> 00:27:30,690
+And then the accept is when I'm saying, okay, the server is ready, I'm ready to accept requests, and it will fire there.
+
+271
+00:27:30,690 --> 00:27:38,980
+fire that up. In particular, the accept will just stop and hang up and wait
+
+272
+00:27:38,980 --> 00:27:45,980
+indefinitely until some connection request comes in. So if the server has no customers,
+
+273
+00:27:45,980 --> 00:27:53,980
+if there are no clients, it will just be waiting potentially forever with the call to accept.
+
+274
+00:27:53,980 --> 00:27:59,980
+Okay. Everything else goes through boom, boom, boom, boom. But that one is where the actual waiting
+
+275
+00:27:59,980 --> 00:28:06,850
+occurs for client connections.
+
+276
+00:28:06,850 --> 00:28:10,010
+Similarly, I should mention the connect
+
+277
+00:28:10,010 --> 00:28:14,010
+will also hang up and wait until the connection is formed,
+
+278
+00:28:14,010 --> 00:28:19,010
+but typically it's built in with a timeout so that it will fail if it takes too long.
+
+279
+00:28:19,010 --> 00:28:22,010
+And there's, you can adjust the parameters on both of these,
+
+280
+00:28:22,010 --> 00:28:24,010
+how long you wait for, whether you wait or not.
+
+281
+00:28:24,010 --> 00:28:28,540
+But I'm talking the typical case.
+
+282
+00:28:28,540 --> 00:28:34,540
+So anyways, again, we'll look a little at those functions then.
+
+283
+00:28:34,540 --> 00:28:37,530
+Okay.
+
+284
+00:28:37,530 --> 00:28:40,530
+So this again, we have to make a call to get adder info.
+
+285
+00:28:40,530 --> 00:28:44,030
+And this time, it's not because I need any IP addresses.
+
+286
+00:28:44,030 --> 00:28:45,530
+I already have an IP address.
+
+287
+00:28:45,530 --> 00:28:47,030
+I'm a local server.
+
+288
+00:28:47,030 --> 00:28:50,530
+I don't actually need to know the IP addresses of my,
+
+289
+00:28:50,530 --> 00:28:52,560
+of the clients.
+
+290
+00:28:52,560 --> 00:28:54,820
+I usually won't know them.
+
+291
+00:28:54,820 --> 00:28:58,820
+But I need to fill in all those nasty little data structures.
+
+292
+00:28:58,820 --> 00:29:02,820
+And so that's what I'm going to use get adder info here for here.
+
+293
+00:29:02,820 --> 00:29:07,040
+So I'm going to say this time, again, I want a TCP connection,
+
+294
+00:29:07,040 --> 00:29:08,040
+a SOX stream.
+
+295
+00:29:08,040 --> 00:29:21,090
+I want it to be a listening for any IP address connection coming in.
+
+296
+00:29:21,090 --> 00:29:28,090
+So it's passive, meaning it's not actively reaching out, it's passively waiting for connection requests.
+
+297
+00:29:28,090 --> 00:29:36,920
+I'll say that I'm going to tell you a port number that I'm going to actually use as my server's port number.
+
+298
+00:29:36,920 --> 00:29:40,140
+And then I'm going to actually use as my server's port number.
+
+299
+00:29:40,140 --> 00:29:46,140
+make a call and this time you see that I'm not giving any information about the host
+
+300
+00:29:46,140 --> 00:29:53,140
+because I am the host, but I'm giving the information of the port number that I'm using for this server.
+
+301
+00:29:53,140 --> 00:29:59,140
+And the other hints that I've just filled in, and then it will return a list P.
+
+302
+00:29:59,140 --> 00:30:00,180
+Yes.
+
+303
+00:30:00,180 --> 00:30:10,070
+Memset is the standard way that you set all the bytes in some number of bytes to a fixed file.
+
+304
+00:30:10,070 --> 00:30:12,070
+to a fixed value.
+
+305
+00:30:12,070 --> 00:30:15,070
+It's the same as if you've used B0 before,
+
+306
+00:30:15,070 --> 00:30:20,420
+or B, it is the way you often would zero out a bunch of bytes.
+
+307
+00:30:20,420 --> 00:30:24,420
+And if you look at the web page and I don't know why,
+
+308
+00:30:24,420 --> 00:30:27,420
+they say, use MEMSET, don't use B0 anymore.
+
+309
+00:30:27,420 --> 00:30:32,920
+So calicoat, so zero it out.
+
+310
+00:30:32,920 --> 00:30:35,920
+But I'm not actually alicking anything.
+
+311
+00:30:35,920 --> 00:30:38,920
+See, the hints is a struct here.
+
+312
+00:30:38,920 --> 00:30:44,300
+And remember, a struct is just a bunch of bite.
+
+313
+00:30:44,300 --> 00:30:50,300
+And so if I make that particular called a mem set, it will set every byte in that structure to zero.
+
+314
+00:30:50,300 --> 00:30:54,300
+And this is sort of the official standard way you're supposed to do that kind of thing.
+
+315
+00:30:54,300 --> 00:30:56,420
+Those are good questions, though.
+
+316
+00:30:56,420 --> 00:30:57,940
+Question.
+
+317
+00:30:57,940 --> 00:31:00,940
+Julie, what are AI passive and AI-Adder config doing?
+
+318
+00:31:00,940 --> 00:31:07,450
+AI passive is that it's a listening connection.
+
+319
+00:31:07,450 --> 00:31:09,450
+It's going to be a listening connection.
+
+320
+00:31:09,450 --> 00:31:15,760
+And AI Adder Config was some other argument.
+
+321
+00:31:15,760 --> 00:31:23,430
+And quite honestly, I don't remember, but you saw I gave it before with the get host name.
+
+322
+00:31:23,430 --> 00:31:31,720
+So I don't remember. It's a somewhat obscure parameter that's not even a required parameter.
+
+323
+00:31:31,720 --> 00:31:36,420
+It's in the book. I'm sorry. Or you could Google it right now.
+
+324
+00:31:36,420 --> 00:31:46,450
+One interesting thing is I didn't say that on this code on either side that it's AFINet.
+
+325
+00:31:46,450 --> 00:31:52,430
+I didn't force this to be IPV4 code. This will work for IPV4 or 6. The exact
+
+326
+00:31:52,450 --> 00:31:53,450
+same code.
+
+327
+00:31:53,450 --> 00:31:55,120
+Okay.
+
+328
+00:31:55,120 --> 00:31:59,120
+So again, list P comes back with a list of stuff.
+
+329
+00:31:59,120 --> 00:32:02,120
+Typically, that list will be of length 1.
+
+330
+00:32:02,120 --> 00:32:06,660
+In fact, I don't know why it would be anything else.
+
+331
+00:32:06,660 --> 00:32:10,660
+But it has the same general look to it.
+
+332
+00:32:10,660 --> 00:32:14,890
+So again, I'm going to make a call to socket
+
+333
+00:32:14,890 --> 00:32:17,890
+to create a file descriptor that I'm going to use.
+
+334
+00:32:17,890 --> 00:32:22,890
+This will be the one that it's list, the server and listens on for connection requests.
+
+335
+00:32:22,890 --> 00:32:40,590
+And then there's another kind of obscure thing you have to do of setting some options on that socket that will get it to free it to free it up more quickly if there's a failure.
+
+336
+00:32:40,590 --> 00:32:47,590
+This is gone, this one I do know, and it's kind of obscure, and it's in the book, so I won't spend a lot of time talking about it.
+
+337
+00:32:47,590 --> 00:32:53,920
+Okay, but now what, here's the real work, is the bind call, is the one that is the one that
+
+338
+00:32:53,940 --> 00:33:05,610
+says, I want this file descriptor to be associated with this information, which in
+
+339
+00:33:05,610 --> 00:33:12,430
+particular specifies the port number. So that's where the binding occurs for this machine. Remember,
+
+340
+00:33:12,430 --> 00:33:18,510
+port numbers are a resource that all the different applications on a single machine are sort of
+
+341
+00:33:18,510 --> 00:33:21,970
+sharing or competing for. And so this is requesting, I want to use the different applications on a single machine are sort of sharing or competing for.
+
+342
+00:33:21,970 --> 00:33:26,890
+And so this is requesting, I want to use this particular port number
+
+343
+00:33:26,890 --> 00:33:34,150
+in setting up a server. And that may fail if the port's already in use, or if you're trying
+
+344
+00:33:34,150 --> 00:33:39,330
+to set up a service on a port that you're not allowed to do. Like you're not allowed to set up
+
+345
+00:33:39,330 --> 00:33:50,040
+a service on port 80 unless you have route access.
+
+346
+00:33:50,040 --> 00:33:56,010
+So, and then again, it passes in the information that was filled in by the information.
+
+347
+00:33:56,010 --> 00:34:08,800
+the call to get adder info. So we're not quite done yet. But we've,
+
+348
+00:34:08,800 --> 00:34:14,380
+if this succeeds then, what we've done is we've bound a port number and a file descriptor
+
+349
+00:34:14,380 --> 00:34:27,400
+together and a socket. But it all that's done is that's again just within the
+
+350
+00:34:27,400 --> 00:34:34,780
+the machine saying, okay, I agree, you, you particular, this particular process gets to be
+
+351
+00:34:34,780 --> 00:34:37,540
+listening on a particular port. But it's not actually
+
+352
+00:34:37,600 --> 00:34:42,110
+listening yet. And I don't know why they split this into two, but they do.
+
+353
+00:34:42,110 --> 00:34:49,110
+And now I actually have to explicitly make a call to listen saying, okay, now I really am ready to receive
+
+354
+00:34:49,110 --> 00:34:59,070
+connection requests. And you can give, as a parameter, a number that says, how many
+
+355
+00:34:59,070 --> 00:35:07,070
+request, connection requests, are you allowed to queue up before they start getting refused?
+
+356
+00:35:07,070 --> 00:35:09,050
+And this is a performance parameter.
+
+357
+00:35:09,070 --> 00:35:13,970
+that if you set it too low, then, unless you have a really fast server,
+
+358
+00:35:14,410 --> 00:35:17,070
+people will get failures in their connection requests.
+
+359
+00:35:17,920 --> 00:35:25,880
+But if it's too big, then you can, you're vulnerable to certain types of sort of denial of service attacks.
+
+360
+00:35:27,710 --> 00:35:30,290
+So, again, a little bit of an obscure feature.
+
+361
+00:35:31,240 --> 00:35:38,300
+But the result of this is, now, I'm returning out of this a file descriptor that the server can use
+
+362
+00:35:38,300 --> 00:35:44,280
+to pick up connection requests.
+
+363
+00:35:44,280 --> 00:35:49,280
+Okay, so let's do a little example of how we might actually do something.
+
+364
+00:35:49,280 --> 00:35:55,280
+And I'm going to use as an example, a rather mundane application,
+
+365
+00:35:55,280 --> 00:35:59,650
+which is an echo server.
+
+366
+00:35:59,650 --> 00:36:05,940
+An echo server is just one that responds back whatever it just received.
+
+367
+00:36:05,940 --> 00:36:13,190
+And the code for it's in the book, on the slides, we're studying.
+
+368
+00:36:13,190 --> 00:36:31,810
+So let me set up this amazing demonstration.
+
+369
+00:36:31,810 --> 00:36:35,810
+So it's called the Echo Server I, I meaning iterative.
+
+370
+00:36:35,810 --> 00:36:38,810
+It can only do one connection request at a time.
+
+371
+00:36:38,810 --> 00:36:44,390
+And I'm going to set it up on my laptop here.
+
+372
+00:36:44,390 --> 00:36:59,910
+And I'll connect to that.
+
+373
+00:36:59,910 --> 00:37:03,910
+So you'll see that I told the server, use port 15 to 13,
+
+374
+00:37:03,910 --> 00:37:07,910
+which is just a random number I picked out as the port number.
+
+375
+00:37:07,910 --> 00:37:12,290
+In general, if you want to do your own stuff,
+
+376
+00:37:12,290 --> 00:37:14,290
+you pick port numbers that are 1,000 or greater,
+
+377
+00:37:14,290 --> 00:37:19,290
+and they're limited to be unsigned 16-bit-inths,
+
+378
+00:37:19,290 --> 00:37:24,190
+so 64, or 65,000 something's the maximum.
+
+379
+00:37:24,190 --> 00:37:29,190
+And as long as, and by the way, if you live in a corporate world,
+
+380
+00:37:29,190 --> 00:37:32,190
+your ports will all be locked down and they will not let you do this,
+
+381
+00:37:32,190 --> 00:37:37,190
+but in the CMU environment has a pretty permissive policy.
+
+382
+00:37:37,190 --> 00:37:39,190
+And actually, I'm just doing this on low
+
+383
+00:37:39,190 --> 00:37:46,880
+host, but you're allowed to, at CMU, open up ports like you want.
+
+384
+00:37:46,880 --> 00:37:55,780
+So anyways, I'm going to run this client and you'll see that the server just said,
+
+385
+00:37:55,780 --> 00:38:05,840
+I've received a connection from the local host, not very exciting, and I've received it from port 55457.
+
+386
+00:38:05,840 --> 00:38:10,840
+So this is the part that got assigned to the client in making the connection.
+
+387
+00:38:10,840 --> 00:38:21,840
+connection. The server is using port 15213. And you recall we talked about last time that a link is defined by the host and port names on either end.
+
+388
+00:38:21,840 --> 00:38:31,840
+And that the client side is usually assigned what they call it ephemeral ports, meaning it's just assigned for this particular session that I'm going to run.
+
+389
+00:38:31,840 --> 00:38:40,320
+And now here's the amazing feature of an echo server is that you can type in stuff and it will come back to you.
+
+390
+00:38:40,320 --> 00:38:44,150
+Because
+
+391
+00:38:44,170 --> 00:38:51,170
+So what's happening is I'm sending those meaningful messages to the server.
+
+392
+00:38:51,170 --> 00:38:58,170
+It's reading them and it's just sending them right back again, and then the client's reading that and printing it on the screen.
+
+393
+00:38:58,170 --> 00:39:03,170
+So that's not, it's sort of the minimum functionality you could imagine.
+
+394
+00:39:03,170 --> 00:39:10,170
+But you can see that the server is telling you, oh, by the way, I just received so many bytes, so many bytes, so many bytes.
+
+395
+00:39:10,170 --> 00:39:12,170
+So you can see that it's actually doing something.
+
+396
+00:39:12,170 --> 00:39:14,740
+And then if I send it.
+
+397
+00:39:14,740 --> 00:39:22,440
+if I send it into file, which is just to control D, the client will exit and the server will
+
+398
+00:39:22,440 --> 00:39:29,180
+drop that connection but it doesn't show you any thing.
+
+399
+00:39:29,180 --> 00:39:32,180
+And if I wanted to, I could start it again.
+
+400
+00:39:32,180 --> 00:39:39,780
+And you see this time it assigned a different ephemeral port to the client.
+
+401
+00:39:39,780 --> 00:39:41,780
+But I can only do one at a time.
+
+402
+00:39:41,780 --> 00:39:47,890
+If I tried to now do another connection, I would try and do it.
+
+403
+00:39:47,890 --> 00:39:53,340
+If I tried to do it, I wouldn't, it would just hang up.
+
+404
+00:39:53,340 --> 00:39:54,340
+The client would hang up.
+
+405
+00:39:54,340 --> 00:40:01,340
+It would not be able to get a connection because the server is only able to handle one client at a time.
+
+406
+00:40:01,340 --> 00:40:02,850
+Okay.
+
+407
+00:40:02,850 --> 00:40:09,560
+So that's the, what the application does, and now let's see how it's implemented.
+
+408
+00:40:09,560 --> 00:40:14,920
+It's pretty simple.
+
+409
+00:40:14,920 --> 00:40:17,920
+The nastiness was those functions we've already seen.
+
+410
+00:40:17,920 --> 00:40:21,200
+So here's the client side of it.
+
+411
+00:40:21,200 --> 00:40:23,200
+It calls that function I went through.
+
+412
+00:40:23,200 --> 00:40:28,200
+called Open the client file descriptor where you gave the name of the host
+
+413
+00:40:28,200 --> 00:40:32,300
+and the name of the port that the server is operating on.
+
+414
+00:40:32,300 --> 00:40:36,300
+So I said here, local host 15213.
+
+415
+00:40:36,300 --> 00:40:43,430
+And I'm going to initialize a buffer that will be used for communication back and forth
+
+416
+00:40:43,430 --> 00:40:45,650
+for this network communication.
+
+417
+00:40:45,650 --> 00:40:52,650
+So now echoing means I, from a client perspective, it will just read in what I've typed.
+
+418
+00:40:52,650 --> 00:41:00,150
+So using GETS or F-GETS to read in what's been typed on the standard input.
+
+419
+00:41:00,150 --> 00:41:05,600
+And as long as that's not null, meaning I don't have an end of file,
+
+420
+00:41:05,600 --> 00:41:09,360
+then I will write it to the client file descriptors.
+
+421
+00:41:09,360 --> 00:41:11,360
+So that's how I actually send it over the network,
+
+422
+00:41:11,360 --> 00:41:19,360
+because I do a write to that socket that file descriptor represents.
+
+423
+00:41:19,360 --> 00:41:22,860
+And then to get something back from the server, its response, I'll do a write to that socket that file descriptor represents.
+
+424
+00:41:22,860 --> 00:41:26,560
+I'll do a read.
+
+425
+00:41:26,560 --> 00:41:39,100
+And Rio, as you call, has embedded within it, what file descriptor that read is using.
+
+426
+00:41:39,100 --> 00:41:46,000
+So I'll say read from that particular file descriptor, fill the results back into this buffer.
+
+427
+00:41:46,000 --> 00:41:50,560
+So I'm using buff both as a sending buffer and a receiving buffer.
+
+428
+00:41:50,560 --> 00:41:55,960
+And then just print that out onto the terminal.
+
+429
+00:41:55,960 --> 00:41:58,440
+And this is, by the way, the new lines.
+
+430
+00:41:58,460 --> 00:42:03,460
+being included in this, not just the, in all of this.
+
+431
+00:42:03,460 --> 00:42:07,460
+And that's how it's working. So that's all that happened. So the main point you see here is
+
+432
+00:42:07,460 --> 00:42:17,100
+that I'm using this socket like a file to both send and receive.
+
+433
+00:42:17,100 --> 00:42:23,100
+The server code is just a shade more nasty than that to support some of those amazing features
+
+434
+00:42:23,100 --> 00:42:31,550
+it has. So in particular, there's a weird struct called a socketer storage that is just a
+
+435
+00:42:31,550 --> 00:42:48,700
+Just, again, part of this generic API that gives you a buffer of some kind that's big enough to store a name of a host is what I'm going to use it for here.
+
+436
+00:42:48,700 --> 00:42:55,920
+And so I'm going to accept a connection.
+
+437
+00:42:55,920 --> 00:43:04,740
+So accept, you recall, you recall is the way it's the way it says, okay, I'm going to wait here.
+
+438
+00:43:04,740 --> 00:43:12,000
+going to wait here until a client contacts this server. So that you make a call
+
+439
+00:43:12,000 --> 00:43:19,630
+to accept and it will just hang until that contact occurs. And then what it will return from you is a new
+
+440
+00:43:19,630 --> 00:43:26,130
+file descriptor that we call the connection file descriptor here, which is different from the listening file
+
+441
+00:43:26,130 --> 00:43:31,130
+descriptor. And the reason is doesn't really show up in this code where I'm doing iteratively.
+
+442
+00:43:31,130 --> 00:43:35,110
+But you can imagine if I had a server and I wanted to be able to maintain a
+
+443
+00:43:35,130 --> 00:43:41,130
+there will be one of those file descriptors that I pick up new requests on.
+
+444
+00:43:41,130 --> 00:43:46,130
+And then all the other ones are the various other clients that I'm communicating with right now.
+
+445
+00:43:46,130 --> 00:43:52,270
+And then what except fills in here into this information,
+
+446
+00:43:52,270 --> 00:43:58,270
+it's a sock adder, struct, is about information about the client,
+
+447
+00:43:58,270 --> 00:44:04,700
+the IP address of the client.
+
+448
+00:44:04,700 --> 00:44:10,980
+And I'll use this call called get name info, which is again at one of these kitchen,
+
+449
+00:44:10,980 --> 00:44:21,800
+features that I'll pass in this client address and it will come back with
+
+450
+00:44:21,800 --> 00:44:25,800
+the domain name of the client.
+
+451
+00:44:25,800 --> 00:44:30,410
+And that's what you saw how it printed out when the connection was formed,
+
+452
+00:44:30,410 --> 00:44:33,730
+where that connection was coming from.
+
+453
+00:44:33,730 --> 00:44:38,730
+So this, all this business here is used to support that feature of being able to
+
+454
+00:44:38,730 --> 00:44:43,730
+print out what's the host number name and what port am I used
+
+455
+00:44:43,730 --> 00:44:50,050
+using. And this thing, by the way, client port is,
+
+456
+00:44:50,050 --> 00:44:58,540
+a client host name and client port are both buffers.
+
+457
+00:44:58,540 --> 00:45:05,730
+Let's see. Yes. Host name and port are both buffers.
+
+458
+00:45:05,730 --> 00:45:11,920
+And I'm passing a pointer to those buffers, and I'm passing their length, max line.
+
+459
+00:45:11,920 --> 00:45:16,920
+And then the call to get name info is filling those in with a string representation
+
+460
+00:45:16,920 --> 00:45:22,640
+representations of the host name and the port.
+
+461
+00:45:22,640 --> 00:45:27,640
+And now it just makes a call to the echo function, which I'll show you momentarily, and then
+
+462
+00:45:27,640 --> 00:45:31,800
+it closes that connection.
+
+463
+00:45:31,800 --> 00:45:34,800
+And then this continues, you see the while one.
+
+464
+00:45:34,800 --> 00:45:39,800
+This is in a loop forever, and you actually have to control C on this program to get it
+
+465
+00:45:39,800 --> 00:45:41,790
+to quit.
+
+466
+00:45:41,790 --> 00:45:43,050
+Okay?
+
+467
+00:45:43,050 --> 00:45:45,050
+So let me just look one more.
+
+468
+00:45:45,050 --> 00:45:49,180
+So this now is the echo function that the server uses,
+
+469
+00:45:49,180 --> 00:45:50,180
+and it's pretty straightforward.
+
+470
+00:45:50,180 --> 00:45:57,270
+In fact, it looks kind of like what you just saw, except it flips around the reading and the writing.
+
+471
+00:45:57,270 --> 00:46:11,540
+It will read some number of bytes over the connection file descriptor, and if that's a non-zero number,
+
+472
+00:46:11,540 --> 00:46:14,540
+then it will echo that back by writing it.
+
+473
+00:46:14,540 --> 00:46:20,580
+If it's a zero, that means it's detected an end of file, and it will just exit from that
+
+474
+00:46:20,580 --> 00:46:26,580
+from that little loop, but remember, echo is within a bigger loop of accepting new connection requests.
+
+475
+00:46:26,580 --> 00:46:33,340
+Okay, but again, just see that it reads as a way of accepting information from the client,
+
+476
+00:46:33,340 --> 00:46:36,340
+and then it writes to send information back to the client.
+
+477
+00:46:36,340 --> 00:46:41,320
+Good?
+
+478
+00:46:41,320 --> 00:46:48,420
+So one interesting feature is if you want to test some programs, you can use a program called Telnet,
+
+479
+00:46:48,420 --> 00:46:52,420
+which it used to be the old-fashioned way you used before SSH.
+
+480
+00:46:52,420 --> 00:46:53,420
+This is how you communicated with other.
+
+481
+00:46:53,420 --> 00:46:58,420
+with other machines, and it's absolutely completely insecure.
+
+482
+00:46:58,420 --> 00:47:06,510
+So don't ever use it to actually, and most places, you can't even make a connection to another machine using telnet.
+
+483
+00:47:06,510 --> 00:47:12,020
+It's amazing how simple life used to be.
+
+484
+00:47:12,020 --> 00:47:32,530
+But for example, if I telnet to myself on that port, it will begin a session and it will in fact look a lot like an echo.
+
+485
+00:47:32,530 --> 00:47:39,980
+like an echo client because because tell net just sends information to the server
+
+486
+00:47:39,980 --> 00:47:44,980
+and the server is designed to echo it back and so it will print the response.
+
+487
+00:47:44,980 --> 00:47:49,980
+And so effectively telnet is behaving like an echo client for me.
+
+488
+00:47:49,980 --> 00:47:51,980
+And I'll demo that because it's useful.
+
+489
+00:47:51,980 --> 00:47:56,980
+I mean, this is a pretty trivial program, but there's actually times you can use telnet.
+
+490
+00:47:56,980 --> 00:48:01,980
+If there's a server somewhere out there and you want to give it a poke to see what's going on as a tool,
+
+491
+00:48:01,980 --> 00:48:05,130
+as a tool you can use telnet.
+
+492
+00:48:05,130 --> 00:48:09,130
+Let's see, you have to escape with a control right bracket quit.
+
+493
+00:48:09,130 --> 00:48:10,640
+Okay.
+
+494
+00:48:10,640 --> 00:48:17,170
+So now let's move on to HTTP.
+
+495
+00:48:17,170 --> 00:48:24,750
+I'll try to get rid of all the animations in this.
+
+496
+00:48:24,750 --> 00:48:26,580
+Okay.
+
+497
+00:48:26,580 --> 00:48:30,580
+So that's sort of the basics of the low level socket programming
+
+498
+00:48:30,580 --> 00:48:35,580
+that you need to create client server applications.
+
+499
+00:48:35,580 --> 00:48:39,580
+So the best example out there of a client server application is the World Wide Web.
+
+500
+00:48:39,580 --> 00:48:41,650
+is the world wide web.
+
+501
+00:48:41,650 --> 00:48:46,870
+And you know the idea. Web servers and your browser is a client.
+
+502
+00:48:46,870 --> 00:48:55,870
+So, but all of that sits on top of, the protocols for that sit on top of the other Internet protocols.
+
+503
+00:48:55,870 --> 00:49:01,870
+So we talked about TCP is sort of sits on top of the lowest level, the packet protocol.
+
+504
+00:49:01,870 --> 00:49:06,870
+And then HTTP sits sits on top of that and uses TCP connections to send up up of that and that and
+
+505
+00:49:06,870 --> 00:49:14,890
+TCP connections to send and receive data over the World Wide Web.
+
+506
+00:49:14,890 --> 00:49:22,050
+And that's all, according to a protocol that was developed starting in the early 90s,
+
+507
+00:49:22,050 --> 00:49:27,750
+and that's what Tim Berners-Lee did initially.
+
+508
+00:49:27,750 --> 00:49:33,750
+And it's gone through a couple of revisions, but the latest one is still dates back to
+
+509
+00:49:33,750 --> 00:49:39,750
+back to 1999, HTTP version, excuse me, 1.1.
+
+510
+00:49:39,750 --> 00:49:47,740
+So just as some terminology, and you've sort of heard this at various different ways,
+
+511
+00:49:47,740 --> 00:49:53,740
+is you can, one of the clever things about HTTP is it lets you sort of set,
+
+512
+00:49:53,740 --> 00:49:55,900
+handles different formats.
+
+513
+00:49:55,900 --> 00:50:02,900
+You can send a JPEG image, you can send a text, and so forth.
+
+514
+00:50:02,900 --> 00:50:07,900
+And those are all encoded in a format called mime, which is actually just a way to take a text and so forth.
+
+515
+00:50:07,900 --> 00:50:17,380
+which is actually just a way to take binary values and convert them into hex formatted strings.
+
+516
+00:50:17,380 --> 00:50:28,270
+And then sort of a standard for how you encoded at one end and how you decode it at one end and how you decode it the other.
+
+517
+00:50:28,270 --> 00:50:42,550
+And so you get to specify when you're sending stuff you specify what type of information it is.
+
+518
+00:50:42,550 --> 00:50:46,430
+And then the other thing you've probably
+
+519
+00:50:46,450 --> 00:50:52,450
+And now we're talking a little bit ancient history, and I'll update it momentarily.
+
+520
+00:50:52,450 --> 00:51:00,450
+But classically, you either use static content, meaning a fixed web page that was written in HTML format
+
+521
+00:51:00,450 --> 00:51:06,450
+and was designed to just give you information that was the same every time you looked at it.
+
+522
+00:51:06,450 --> 00:51:11,900
+Or dynamic content where you will change.
+
+523
+00:51:11,900 --> 00:51:16,880
+So, for example, a server application that's giving you the same,
+
+524
+00:51:16,900 --> 00:51:20,280
+the weather, it's not the same page every time.
+
+525
+00:51:20,280 --> 00:51:24,840
+And so it will format it in dynamic content if you make a request.
+
+526
+00:51:24,840 --> 00:51:30,300
+Nowadays, it's gotten a lot more complicated because of JavaScript and all these other sort
+
+527
+00:51:30,300 --> 00:51:35,880
+of client-side programming languages that actually executes code on your client and
+
+528
+00:51:35,880 --> 00:51:39,200
+communicates back and forth to get results.
+
+529
+00:51:39,200 --> 00:51:44,620
+So I'm a little bit dated here talking about this sort of old-style way of working.
+
+530
+00:51:44,620 --> 00:51:47,000
+But in all cases, what actually is actually
+
+531
+00:51:47,020 --> 00:51:54,700
+comes across the wires are some type of a file.
+
+532
+00:51:54,700 --> 00:51:59,700
+And then you've heard the term URL, meaning universal resource locator,
+
+533
+00:51:59,700 --> 00:52:01,700
+is a combination of a couple things.
+
+534
+00:52:01,700 --> 00:52:05,700
+One is it tells you where is that information,
+
+535
+00:52:05,700 --> 00:52:09,700
+in terms of a domain name, and potentially with a port number.
+
+536
+00:52:09,700 --> 00:52:13,700
+And then also, on that particular host,
+
+537
+00:52:13,700 --> 00:52:20,910
+where within the host is that information to be found, and there's
+
+538
+00:52:20,930 --> 00:52:24,930
+like if you don't give anything at defaults to index.
+
+539
+00:52:24,930 --> 00:52:29,930
+For example, but URL in principle gives you
+
+540
+00:52:29,930 --> 00:52:33,930
+where to locate something on a remote machine.
+
+541
+00:52:33,930 --> 00:52:39,340
+And now we've seen examples of the tricks that DNS plays
+
+542
+00:52:39,340 --> 00:52:43,340
+so that even though you're giving a host name, a domain name,
+
+543
+00:52:43,340 --> 00:52:46,340
+it could be any of a number of different servers,
+
+544
+00:52:46,340 --> 00:52:48,340
+but the concept's still the same.
+
+545
+00:52:48,340 --> 00:52:55,540
+So when I make a request then,
+
+546
+00:52:55,540 --> 00:53:00,130
+when I'm running my browser and I want to see a web page,
+
+547
+00:53:00,130 --> 00:53:08,630
+what it does is it sends an HTTP request out to the server to do something and to return back a web page.
+
+548
+00:53:08,630 --> 00:53:11,630
+And there's a couple of different standard services.
+
+549
+00:53:11,630 --> 00:53:17,630
+The most common, the one that's used 90 some percent of the time is get.
+
+550
+00:53:17,630 --> 00:53:20,180
+Get me a page.
+
+551
+00:53:20,180 --> 00:53:22,180
+And there's other stuff too.
+
+552
+00:53:22,180 --> 00:53:32,610
+And then it will respond back with,
+
+553
+00:53:32,610 --> 00:53:34,210
+what's called the response line.
+
+554
+00:53:34,210 --> 00:53:38,510
+And embedded within that response will be the thing you're asking for,
+
+555
+00:53:38,510 --> 00:53:48,610
+but in front of it all is a header that contains other stuff that is of some range of interest of whether you really care or not.
+
+556
+00:53:48,610 --> 00:54:01,900
+It can also come back with a response that says there's an error code, as you know, the infamous 404 error code.
+
+557
+00:54:01,900 --> 00:54:05,830
+So let me give you a demo of this.
+
+558
+00:54:05,830 --> 00:54:13,650
+just so we're talking a little less abstract.
+
+559
+00:54:13,650 --> 00:54:16,780
+And this is a little tricky to make it work.
+
+560
+00:54:16,780 --> 00:54:29,230
+And I'll use telnet as a way to probe a web server.
+
+561
+00:54:29,230 --> 00:54:36,230
+So I'll make a telnet connection to the computer science department's web server.
+
+562
+00:54:36,230 --> 00:54:39,230
+And now I need to make a get request.
+
+563
+00:54:39,230 --> 00:54:45,840
+This, remember, all it is is is now I'm basically providing the exact bytes
+
+564
+00:54:45,840 --> 00:54:47,840
+that will be seen by the web server.
+
+565
+00:54:47,840 --> 00:54:56,410
+So if I say get slash tilda Bryant test.
+
+566
+00:54:56,410 --> 00:54:59,410
+See if this really works.
+
+567
+00:54:59,410 --> 00:55:19,270
+I'm always surprised when things actually work.
+
+568
+00:55:19,270 --> 00:55:23,940
+So anyways, let's just look at what happened.
+
+569
+00:55:23,940 --> 00:55:28,500
+So at the top is what I typed in.
+
+570
+00:55:28,500 --> 00:55:31,500
+It's getting, and this I'm giving some,
+
+571
+00:55:31,500 --> 00:55:36,500
+the name of a particular web page that I made up just for this purpose.
+
+572
+00:55:36,500 --> 00:55:39,500
+purpose, a fairly simple web page.
+
+573
+00:55:39,500 --> 00:55:45,500
+And I'm telling it I want the response in the HTTP 1.1 format.
+
+574
+00:55:45,500 --> 00:55:49,500
+And then I have to also give a host name explicitly.
+
+575
+00:55:49,500 --> 00:55:57,500
+And the reason for this is a given machine can actually be served multiple hosts.
+
+576
+00:55:57,500 --> 00:56:05,700
+Like if, you know, I want to pay for hosting of some domain name, say to go daddy.
+
+577
+00:56:05,700 --> 00:56:07,700
+dot com.
+
+578
+00:56:07,700 --> 00:56:10,700
+It's serving hundreds or thousands of different domain names.
+
+579
+00:56:10,700 --> 00:56:16,700
+And so it actually used that host information to figure out, oh, which particular web, you know,
+
+580
+00:56:16,700 --> 00:56:18,700
+customer am I supporting here.
+
+581
+00:56:18,700 --> 00:56:19,820
+Okay.
+
+582
+00:56:19,820 --> 00:56:21,820
+And now it came back with its response.
+
+583
+00:56:21,820 --> 00:56:27,820
+And it said that code 200 means that was accepted, which it tells you okay.
+
+584
+00:56:27,820 --> 00:56:30,820
+And now it comes back with this is the header information.
+
+585
+00:56:30,820 --> 00:56:32,820
+It says, here's the date.
+
+586
+00:56:32,820 --> 00:56:34,820
+Here's the server.
+
+587
+00:56:34,820 --> 00:56:35,820
+Here's the data.
+
+588
+00:56:35,820 --> 00:56:44,820
+cookie information, the overall content is exactly 479 bytes, and it's a text
+
+589
+00:56:44,820 --> 00:56:49,820
+text HTML format. And then it will return back the raw HTML that
+
+590
+00:56:49,820 --> 00:56:58,020
+the raw HTML that this web page had, which is what I actually,
+
+591
+00:56:58,020 --> 00:57:02,020
+you know, I typed that I did this by hand, but you can imagine
+
+592
+00:57:02,020 --> 00:57:05,020
+imagine other types of things.
+
+593
+00:57:05,020 --> 00:57:06,000
+And then it's
+
+594
+00:57:06,020 --> 00:57:08,020
+just close the connection.
+
+595
+00:57:08,020 --> 00:57:12,020
+So you can see that this return both the header information
+
+596
+00:57:12,020 --> 00:57:16,020
+and the actual content information as well.
+
+597
+00:57:16,020 --> 00:57:22,300
+And so that's a general idea of what an HTTP transaction looks like.
+
+598
+00:57:22,300 --> 00:57:25,300
+And the slides go through a different version of it,
+
+599
+00:57:25,300 --> 00:57:32,660
+but it's the same general idea.
+
+600
+00:57:32,660 --> 00:57:36,660
+So the text has a really interesting code that I highly
+
+601
+00:57:36,660 --> 00:57:39,660
+recommend you read and study called Tiny,
+
+602
+00:57:39,660 --> 00:57:45,660
+which is the world's smallest functioning web server.
+
+603
+00:57:45,660 --> 00:57:50,660
+And it's really only only a couple of pages of code.
+
+604
+00:57:50,660 --> 00:57:55,660
+It serves, it says some very basic handling of static and dynamic content.
+
+605
+00:57:55,660 --> 00:58:00,140
+It's something you can sit down and read and study.
+
+606
+00:58:00,140 --> 00:58:03,140
+239 lines of code.
+
+607
+00:58:03,140 --> 00:58:05,140
+Now, it lacks a lot of features.
+
+608
+00:58:05,140 --> 00:58:08,140
+It does a very bad job of handling errors.
+
+609
+00:58:08,140 --> 00:58:09,140
+It doesn't have a lot of things.
+
+610
+00:58:09,140 --> 00:58:10,140
+It doesn't have a lot.
+
+611
+00:58:10,140 --> 00:58:13,140
+of the functionality you'd come to expect in a server.
+
+612
+00:58:13,140 --> 00:58:16,140
+So it's been stripped down to the sort of barest bones
+
+613
+00:58:16,140 --> 00:58:19,230
+to demonstrate the concepts.
+
+614
+00:58:19,230 --> 00:58:21,230
+But it's pretty cool that it works.
+
+615
+00:58:21,230 --> 00:58:23,230
+And I can say this because I didn't write it.
+
+616
+00:58:23,230 --> 00:58:28,290
+So the overall idea then is,
+
+617
+00:58:28,290 --> 00:58:29,290
+it's a server.
+
+618
+00:58:29,290 --> 00:58:32,290
+So it's receiving requests from clients,
+
+619
+00:58:32,290 --> 00:58:34,290
+from browsers, saying,
+
+620
+00:58:34,290 --> 00:58:35,290
+I want this web page,
+
+621
+00:58:35,290 --> 00:58:39,290
+or I want to execute this particular
+
+622
+00:58:39,290 --> 00:58:40,290
+dynamic program.
+
+623
+00:58:40,290 --> 00:58:55,290
+program to get dynamic content. So it comes in with a request, a get request, like you just saw, and it splits that, it picks out the what's called the URI, the argument to the get request.
+
+624
+00:58:55,290 --> 00:59:06,540
+A URI is a universal resource indicator, which is not a complete, potentially a URIs are a superset of URLs.
+
+625
+00:59:06,540 --> 00:59:09,540
+URL has to include the host name and all the information to get the source name.
+
+626
+00:59:09,540 --> 00:59:12,540
+to get from anywhere to anywhere.
+
+627
+00:59:12,540 --> 00:59:16,740
+But a URI can just be a portion of that information.
+
+628
+00:59:16,740 --> 00:59:23,340
+And then it will determine, is this a request for static or dynamic content?
+
+629
+00:59:23,340 --> 00:59:26,340
+I'll show you both of them, hopefully.
+
+630
+00:59:26,340 --> 00:59:32,540
+And if it's a static content, all it has to do is retrieve a file on its own machine,
+
+631
+00:59:32,540 --> 00:59:35,540
+send that back in that format that I just showed you.
+
+632
+00:59:35,540 --> 00:59:37,950
+So let's take a look.
+
+633
+00:59:37,950 --> 00:59:39,950
+So this is sort of the guts of the static
+
+634
+00:59:39,950 --> 00:59:47,500
+server. So what it's done is it's received a request. This is, you know,
+
+635
+00:59:47,500 --> 00:59:54,500
+a helper function of this code, so I'm kind of buried down in the middle. But what it's picked out is
+
+636
+00:59:54,500 --> 01:00:02,850
+the server has received a request for a particular file name from the URI.
+
+637
+01:00:02,850 --> 01:00:10,830
+And it's also done a lookup through an OS call to figure out how big is that file. How many
+
+638
+01:00:10,850 --> 01:00:12,850
+bytes as long as that file.
+
+639
+01:00:12,850 --> 01:00:16,850
+And it's also given the file descriptor that is the
+
+640
+01:00:16,850 --> 01:00:20,850
+the file descriptor for this particular connection.
+
+641
+01:00:20,850 --> 01:00:23,850
+So all it's doing here, you'll notice is it's doing
+
+642
+01:00:23,850 --> 01:00:25,850
+a bunch of sprinters into a buffer.
+
+643
+01:00:25,850 --> 01:00:28,850
+And what it's doing there is it's formatting
+
+644
+01:00:28,850 --> 01:00:32,850
+the header information as a byte
+
+645
+01:00:32,850 --> 01:00:37,850
+just a big long string, including the returns in it.
+
+646
+01:00:37,850 --> 01:00:40,830
+And one of the features which don't ask
+
+647
+01:00:40,850 --> 01:00:48,010
+me why the great wisdom of Tim Berners-Lee did or whoever figured this out.
+
+648
+01:00:48,010 --> 01:00:57,170
+But every line has to finish with both a carriage return and a new line instead of the usual Linux thing of just new lines.
+
+649
+01:00:57,170 --> 01:01:01,170
+So that's what the backslash-r-backslash-and means.
+
+650
+01:01:01,170 --> 01:01:10,200
+But you'll see it's going to respond back to with an okay and some of this kind of information that's not very exciting.
+
+651
+01:01:10,200 --> 01:01:11,180
+But the ones that really
+
+652
+01:01:11,200 --> 01:01:20,380
+matter are the length in bytes that has to be given and the type.
+
+653
+01:01:20,380 --> 01:01:27,930
+Where is he getting the file type? Oh, there's another function. Oh, there's another function. Oh, I remember why.
+
+654
+01:01:27,930 --> 01:01:37,570
+There's another helper function here that, because this supports not just text, but also GIF and JPEG images.
+
+655
+01:01:37,570 --> 01:01:43,350
+So get file type is another function is another function somewhere else that's telling
+
+656
+01:01:43,570 --> 01:01:50,140
+which mime type is this particular file.
+
+657
+01:01:50,140 --> 01:01:57,910
+And so it's putting that together and it's putting that together and it's, and now it writes that out,
+
+658
+01:01:57,910 --> 01:02:07,500
+so it writes the header information out to the client.
+
+659
+01:02:07,500 --> 01:02:11,690
+So it's sending back to the client.
+
+660
+01:02:11,690 --> 01:02:17,690
+And then it's going through a few gyrations here to the file,
+
+661
+01:02:17,690 --> 01:02:20,690
+open it up and then there's a function called M-MAP.
+
+662
+01:02:20,690 --> 01:02:23,940
+Have you guys covered M-Map yet?
+
+663
+01:02:23,940 --> 01:02:25,230
+Yeah.
+
+664
+01:02:25,230 --> 01:02:29,230
+Which is just a tricky way to avoid having to actually read the file into the machine.
+
+665
+01:02:29,230 --> 01:02:34,330
+But basically be able to pass off a pointer directly to
+
+666
+01:02:34,330 --> 01:02:43,960
+or into the, read it through explicit read commands into yet another buffer.
+
+667
+01:02:43,960 --> 01:02:45,960
+It just avoids one step of buffering.
+
+668
+01:02:45,960 --> 01:02:48,960
+So all it does is map then
+
+669
+01:02:48,960 --> 01:02:56,890
+then from the operating system where this particular file is located and then writes that.
+
+670
+01:02:56,890 --> 01:03:05,270
+So now it's sending it off to the client. And so this could be done with a regular read and a
+
+671
+01:03:05,270 --> 01:03:10,270
+a, but this is a little bit more elegant way to handle it.
+
+672
+01:03:10,270 --> 01:03:17,270
+And you'll notice, by the way, that the content length here is the length of the file,
+
+673
+01:03:17,270 --> 01:03:19,270
+and does not include the number of bytes.
+
+674
+01:03:19,270 --> 01:03:21,270
+the number of bytes in the header.
+
+675
+01:03:21,270 --> 01:03:23,270
+So the header comes first.
+
+676
+01:03:23,270 --> 01:03:27,270
+There's no length associated with it that's sent back.
+
+677
+01:03:27,270 --> 01:03:31,880
+But now the only way that the client knows exactly
+
+678
+01:03:31,880 --> 01:03:35,880
+how many bytes that response is going to be
+
+679
+01:03:35,880 --> 01:03:40,880
+is by picking out this number in the header
+
+680
+01:03:40,880 --> 01:03:43,880
+and reading that many bytes from it.
+
+681
+01:03:43,880 --> 01:03:44,880
+We'll see that in a minute.
+
+682
+01:03:44,880 --> 01:03:47,880
+But anyways, this is the way of a file gets sent.
+
+683
+01:03:47,880 --> 01:03:51,420
+So now let's just real quick.
+
+684
+01:03:51,420 --> 01:03:55,420
+quickly look at dynamic content. So the idea of dynamic content is it lets you
+
+685
+01:03:55,420 --> 01:04:01,450
+pass in parameters to a program that then gets executed
+
+686
+01:04:01,450 --> 01:04:06,450
+and the purpose of that, what that program then has to do is compose the web page
+
+687
+01:04:06,450 --> 01:04:09,450
+and send that web page back to you.
+
+688
+01:04:09,450 --> 01:04:14,450
+So I'm going to demo this with a feature built into here.
+
+689
+01:04:15,760 --> 01:04:37,720
+So in particular, you probably can't, you can barely see, I don't have a good way
+
+690
+01:04:37,740 --> 01:04:41,380
+to blow up the thing.
+
+691
+01:04:41,380 --> 01:04:45,380
+But the, you can also see what kind of things I look at.
+
+692
+01:04:45,380 --> 01:04:51,380
+But anyways, if I just say local host, colon 15213, that means
+
+693
+01:04:51,380 --> 01:04:58,380
+port number 15213 on my local machine, which is currently running the tiny web server.
+
+694
+01:04:58,380 --> 01:05:05,380
+And the only web page available for it is this rather stunning figure here.
+
+695
+01:05:05,380 --> 01:05:08,360
+But it shows that it can handle both gift content
+
+696
+01:05:08,380 --> 01:05:12,020
+and text, HTML.
+
+697
+01:05:12,020 --> 01:05:27,220
+But it also supports another interesting feature, which is a program that can add two numbers, called ad.com.
+
+698
+01:05:27,220 --> 01:05:32,620
+It's our idea for a startup company that didn't quite make it.
+
+699
+01:05:32,620 --> 01:05:40,030
+So in particular, the idea of this is it's a CGI program.
+
+700
+01:05:40,030 --> 01:05:42,030
+It's a dynamic content.
+
+701
+01:05:42,030 --> 01:05:54,030
+So I passing two numbers, embedded within the URL, my request, and it comes back with a web page that is beautifully formatted like this one.
+
+702
+01:05:54,030 --> 01:06:00,290
+So you can't see very well maybe, but if you look up there the teeny tiny print at the top,
+
+703
+01:06:00,290 --> 01:06:09,570
+you'll see local host colon 15213, that's the web server, and slash CGI dash bin.
+
+704
+01:06:09,570 --> 01:06:13,550
+That's what this particular server and what this particular server and what most servers do for in
+
+705
+01:06:13,570 --> 01:06:15,570
+interpreting dynamic content.
+
+706
+01:06:15,570 --> 01:06:19,570
+And then a program, it's an executable file called adder.
+
+707
+01:06:19,570 --> 01:06:25,700
+And then the argument string that you embed in this kind of curious way, the question mark,
+
+708
+01:06:25,700 --> 01:06:29,700
+and then use ampersands to separate out the different fields.
+
+709
+01:06:29,700 --> 01:06:35,210
+So that's all pretty standard way of handling dynamic content.
+
+710
+01:06:35,210 --> 01:06:41,210
+And as I said, nowadays, there's a lot fancier ways of doing it, but that's sort of the basic way.
+
+711
+01:06:41,210 --> 01:06:43,210
+And you'll see it still getting used today.
+
+712
+01:06:43,210 --> 01:06:53,130
+So imagine that this time it's a get request, but instead of the adder function,
+
+713
+01:06:53,130 --> 01:06:59,130
+it's some other pearl program that is sitting on the server somewhere called ENV.
+
+714
+01:06:59,130 --> 01:07:01,130
+And we won't worry about what that program does.
+
+715
+01:07:01,130 --> 01:07:03,130
+We'll just show you the idea behind it.
+
+716
+01:07:03,130 --> 01:07:08,130
+So in particular, there's a get request comes in, and it says CGI bin,
+
+717
+01:07:08,130 --> 01:07:15,470
+and then the next argument is interpreted as the name of a file.
+
+718
+01:07:15,470 --> 01:07:16,470
+And what will happen.
+
+719
+01:07:16,470 --> 01:07:33,680
+then is that the server will spawn off a process using our friends fork and
+
+720
+01:07:33,680 --> 01:07:45,380
+exec, which you know so well now from doing the Shell Lab. So, and that program will execute,
+
+721
+01:07:45,380 --> 01:07:56,510
+will execute. And it will, its job then, is to generate a file in HTML format.
+
+722
+01:07:56,510 --> 01:08:05,280
+And then the server will send the result back to the client.
+
+723
+01:08:05,280 --> 01:08:09,570
+So there's a few details we've got to figure out to make this work.
+
+724
+01:08:09,570 --> 01:08:13,630
+One is how will I actually pass arguments?
+
+725
+01:08:13,630 --> 01:08:17,630
+How will ENV.PL know what's being passed to it as arguments?
+
+726
+01:08:17,630 --> 01:08:23,660
+How will ENV.PL get whatever page HTML it creates
+
+727
+01:08:23,660 --> 01:08:27,660
+back to the server so that the server can send it to the client?
+
+728
+01:08:27,660 --> 01:08:31,640
+Those are all the sort of details of the CGI
+
+729
+01:08:31,660 --> 01:08:33,660
+specification.
+
+730
+01:08:33,660 --> 01:08:44,580
+CGI stands for common gateway interface.
+
+731
+01:08:44,580 --> 01:08:47,580
+So you just saw a demo of ed.com.
+
+732
+01:08:47,580 --> 01:08:54,500
+And so let's just look at how this works.
+
+733
+01:08:54,500 --> 01:08:59,740
+So as I mentioned, the way things get passed
+
+734
+01:08:59,740 --> 01:09:03,740
+is within the URL you include the program name
+
+735
+01:09:03,740 --> 01:09:07,740
+and then the question mark is what is like the terminator
+
+736
+01:09:07,740 --> 01:09:09,740
+for the program name.
+
+737
+01:09:09,740 --> 01:09:13,740
+And then all the other arguments with ampersands between them.
+
+738
+01:09:13,740 --> 01:09:15,740
+And you can't have any blanks in here.
+
+739
+01:09:15,740 --> 01:09:17,740
+So they put percent 20s and
+
+740
+01:09:17,740 --> 01:09:22,740
+as you've probably seen various other, those are called escape codes.
+
+741
+01:09:22,740 --> 01:09:26,740
+When you can't use a particular character, how do you encode it in some other way?
+
+742
+01:09:26,740 --> 01:09:42,640
+So the first thing is how does the server then pass the argument to the program that gets executed?
+
+743
+01:09:42,640 --> 01:09:43,640
+Well, it's really weird.
+
+744
+01:09:43,640 --> 01:09:47,640
+The way it does it is by creating an environment variable for your machine.
+
+745
+01:09:47,640 --> 01:09:53,220
+for your machine that's called query string.
+
+746
+01:09:53,220 --> 01:09:58,220
+And so the server defines that environment variable.
+
+747
+01:09:58,220 --> 01:10:07,040
+And then the Java on the CGI side of the script is to then
+
+748
+01:10:07,040 --> 01:10:12,040
+retrieve that environment variable as a way of getting the string.
+
+749
+01:10:12,040 --> 01:10:17,040
+You can already see, hey, wait a minute, what if you were running multiple servers at once?
+
+750
+01:10:17,040 --> 01:10:19,040
+You can see you've got a problem here.
+
+751
+01:10:19,040 --> 01:10:23,380
+But actually, no, environments are specific to particular processes.
+
+752
+01:10:23,380 --> 01:10:25,180
+So this will work.
+
+753
+01:10:25,180 --> 01:10:46,440
+So it's creating for the application program that we'll be able to sort of retrieve from the operating system, essentially, what arguments were passed to the, are being passed to it.
+
+754
+01:10:46,440 --> 01:10:50,440
+And so this is what the code looks like for the dynamic server.
+
+755
+01:10:50,440 --> 01:11:00,760
+Again, it's going to write back some, um, um, um, um, um, um, um, um, um, um, um, and so this is what the code looks like for the dynamic server.
+
+756
+01:11:00,780 --> 01:11:07,380
+information back to the the client.
+
+757
+01:11:07,380 --> 01:11:13,300
+And let's look at this.
+
+758
+01:11:13,300 --> 01:11:16,300
+And now it's going to set up this
+
+759
+01:11:16,300 --> 01:11:20,300
+this CGI query string environment variable
+
+760
+01:11:20,300 --> 01:11:24,300
+and then use our friends dupe and exec
+
+761
+01:11:24,300 --> 01:11:27,300
+basically to redirect the standard output
+
+762
+01:11:27,300 --> 01:11:32,790
+to its client.
+
+763
+01:11:32,790 --> 01:11:40,460
+Oh, I'm sorry.
+
+764
+01:11:40,460 --> 01:11:42,510
+File descriptor is the
+
+765
+01:11:42,530 --> 01:11:44,530
+the client's file descriptor.
+
+766
+01:11:44,530 --> 01:11:47,690
+So it will tell, it's going to,
+
+767
+01:11:47,690 --> 01:11:51,820
+oh, and we're in a fork, I'm sorry.
+
+768
+01:11:51,820 --> 01:11:53,820
+So now we're in the child process.
+
+769
+01:11:53,820 --> 01:11:55,820
+Okay, let me read all the code.
+
+770
+01:11:55,820 --> 01:11:58,820
+And within the child process, it's going to rename
+
+771
+01:11:58,820 --> 01:12:03,820
+its standard output so that it's writing directly to the client
+
+772
+01:12:03,820 --> 01:12:07,550
+and then call exec,
+
+773
+01:12:07,550 --> 01:12:11,550
+which, as you know, is the way you take this program,
+
+774
+01:12:11,550 --> 01:12:13,550
+which is just given by a file name,
+
+775
+01:12:13,550 --> 01:12:20,930
+and fire it up and get it going with that defined environment value.
+
+776
+01:12:20,930 --> 01:12:24,930
+And then this is the parent, we'll just wait until the child completes.
+
+777
+01:12:24,930 --> 01:12:30,780
+Okay. So now we're almost done.
+
+778
+01:12:30,780 --> 01:12:40,060
+So the, now this is what the actual program, the adder program does,
+
+779
+01:12:40,060 --> 01:12:46,510
+the one that the CGI program, the one that's been forked off and exempt.
+
+780
+01:12:46,510 --> 01:12:53,960
+So it creates then the HTML that you want to
+
+781
+01:12:53,980 --> 01:12:59,020
+to send back and here it's pretty mundane.
+
+782
+01:12:59,020 --> 01:13:05,020
+The only actual HTML in here are the P's, meaning paragraph markers.
+
+783
+01:13:05,020 --> 01:13:08,020
+So this is literally generating HTTP,
+
+784
+01:13:08,020 --> 01:13:16,940
+uh, HTML content, and storing them all in a, as a string called content.
+
+785
+01:13:16,940 --> 01:13:21,940
+And now it wants to send that content back.
+
+786
+01:13:21,940 --> 01:13:25,180
+And you saw before that the search
+
+787
+01:13:25,200 --> 01:13:33,200
+I already filled in the top level stuff, but I have to tell what is the type and how many bytes it is.
+
+788
+01:13:33,200 --> 01:13:39,390
+So I'll use Sterland to figure out how many bytes I'm sending back and the content type.
+
+789
+01:13:39,390 --> 01:13:50,740
+And then I will, and I'm print Fing this, which as you recall, I've remapped standard output now as talking directly to the client.
+
+790
+01:13:50,740 --> 01:13:54,900
+And just to be sure it all goes out, I'll flush that out of there at the end.
+
+791
+01:13:54,900 --> 01:14:01,160
+of there at the end. So what's happening here then is that it's the job of the
+
+792
+01:14:01,160 --> 01:14:08,160
+the CGI program to write the HTML and to send it back to the the client.
+
+793
+01:14:08,160 --> 01:14:24,100
+So again, let's just do a real quick demo here. I've got just enough time.
+
+794
+01:14:24,100 --> 01:14:53,340
+So I've got the tiny web server running down at the bottom, and I'm using Telnet to reach it.
+
+795
+01:14:53,340 --> 01:15:07,940
+And so now I want to say, gee, sorry, slash CGB.
+
+796
+01:15:07,940 --> 01:15:11,940
+slash CGI dash bin slash adder.
+
+797
+01:15:11,940 --> 01:15:14,100
+Quest, what numbers do you want to add?
+
+798
+01:15:14,100 --> 01:15:17,660
+17 and 13?
+
+799
+01:15:17,660 --> 01:15:28,390
+Sorry, you don't get many shots at it, so I like to double check what I'm doing.
+
+800
+01:15:28,390 --> 01:15:47,580
+It worked. Always amazed.
+
+801
+01:15:47,580 --> 01:15:52,580
+So it shouldn't surprise you what comes back because you just saw the code that did it.
+
+802
+01:15:52,580 --> 01:16:01,930
+But what you see then is that this first three lines got generated by the server code that
+
+803
+01:16:01,930 --> 01:16:05,960
+comes back with the okay, information about the server.
+
+804
+01:16:05,960 --> 01:16:12,960
+And then the content length was generated by the CGI program, Adder, and the content type.
+
+805
+01:16:12,960 --> 01:16:17,960
+And then this is the HTML that you saw being generated.
+
+806
+01:16:17,960 --> 01:16:26,960
+So it's actually what people say about this early World Wide Web, and it's gotten a lot more complicated,
+
+807
+01:16:26,960 --> 01:16:30,960
+is the best thing Tim Berners-Lee was to figure out how simple it could be.
+
+808
+01:16:30,960 --> 01:16:32,400
+how simple it could be.
+
+809
+01:16:32,400 --> 01:16:36,280
+Because other people were working on much more exotic ways
+
+810
+01:16:36,280 --> 01:16:44,020
+to get different agents to talk to each other over the Internet.
+
+811
+01:16:44,020 --> 01:16:49,380
+And what Berners Lee figured out is we can just kind of cobble together standard ideas of
+
+812
+01:16:49,380 --> 01:16:55,320
+Sockets interface, have some protocol, pretty straightforward protocol,
+
+813
+01:16:55,320 --> 01:17:00,880
+handle different content type, set up these dynamic things by
+
+814
+01:17:00,880 --> 01:17:06,640
+forking off a process every time, which is extraordinarily inefficient way to do it.
+
+815
+01:17:06,640 --> 01:17:14,880
+Like to add two numbers by forking off a whole process and doing it is totally absurd. But then so is ad.com.
+
+816
+01:17:14,880 --> 01:17:23,880
+But, you know, it's not, in some ways, he took a bunch of ideas that existed and figured out how to put it together.
+
+817
+01:17:23,880 --> 01:17:30,860
+And I'll recognize that the value people would obtain from that. And it took the internet from being something that. And it took the internet from being something that was
+
+818
+01:17:30,880 --> 01:17:37,880
+certainly used by nerdy people to talk to each other and opened it up to all the things that we know of today.
+
+819
+01:17:37,880 --> 01:17:39,880
+So it was a huge step forward.
+
+820
+01:17:39,880 --> 01:17:44,880
+Now, I give them full credit, even if from a technical point of view, it's actually fairly straightforward.
+
+821
+01:17:44,880 --> 01:17:47,980
+Okay, so that will do us for today.
+

@@ -12,6 +12,8 @@ module Garden
       podcast_show episode_number episode_date episode_duration episode_duration_seconds
       guests source_platform source_url podcast_cover transcript_jsonl transcript_txt study_cards
     ].freeze
+    COURSE_REQUIRED_FIELDS = %w[uid type document_type course title description content_lang permalink].freeze
+    COURSE_DOCUMENT_TYPES = %w[overview module lecture resource].freeze
     TEMPLATE_DESCRIPTION = /梳理核心概念、论证结构、适用边\s*界与实践要点/.freeze
 
     def generate(site)
@@ -21,8 +23,10 @@ module Garden
       hidden_topics = site.config.dig("garden", "hidden_topics") || []
       series_registry = site.data["series"] || {}
       podcast_show_registry = site.data["podcast_shows"] || {}
+      course_registry = site.data["courses"] || {}
       seen_uids = {}
       seen_episodes = {}
+      seen_lectures = {}
       errors = []
 
       site.posts.docs.each do |post|
@@ -58,6 +62,66 @@ module Garden
         end
       end
 
+      site.collections.fetch("courses").docs.each do |document|
+        COURSE_REQUIRED_FIELDS.each do |field|
+          errors << "#{document.relative_path}: missing '#{field}'" if blank?(document.data[field])
+        end
+
+        errors << "#{document.relative_path}: type must be 'course'" unless document.data["type"] == "course"
+        validate_value(document, "content_lang", content_languages, errors)
+        validate_value(document, "document_type", COURSE_DOCUMENT_TYPES, errors)
+
+        course_slug = document.data["course"]
+        unless blank?(course_slug) || course_registry.key?(course_slug)
+          errors << "#{document.relative_path}: course '#{course_slug}' has no _data/courses.yml entry"
+        end
+
+        uid = document.data["uid"]
+        unless blank?(uid)
+          unless uid.match?(/\A[a-z0-9]+(?:-[a-z0-9]+)*\z/)
+            errors << "#{document.relative_path}: uid '#{uid}' must be a lowercase ASCII slug"
+          end
+          if seen_uids.key?(uid)
+            errors << "#{document.relative_path}: duplicate uid '#{uid}' also used by #{seen_uids[uid]}"
+          else
+            seen_uids[uid] = document.relative_path
+          end
+        end
+
+        next unless document.data["document_type"] == "lecture"
+
+        %w[module_number lecture_number duration_seconds timeline media_sources].each do |field|
+          errors << "#{document.relative_path}: lecture missing '#{field}'" if blank?(document.data[field])
+        end
+        %w[module_number lecture_number duration_seconds].each do |field|
+          value = document.data[field]
+          unless value.nil? || value.is_a?(Numeric) && value.positive?
+            errors << "#{document.relative_path}: '#{field}' must be positive"
+          end
+        end
+
+        sources = document.data["media_sources"]
+        unless sources.nil? || sources.is_a?(Array) && !sources.empty?
+          errors << "#{document.relative_path}: 'media_sources' must be a non-empty YAML array"
+          next
+        end
+        Array(sources).each do |source|
+          unless source.is_a?(Hash) && !blank?(source["provider"]) && !blank?(source["label"])
+            errors << "#{document.relative_path}: each media source requires provider and label"
+          end
+          unless source.is_a?(Hash) && valid_https_url?(source["url"])
+            errors << "#{document.relative_path}: each media source requires a valid HTTPS url"
+          end
+        end
+
+        lecture_key = [course_slug, document.data["lecture_number"]]
+        if seen_lectures.key?(lecture_key)
+          errors << "#{document.relative_path}: duplicate lecture also used by #{seen_lectures[lecture_key]}"
+        else
+          seen_lectures[lecture_key] = document.relative_path
+        end
+      end
+
       featured_count = site.posts.docs.count { |post| post.data["featured"] == true }
       unless featured_count.between?(2, 5)
         errors << "featured content count must be between 2 and 5 (found #{featured_count})"
@@ -75,6 +139,17 @@ module Garden
         end
         unless blank?(metadata["url"]) || valid_https_url?(metadata["url"])
           errors << "podcast show '#{slug}' requires a valid HTTPS 'url'"
+        end
+      end
+
+      course_registry.each do |slug, metadata|
+        %w[title short_title institution term language notes_language description course_url source_url].each do |field|
+          errors << "course '#{slug}' requires '#{field}'" if blank?(metadata[field])
+        end
+        %w[course_url source_url].each do |field|
+          unless blank?(metadata[field]) || valid_https_url?(metadata[field])
+            errors << "course '#{slug}' requires a valid HTTPS '#{field}'"
+          end
         end
       end
 

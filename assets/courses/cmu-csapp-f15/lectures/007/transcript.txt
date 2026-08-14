@@ -1,0 +1,677 @@
+[00:00:00] We're still swogging through the material on machine level programming, which as I talked to you earlier, I think is in some ways the core of this course that much of the rest of the material builds upon.
+[00:00:15] And hopefully you've all had a chance to check out Lab 2 and your Bomb Lab, and you've got it and started on that.
+[00:00:24] And certainly, by the time you're finished with the material from today, you will be well on the way to solve.
+[00:00:30] all but the last one or two stages of the bomb web.
+[00:00:34] So I highly recommend you get going on that and not put it off to the last minute.
+[00:00:40] And what we're talking about today is how procedures, procedures, I'm going to use the same terminology here,
+[00:00:51] whether it's a function, a procedure, or an object-oriented programming, a method.
+[00:00:57] Those are all roughly the same thing. And what we'll talk about covers them.
+[00:01:01] overall.
+[00:01:09] I'll also mention at the outset that the way this is handled in the procedures that we'll be
+[00:01:17] talking about today is a combination of the actual x86 hardware and how it supports
+[00:01:24] it, but also in some ways more importantly, a set of conventions that were developed
+[00:01:30] that basically everyone agreed to, and it's known as an ABI, that's why I want to, which stands for
+[00:01:37] which stands for application binary interface.
+[00:01:50] So the idea is a document.
+[00:01:51] You can get it online.
+[00:01:54] It's, and it's cited in the book.
+[00:01:58] It's a document that people put together, the initial version,
+[00:02:02] when the first x86-864 machines were first being developed.
+[00:02:07] And specifically for Linux.
+[00:02:09] They said, okay, all Linux programs that all compilers, all the
+[00:02:15] operating system all the different parts of a system that need to have some common
+[00:02:21] understanding of how to manage the resources on the machine will agree to adhere to this set of
+[00:02:27] rules and so it's it goes beyond the actual what the hardware does to a set of
+[00:02:34] software standards and it's called application binary interface because it's
+[00:02:39] particularly the interface at the machine level machine level programming, machine
+[00:02:45] program level. And so that's what we'll be covering today. So people ask
+[00:02:50] sort of, well, you know, who makes up these rules and things? And the point was there was a working group
+[00:02:55] that did this. And there's a separate ABI for Windows. It's similar but not quite the same.
+[00:03:01] There's a separate ABI for OSX for Apple and even free BSD, a different variant of a
+[00:03:09] Unix-like operating system, has its own ABI that they all share a lot in common, but
+[00:03:15] some of the details differ.
+[00:03:20] So if you think about what goes on in a procedure, even in C, which is a relatively unsophisticated language
+[00:03:27] in many ways, there's a lot going on. And so it's worth breaking down those and thinking about it.
+[00:03:34] One is there's a notion of control. So in my example, I show a procedure P calling a procedure
+[00:03:40] Q. And so when when P calls Q, then somehow the program has to
+[00:03:47] to jump down and begin executing the lines of code for Q. And then when
+[00:03:53] Q hits its exit point, its return point, somehow is to get back to P, and not just to any old
+[00:04:01] place in P, but specifically to whatever came comes in P right after the call to Q. So
+[00:04:08] somehow we have to record the information about where the return should be to be to be able
+[00:04:14] to return to the correct place. So that's first of all, two forms.
+[00:04:17] to passing control to a function, and having that function return back to where it should get back to.
+[00:04:24] Second, there is data. How do we get operands to it? So in this particular case, Q is a function that takes a single argument that it calls, internally it calls I.
+[00:04:36] And up here where P is calling it, it's passing some value within P called X.
+[00:04:42] So somehow that data value of X has to be recorded in a number,
+[00:04:47] form that within Q, it will have access to that information. And similarly,
+[00:04:53] when Q wants to return a value back and then P will make use of that value, there has to be
+[00:05:01] some convention of how that data gets communicated back.
+[00:05:07] And then finally, in a function might have some local data that requires allocation of some amount
+[00:05:16] of space. And so where does that space get allocated? How do we make sure it gets
+[00:05:20] allocated properly? In particular, in C, as you know, when a function returns, any local data
+[00:05:28] that it allocated should get deallocated, should be freed up so that we don't sort of start
+[00:05:34] consuming an unbounded amount of storage. So how do we do that? Those are all the sort of
+[00:05:40] different aspects that a procedure call and return have to deal with somehow. And
+[00:05:46] And part of the reason for breaking it down into those little segments is in
+[00:05:51] X8664, one of the clever things they did was to try and reduce the overhead of procedure calls
+[00:05:58] as much as possible because, as you know, in good programming style, you often write these functions
+[00:06:06] that do a fairly small amount of actual useful stuff.
+[00:06:10] And it's sort of good programming style to do that, especially in a more object-oriented programming.
+[00:06:16] And so you don't want the overhead, the extra number of steps taken to invoke
+[00:06:21] a procedure and deal with all those aspects to take any more time than it needs to, because it's a fairly
+[00:06:29] critical overhead. So one of the things they do in this is they only do whatever
+[00:06:36] is absolutely needed. So in particular, if no local storage is needed for data, then don't
+[00:06:44] allocate it and therefore don't free it. If you're not passing any values,
+[00:06:48] don't pass them. And in general, sort of how little can you get away with? And that makes
+[00:06:55] it a little bit confusing from a teaching point of view and that there's no set
+[00:07:00] template that it follows every time. It sort of you have to, each case is a special
+[00:07:05] case for how a particular procedure gets implemented. So we'll go through all
+[00:07:13] these parts and see how they happen. And you've already seen
+[00:07:16] little glimps of them looking at the little fragments of code that we've shown already.
+[00:07:22] So the first one, and sort of the most critical, is how do we pass control to a function? But before
+[00:07:30] we can even talk about that, we have to talk about the stack. So, and you've heard that term the stack
+[00:07:36] stack in various ways. The stack is really not a special memory. It's just a region
+[00:07:42] of the normal memory. Remember, to the programmer's perspective,
+[00:07:47] assembly level programmers perspective is memory is just a big array of bytes.
+[00:07:54] And somewhere within that bunch of bytes, we're going to call it the stack.
+[00:07:59] And the stack is used by the program to manage the state associated with the procedures that it
+[00:08:06] calls as they return. So it's where it passes all these potential information, the control information,
+[00:08:14] information, data, and allocates local data. And the reason why it can be managed
+[00:08:21] is a stack is because of the nature of the whole idea of procedure calls and returns, that you make
+[00:08:27] a call and you might need some information, but when you return from a call, all that information
+[00:08:34] can be discarded. And so it makes use of that sort of last in, in, first out, allocation
+[00:08:41] principle meshes very well with this idea of procedure call and return.
+[00:08:46] So in x86 stacks actually start with a very high number address, and when they grow, when more
+[00:08:57] data are allocated for the stack, it's done by decremeting the stack pointer.
+[00:09:03] So the stack pointer, as you know, is just a regular register, RSP, and its value is just a regular register,
+[00:09:11] of the current top of the stack. And every time you allocate more space on the stack,
+[00:09:16] it does it does it by decrementing that pointer. Now, just for a convention, and I'm not
+[00:09:24] sure why this happens, but this is the way we do it, is we draw stacks upside down, so that
+[00:09:31] the term the top of the stack is actually shown at the bottom. And just to add to that
+[00:09:41] confusion and also remember that the addresses go from bottom to top, not from top to bottom.
+[00:09:49] So when you add to the stack, you decrement the stack pointer. Neither of those kind of meshes
+[00:09:55] with your intuition perhaps, but you just have to get used to it because we're not going to
+[00:10:00] redraw all the slides. So anyways, let's just remember that over and over again. And
+[00:10:10] that's why this arrow show that if we were to enumerate,
+[00:10:13] the addresses of these different bytes in the data, they'd be increasing in this direction.
+[00:10:19] And when we add to the stack, the stack top is at the bottom of the picture, and we do it by
+[00:10:25] by decrementing the stack pointer. So, in particular, there's explicit instructions, push and pop,
+[00:10:34] that make use of the stack. And it's often written push Q and pop Q, but that's often written push Q and pop
+[00:10:41] but that Q is actually an optional suffix on the instruction.
+[00:10:48] So the idea of pushing something onto the stack then is there's some source operand that could be
+[00:10:56] from register or from memory or an immediate. So this is sort of like a move instruction,
+[00:11:03] but the destination of the move will be toward memory and that address of the move is determined
+[00:11:11] by first decrementing the stack pointer and then doing a write.
+[00:11:15] And similarly, the pop instruction takes reads data from the stack and stores it in the destination,
+[00:11:26] which must be a register for this particular instruction.
+[00:11:30] I think push must be a register, too, now that I think of it, or immediate.
+[00:11:36] You can't push from memory to, uh, so pop reads from memory to, uh, so pop reads from memory.
+[00:11:43] The address it reads from is given by
+[00:11:46] the current stack pointer.
+[00:11:49] And then it increments the stack pointer by eight.
+[00:11:52] These both work only on eight byte operands.
+[00:11:55] I'll get to you in a second.
+[00:11:57] And then the result of that is stored in a register.
+[00:12:01] Question.
+[00:12:02] Pop and push or just like doing the like the three things.
+[00:12:09] Like is there a difference between like using the like the pop?
+[00:12:14] Oh, could you write it as a set of instructions?
+[00:12:17] Yeah, you could actually.
+[00:12:19] except for some weird corner cases,
+[00:12:23] write it out as a set of separate instructions.
+[00:12:26] But it's a common enough thing that it's sort of built in as an operation.
+[00:12:32] Whereas call and return are special.
+[00:12:35] They can't be simulated.
+[00:12:37] So, one thing to remember, too, is it's important that in one case you decrement,
+[00:12:43] you do the arithmetic on the stack pointer before you write,
+[00:12:47] because when you first started out, the stack pointer,
+[00:12:50] was pointing to whatever was the top element of the stack, we want to create a new top element
+[00:12:55] element so we're going to decrement first and then do the right.
+[00:13:00] Whereas going the other direction, you want to read off the current top of stack element, and then
+[00:13:06] you want to increment the stack pointer to sort of deallocate it.
+[00:13:11] And one thing you'll notice here is when I say deallocate, it's not like I magically erase this
+[00:13:16] or something.
+[00:13:18] All I'm doing is just moving a stack pointer.
+[00:13:20] whatever it was there at the top of the stack is still in memory.
+[00:13:24] It's just no longer considered part of the stack.
+[00:13:27] Okay, so that's the idea of the stack.
+[00:13:34] And the instructions push and pop are to put data on the stack or take it off.
+[00:13:41] But we use the same basic idea for call and return.
+[00:13:48] So let's look at some examples, and there's a lot of stuff up here.
+[00:13:52] But this is a C function called MaltStore.
+[00:13:55] called MaltStore.
+[00:13:57] And then this is the output, slightly cleaned up output from the disassembler of that exact function.
+[00:14:06] And similarly, this is a function called Malt2, and this is its disassembled version.
+[00:14:11] And the reason I'm showing this is because I want to make use of the addresses that these instructions
+[00:14:18] are at that you don't see when you write it in assembly code, so I'm showing it the disassembled version.
+[00:14:25] And the reason all this is up here is because you'll see the function MaltStore calls a MULT tube.
+[00:14:32] So I want to show how that works.
+[00:14:34] So, and there's two instructions, and you've seen these in some form.
+[00:14:41] To call a function, you just call it, where you give a label.
+[00:14:46] But keep in mind that these two instructions, and the other is when you're ready to return,
+[00:14:51] you just execute the RET instruction.
+[00:14:54] And keep in mind, though, that these two instructions.
+[00:14:55] Keep in mind, though, that these functions don't do the whole business of procedure call and return.
+[00:15:01] They just do the control part of it, which, as we saw, is, only one of three aspects of a procedure.
+[00:15:09] I'll also mention, you'll see it especially in, sometimes it will say, REP, semicolon, RET.
+[00:15:17] And you can pretty much just ignore that.
+[00:15:21] And it's a bit obscure why it's even there.
+[00:15:23] So it's really the same idea.
+[00:15:31] So let's sort of break this down into its simplest part.
+[00:15:36] So let's imagine a scenario in which the top of stack is at hex address 120, which is at hex address 120,
+[00:15:44] which is not realistic, by the way.
+[00:15:47] And the program counter, which is called RIP, which is not anything to do with death, is indicating
+[00:15:56] that the current instruction is this at 544.
+[00:16:01] which is this call instruction.
+[00:16:03] And so what would happen with the call instruction is it would do two things.
+[00:16:10] It would, actually three things.
+[00:16:14] It would decrement the stack pointer.
+[00:16:16] And so subtracting 8 from 120 and hex gives you 118.
+[00:16:21] And it would write the address of the instruction following the call
+[00:16:28] on to the top of the stack.
+[00:16:31] And it's important that it does.
+[00:16:32] And it would write the address of the instruction following the instruction following the call,
+[00:16:33] the one following the call, because if it, that's, that's the instruction I'm going to return, use for my return address.
+[00:16:42] And I want to resume execution in this function at the instruction after the call, not the call itself.
+[00:16:50] Otherwise, you'd have an infinite loop.
+[00:16:54] And it also, this call instruction also embedded in the encoding of the instruction is the instruction is the destination address of it.
+[00:17:05] of it, which happens to be the starting address of this particular function.
+[00:17:12] So the program counter will be set to that value, and now the processor starts just executing along these instructions.
+[00:17:22] So it did a combination of a jump and a push, and that's why the question was raised earlier.
+[00:17:28] Is a push instruction, could you assemble that out of existing instructions?
+[00:17:34] The answer is yes for push, but not for call.
+[00:17:37] Question back there.
+[00:17:38] So you could go to the function in like mold store, you would put the address of MUL2 into?
+[00:17:45] No.
+[00:17:47] No. No. It did that RIP, you never explicitly, there aren't instructions that manipulate that directly.
+[00:17:55] It's implicitly part of the call instruction.
+[00:17:59] The call instruction will take, I don't have the actual encoding, but embedded in this.
+[00:18:05] In this call instruction, you see that it's five bytes long, I don't show you the byte coding, but embedded in it is the target address.
+[00:18:14] And so it will take that address and use it for the new value of the program counter.
+[00:18:20] So the call does both the pushing of the old, the return pointer, and setting the program counter to the new, the new target for it.
+[00:18:33] So it does both of those things.
+[00:18:35] Question?
+[00:18:46] I don't think so.
+[00:18:48] With either call or return?
+[00:18:50] If so, it would be really obscure.
+[00:18:53] No, I don't think so.
+[00:18:58] So call and return are the...
+[00:19:00] There might be some weird system instructions that let you do that,
+[00:19:03] but not you'd see in any normal program.
+[00:19:06] Other questions?
+[00:19:10] These are? Good questions, so.
+[00:19:11] So, okay.
+[00:19:16] So that shows you the control mechanism, how the call works.
+[00:19:19] And then...
+[00:19:22] So now...
+[00:19:23] Now imagine this mulctoo chugs along and it hits its return point, and it hits this RET instruction.
+[00:19:30] By the way, again, RETQ, and RET are the same instruction.
+[00:19:33] And RETT will, its purpose is to sort of reverse the effect of a call.
+[00:19:40] It assumes that the top of the stack has an address that you want to jump to.
+[00:19:48] So it will pop that address off the stack, meaning it will increment the stack,
+[00:19:53] meaning it will increment the stack pointer.
+[00:19:55] Like I said, the value doesn't really disappear from the memory.
+[00:19:58] It just is no longer considered part of the stack.
+[00:20:02] And then it will set the program counter to what it just popped off the stack.
+[00:20:07] And that will cause the program to resume back to where it came from.
+[00:20:12] So you see that sort of clever idea of pushing the address of the next instruction,
+[00:20:18] so when the return comes it will get it to the point where it should resume execution.
+[00:20:22] where it should resume execution.
+[00:20:27] Okay, so that's passing control.
+[00:20:29] It's pretty simple.
+[00:20:30] All these things, by the way, and it's just the nature of machine code.
+[00:20:33] Every single part of it is pretty simple because it's designed to be executed by
+[00:20:39] the original hardware is fairly simple.
+[00:20:42] It's not anymore, but it's really the basic ideas are.
+[00:20:47] And that we use kind of combinations of instructions of instructions
+[00:20:50] to build up all the layers associated with operations like precision
+[00:20:55] call and return.
+[00:20:57] Okay, so passing data.
+[00:20:59] Now, we've already seen a few small examples of passing data.
+[00:21:02] We've seen a couple of registers that get used when you're
+[00:21:07] passing arguments to a function,
+[00:21:10] and we've seen the register R-A-X getting used to return values from a function.
+[00:21:15] And so those, that's the basic idea.
+[00:21:18] And again, this is all built into this A-B-I,
+[00:21:23] you know, defined as a set of conventions, not particularly
+[00:21:26] part of the hardware.
+[00:21:28] So in particular, the rule is that the first six arguments
+[00:21:31] get passed in these particular registers.
+[00:21:35] And you just have to memorize the order of them
+[00:21:43] or have a table handy to look at or something like that
+[00:21:46] because there's no particular logic to it.
+[00:21:50] And the return value is returned in register R-A-X.
+[00:21:57] And by the way, this is all for
+[00:21:59] arguments that are either integers or pointers.
+[00:22:03] Well, I think I've got a little bit on floating point.
+[00:22:06] Those are passed in a separate set of registers.
+[00:22:08] So these are just for, assume now we just are dealing with integer data, pointer data.
+[00:22:14] And then you ask, well, what happens if you have more than six arguments to a function,
+[00:22:20] which isn't very common, but it happens?
+[00:22:22] Well, the rule on that is those get put in memory on the stack,
+[00:22:26] and I'll illustrate what I mean by that.
+[00:22:29] So they're passed to the function, and then the function has to retrieve those values off the stack.
+[00:22:35] Back in the bad old days of IA32, by the way, all the arguments got passed on the stack.
+[00:22:42] But now, for the most part, you pass arguments in the registers.
+[00:22:46] And the reason for that is register access is way faster than memory access.
+[00:22:51] Okay, so here is a kind of messy bunch of code, but just to show you how these show up all the time.
+[00:23:00] all the time.
+[00:23:03] In the function, Malt store has three arguments, X, Y, and DEST.
+[00:23:08] And you can just see within this code that it's making use of registers like RDI.
+[00:23:16] And doesn't show where, and in other places, like Malt 2 has two arguments.
+[00:23:24] And you can see how it's making use of RDI and RSI in the code.
+[00:23:28] So basically the code is generated under these.
+[00:23:31] assumptions that whatever arguments is being passed to it will be passed in that particular set of registers in the particular order they're listed.
+[00:23:40] And the code is sort of makes those assumptions.
+[00:23:43] And then similarly, when you have a return value from a function, let's see, Malt Store does not have a return value.
+[00:23:54] But Malt 2 does, and the way it does is it deposits the value into R-A-X.
+[00:24:02] And then when the return from R.X occurs to MaltStore, you see that it assumes now that the MaltStore code can assume that the MaltStore code can assume that register RAX holds the return value, and it can store it in its destination register.
+[00:24:26] And we'll look in a minute why RBX gets used here.
+[00:24:31] We'll cover that in a minute.
+[00:24:32] that in just a little later.
+[00:24:34] But that's the point that as long as everyone sticks to this common
+[00:24:38] interface standard, then you can even use different compilers to compile
+[00:24:43] to compile code and have them be able to cooperate with each other in terms of
+[00:24:49] passing arguments, returning data.
+[00:24:52] And that's the reason why you want that convention.
+[00:24:55] Yes.
+[00:24:59] Eight bytes because the, well, first of all, for call and return, it's a 64-byte-byte.
+[00:25:04] It's a 64-bit machine, so all addresses are 64 bits or 8 bytes.
+[00:25:09] But also even the push and the pop instruction only work on 8 byte values.
+[00:25:15] If you said push L, if you tried to write that in 64-bit code, it would come back with a syntax error on it,
+[00:25:23] if you had it in the assembly.
+[00:25:25] So, and that's different, I-A-32, there'd be 4-byte values here.
+[00:25:33] Okay, so, like I said, you've said.
+[00:25:40] sort of seen that implicitly in some of the code you've already been looking at, and it's
+[00:25:44] pretty straightforward. To get an example that shows passing arguments, you have to have
+[00:25:51] to have a function with at least seven arguments, which is pretty messy to do, so I won't do it,
+[00:25:55] but there's examples in the book.
+[00:26:00] But now, and we'll sort of pick it up, I'll show you also in this later part.
+[00:26:07] And now the third part of it is, again, what if there's some local data that we'll
+[00:26:12] local data that we need to make use of.
+[00:26:15] And so to get that idea across, I have to
+[00:26:18] bring in another concept which is called the stack frame.
+[00:26:23] And so this is a particular allocation pattern that's used in memory.
+[00:26:28] And as I mentioned earlier, one of the features of calling and returning
+[00:26:34] is you can imagine when you have a nested series of calls to a function,
+[00:26:41] When a particular function is executing,
+[00:26:44] it only needs to reference the data within that function
+[00:26:52] or values that have been passed to it, some of which might be pointers,
+[00:26:56] and therefore pointing to other locations in memory.
+[00:26:59] But the point is sort of the rest of the functions in your code,
+[00:27:04] however many they are, are sort of frozen at that moment.
+[00:27:08] Really, there's only one function executing at any given time.
+[00:27:11] I'm assuming a sort of what you'd call a single threaded model here.
+[00:27:18] And so we can just allocate on this stack whatever space is required for this particular function.
+[00:27:26] And then when we return from that function, we shouldn't, if it's correctly written,
+[00:27:32] need any of the information associated with that function.
+[00:27:35] It can just sort of disappear forever.
+[00:27:37] And that's why this idea of a stack, you allocate something,
+[00:27:40] allocate something.
+[00:27:43] If you make more calls, you keep allocating more stuff.
+[00:27:46] But as they return, you kind of back out of the stack and free things up.
+[00:27:51] So the stack discipline is exactly the right,
+[00:27:54] matches well as this whole idea of procedure call and return.
+[00:27:58] So each block we use for a particular call then is called the stack frame.
+[00:28:04] And to be sort of more technical, we'll say,
+[00:28:11] it's a frame for a particular.
+[00:28:12] It's a frame for a particular instance of a procedure, a particular call to a procedure.
+[00:28:19] So just imagine we had a set of functions, one called U, which calls a function called who, and who has multiple calls to another function called M.I.
+[00:28:33] And M.I is itself is recursive, it calls itself. And so, and imagine we had a chain of calls itself.
+[00:28:43] where you calls who calls M.I., which calls itself recursively twice.
+[00:28:49] And then we'll exit out of M.I. and get back to who.
+[00:28:54] And then who will hit its second call to M.I., which won't go any further,
+[00:28:59] and that will be it. So this picture here shows this whole history of all these calls that get made.
+[00:29:07] But in terms of the stack, all we need
+[00:29:15] we'll keep a frame for every sort of procedure that has been called but not yet returned on the stack.
+[00:29:25] And in general, this stack is deliminated by, delimited by two pointers. One is the stack
+[00:29:32] pointer, which we're familiar with. And then there's another called the base pointer, which
+[00:29:37] register RBP indicates. But one feature of, actually, it's now become a feature of IA32,
+[00:29:47] as well, is that this is an optional pointer.
+[00:29:52] And in particular, the code that we'll see does not use a base pointer, except in some very special
+[00:29:59] cases. So this register doesn't really, won't show up in your programs, being used in a special
+[00:30:09] way as a frame pointer. It will be used instead just as a regular register. So, typically, then, the
+[00:30:16] The only thing you'll know about the stack pointer, you wouldn't even be able to figure out where the frame is exactly.
+[00:30:23] You'll just know that the top part of the stack is the top frame for the topmost function.
+[00:30:30] And this is all managed by the code itself.
+[00:30:36] And this is the same stack, by the way, in which you're pushing and popping addresses too, and they all kind of get mixed together.
+[00:30:47] So we haven't actually seen any code.
+[00:30:48] seen any code up till now that makes you has to do any explicit management
+[00:30:54] of the stack because all our examples were very simple and just did made use of the stack only
+[00:31:01] for return addresses but we'll see some that uses more but so in general then
+[00:31:08] imagine that each time you begin a function some space gets allocated potentially on
+[00:31:15] the stack for its frame and then
+[00:31:18] And that frame is indicated by either one pointer only or two pointers.
+[00:31:25] And so now as you calls who, then that will create a new stack frame for who.
+[00:31:34] And so when MI gets called, that creates a new stack frame.
+[00:31:38] And as we continue with these recursive calls, we're just adding more stuff to the stack, getting deeper and deeper.
+[00:31:45] And that will keep happening. That's one of the reasons why recursion is a little
+[00:31:49] bit of a risky thing is that compared to iteration, it keeps requiring more space as you go deeper in the recursion.
+[00:31:59] And in particular, most systems limit the total depth of the stack.
+[00:32:05] And you can have what, because they're afraid of the sort of infinite loop version of recursion is runaway recursion,
+[00:32:14] where it just keeps trying to push more and more stuff onto the stack.
+[00:32:17] That's an aside.
+[00:32:18] And then as these begin to return, those
+[00:32:27] get deallocated, removed from the stack. So part of it, the nice thing about this is it means
+[00:32:34] that every time I, if I have multiple calls to MI, because I've gone deep recursively,
+[00:32:41] each one of them will have its own local state that it needs to manage. And again, the whole stack
+[00:32:50] discipline is what makes it work.
+[00:32:53] And what we'll find out in particular is, because of the way this is set up, recursive calls
+[00:32:59] are handled the same way that regular calls are.
+[00:33:02] There's nothing special about them. All the heart, all the sort of infrastructure required
+[00:33:07] to support recursion is built into this whole stack discipline.
+[00:33:14] So anyways, imagine that all these calls return back to who, and then who would call
+[00:33:21] MI again, and then again, as we exit, we're sort of deallocating these stack frames
+[00:33:28] and getting back to the starting point. Yes, question. Oh, so the question was, if RBP is optional,
+[00:33:41] then how does the program know how to do the deallocation? How can it reset the stack back to the
+[00:33:47] right place? And the answer is, and we'll see examples, that the code is compiled so it knows, for
+[00:33:55] example, when it does the allocation it's going to allocate 16 bytes, and then it
+[00:34:01] knows at the end that it can deallocate it 16 bytes. And it actually brings up a good point. There's
+[00:34:06] sort of an obscure part of the book that goes over this. There's a few special cases where it can't
+[00:34:13] know in advance how much space will be allocated when it has to allocate an array or a memory buffer
+[00:34:22] of variable size. And then it will actually
+[00:34:25] use the R.B.P. In those cases, for exactly that purpose. Okay.
+[00:34:34] And so in general, what the stack frame will look like in one of these machines will be something
+[00:34:45] like this, that, and you'll see this is the caller, and then this is the stack frame of
+[00:34:54] the function that got called. So working our way back, and then this is the stack frame of the function of the function that
+[00:34:57] got called. So working our way back, if we have to pass more than
+[00:35:04] six arguments, the caller will actually use its own stack frame to store those
+[00:35:12] arguments so that they'd be available. And we already saw when you do a call, it will
+[00:35:21] push the return address onto the stack frame. So before our function even
+[00:35:26] starts, all this information would be on the stack.
+[00:35:30] Now, if there's a, if this particular, if we're making use of a base pointer, then we have to have to have
+[00:35:38] somewhere where to store the old value of the base pointer so that we could fix it back when we return.
+[00:35:44] We won't show any code doing that here. So this is optional.
+[00:35:48] But in general, if there's some local state, like some registers that need to be saved,
+[00:35:54] and we'll see examples of that.
+[00:35:56] or an array that needs to be allocated locally, that will be stored within the stack frame.
+[00:36:03] And there might be some requirement for some extra space in the stack frame for other stuff.
+[00:36:09] In particular, if it were going to pass more than seven arguments,
+[00:36:12] it needs space somewhere in the stack frame to do it.
+[00:36:16] And what we'll see in typical code is this stack pointer gets decremented pretty soon after the procedure began.
+[00:36:25] the procedure begins and it gets incremented back just before it returns.
+[00:36:31] That's how it manages the stack. So let's do some examples. Let's see, I looked at this
+[00:36:47] before. But this is a function, oh, I think the interesting thing about this function is
+[00:36:53] that it has a pointer being passed to it. So this function takes an argument, one argument
+[00:36:59] is a pointer and another is an integer value.
+[00:37:02] And you can see what it does is it de-references that pointer to get a value called X.
+[00:37:11] It computes a value y by summing x and the value passed to it.
+[00:37:18] It stores y back at p, but it returns x, the original value of the pointer, not the updated version of the pointer.
+[00:37:28] And you can see that in the code here, it's code's pretty short.
+[00:37:32] remember that in general RDI will hold the first argument.
+[00:37:36] In this case, it's a pointer.
+[00:37:38] So it will do a read from that pointer.
+[00:37:40] And it will put the value in R.A.X, which is where the return value should be, anyhow.
+[00:37:46] And then it will increment RSI, which has the value called val here, initially.
+[00:37:54] And now it has the value of x plus val.
+[00:37:58] And then it will store that in
+[00:38:02] the value pointed to by P, and it will do a return.
+[00:38:10] So you see these three instructions do all the different parts of this.
+[00:38:14] And as this shows, in general, I'll show, you know, register usage.
+[00:38:18] It's handy, by the way, to document this when you're looking at code.
+[00:38:22] RDI is the first argument.
+[00:38:25] RSI gets used, initially, it's VAL, but now it will be set to Y during the call.
+[00:38:32] And similarly, R.
+[00:38:33] initially the value, well, it's both what X is here and it's used as the return value.
+[00:38:41] Okay.
+[00:38:43] So let's, the reason to go through all that is to actually show you examples of calling this and how arguments
+[00:38:50] get passed to the function and how it makes use of the stack frame.
+[00:38:57] So now there's a function called call Inker, and it's going to create a value called V1 and have to
+[00:39:07] generate a pointer to that. So what that means is V1 can't just stay in a register
+[00:39:13] because you can't create an address of a register. It has to be stored in memory somewhere so
+[00:39:19] that you can create a pointer, an address of it. And where does it store it? Well, it puts it in
+[00:39:25] the stack. So how does it find space on the stack? Well, it allocates it. So the function
+[00:39:31] call Inker then, and we'll go through all the different parts of it. But you see that this red
+[00:39:37] code here is generated, generates these two instructions. One is to allocate
+[00:39:44] 16 bytes on the stack. And the other is to store 15213 at offset 8 from the stack pointer.
+[00:39:54] And as we'll often see, the program often allocates more space on the stack than it really
+[00:40:02] needs to. And there's some conventions about trying to keep, uh, um, the program often allocates more space on the stack than it really
+[00:40:02] needs to. And there's some conventions about trying to keep addresses on
+[00:40:09] aligned in various ways that are sort of obscure and we, you should just kind of not worry about the fact
+[00:40:16] there's unused space and functions because it's, they do it. The reasons for doing it are
+[00:40:22] are maybe interesting to some, but not really ones you need to understand at this point.
+[00:40:31] So the point is, uh, may be interesting to some, but not really ones you need to understand at this point. So,
+[00:40:34] The way we got space on the stack was to just add to the stack point
+[00:40:39] to, decrement the stack point. So now we have a number 152-13 that's sitting in memory,
+[00:40:48] and we can create a pointer to it. And so now to set up this call, we need to create a pointer V1 to V1, and we have to pass the number 3,000.
+[00:41:08] So we'll see that we'll copy 3,000 to register ESI. And let me just double check here.
+[00:41:25] I'm just looking. So one of the annoying features is you see all the data type here are long.
+[00:41:31] So there's no ints here. And yet it's copying 3,000 just to register ESI and not RSI.
+[00:41:38] And it's using a move L and not a move Q. I think we might have covered that last time. But 3, 3, 3, is a
+[00:41:45] a small enough number it will fit in 32 bits. It's a positive number, so we don't
+[00:41:49] have to worry about sign bits. So the thing can sort of get away with a trick here of
+[00:41:55] using just a move L instruction. Because when any instruction has a, one of the E-registers
+[00:42:04] is its destination, it'll set the upper 32 bits of that register to zeros. So this
+[00:42:14] This will have the effect of copying the number of 3,000 and zeroing out the upper bytes
+[00:42:20] to register RSI. And the reason the compiler likes this is it takes one less byte to encode a
+[00:42:26] move L than it does to encode a move L than it does to encode a move Q. So just, you have to get used
+[00:42:33] to these kind of things. So that's setting up argument, the second argument to the call. But the
+[00:42:40] first argument, it's using this instruction, LEA, or L-AQ, but the first argument.
+[00:42:46] for what it's supposed to be used for, which is to create pointers.
+[00:42:50] Remember, we talked about this instruction often getting used just to add two numbers, but
+[00:42:56] it's actually designed exactly for this purpose.
+[00:42:59] That it looks like a memory reference, eight relative to the stack pointer.
+[00:43:06] But instead of now reading from that memory reference, the instruction will just copy
+[00:43:12] the computed address to RDI. And so RDI will now be equal to whatever the stack
+[00:43:25] pointer plus 8 is. Okay, so that that creates the two arguments that I'm passing to this function.
+[00:43:34] And now the call instruction will happen, and you'll recall that the call instruction
+[00:43:40] adds these two numbers and stores the result back in the pointer.
+[00:43:45] So its effect will be to set this memory location to 18213.
+[00:43:53] You'll notice the clever trick here.
+[00:43:56] And also return a particular value, which we won't make use of the return value.
+[00:44:03] No, we do make use of the return value.
+[00:44:06] And now the, now when we return back, what we return back,
+[00:44:20] What we want to do is add the value in V1 to the value we just computed.
+[00:44:27] The value we just computed is in V2. And we know that the V1 is designated the V1 is designated by this memory
+[00:44:36] location at RSP plus 8. And so it will just read from memory to increase and add that to RAX.
+[00:44:45] And then the final step is to deallocate. So you see the match here, and this was to answer
+[00:44:50] the question earlier, how does it know how to restore the stack back to its original
+[00:44:56] place? Well, the compiler, you know, built into it, figured out how much space it would need for this
+[00:45:02] particular function, and it allocates that when it comes in and it deallocates it when it goes out.
+[00:45:10] So, and this is, you know, this is a very simple example, but even more elaborate examples
+[00:45:16] are still based on that same sort of ideas. So that's, uh, shows you in one then the
+[00:45:22] the data management, the stack management, the idea of using a stack frame.
+[00:45:31] And now the return, by this point, the only thing that's left is after I increment the stack pointer,
+[00:45:40] it will be pointing back to this return address.
+[00:45:44] Whoops, wrong direction. Here. So now if I do a RET, the RET instruction will always take whatever
+[00:45:50] is pointed to by the stack pointer and use that as the return address. So it's very
+[00:45:57] important that RSP get set back to where it should be before it
+[00:46:01] does a rep. Okay. So that's sort of the basic principles now. Now let's get a little
+[00:46:10] bit more refined. An important idea is, well, what about these registers? What
+[00:46:17] what can be assumed about particular registers and how they get changed and so
+[00:46:23] forth? And so again, it's built into this idea of an ABI is a set of conventions about the
+[00:46:29] register. Obviously, RSP is a very important register and you don't want programs
+[00:46:35] just to randomly change its value without them knowing what to do. But it turns out we'll also be
+[00:46:41] careful with some of the other registers too. And so here's sort of a thought experiment. Imagine
+[00:46:47] we had a function called you that's going to call who and it has some data that it wants to
+[00:47:01] put somewhere. And then when, who's going to get called? And then the question
+[00:47:08] is, can I rely on the fact that register RDX will still hold the number 15213? And the answer is,
+[00:47:16] not in general, because who might have overwritten RDX and put something else there. So in particular
+[00:47:27] if who did some operation involving register RDX, it could have messed up the value that
+[00:47:33] that was there before. So the obvious answer is, well, you should not
+[00:47:40] have used RDX for that purpose, right? And that's why we'll come up with a set of
+[00:47:47] conventions. So just some terminology. And when we're talking about one function calling
+[00:47:54] calling another, it's useful to have used the following words. We'll call the
+[00:47:58] calling function the caller and the function that gets called the callee. And the calling function that
+[00:48:02] it's called the callee. And now there's basically two ways we can manage a register.
+[00:48:10] It can be what's called caller saved, which means if the caller really cares, if you really
+[00:48:19] wants a value that will be there when it returns, when control returns back to it, then it should
+[00:48:29] store it away first. It shouldn't assume that the register will be, it should
+[00:48:37] assume that the register might get altered by it. But there's another class we can define it called
+[00:48:46] callee save, which is sort of a contract between all the functions and it's built into the ABI
+[00:48:52] that says, if a particular function wants to alter date, alter this register, what it needs
+[00:48:58] to do is first store it away, and it will do it will do it by putting it.
+[00:49:01] the value in the stack.
+[00:49:03] And then before we return from that procedure, we should restore it back to whatever it was before.
+[00:49:10] So that's a convention called callee save.
+[00:49:13] And it's a little less intuitive and it takes a while to get the hang of this,
+[00:49:17] but you'll begin to see its value.
+[00:49:21] So in particular, with this ABI, we've already seen RAX gets used for the return value.
+[00:49:32] And we've seen the 6.
+[00:49:33] registers that get used for passing arguments and we'll also designate
+[00:49:42] registers R10 and R11 to be just temporary values that can be altered by any function.
+[00:49:49] That's the meaning of caller or save.
+[00:49:51] We've already seen actually within code often them overriding these registers because whatever
+[00:49:58] gets passed to a function, the function can do whatever it wants to that data.
+[00:50:03] as long as it's not somehow corrupting other data.
+[00:50:07] So those often get used as temporary storage as well.
+[00:50:13] And R.X gets often overwritten multiple times before it gets set to a final return value.
+[00:50:19] But we're going to say that these four registers, and most commonly RBX,
+[00:50:26] are what are called call-E-save registers, meaning they'll only get used in this special way,
+[00:50:32] that if a function wants to alter it, one of these registers.
+[00:50:36] It has to push, it will push the value on the stack, and then just before returning it will pop that value back off the stack.
+[00:50:44] So register RBCP, as I told you about, is special, if you're using frame pointers.
+[00:50:51] If you're not using frame pointers, then it can be treated as a call-e-save register.
+[00:50:58] So I'll get back to that in a minute.
+[00:51:00] The fact you can combine those two and it works fine is actually a little bit subtle.
+[00:51:06] And then, as I mentioned, RSP is special.
+[00:51:09] You don't mess with that unless you know what you're doing.
+[00:51:12] So let's look at an example of this use of call-e-save registers and why, how it works.
+[00:51:20] And I'll do it by a version of this similar function to what we did before.
+[00:51:31] But now what I'm going to do is my return value is to my return value is to
+[00:51:40] to add X, which is an argument of being passed to this function. There were no arguments
+[00:51:46] in the earlier version. So somehow I have to have X. It gets passed originally in register RDI, as you know.
+[00:51:56] But RDI might, well, I'm going to have to reuse register RDI to pass a value to incur.
+[00:52:03] So somehow I have to do something with X because I'm going to need X when I return back to here after the call.
+[00:52:10] the call.
+[00:52:11] So where am I going to put it?
+[00:52:13] Well, that's why I have calleseave registers.
+[00:52:17] And so you see that the code here at the outset of this function, then it will store away whatever is
+[00:52:25] an RBX currently, it will put it on the stack.
+[00:52:29] And so now the stack frame for this function looks like there's a return address from before,
+[00:52:35] but I'm going to save the value of RBX.
+[00:52:38] And then I'm going to decrement the stack pointer by
+[00:52:41] as I did before. But that will be on top of the 8 bytes I've already allocated to store
+[00:52:48] RBX. And then you'll see within the code, for example, when it wants to compute this return value,
+[00:52:59] it can assume that RBX is, whatever this call does, Inker, we assume Inker is well behaved,
+[00:53:10] that if it makes use of register RBX, it will fix it up before it
+[00:53:14] And then this function will, in its exit code,
+[00:53:19] will not only increment the stack pointer,
+[00:53:22] but it will then pop the value of RBX back.
+[00:53:25] And so again, you see this sort of bracketing,
+[00:53:28] push, pop, subtract, add, and you'll notice that things,
+[00:53:33] on the cleanup part of at the end,
+[00:53:35] you sort of do things in the reverse order that they were
+[00:53:38] done coming in, again, because of this stack discipline.
+[00:53:42] So that sort of,
+[00:53:45] a demonstration of this idea of an ABI that
+[00:53:49] everyone will treat RBX this way. It will save it on the stack
+[00:53:53] if it's going to alter it. If it's not going to alter it, it doesn't have to save anything.
+[00:53:58] Is this question I saw?
+[00:54:00] No?
+[00:54:02] So we haven't seen that in other code because we didn't typically need it.
+[00:54:06] And that's again an example in this particular machine code.
+[00:54:11] We only do what we have to do.
+[00:54:13] Okay?
+[00:54:17] Okay.
+[00:54:20] Okay.
+[00:54:21] put this all together and look at some examples of recursion.
+[00:54:26] And the important thing to keep in mind is, you know,
+[00:54:30] recursion is one of those sort of magical parts of computer science that
+[00:54:34] seems like some black art that it actually works.
+[00:54:39] But when you look at these low-level mechanisms, it all works out.
+[00:54:44] And the C compiler doesn't have to make any special consideration for a
+[00:54:50] a recursive function versus a normal function
+[00:54:54] because this whole stack discipline makes it work.
+[00:55:00] So I'm going to illustrate that then with a version of this function I called P count,
+[00:55:05] I've had various instance of it, where you remember it's
+[00:55:09] the role of this is to count the number of ones in an initial word.
+[00:55:14] So the recursive version of this says,
+[00:55:17] if the argument is zero, then it has no ones in it.
+[00:55:22] Otherwise,
+[00:55:23] take the leading bit, the least significant bit,
+[00:55:29] which is either going to be a 1 or a 0, of course,
+[00:55:36] and add that to what you'd get by shifting x right by 1 position
+[00:55:41] and recursively counting the number of 1 bits in that.
+[00:55:44] So pretty natural kind of recursion.
+[00:55:47] And keep in mind, these are all unsigned numbers.
+[00:55:51] The argument is, so the right shifts are
+[00:55:54] are logical. This would really be a bad idea with arithmetic right shifts.
+[00:56:00] And this is a code generated. In general, recursive code is going to always generate
+[00:56:08] a bigger blob of code than the iterative version because it has to do all this stack stuff.
+[00:56:15] So this is about as simple as it gets in recursive calls.
+[00:56:21] So let's just sort of pick it apart. Well, the easy case is if x is zero. You're
+[00:56:28] what happens is it, it first of all, assumes X is going to be 0, in fact,
+[00:56:36] and sets up the return value of 0 to the register.
+[00:56:41] And then it will test now, well, is x zero.
+[00:56:46] You remember the test instruction has two operands that get ended, so when they're the same,
+[00:56:51] it just is testing the value of x here.
+[00:56:55] And if that's equal to, j.E is, it means jump up.
+[00:56:58] means jump equal to zero in this case, or it might say JZ is the same instruction.
+[00:57:04] So if the value equals zero, it will jump to the end of the function and hit the return instruction.
+[00:57:12] Like I said before, the REP semicolon, you can ignore that.
+[00:57:17] So that handles that one.
+[00:57:19] And now the rest of the code is to handle this lower part where I have to set up the arguments to recursive call.
+[00:57:27] I have to keep track.
+[00:57:28] keep track of what at least the least significant bit of X is and handle all that stuff.
+[00:57:37] So here's the code and it doesn't need any other thing, anything on the stack other thing,
+[00:57:41] anything on the stack other than space to store RBX, which is whatever,
+[00:57:47] again, whatever was an RBX when you enter, I'm just going to put it on the stack.
+[00:57:52] I won't look at it, I won't make use of it, but I'll have it there so I can
+[00:57:58] can restore the register when I return. So it will push the value onto the stack.
+[00:58:05] And now the real meat of the body of it is it will copy X into RBX, which we've just put on the stack so we can safely do it.
+[00:58:20] And we'll end, we'll just set only, we'll clear out all but the least significant bit of that particular register.
+[00:58:29] And again, this is one of the least significant bit of that particular register.
+[00:58:30] these weird ones where I can use EBX as a destination knowing that I'll zero out all the high order bits.
+[00:58:37] And then I'm going to take X and I'm just going to shift it right by one position, which sets me up for this recursive call.
+[00:58:47] So this red code does both of these parts of it here.
+[00:58:52] And now I'm ready to call P count recursively because I have the shifted value in RDI.
+[00:59:01] And I'm ready to call P count recursively.
+[00:59:04] I know because this is a well-behaved function that when P-count returns, it can assume that R-A-X holds the recursive result.
+[00:59:17] And I also know, even though P-count actually does modify R-B-X, but I know, because I, the code is well-behaved, that R-B-X will get restored to whatever was there before.
+[00:59:32] And RBX in this case, just before making the call,
+[00:59:36] I set it to the value of this least significant bit, right?
+[00:59:41] So when I return back, I can assume that RBX holds the least significant bit of X,
+[00:59:46] my original argument, and RBX holds a recursive result.
+[00:59:51] So I can just add those two numbers together, call that the return value,
+[00:59:57] and I've correctly computed the result.
+[01:00:00] And then the final cleanup is to
+[01:00:02] to pop RBX to restore whatever was in there, and then to do the return.
+[01:00:09] So again, you see that the pieces all kind of, it's a puzzle that all fits together because all the
+[01:00:16] functions are using this common set of conventions about where arguments get passed, what
+[01:00:23] registers can be used, how registers, if some registers have to be restored back if they get used,
+[01:00:31] and all that stuff works together.
+[01:00:32] which gets me back to just the point I was making before. If you're using
+[01:00:43] register RBP for a frame pointer, so typically point to the beginning of a frame, like that.
+[01:00:57] So imagine you have a function that needs a base pointer, because as I mentioned, the cases
+[01:01:02] that are, if it has to, within that function allocate some amount of space that's unknown at compile time.
+[01:01:11] Well, imagine now that some other code gets called deep recursive calls or whatever
+[01:01:22] whatever that might do other things.
+[01:01:29] Well, if you treat RBP as a callee save register, then when these other functions return, if they've altered,
+[01:01:38] if they've made use of RBP for one reason or another, it's guaranteed that they will
+[01:01:44] to whatever condition it was in originally, before. So now this function will have a
+[01:01:52] a reliable value of RBP. So again, it shows as long as all the code obeys these conventions
+[01:01:59] on how they use registers, then sort of life is good. You can make use of these, sort of have
+[01:02:09] a trust that things will be the way they are.
+[01:02:13] And so again, that's why there's this sort of very careful process for creating an ABI early on in the lifetime of a new processor,
+[01:02:24] so that all the compiler writers, operating systems people, and the ones who implement tools like GDB, debugging tools,
+[01:02:33] kind of all have the right set of standards by which they can work from.
+[01:02:42] Okay, so just to sort of wrap things up and
+[01:02:45] I would say, by the way, this is the kind of thing you can, I could lecture to you for weeks, but to really get it in your mind, the best way is to almost to hand-execute some very simple examples, or use a debugging tool and run through them yourself, just to make sure you really are convinced that this is all going to work, because all these pieces just fit together and the way they fit together.
+[01:03:19] together is what makes it work.
+[01:03:21] So, as I mentioned before, and I'll say it again, that this discipline is what makes recursion work.
+[01:03:31] So the idea of having a stack frame for every call to a function means that I can call a function, call a function, call a function, call a function.
+[01:03:42] When I'm deep in that recursion, I still have data associated with the other outstanding calls to that function.
+[01:03:49] function, but each of them will have their own stacked frames, and so it has a place to store that sort of information that's associated with one particular instantiation of a function.
+[01:04:00] The register saving conventions we saw are a way that functions avoid sort of trashing each other's data.
+[01:04:10] If I'm using a call-e-save register, it's my obligation to save it and restore it properly, it's the obligation to save properly.
+[01:04:19] the obligation of any function that gets called further down to also do that save and restore.
+[01:04:27] And then this sort of notion of a stack being the right match of how procedure call and return works.
+[01:04:39] If P calls Q, then before I go back to P, Q will have returned, and so I won't need that storage for Q anymore.
+[01:04:48] Those you've taken 150 or other places where you look at fancier languages
+[01:04:55] don't have that stack, can't trust that stack discipline, and they have to use some other mechanism.
+[01:05:02] They'll actually, if required, use heap allocation of the stack, of the frames, they're no longer stacked frames,
+[01:05:10] to keep data around after a function returns.
+[01:05:14] But for C and sort of all the standard kind of the standard
+[01:05:17] commonplace languages, this stack discipline is exactly what's needed.
+[01:05:22] And that's not an accident. The designers of C knew this well, this matching of a stack to their language.
+[01:05:29] And I'll mention also this, this, we, I was talking about simple recursion before, but
+[01:05:35] but there's also mutual recursion where a function, say, P calls Q, and then Q might call
+[01:05:40] P. And it looks very exotic and it's, you know, quite clever. But again, how it's implemented is exactly
+[01:05:48] what we've seen here.
+[01:05:50] It doesn't take any special, special kind of code.
+[01:05:57] So then to finish up, this is sort of what you need to remember about procedure calls, that it's all
+[01:06:13] about the stack discipline.
+[01:06:14] And you'll get, as you're working through your lab, you'll just get much more ingrained to this
+[01:06:22] idea of the stack and what's on there and be able to examine it.
+[01:06:28] Okay, so that's all I've got for today, so give you a little extra time in your calendar.

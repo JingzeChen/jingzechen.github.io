@@ -1,0 +1,737 @@
+[00:00:00] Good afternoon, everyone.
+[00:00:02] So I apologize, I have to, I'm going to sit mostly through this lecture.
+[00:00:07] I managed to do something to my knee yesterday, and I'm having trouble moving around very much.
+[00:00:13] But today what we're going to talk about is input-output, what it looks like from the programmers' perspective.
+[00:00:23] And this is, you've already learned sort of a lot of the standard UNIX libraries for,
+[00:00:31] like print F and scanf and those routines and we'll talk about them a little.
+[00:00:37] But what we'll first talk about is actually lower level I.O.
+[00:00:40] Stuff that is directly interfacing to the operating system.
+[00:00:45] And this is what you're going to need to learn about.
+[00:00:49] Partly some of this material you're going to need for the next lab that comes out at midnight tonight, the shell lab.
+[00:00:56] And you'll need to also you'll be revisiting this at some of this.
+[00:01:01] several other labs along the course, including the final lab, the Web Proxy Lab.
+[00:01:08] So this is sort of where we're really digging down deeply into this type of programming you do if
+[00:01:17] you're writing system software, things that are very just barely above the operating system level.
+[00:01:24] And I know for myself, learning this material, I actually learned this material
+[00:01:31] from 213. My co-author, Dave O'Hallrin, is the one who knew this stuff already.
+[00:01:37] He wrote that part of the book. I learned it by reading the book just like you are.
+[00:01:41] But I found it actually very useful to know in a variety of different other situations I've been in.
+[00:01:47] In the meantime, this is quite a few years ago. And so I think it's worth understanding.
+[00:01:53] And I'll also mention this kind of material usually is taught, you don't really see it covered in most books.
+[00:02:01] except for ones that are really oriented towards system programmers and are fairly arcane.
+[00:02:06] Or you try and learn it by reading man pages, and that's a fairly cryptic way to try and understand a sort of a set of abstractions provided by an API.
+[00:02:18] So I hope you'll find this useful.
+[00:02:22] So what we'll talk about then is, what I mentioned, this low-level I.O.
+[00:02:27] That is supported by Unix and other related operating systems.
+[00:02:33] a package called Rio, which stands through robust ILO.
+[00:02:37] And you will actually not be using this package until the last lab for the course, the proxy lab,
+[00:02:46] at which time you'll use it a lot.
+[00:02:48] But it's worth looking at, and partly it's in the book, it's well documented in the book.
+[00:02:54] And if you really want to understand how software works or a system works, the best thing you can do is if you,
+[00:03:01] if there's good quality source code to look at and study, you can learn a lot from doing that.
+[00:03:06] And I really recommend for that chapter in the book that you go ahead and study all of the code that makes up Rio.
+[00:03:14] It's not a huge amount.
+[00:03:16] And just get an appreciation for the subtleties involved in how you deal with errors, how you deal with exceptional conditions, and things like that.
+[00:03:26] And then we'll talk some about how files that are represented, the sort of various
+[00:03:31] data structures behind files, how they support standard I.O.
+[00:03:36] and I.O. and I.O. And we'll also talk about the so-called buffered I-O, the I-O that you're
+[00:03:44] more familiar with and see when you use print-off and scan of. So, Unix actually has a much simpler and more
+[00:03:53] unified view of I.O. than any other operating system, and it's one of the nice design features of it, is that a lot
+[00:04:01] of abstractions are built into the notion of a file. And a file is really just a sequence
+[00:04:06] of bytes. And in Unix does not distinguish between different classes of files, unlike, say, Windows
+[00:04:13] or earlier versions of the Macintosh operating system. It just thinks of them as bytes. And
+[00:04:19] at the operating system level has essentially no understanding of a more detailed structure
+[00:04:25] inside of a file. And one of the things it does is a file is a file is normally,
+[00:04:31] originally thought of as something that's stored on, say, a disk drive
+[00:04:37] or some other external storage device, and that you open, you read it, or write it,
+[00:04:43] you close it, those sort of standard operations. But Unix also use the notion of a file to
+[00:04:51] represent many other different things, including, for example, the devices that are the IO devices that are
+[00:05:01] connected to a particular machine. The TTIP stands for teletype, which is
+[00:05:06] an antique terminology for how people used to actually interface typewriters to computers. The
+[00:05:15] other thing that are viewed as, like files, are the network connections, which are known
+[00:05:21] as sockets. And when you do communication over the internet, you do communication over the
+[00:05:26] internet, you do it by, you send a message by writing to a socket and you accept
+[00:05:34] incoming communication by reading from a socket. And so the same low-level API is the same
+[00:05:42] whether you're reading or writing files on your disk drive or sending packets over
+[00:05:48] the internet. So the core operations then associated with files, of course,
+[00:05:58] are opening and closing them and reading and writing them.
+[00:06:03] The other sort of attribute that's associated with most but not all files is what's called the file
+[00:06:10] position. So again, if you imagine when you're reading from a file, you don't want
+[00:06:14] to always start at the beginning every time you do a read. You you read some
+[00:06:19] data and then you read some more data. And so that's a tracked by a file position,
+[00:06:24] which is just a counter that says how many bytes has a
+[00:06:28] have been read from this file so far so that I know where to go. And you can
+[00:06:34] actually even alter that value with a various class's operation called seeking, which is just
+[00:06:42] a way of changing the file pointer, the position pointer. Now that doesn't work too well if
+[00:06:47] your input is a terminal where you can't move, you can't sort of back up and have recover data that
+[00:06:56] was presented to it earlier or jump ahead and start accepting data that hasn't
+[00:07:01] been typed yet. So there's some kinds of files have a file position in seeking and others don't.
+[00:07:07] Similarly to a network socket. You can't jump a socket for it in time. You can only
+[00:07:13] read or write the particular packets as they come in. But in general, think of it then as the file
+[00:07:22] position as part of the data associated with an open file.
+[00:07:27] that tells me how far along in this file have I read or written?
+[00:07:34] And then, again, the files are, because there's all these different things, they're sort of unified in this file abstraction,
+[00:07:42] but obviously there's differences and different attributes to them.
+[00:07:46] And so there's sort of many different categories and subcategories, but the ones we'll think about are,
+[00:07:53] A, regular files.
+[00:07:54] Just think of things that are on a disk drive.
+[00:07:56] A directory is considered a type of file, meaning the data that's in there is just in as a file, as a file, but of course, it's a special kind of file and that it actually does have an interpretation.
+[00:08:12] The entries in that file describe the locations and attributes of other files.
+[00:08:19] And then, as I mentioned, the term socket is a connection to a network, and it's both for sending and for receiving messaging
+[00:08:27] messages over the network.
+[00:08:29] There's other files that we won't really talk about.
+[00:08:32] For example, when you pipe, when you, from one application to another,
+[00:08:37] that's both the output of the first program and the input of the
+[00:08:42] second and the input of the second are special types of files called pipes.
+[00:08:47] And they're handled by writing is putting something into the pipe,
+[00:08:55] and reading is to take something out of that pipe.
+[00:08:57] something out of that pipe.
+[00:08:59] A similar, something called a symbolic link, which is just a way that you can have multiple names for a file
+[00:09:05] and pointers to a file that aren't really without having to make separate copies of a file.
+[00:09:15] And then other special types of devices.
+[00:09:18] So we won't really, we'll only consider the first three types of files, in fact, in fact,
+[00:09:25] for today, mostly the first two.
+[00:09:29] So the idea of a file, then, is it just contains arbitrary data, and the operating system really, for regular file, doesn't try to get into the details of what's inside that file.
+[00:09:45] And there's some class of applications that will distinguish between a text file and a binary file.
+[00:09:53] Not really at the operating system level, but more at higher levels.
+[00:09:57] And the main difference with that is that a text file should only have,
+[00:10:02] the standard characters of ASCII, or another class would be various encodings that allow you to do encodings of non-English alphabets.
+[00:10:14] And binary files would be things like an image or an actual object code or a video or audio file or something that it's the, you're, within that code,
+[00:10:31] sequence of bytes that are encoding numbers in some form directly.
+[00:10:35] And then the main thing about a text file is that there's certain functions that
+[00:10:46] distinguish a new line character, meaning the end of it, line of text.
+[00:10:52] And you already learned about that character.
+[00:10:55] It's got the code A, 0A as a byte code code, and that became one of the forbidden codes of your attacks.
+[00:11:02] attacks because it would be interpreted as a new line by the function get s.
+[00:11:08] Just to mention that, and this is one place when you're transferring files between, say, a Windows machine and a Linux or a Mac,
+[00:11:18] one of the things, if it's a text file that has to be changed, is the two classes of systems have different ways of interpreting,
+[00:11:26] of encoding when is the end of a line. And in a Linux or Mac file, it's just a
+[00:11:33] this character code A, which stands for line feed,
+[00:11:38] whereas the Windows files finish with a two-character end of line,
+[00:11:45] of line, carriage return, and line feed.
+[00:11:47] And I show you this picture of an object that you've probably only seen in museums,
+[00:11:52] but it's a typewriter.
+[00:11:54] And just to tell you what the heck is a carriage return and what's the line feed,
+[00:11:58] I thought you might like to, in case you've never actually used an old-fashioned typewriter.
+[00:12:02] Basically, at the end of a, on the left-hand side of a typewriter is this bar.
+[00:12:09] And when you start typing along, the page, this roller with your page on it, chinks along, and it comes to the end.
+[00:12:23] And then you want to get back to the beginning of the next line.
+[00:12:26] So you want to both do the carriage return, which is this thing, shove it to the right, and you want to both do the carriage return,
+[00:12:31] shove it to the right and you want to do a line feed.
+[00:12:35] You want the roller on it to go down to the next line.
+[00:12:40] So there's a knob here that you can twist by hand, but in general what you do is
+[00:12:45] you type along and then you go slam like that.
+[00:12:48] And this lever both pushes the thing back and it rotates the roller by one linesworth.
+[00:12:58] And so carriage return line feed is where
+[00:13:01] that actually comes from.
+[00:13:04] In case you wonder.
+[00:13:09] And then a directory, as I mentioned, it's stored as a file,
+[00:13:13] but it's a file that the operating system,
+[00:13:16] at least the file system,
+[00:13:17] part of the operating system actually interprets in very specific ways.
+[00:13:21] And as you know, within every directory,
+[00:13:24] there's two special files, dot and dot dot dot-dot,
+[00:13:27] referring to the local file and its parent in the tree structure.
+[00:13:34] And so, in my
+[00:13:36] Most systems, systems that I know of,
+[00:13:39] there's a sort of hierarchical organization to the files.
+[00:13:42] We're not going to talk much about file systems, but there's a hierarchical organization.
+[00:13:50] And that's maintained as a series of files, each being the directory,
+[00:13:56] and the directory then as a pointer to its sub-director
+[00:13:59] which, again, are files.
+[00:14:02] And so what's referred to in Unix terminology and most other operating systems,
+[00:14:07] it's known as a path name, is a way to navigate through this hierarchy of files
+[00:14:15] and identify one particular one.
+[00:14:20] And so that all comes to say that the low-level Unix operations that you use to implement this
+[00:14:28] are to open a file, to read it, and write it, and to close it.
+[00:14:32] And those, literally, those are the names of the functions.
+[00:14:35] So the open function, then you give a path name.
+[00:14:38] And remember,
+[00:14:39] Now remember, path names can be absolute,
+[00:14:41] meaning that they start with a slash,
+[00:14:43] and they go all the way down in the hierarchy.
+[00:14:47] They can be relative to a particular, whatever your current directory is,
+[00:14:53] where, and they can also be relative to a user,
+[00:14:58] if you use the tilda slash,
+[00:15:03] then that's sort of a shortcut in this path name to get to particular users.
+[00:15:08] users. So a path name can be any of those forms when you open it.
+[00:15:12] It just has to be some way that, just like you specify in other places, that you tell where this
+[00:15:19] particular file is you're trying to open. And so it's given a path name and then it's given
+[00:15:26] a integer code that says what do you want to do when you open this file, in what
+[00:15:33] form do you want to open it? And that's specified by a series of constants that are
+[00:15:39] already predefined when you include the proper files.
+[00:15:43] And you can, and those actually get bit-wise, each of those is a one-bit flag in a
+[00:15:51] some power of two position, or it's a position one bit in a field somewhere, and so you can
+[00:16:00] logically order those together if you want multiple combinations.
+[00:16:03] So for example, I can say read only, I can say read only, I can say read and write, and write, and
+[00:16:09] I can say append, meaning don't, if I'm opening it to write, don't begin at the,
+[00:16:16] don't start writing at the beginning, start writing it wherever the end of the file is now.
+[00:16:20] So all those can be done, and this is described in the book, by using the right set of names of constants
+[00:16:29] and oaring them together. And that will return something that's called a file descriptor.
+[00:16:35] And that's a very important idea that, and one of the reasons why we're talking about this today,
+[00:16:39] this is going to be very important in your lab, is the notion of a file descriptor,
+[00:16:44] which is just a small integer that lists which particular one of the open files that's being used by this particular
+[00:16:53] program are you referring to?
+[00:16:57] And so it's a small number because these are assigned sequentially when you begin your program
+[00:17:03] and you run, and you're in fact limited on most machines to some
+[00:17:09] some bounded number of open files you're allowed to have at any time.
+[00:17:14] In fact, if you go to, let's see, if you're on a machine and you type in limits, limit,
+[00:17:23] limit, you'll see there that entry called descriptors, 1024, it says that you can't have more
+[00:17:36] than 1,024 files open at any given time. And, in fact, if you've got 1,024 files open,
+[00:17:43] it's a chance you're doing something really seriously wrong.
+[00:17:46] Meaning that you haven't been closing the files, you should be closing.
+[00:17:50] And all of the system calls, including these, always have a return code.
+[00:18:06] And the return codes vary, sometimes a negative number is an error, sometimes a zero is an error.
+[00:18:12] They're all different and all confusing, and all inscrutable.
+[00:18:17] So you have to look at the documentation for every single one of those functions.
+[00:18:22] And one of the rules we're going to hammer away.
+[00:18:24] to hammer away at in this course is every time you make a system call
+[00:18:29] you should check the return code to see if there's an error and then do some
+[00:18:34] appropriate way of handling that error that's just a practice it's a pain in the
+[00:18:38] butt it makes your code look like a rat's nest of conditionals you really
+[00:18:43] would rather not because often there's an error and you deciding what you're going
+[00:18:47] to do when there's an error is harder than then figuring just ignoring it all
+[00:18:51] together and so there's a lot of code out there where people
+[00:18:55] just cross their fingers and hope there's never errors in their system calls.
+[00:18:59] But we're going to really push on you hard to say, every time you make a system call, check the return code,
+[00:19:05] and do something if it's not right.
+[00:19:10] And so the open will return a number, it's an int that it returns, but if it's a negative number,
+[00:19:16] that means it couldn't open the file.
+[00:19:20] For example, the file doesn't exist, or you're trying to open it in a mode that
+[00:19:26] that you're not authorized to open it in.
+[00:19:31] So there's three particular file descriptors
+[00:19:34] associated with every single process that runs.
+[00:19:38] One is standard input, the other is standard output, the other is standard output,
+[00:19:40] and the third is standard error.
+[00:19:42] And they always have file descriptor number 0, 1, and 2.
+[00:19:46] And so that, you shouldn't really refer to them
+[00:19:55] by their file descriptor numbers,
+[00:19:58] reliably depend on those values.
+[00:20:03] Similarly, if you want to close a file, well, so open, you see you give a path name and a one bit, a one integer field that gives these flags that say something about the modes in which you want to open it.
+[00:20:17] To close a file, you just say close and you give the file descriptor number, not the name of the file.
+[00:20:23] And it returns a return code two.
+[00:20:27] So you might say, now why in the world could you ever
+[00:20:30] get an error closing a file if it's open.
+[00:20:34] And the answer is that actually can happen.
+[00:20:37] In particular, we'll see when we have multi-threaded programs where it's possible to have
+[00:20:43] two, essentially two programs running at the same time sharing their data structures
+[00:20:50] and interacting with each other, sharing their memory.
+[00:20:54] It's a very important kind of programming and one that you can really make bad,
+[00:20:58] horrible mistakes in.
+[00:21:00] And one of the bad horrible mistakes is if you try to close a file
+[00:21:03] that's already been closed, it'll be an error.
+[00:21:05] And that can happen if there's two different parts of your program running
+[00:21:09] and each of them tries to close the file.
+[00:21:12] So in the book and in the, in this code you'll see,
+[00:21:20] we introduce some error handling routines, one of which is called P error,
+[00:21:24] and all it does is print some not whatever message you will
+[00:21:29] message you want to print, and then it exits the program.
+[00:21:33] Or no, I guess it doesn't.
+[00:21:38] I'll mention it in a little while.
+[00:21:41] It just prints an error message.
+[00:21:45] But the point is, even something as mundane as closing a file,
+[00:21:48] you should be checking the return code.
+[00:21:52] Okay, so this is the function that reads
+[00:21:55] at this low level is called read.
+[00:21:59] And it's given a file descriptor.
+[00:22:02] You provided a file descriptor.
+[00:22:03] pointer to a buffer that you've had to allocate either statically or via Malik.
+[00:22:10] And you also specify how long that buffer is so that it can't overflow that buffer.
+[00:22:16] And read just means read as many bytes as you feel like, but no more than the number I tell you to,
+[00:22:26] which sounds like a weird statement. What do you mean what you feel like?
+[00:22:31] Well, it has to read at least one bite.
+[00:22:33] one byte.
+[00:22:34] So if, for example, it's a standard input, it will hang there and wait until, actually, with standard input, it will
+[00:22:42] wait until, actually, with standard input, it will wait until you've typed in a string and hit the return,
+[00:22:50] and it will then read at least some fraction of that into the program.
+[00:22:56] If it's a network connection, again, the read will just wait, it will just wait,
+[00:23:02] hang until something arrives on that particular network connection and then
+[00:23:08] read in some number of bytes that have been sent to it. And I'm being vague by saying some number
+[00:23:14] number because the truth is it, there's no guarantee it will read any fixed number of bytes.
+[00:23:22] It will read at least one, and it won't read any more than that buffer is, but the number
+[00:23:28] between that might be variable. And so when it reads less than the number, the number, the number,
+[00:23:32] the number of maximum number of bytes you specify, that's called a short read.
+[00:23:39] And that can and does happen, and you have to write your code expecting it.
+[00:23:43] And we'll talk about that a little bit.
+[00:23:45] And so again, read returns an assigned number, actually, of data type S-S-Size-Size-T, which
+[00:24:04] which is typically a long int, so potentially negative number.
+[00:24:11] And that number is, if it's zero, it means that it's hit, it's detected an end of file, that you've
+[00:24:20] run to the end of the stored file, that the network connection has been closed, or something
+[00:24:25] has happened.
+[00:24:26] If it's positive, then that's the number of bytes that were read, and if it's negative, it's an error code.
+[00:24:32] So as I mentioned, if it reads fewer than the number of bytes you specify that's referred to as a short count,
+[00:24:45] and I'll talk about why that would occur.
+[00:24:47] Writing is sort of the same idea that you provide a file descriptor,
+[00:24:53] you provide a buffer where the data that you want to write out is stored,
+[00:24:58] and you give how many bytes long do you want your right to be.
+[00:25:02] And it will write some number of bytes to the output, at least to be.
+[00:25:08] output at least one and no more than N bytes, but it might not be all of them, which
+[00:25:14] is kind of weird because he said, I want to write this, I want to send it to a file, I want
+[00:25:18] to send it over the internet, but it can potentially not send them all. And we'll talk
+[00:25:27] about that a little bit. So again, that's called a short write. And similarly, it will
+[00:25:34] return the number of bytes that were written, and so if it's less than zero, that's
+[00:25:41] error code. So just to give you a really simple example of this in action, this code
+[00:25:49] does what you call echoing, meaning that you type in something and it will print it out.
+[00:25:54] And it does it in the most mundane way possible, by reading, specifying a single byte reads and single
+[00:26:02] byte writes. So you remember, I told you read will read at least one byte, but no more than the number
+[00:26:08] you've told it. So when you give it one, it means it will read it will read it will read at least one byte, but no more than the number you've told it.
+[00:26:09] So when you give it one, it means it will read exactly one byte.
+[00:26:13] And similarly with write, if you say write one byte, that's guaranteed to happen.
+[00:26:19] And so this is really, really bad code.
+[00:26:24] In the sense that call to read or to write the system level call is a relatively expensive call.
+[00:26:30] It means kicking your whole operation up to the operating system,
+[00:26:36] doing what's called a context switch,
+[00:26:39] meaning it will go into the kernel of the system,
+[00:26:44] invoke operating system functions, do whatever the reader right tells it to do,
+[00:26:50] come back out, switch back to your job.
+[00:26:53] And that will typically take maybe 20,000 to 40,000 clock cycles,
+[00:26:59] which, you know, a clock cycle nowadays is less than a nanosecond.
+[00:27:04] So you say, yeah, it's, you're talking maybe 10,
+[00:27:09] microseconds what's the big deal there? But that'll add up if you start
+[00:27:14] sending long files out over you know millions of bytes, if you start sending them one
+[00:27:22] bite at a time, you'll spend most of that time sitting in the operating system going
+[00:27:28] going crazy. So this is not a good idea, but it does work and that's actually
+[00:27:34] a easy mistake you can make as a programmer is to not use, is to use this
+[00:27:40] level writing and reading and the program will function fine.
+[00:27:44] It's just it will be really, really slow.
+[00:27:48] But just to give you a demo of this idea of calls to the operating system,
+[00:27:57] there's a pretty cool, so this program, and this is on the web,
+[00:28:05] linked off the web page, the code for this lecture,
+[00:28:09] so this one called CP standard in, meaning copy standard input.
+[00:28:14] standard input is just the code I showed you.
+[00:28:18] And so if you type something, it will just echo it back.
+[00:28:24] So it's reading in, so it looks to you, and to me, like it's reading a line of text and then echoing it back.
+[00:28:40] But what it's actually doing is, again, the interface to the terminal is one that it doesn't
+[00:28:46] actually wake up this code until it gets a complete line, but it's actually just printing
+[00:28:51] these characters back one character at a time.
+[00:28:56] And I can demo that by there's a pretty interesting facility called tracing, S-trace.
+[00:29:07] And what S-trace will do if you give it the name of a program is it will detect every system
+[00:29:15] call that you make, every basically call to the operating system functions that you make, that you make,
+[00:29:21] that you make when you run a program.
+[00:29:24] And it will generally spew out this huge amount of inscrutable stuff
+[00:29:27] that you don't really want to see.
+[00:29:30] I'll just show you this.
+[00:29:34] It's telling you logging every single call, and it's usually way too much stuff.
+[00:29:39] So the more useful way to do this is to give it an argument that says,
+[00:29:45] I only want to watch some limited class of functions
+[00:29:50] when this is running.
+[00:29:51] And so what I'll, I just want our call
+[00:29:53] to the right, the low-level output right.
+[00:29:58] And you'll see that what happens then is this string I typed in, turned into a series of one-byte
+[00:30:07] writes calls to the low-level right function.
+[00:30:13] And of course, similarly, I could show you the reads and rights.
+[00:30:17] Let's try that.
+[00:30:25] And it's all confused because I'm meshing.
+[00:30:28] This comes out on standard error, but on the terminal it's sort of interleafes.
+[00:30:31] interleaving standard error and standard out.
+[00:30:33] So it's kind of messy to look at.
+[00:30:35] But again, you can see that it's taking my characters,
+[00:30:39] and it's reading one and writing one in this loop.
+[00:30:42] So, let's see, Control D to get out of it, back to the code.
+[00:30:53] So what's this short count business?
+[00:31:03] Why would that occur?
+[00:31:05] Well, there's a couple ones. As I mentioned,
+[00:31:07] if you counter an end of file,
+[00:31:09] you're not going to read in however any bytes you're given for the buffer.
+[00:31:13] If you are reading text lines from a terminal,
+[00:31:18] the terminal handler will just send a line's worth at a time
+[00:31:23] with the new line character terminating it.
+[00:31:28] If you're reading or writing a network packet,
+[00:31:31] the way network packets work is that,
+[00:31:35] or messages, if you have a big long message,
+[00:31:37] it's broken into smaller chunks,
+[00:31:40] typically about a thousand bytes or so.
+[00:31:45] Question?
+[00:31:52] If you try to read from an end of file, it will return zero.
+[00:31:56] Is that a short count?
+[00:32:02] It's a really short count, yes.
+[00:32:04] But it's not a negative.
+[00:32:05] Yes.
+[00:32:07] So as it says here, if you encounter an end of file,
+[00:32:10] it'll actually, there's two things.
+[00:32:13] Actually, it's a really good question.
+[00:32:15] If you're, like, near the end of a file,
+[00:32:18] you have 100 bytes left and you say,
+[00:32:20] read 200.
+[00:32:22] Your first call to read will come back
+[00:32:24] and get 100 character, it would say 100.
+[00:32:27] and it will get that number.
+[00:32:29] And then you call again a second time, and it will return zero.
+[00:32:33] And so that's how you actually detect the true end of file
+[00:32:36] as opposed to, you know, some other reason you might have gotten a short count,
+[00:32:40] as if that you actually get a read of zero.
+[00:32:43] The only case you'll get that for is an end of file.
+[00:32:46] So that's a good question.
+[00:32:48] Thanks.
+[00:32:50] So again, if over the Internet, typically packets are around 1,000 bytes.
+[00:32:56] It actually depends on what,
+[00:32:58] where it's gone through, what layers in the protocols it's gone through.
+[00:33:02] But 1,500 bytes is actually the standard, what they call,
+[00:33:06] minimum transmission unit.
+[00:33:08] So if you have a big, long file, it'll come back in blocks like that.
+[00:33:12] And if you're trying to read into a larger buffer,
+[00:33:15] it will typically come back in chunks.
+[00:33:18] Question?
+[00:33:24] No.
+[00:33:25] In other words, you're, and again, if you're writing code,
+[00:33:29] you shouldn't expect any number of particular.
+[00:33:31] number particularly, it will be dependent on the implementation.
+[00:33:35] No, because I'm only reading or writing one character at a time, right?
+[00:33:49] So I guess you're asking, what if I, like, spent a week,
+[00:33:54] typing characters in a really long string and hit return?
+[00:33:58] I don't know.
+[00:33:59] If you try it, let me know the answer.
+[00:34:04] But it won't cause an error.
+[00:34:06] But that part, believe me, they've really gone through that code a lot of times
+[00:34:09] and gotten rid of all those lurking buffer overflow vulnerabilities in the code.
+[00:34:15] But we'll let you do it. I don't actually know.
+[00:34:18] But within the, you should write your code, again, expecting short counts as a possibility.
+[00:34:23] And by the way, that's one of the headaches of using this low-level I.O.
+[00:34:27] It's dealing with short counts.
+[00:34:29] It's often sort of a nuisance of an application level.
+[00:34:32] So you don't, you usually package this kind of low-level file I.O.
+[00:34:38] into other libraries that you're calling.
+[00:34:42] It's only, we're only demonstrating this is the sort of lowest level in the stack.
+[00:34:50] And writing also can give you a short count.
+[00:34:55] For example, if you're sending packets over a network,
+[00:34:58] it will only send as many as that packet can hold,
+[00:35:02] and then return back to you.
+[00:35:04] And you have to keep pumping them out to send the different packets.
+[00:35:08] And so usually when you write code that uses this low-level I'll
+[00:35:11] this low level I.O. You have to anticipate these short counts.
+[00:35:14] So, Professor O'Hallan wrote a package
+[00:35:20] called Rio, and you'll, for now we'll just talk about what this package is.
+[00:35:27] This is a package that you're really going to want to use
+[00:35:30] for the final lab for the course.
+[00:35:33] And so for right now, it's more of a high level.
+[00:35:35] Here's an example of code that uses low-level I-O
+[00:35:39] and packages up in a way that makes it a little bit more
+[00:35:42] So Rio provides actually a number of different, two different,
+[00:35:49] well actually three, two different levels of, two different levels of, of,
+[00:35:55] of, of interface to the file, this file I.O.
+[00:36:00] The lowest one is basically just a fairly small wrapper
+[00:36:04] wrapper around the existing, the I.O., the
+[00:36:10] the reeds and writes you saw that will handle the short count issue.
+[00:36:14] count issue. And so when you say with Rio, if you make a call to the read n function
+[00:36:20] function and you say some number of bytes, then that function will not return until it's read
+[00:36:26] that number of bytes. So better be careful that that many bytes are there if it's a network
+[00:36:32] socket or a file. Well, because it will flag an error message if it's, well, well,
+[00:36:39] it will actually hang up if it's a network connection, waiting to read the network connection.
+[00:36:44] the bytes or return an error if it hits an end of file when it's not expected.
+[00:36:50] And similarly with right end is sort of a wrapper around the right function that will deal with,
+[00:36:56] just loop until the short counts are taken care of.
+[00:37:00] And then there's another class of I.O.
+[00:37:04] That's called buffered I.O.
+[00:37:06] And this is what you really want to use in practice and what you mostly use with the standard Unix I.O.
+[00:37:13] I.O. functions is that you want to, within the user code, build up a little buffer
+[00:37:20] of bytes that have either been read in but not yet consumed by the application program, or you
+[00:37:28] accumulate some number of bytes in your program before it's actually shoved out into the file or out
+[00:37:34] onto the network. And there's two versions of that. One is a text-oriented, line-oriented I.O.
+[00:37:44] and the other is just a byte-oriented I.O.
+[00:37:47] So let's go through what the functions are and actually look at the code for them.
+[00:37:56] So as I mentioned, the ones called read-end and write-end are just very thin.
+[00:38:00] They have the same general semantics as the read-and-write, but they deal with the short count issue.
+[00:38:07] So let's actually take a look at read-n.
+[00:38:11] So again, read-n is given a file descriptor, a desktop, a desktop, a desktop.
+[00:38:17] buffer and a indication of how many characters, how many bytes it's supposed to read, and it's supposed to read. And it's supposed to return, I guess it will return either a negative number if there's an error, zero if it's at an end of file, or the number of bytes read. So I guess I guess I was
+[00:38:53] A little bit, I should have been more careful.
+[00:38:56] If it hits an end of file part way through, it will return a short count.
+[00:39:00] But that's the only case.
+[00:39:02] It won't return a short count if there really, it could have read more bytes.
+[00:39:06] So the main loop here you see is it keeps calling read over and over again until it's happy.
+[00:39:14] One way it can be happy is if it's read as many bytes as it was supposed to write, read in the first place.
+[00:39:22] The other is that if it hits an error code, and you'll notice that there's some subtlety of tracking which type of error that is, but in general, the common cases, it will return the negative number indicating an error.
+[00:39:49] If it, if the number read is zero, then that indicated an end of file.
+[00:39:58] And so what it will return is as many bytes as it's read, so it returned the short count.
+[00:40:07] And here it's just saying, okay, I've read this number of bytes and increment and decrement the right values.
+[00:40:14] So the point is it will keep looping, keep doing reads until it either gets the number of bytes it should, it hits an error, or it encounters an end of file.
+[00:40:26] And you'll see it has, it's checking for all these different error conditions for every call it makes.
+[00:40:31] So this code, by the way, is sort of typical that it looks a little messy when you first look at it, but if you sort of study it, it all makes sense.
+[00:40:43] So now let's talk about buffered I.O. and what buffered I.O. is, and this is a very important concept, so that's part of the reason we want to show you the code for it.
+[00:40:53] So the idea of buffered I.O. is that there's a buffer, meaning just an array of characters, array of bytes.
+[00:41:09] They're allocated and associated with this particular file.
+[00:41:15] And the program, if it's on a read, what it will do is it will fill up this buffer.
+[00:41:21] It will give a read with a much larger number, with a large number, basically the size of the actual how much memory you've allocated for this buffer.
+[00:41:33] And the system will fill that up with up to that number of characters.
+[00:41:39] And then when the user program wants to now look at this, get some bites,
+[00:41:45] it'll first check, do I already have some in the buffer that haven't been read yet?
+[00:41:50] And if so, I'll just return those.
+[00:41:53] And if not, then I'll refill the buffer.
+[00:41:56] So the idea of it is, instead of every time going to the operating system and asking for one character or a small number of characters,
+[00:42:05] called the operating system says, give me pretty much as much.
+[00:42:09] So many characters as you've got up to some limit.
+[00:42:13] And then I'll just go away and let the application program sort of pull these out a couple
+[00:42:20] bytes at a time, but I won't bug the operating system to do it, I being the
+[00:42:25] real function.
+[00:42:27] And the way it does it is by just keeping a pointer of, that indicates what part of the
+[00:42:35] of the bytes that I've already brought in, uh, that indicates what part of the bytes that I've already brought in from
+[00:42:40] the operating system call, but the haven't been supplied yet to the application program.
+[00:42:47] And so in the sort of larger picture of things, if you imagine you're walking through a file,
+[00:42:53] at any given point in time, this buffer will represent some range of in that file,
+[00:43:00] where the green is the stuff that's already been read by the application program,
+[00:43:05] the pink is the stuff that's been read by the application program, the pink is the stuff that's been read from the
+[00:43:10] operating system out of the file, but not yet read by the application program.
+[00:43:15] And the way this is implemented, once you think about it, it's not too hard to do, is it associated with every
+[00:43:25] file connection then, is a file descriptor, a count that tells you how many bytes there are that have not been read yet, a pointer to
+[00:43:43] where this this changeover is, and then the actual storage of the buffer itself, the character's allocated, the bytes allocated to the buffer itself.
+[00:43:59] And so here's an example, then, of using Rio to do this echo, that you first read a line, reading a line means it will look for and stop at a,
+[00:44:15] line feed character and writing it back out. And again, if you do the demo of this code,
+[00:44:32] it's a little, again, you get, let me just trace rights, because it's a little hard to see.
+[00:44:54] The reads are hard to figure out with the, so you'll see that it's read the whole line,
+[00:45:10] and now it's done to, at the operating system level, it's written just one chunks worth, one call to the
+[00:45:18] the operating system's right function instead of byte by byte.
+[00:45:39] Okay, so again, I'm not going to go through all the code, but it's actually worth your while to do this.
+[00:45:45] And by the way, I've actually done some applications where I took the Rio code, I want to add some features to it,
+[00:45:52] but it's a very useful starting point to be able to build your own customized routines.
+[00:45:58] Okay, so let's talk about some other parts of files.
+[00:46:02] One is that associated with a file is what they call metadata.
+[00:46:09] So the data are the actual contents of the file, the actual bytes inside of that file.
+[00:46:14] But there's a whole bunch of other stuff that's associated with the file.
+[00:46:18] Information about what type of file it is.
+[00:46:22] What protection, read, write, execute protections it has.
+[00:46:27] Some information about the ownership of that file it has.
+[00:46:32] ownership of that file, what type it is, and also the times associated with it.
+[00:46:39] When was it created? When was it last accessed and when was it last modified? So that's known as metadata.
+[00:46:46] And every file has that kind of information associated with it. And you can actually, and it's
+[00:46:54] in a data structure called a stat, uh, data structure. And you can, if you want to write code,
+[00:47:04] that then sort of probes the directory structure of a file system, you can make
+[00:47:13] a call to the stat function, and it's given the path name of the file you want to stat, and then
+[00:47:21] a pointer to one of these stat data structures, and then that data structure will get filled
+[00:47:29] in by the information for this particular file.
+[00:47:33] And then you can test various attributes.
+[00:47:35] attributes about that file and see, basically get the information that's stored here. And there's
+[00:47:45] all these nasty compile time constants that you use or macros that you use to look at and examine
+[00:47:55] these metadata. So here's an example. I won't do it, but it's a function called stat check. It's in the same
+[00:48:10] directory. And so if you check some file, it will typically say, well, it's a regular file,
+[00:48:16] and yes, you're allowed to read it. But now if I call CHMOD to eliminate, set all the protections
+[00:48:27] to zero, it'll say, no, you can't read it now. And so, again, it's just making use of this data here.
+[00:48:38] So now this is the part that gets a lot more tricky, is how are files, how are all
+[00:48:47] this information about files actually represented by the programs?
+[00:48:50] Question.
+[00:48:51] Yes.
+[00:48:54] Stat just, I'll tell you one way you can find out what stat does.
+[00:49:11] If you say man 2 stat, stat, you'll get more than you want to know.
+[00:49:18] So in general, you know, if you say man stat, it'll get more than you want to know.
+[00:49:27] It'll give a UNIX command that you can use to stat a file.
+[00:49:34] So I can say stat dot.
+[00:49:40] And it will print out some information about a file.
+[00:49:45] In this case, my local directory, let's see.
+[00:49:48] I can stat any file here and it will print out some cryptic information about it.
+[00:50:00] But if you say man 2 stat,
+[00:50:04] the UNIX manpages are divided into different categories and things that are system calls,
+[00:50:13] Unix system library calls are typically in section 2 of the man pages.
+[00:50:20] And so that will return information about it.
+[00:50:23] But the main point of it is stat is then a function that you call
+[00:50:28] where you give it a path name and a pointer to a buffer that you want,
+[00:50:32] And it will then fill in the contents of the buffer with the information about that particular file.
+[00:50:42] And the form that it fills it in is one of these data structures called a struct stat.
+[00:50:49] And that's pretty typical of a lot of these functions is that they have some predefined struct.
+[00:50:57] And if you want to get the, if you want to get information, you allocate one of those structs, you pass, you allocate one of those structs,
+[00:51:04] a pointer to it, and then the library function will fill in the details.
+[00:51:08] Does that make sense? Okay. Okay. Okay. So now let's look at some of the
+[00:51:27] internal data structures that the operating system maintains regarding the files
+[00:51:33] associated with a program. And this is a source of really nasty exam problems. I'll
+[00:51:39] just warn you. So you're going to want to want to read this part of the book carefully, study
+[00:51:45] the practice problems, look at the old exams, because I can guarantee you you're
+[00:51:49] going to get some of these on the final. That's a promise. And they can be infinitely obscure, so we can
+[00:51:58] torture you with these. So the main point is that associated with any executing process, which
+[00:52:06] you can think of a process as a running program, is a running program, is a something
+[00:52:16] something called the descriptor table.
+[00:52:17] And what that contains is for every open file that you have, it has a pointer to a data structure called an entry in a table that's maintained by the operating system globally, which describes each of the open files.
+[00:52:42] Actually, each, every time a file is opened, that allocates a record in this open file table.
+[00:52:56] And so, as I mentioned, file descriptor 0, 1, and 2 have specific meanings.
+[00:53:02] And the other files are other ones that you've opened during the course of your program execution and have not yet closed.
+[00:53:11] So that's, uh, so each of these.
+[00:53:13] So each of these then is a reference to a particular open file,
+[00:53:20] and it gives information about that file.
+[00:53:24] And it also gives the position in the file that's currently,
+[00:53:28] as I told you, every time you open a file,
+[00:53:30] for a regular file at least, there's an associated position
+[00:53:34] of where in the file was your last reader right?
+[00:53:38] Or where would you be your next reader right?
+[00:53:40] And so that's the file pause.
+[00:53:43] And so that's the file pause.
+[00:53:44] And there's also a reference count which is used by the operating system to keep track of,
+[00:53:50] because we'll see it's possible to have multiple processes sharing an entry in this open file table.
+[00:54:01] And it uses this reference count, which is a standard way of keeping track of memory allocation,
+[00:54:07] to know when it no longer needs that entry, when there's been enough,
+[00:54:14] when the file is no longer accessible and therefore this entry is not needed.
+[00:54:20] So for every one of your open files, it will have an entry in this table.
+[00:54:27] And this table, as I said, is shared across the whole operating system.
+[00:54:31] And then associated with every file is called a V node, which stands for virtual node.
+[00:54:40] And this is where that contains the sort of information about this is a V node,
+[00:54:45] about this file in particular where is it stored?
+[00:54:50] This information that you can get from stat and things like that.
+[00:54:54] How big it is and things like that.
+[00:54:58] So that's for every
+[00:55:02] every file in the system actually has a V-node entry,
+[00:55:06] whether it's open or close.
+[00:55:08] Now this can get complicated.
+[00:55:12] So for example, if within a single program you call open twice on the
+[00:55:17] function, you'll actually get two different file descriptors and you'll be able to
+[00:55:24] access that same file and have two different positions in it.
+[00:55:29] And it makes sense.
+[00:55:30] If you imagine you're reading from a file,
+[00:55:35] and you might want to read from two different positions in that file
+[00:55:41] within the same program.
+[00:55:42] And you can do that, that's perfectly legal.
+[00:55:44] You just call open twice, and that will keep track of two
+[00:55:48] keep track of two different positions.
+[00:55:51] So the point is these file descriptors might be referring to the same file, but they're
+[00:55:57] actually at different positions within the file.
+[00:55:59] And that can happen also if you're, if you've opened a file for both reading and for
+[00:56:05] writing, and you're writing ahead, and then reading characters,
+[00:56:09] bytes that have already been written.
+[00:56:12] that makes sense. It's not such a good idea to have two different
+[00:56:16] right file opens that are writing simultaneously you can mess up the file pretty
+[00:56:24] badly that way, but there's nothing in the operating system that prevents you from
+[00:56:27] doing that. So it won't, it's not a good idea, but it's a legal operation. So that's the
+[00:56:36] point is you have to distinguish at what level is sharing taking place and you see that
+[00:56:42] if you have two different table entries sharing one file, then that what's
+[00:56:55] different there is that you can be working at different file positions.
+[00:56:58] Similarly, of course, the more common thing is you have two different open files and
+[00:57:08] they're referred to different files.
+[00:57:11] But now, and this is where life gets exciting, if you call fork, you remember about
+[00:57:16] fork that it spawns a child, but the child inherits a lot of information
+[00:57:23] from its parent. And one of the things it inherits is its descriptor table. It gets a replica of
+[00:57:29] that descriptor table. And so now both the parent and the child have identical entries in their descriptor
+[00:57:38] table, and so they're sharing files, but not at the file level, but at the open file table.
+[00:57:45] And what that means is if they're sharing files, but not at the file level, but at the open file table.
+[00:57:48] If the parent does a read, it'll bump along the file position.
+[00:57:53] And if the child now does a read, it will see from this new position. So you can see why the exam problems
+[00:58:01] get really interesting. That we'll keep track of all these different possibilities, and
+[00:58:09] they'll do different things. And so, and then of course, the parent or the child can start opening and
+[00:58:18] closing their own files as well, and that will get very messy.
+[00:58:22] And here's what you see the reason for having reference counts here, that if you have a lot of forking
+[00:58:29] going on, then you can create multiple pointers to this table entry. And in order to really, really
+[00:58:41] close the file, each of these has to call close before before the file is truly, truly closed before the file is
+[00:58:47] truly, truly closed from an operating system perspective.
+[00:58:56] So there's other fun things that make life interesting too and contribute to the exam problem possibilities.
+[00:59:04] One is a call called dupe 2. And the purpose of dupe 2 is to duplicate
+[00:59:14] a entry in the descriptor table. And the most common use of that is to duplicate a entry in the descriptor table. And the
+[00:59:21] most common use of that is I.O. Redirection, the either greater
+[00:59:27] greater or less sent sign to either redirect, read the instead of from standard input from a file,
+[00:59:33] or instead of writing to standard output, to write to a file. And the way the operating system actually
+[00:59:40] implements that is shortly after starting the program, it will call Dupe 2 to make it so that.
+[00:59:44] it will call dupe 2 to make it so that the file descriptor 1 is not the standard output of the for this process,
+[01:00:01] but it's actually the original standard output, but it's actually a descriptor for the file that it's supposed to write to write to.
+[01:00:10] And same with if it's doing input redirection.
+[01:00:14] But you can call dupe 2 yourself and do these kind of things, and there's actually good reasons for doing so.
+[01:00:27] So in particular, imagine I open a file and standard output points to the sort of normal thing,
+[01:00:37] and I open a new file I call it B, and then I call dupe 2, excuse me,
+[01:00:44] and now what both file descriptor 1 and file descriptor 1 and file descriptor 4 are sharing this entry in the file table
+[01:00:50] table and you see the reference count of two.
+[01:00:54] And so in order to really close it then, what would typically happen at this point is the, this
+[01:01:01] happens before it starts your program, you'd want to close file descriptor 4.
+[01:01:10] And in fact, there's a lot of bugs you can make by not closing files, and it's easy to
+[01:01:16] make mistakes when you have multiple entries in these tables.
+[01:01:20] Yes?
+[01:01:25] No.
+[01:01:26] See, if I close this one,
+[01:01:28] it just decrements this reference count, but this remains a valid entry here.
+[01:01:33] Yes.
+[01:01:39] But dupe 2 will decrement the reference count of the reference count of the original.
+[01:01:48] So dupe 2 goes backwards from where you think it should.
+[01:01:55] So dupe 2 is the, I want what what I referred to, for example,
+[01:02:05] for example, file descriptor, I want file descriptor 4.
+[01:02:09] file descriptor 4 to become what I can use to and refer to with file descriptor 1 here.
+[01:02:16] It will actually decrement the reference count of this before it then does the copy.
+[01:02:25] Otherwise, it would create like an orphan in this table, right?
+[01:02:38] So anyways, dupe 2 also is a powerful but dangerous mechanism.
+[01:02:44] So, no.
+[01:02:45] And now finally, let me just mention the much more common I.O.
+[01:02:49] that application programs use is what's known as the standard I.O.
+[01:02:54] And that's what's documented in K&R, and it's actually part of the C standard, all these different functions.
+[01:03:02] And so the main feature it adds is sort of like what you saw with the Rio package.
+[01:03:08] It adds buffering.
+[01:03:09] So it doesn't have to do this low level stuff.
+[01:03:12] And it voids all the, some of the nastiness.
+[01:03:16] And the way it works is what we've already seen.
+[01:03:23] It uses buffering to do the I.O.
+[01:03:26] So just as an example,
+[01:03:30] here's some code that calls print of
+[01:03:48] one character at a time to print the word hello.
+[01:03:52] But if I run that and I s-trace it,
+[01:04:06] you'll see that there's only one system called to write.
+[01:04:09] And it works the same way you saw with the real code.
+[01:04:11] saw with the real code. It builds up a buffer and it's not until this call to F flush
+[01:04:18] that forces the output to actually be printed output. Usually that happens automatically actually if you
+[01:04:26] print F up a line feed, it will flush it. So that, I think that call to F flushes
+[01:04:35] probably redundant here. So, and so that's the benefit. So buffered I.O is much
+[01:04:49] more efficient because it, because of the buffering.
+[01:05:01] So as a result, we've now seen three different types of I.O. There's the low-level I.O.
+[01:05:08] called, referred to as Unix I.O. You saw this package that was written specifically for the book and for the course called Rio.
+[01:05:16] And then there's a much larger and, in fact, richer set of I.
+[01:05:21] provided by the UNIX standard library.
+[01:05:25] So you might ask a couple questions.
+[01:05:27] One is, well, why the heck did you write this
+[01:05:30] when you've already got that?
+[01:05:33] If UNIX provides buffered I.O.,
+[01:05:35] why did you do it yourself?
+[01:05:37] And the reason is this stuff doesn't,
+[01:05:39] it works really well for the I.O.
+[01:05:42] you do to a terminal or to files,
+[01:05:45] but it doesn't do very well with network connections.
+[01:05:48] It wasn't really designed for that.
+[01:05:51] And so it gets really designed for that.
+[01:05:52] messed up. And so the main reason you're going to find yourself using this
+[01:05:56] is when you're starting to use network connections.
+[01:05:59] The other thing is these do not coexist very well, buffered I.O.
+[01:06:04] with Rio I.O.
+[01:06:06] because they each maintain their own buffers and they don't know about each other,
+[01:06:10] and they get terribly confused.
+[01:06:12] So you kind of have to pick one or the other
+[01:06:14] with respect to any particular I.O.
+[01:06:17] And don't try to mix and match them.
+[01:06:19] So, like I said,
+[01:06:25] Unix I.O. Then the low-level stuff, from an application perspective, it's like really painful to use, especially with short counts and error codes and all of that stuff.
+[01:06:36] And so in general, you want to either write your own package or use some other package around it.
+[01:06:44] And so, as I said, standard I.O. It gives you printf and scanf and all these nice features.
+[01:06:50] It's uniform. It exists on all systems. It's reasonably standardized.
+[01:06:55] So in general, then, use the standard I.O.
+[01:07:05] for most your day-to-day uses of files.
+[01:07:09] I use raw I.O. for low-level stuff, like when you have to.
+[01:07:16] And partly, it turns out, signals are not, you shouldn't use standard I.O.
+[01:07:22] when you're writing signal handlers.
+[01:07:24] And then the Rio, you're going to find useful in particular,
+[01:07:28] for doing networking.
+[01:07:31] One other thing that you should, one bug that students do over and over again
+[01:07:37] in this course is they try to do line-oriented I.O.
+[01:07:43] On things that aren't lines, so like a JPEG image or something like that.
+[01:07:48] And the reason that's important is that these functions treat the end of
+[01:07:53] character, 0A, is a very special character.
+[01:07:56] They'll stop reading or something like that.
+[01:07:59] Or if it's going between Windows and Unix,
+[01:08:02] it will actually change one from carriage return,
+[01:08:06] or from line feed to carriage return line feed.
+[01:08:08] Similar functions like Stirlin and StirCopy
+[01:08:11] will stop when they hit a null bite.
+[01:08:13] And that's not what you want to do when these are network packets
+[01:08:16] you're trying to send out.
+[01:08:17] So be careful, some of the functions you've used
+[01:08:23] a lot and you're very familiar with maybe completely inappropriate for things where you're doing binary data or you're communicating over networks and things like that.
+[01:08:36] So be sure you understand what you're doing when you start to use these kind of functions.
+[01:08:41] So those of you really want to know this stuff.
+[01:08:46] There's a fellow named Richard Stevens who unfortunately died
+[01:08:50] a while, quite a while ago.
+[01:08:54] But
+[01:08:55] His books live on, and there's various people have signed up to become co-authors with him in his absence.
+[01:09:02] And creating new editions of these books that used to date back way far.
+[01:09:11] So, and if you really want to know how this stuff works, you want to be the ACE programmer, these books are the best you can get.
+[01:09:18] But I'll also warn you, your bookshelf will become very heavy laden because there's,
+[01:09:25] There's the volumes one, two, and three, and then there's networking books.
+[01:09:30] And Stevens is like an encyclopedic reference, but they're excellent books.
+[01:09:35] If you really want to understand something, read Stevens.
+[01:09:39] And there's another book that is just specific to Linux that's fairly nice and somewhat, it's very detailed,
+[01:09:48] but since it's only trying to deal with Linux, it's a little bit less weird than trying to read
+[01:09:54] Stevens, because Stevens will say, in this version of Unix, it works this way,
+[01:09:59] and this version it works that way, and blah, blah, blah, blah, blah, and it's all different,
+[01:10:02] and it will drive you crazy.
+[01:10:05] But Stevens is still an outstanding set of books.
+[01:10:08] Okay, so this is an example, and I'm not going to go through it, but these are the kind
+[01:10:15] of things that we use to torture students, that you open some file descriptors,
+[01:10:20] and you do some dupes, and you do some forks, and so you end up some forks, and so you end up
+[01:10:25] with a real spaghetti for all the pointers and what's shared and what's not shared, and then you ask,
+[01:10:32] what will this print. And of course, you'll have to trace through in great detail what's really going on.
+[01:10:38] So those are in the book, and I recommend you work on some of those.
+[01:10:44] Okay, that'll do us for today then.

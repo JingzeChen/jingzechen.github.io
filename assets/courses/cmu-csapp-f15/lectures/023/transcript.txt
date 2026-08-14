@@ -1,0 +1,714 @@
+[00:00:00] Well, good afternoon, everybody. Welcome. Good to see you.
+[00:00:09] So this week we're going to study how to incorporate concurrency into programs.
+[00:00:14] Now, we've seen concurrency before in the form of processes, exception handlers.
+[00:00:23] And in the case of processes, we used processes as a mechanism to run multiple independent application programs.
+[00:00:33] Now, but you could, concurrency also exists in application programs.
+[00:00:40] Now, we've seen a little bit of this when we studied signal handlers.
+[00:00:44] Okay, so a signal handler is a concurrent flow that runs concurrently with your main application program.
+[00:00:52] Okay, and we've seen how some of the difficulties that can arise when we introduce concurrency in our programs.
+[00:01:03] programs. So even with something like a signal handler, which isn't doing
+[00:01:11] very much, it's very hard for us to reason about this kind of kind of thing. We have two
+[00:01:17] two concurrent flows running at the same time. Like there's, our brains just tend to be kind
+[00:01:23] kind of sequential. We want to think about things happening one after the other. You know,
+[00:01:27] and it's much easier for us to reason about that. Reasoning about multiple things happening
+[00:01:33] at the same time really causes problems. And that the fundamental reason is that
+[00:01:40] to really reason about, say, two concurrent flows, two concurrent flows, we have to account for all of the possible
+[00:01:49] interleavings of those flows. Okay. And that's where, and that's, that's, that grows exponentially
+[00:01:54] with the, with the, with the number of flows. Okay, so you had, you saw this with your signal
+[00:02:00] handlers when you did shell lab.
+[00:02:02] You had two concurrent flows, the main program and your signal handler, both accessing
+[00:02:10] a shared resource in the form of the jobs list. And you had to be very careful to prevent an
+[00:02:18] interleaving where that data structure was being referenced in an inconsistent state.
+[00:02:26] So what we're going to do this week and into next week is we're going to look at that kind of application-level
+[00:02:33] concurrency but in a more principled, in a more principled way than we encountered with signal
+[00:02:39] signal handlers. So as soon as you have multiple flows accessing shared resources, all kinds of
+[00:02:52] bad things can happen in your program. And these have been, these bad things, these problems that
+[00:03:01] occur have been objects of studying computer science for for decades. But the kinds of things that can
+[00:03:07] happen are races, which we've seen when we did the Shell Lab, where the
+[00:03:14] the outcome, whether a good or bad outcome, depends on some arbitrary scheduling decision, right?
+[00:03:20] In the case of, you know, one of the races we saw in the case of a shell, was the case where a child,
+[00:03:26] just because of a scheduling decision by the colonel, runs and finishes before the parent has
+[00:03:33] a chance to add that child to the job list.
+[00:03:35] Okay, so that's a classic example of a race.
+[00:03:39] And similarly, if you have two people that are trying to make, accessing a reservation system on a, for an airline, for an airline, who gets the, if they both access at the same time, who actually gets a seat just depends on various scheduling decisions that are going on in the reservation system.
+[00:04:00] Another kind of a problem that occurs is deadlock.
+[00:04:06] So a deadlock is a deadlock is a condition that exists where you have multiple flows waiting for an event that will never occur.
+[00:04:16] Okay, so using printf in a signal handler is an example of this kind of, of this kind of problem, or introduces the potential for that kind of problem.
+[00:04:26] Okay, so in your main routine, you execute a printf, you execute a printf, and
+[00:04:33] printf acquires a lock on some system resource. I think it's a terminal
+[00:04:40] lock. And then after that main printf acquires that lock, it gets interrupted by a signal handler.
+[00:04:48] And now the signal handler, if it does a printf, that printf will try to acquire that lock, but it won't be able to get it because the printf in the main routine has it.
+[00:05:00] So now your signal hand, the printf in the signal handler, the printf in the signal handler is
+[00:05:05] It's waiting for an event that will never occur.
+[00:05:07] It's waiting for that lock to be released.
+[00:05:09] And it will never occur because the main, the printf in the main routine can't release the lock until the signal handler returns.
+[00:05:19] And the signal handler can't acquire the lock until the printf in the main routine terminates.
+[00:05:24] So that's a classic example of deadlock.
+[00:05:27] Another more from real life, imagine that you're all drivers follow the rules.
+[00:05:34] very precisely. And the rule for a four-way stop is that whoever gets
+[00:05:41] there first gets to go first, gets to go first. Okay? So if four cars arrive at the intersection
+[00:05:50] exactly the same time, then you have a deadlock. You have none of the drivers was first,
+[00:05:56] so none of the drivers goes. And so they're all waiting for a condition that'll never occur.
+[00:06:02] And then other classical things that can go wrong are things like liveliness, starvation, fairness.
+[00:06:09] So this starvation occurs when you fail, you're trying to do something, but you fail to make progress because somebody else keeps getting all the work.
+[00:06:20] Right?
+[00:06:21] So if you were, if you had two processes and the kernel always scheduled process A instead of process B, process B, that would be an example of process B being starved out because of an improper.
+[00:06:32] improper
+[00:06:34] scheduling decision.
+[00:06:35] And then we would say that that that scheduling policy
+[00:06:38] to always schedule B is unfair, right?
+[00:06:40] So it doesn't have this
+[00:06:42] this property of fairness where every
+[00:06:45] entity in the system gets
+[00:06:47] gets sort of a reasonable chunk of the processor.
+[00:06:52] So like I said, I mean, this concurrency's been studied
+[00:06:57] studied for years.
+[00:06:58] It's a very, it's a very deep, difficult topic
+[00:07:01] because of this sort of this sort of
+[00:07:04] exponential explosion in the number of interleavings.
+[00:07:07] So we can't, we're not going to cover all of them, but we will cover some, so as you get a reasonable idea of how to incorporate concurrency in your programs.
+[00:07:20] Now, for our study of application level concurrency, we're going to use servers as a motivating example.
+[00:07:27] And the reason is that you cannot write a correct server without using concurrency.
+[00:07:33] Okay.
+[00:07:34] So it's a good, it's a really good, good motivation.
+[00:07:39] And here's the reason.
+[00:07:41] So so far we've looked at servers that are iterative.
+[00:07:44] Okay, so they only process requests from one client at a time.
+[00:07:49] And once they finish processing a request from a client,
+[00:07:52] then they go on to the next client.
+[00:07:55] So they, so like with our iterative echo server,
+[00:08:01] you can see the each, each of these clients,
+[00:08:05] makes a connection request, then it writes a line of text to the server, and it waits for the server to the server
+[00:08:14] to echo that back.
+[00:08:16] And in this case, this simple case, it just, then it just closes.
+[00:08:20] Okay, and the server waits for a connection request and accept.
+[00:08:27] And then waits for, waits for, and then once it accepts that connection request,
+[00:08:33] it reads and then waits for, and then once it waits for,
+[00:08:35] and waits for that client to write something to the connection.
+[00:08:41] And then it echoes it back.
+[00:08:43] And then it waits for the next line until the, until the client closes that connection,
+[00:08:54] and then the server closes its connection.
+[00:08:57] And then only then does it does it do another except to wait for the next connection request.
+[00:09:02] Okay, so in in this example, client two is also,
+[00:09:06] making a connection request.
+[00:09:08] But it never runs.
+[00:09:11] It has to wait until the server actually echoes back the response.
+[00:09:17] Now, there's a little subtlety here that,
+[00:09:22] in where exactly this client waits.
+[00:09:27] So the semantics of connect, you would think that connect
+[00:09:32] would block until the connection was established.
+[00:09:35] But actually, if you try this out,
+[00:09:38] it turns out that,
+[00:09:39] connect actually initiates the connection process inside the kernel, but then it returns.
+[00:09:45] Okay, before the connection has been established.
+[00:09:50] And then it does a write, and that write also returns immediately.
+[00:09:58] So it doesn't wait until the server reads that the string that was written.
+[00:10:07] And it doesn't block until it calls the read
+[00:10:10] It calls the read function waiting for the echoed response from the server.
+[00:10:18] And so it actually, it doesn't block until it hits this read, and then it spends all, it waits, waits,
+[00:10:24] waits, waits, waits, waits, and finally the server accepts the connection request and then writes the
+[00:10:32] string, echoes the string back to the client.
+[00:10:41] So the call to connect actually returns immediately.
+[00:10:45] It exploits this feature in the kernel that can queue up these connection requests.
+[00:10:51] Okay, so that the kernel now is going through all the process of setting up the connection, but the application program continues.
+[00:10:59] And then the right, the right inside the client doesn't block because the kernel can also queue up the data that's written.
+[00:11:09] So it'll cue it up, remember that it was written.
+[00:11:12] When the connection actually gets created, then it'll send the connection.
+[00:11:14] then it'll send that data along.
+[00:11:18] But there's no way to avoid the read from blocking.
+[00:11:22] A read can't return until it gets some data.
+[00:11:26] Okay, so read has to block.
+[00:11:30] Now here's the fundamental flaw of an iterative server, and the reason why we have to write them
+[00:11:37] using with concurrency.
+[00:11:39] Okay, so let's say in our Echo Server example, we have a client that
+[00:11:49] creates a connection, or requests a connection,
+[00:11:54] it's accepted in the server, does the right, the server echoes back one string,
+[00:12:02] and then the client blocks again, and then the client blocks again, or instead of doing the next
+[00:12:09] right or closing the connection, the person, the user goes out to lunch and never types
+[00:12:20] in a string to the echo client.
+[00:12:23] Okay, so at this point, the user goes out to lunch and never types in a string to the echo client.
+[00:12:23] So at this point, the server calls read, and then it blocks, waiting for this user to type in something so that the client can send it to the server to be echoed.
+[00:12:36] But the user's gone, gets hit by a truck.
+[00:12:39] Who knows?
+[00:12:40] Anyway, so this never, this read then blocks for an indeterminate amount of time, right?
+[00:12:48] And while it's blocking, client two, which also wants service,
+[00:12:54] service, it has to block.
+[00:12:59] Okay, so now you're in an untenable situation where one client has sort of totally affected all of the other clients in the other clients in the system and none of the other clients can get service.
+[00:13:10] So if this were a web server, if one client for some reason blocked, no other users would be able to use that web service or look at pages on that site.
+[00:13:25] So obviously this.
+[00:13:26] we can't have this.
+[00:13:29] Okay, so the solution is to use, is to write a concurrent server instead of an iterative server,
+[00:13:36] where we'll have a separate concurrent flow handle each client's request and interact with each client.
+[00:13:45] So now if one client for some reason is slow or misbehaves or blocks the system,
+[00:13:52] other clients won't be affected because those clients will be handled by concurrent flows.
+[00:13:57] So,
+[00:14:01] So there's several ways, a number of ways to create these.
+[00:14:05] Yes.
+[00:14:08] Could it queue up reads from multiple clients from like, say, four or five of, if there are other clients
+[00:14:15] clients contacted and put, send their rights over and get queue up all those?
+[00:14:20] It actually could, and in fact, in fact, that's that's a form of concurrency, okay.
+[00:14:24] So the question is could the, could the server queue up requests from the, from clients?
+[00:14:32] It could, but it would, no, I guess actually, it would have to queue up.
+[00:14:37] It would somehow have to accept those connections, right?
+[00:14:41] So that, no, so that wouldn't work.
+[00:14:44] So somehow you'd have, since the, since the accept calls are iterative, sequential, there's no way
+[00:14:55] to get data from those other clients, okay?
+[00:14:58] But actually what you're suggesting is very similar to something called an event-based
+[00:15:03] server that will, which is one of the ways we can.
+[00:15:08] create concurrent flows.
+[00:15:10] So there's three ways to create these concurrent flows.
+[00:15:16] One is to use processes, okay, like we've already seen.
+[00:15:21] Okay, so the kernel, and so in this case the kernel handles all the
+[00:15:26] the scheduling for us and interleaves it, it interleaves the process execution
+[00:15:32] automatically for us. And then as we saw before, each flow has its own
+[00:15:39] private address space so that each flow is independent and scheduled by the kernel.
+[00:15:46] Now there's another another approach called event-based where the programmer manually interleaves the flows.
+[00:15:54] Okay, so instead of relying on the kernel to interleave these different flows, the user, the programmer
+[00:16:02] creates these flows and then manually interleaves them. Okay. And since it's one program, all of the
+[00:16:12] flow share the same address space, right? So they have access to all the same global
+[00:16:16] data structures. And they, they do this interleaving using a technique called I-o-multiplexing.
+[00:16:26] And I'll talk briefly about that, but it's addressed much more detail in your book.
+[00:16:34] The third approach, which is kind of a hybrid of process-based and event-based, is thread-based.
+[00:16:41] So each of these flows is implemented using something called a thread.
+[00:16:48] The kernel, like processes, like processes, the kernel automatically interleaves these different threads.
+[00:17:02] But unlike a process, each thread shares the same address space.
+[00:17:08] Okay, so each thread has access to all the global variables declared in the program.
+[00:17:13] in the program.
+[00:17:15] So it's like process-based and that the kernel automatically
+[00:17:19] schedules it for us, but it's like event-based in the sense that every flow shares the same address space.
+[00:17:26] Okay, so we'll look, let's look at all three of these approaches in more detail.
+[00:17:33] So the first approach is to create these flows using processes.
+[00:17:37] So in this case, this is our echo server example.
+[00:17:44] The, this is our echo server example.
+[00:17:46] The
+[00:17:47] The client requests a connection and then calls FGETS to wait for the user to type something
+[00:17:56] in at the keyboard.
+[00:17:59] But the user's gone, and so FGAS, this client just blocks in the call to FGetS.
+[00:18:07] So the server, when it gets a request, it accepts the connection request and returns from the accept
+[00:18:15] call, and after it returns from the accept call, and after it returns from the accept call, it forks
+[00:18:22] child and then that child interacts, that child process now will be responsible for interacting with client number one.
+[00:18:32] So the child blocks waiting for data from client one, which is never going to show up because the user left.
+[00:18:40] Okay, but that's okay because it doesn't stop the server.
+[00:18:45] The server, after it forks the child, goes right back and calls accept, and now accept can accept the connection
+[00:18:55] from from client 2 and fork off another, a different child that can interact
+[00:19:03] with client 2.
+[00:19:05] So that child will read, waits for data to show up from the client, and then it echoes it back,
+[00:19:11] and at some point then closes this connection.
+[00:19:15] Okay, so you see that this misbehaving client number one now, because we have concurrent flows,
+[00:19:22] interacting with all the clients, this misbehaving client number one,
+[00:19:26] This misbehaving client can't adversely affect other clients.
+[00:19:30] Okay, so now that's, and this is, this idea of creating concurrent flows to interact with clients is fundamental.
+[00:19:39] There's, you have to do this in order to have a sort of a working server implementation.
+[00:19:47] All right, so how would we actually program this process-based concurrent server?
+[00:19:52] It's actually surprisingly compact, right?
+[00:19:57] So how would we actually actually actually actually,
+[00:19:59] So we're going to pass in, in ARV, we're going to pass in a port number that we want this
+[00:20:06] server to listen on.
+[00:20:09] We've got a listening descriptor and a connected descriptor.
+[00:20:14] We've got, and then we've got a length and an address, address field.
+[00:20:22] And the address is declared in a protocol independent way using this socket or storage type,
+[00:20:29] which is guaranteed to be big enough, as you saw last time.
+[00:20:32] to be big enough to handle any type of address, either IPV4 or IPV6.
+[00:20:40] Okay, so we install a SigChild handler, and then we use the open ListenFD call from your
+[00:20:49] from your textbook to create a listening descriptor on port, the port that we pass in as the
+[00:20:57] argument to this program.
+[00:21:00] And then the server goes into a loop, and in each iteration, it's a loop.
+[00:21:06] It gets the size of the socket or storage type and puts it into client lend.
+[00:21:17] And then it calls it accept with pointers to the to the client's address and client lend using the listening descriptor that was returned by Open ListenFD.
+[00:21:37] The accept call, after it gets a connection.
+[00:21:40] After it gets a connection request, it returns with the address of the client that made the
+[00:21:46] that at the other end of the connection, along with the, the, the, the, the true length of that address.
+[00:21:55] So, the case of IPB4, it would be 4 bytes.
+[00:22:00] And then the acceptor turns this connected file descriptor that the, that the, that the, that the,
+[00:22:12] that it can use to read and write and interact with that client.
+[00:22:17] So it creates, say, it forks the child, and then the child closes its listening descriptor,
+[00:22:25] and then it calls the echo routine to interact with the client.
+[00:22:31] And when the echo routine returns, the client closes its connected descriptor and then exits.
+[00:22:39] And so this close isn't absolutely necessary, but we just
+[00:22:45] We just did it to be careful.
+[00:22:47] Okay, now the parent, and this is important, closes the connected descriptor,
+[00:22:53] because it's not going to use that connected descriptor.
+[00:22:55] Only the child will use that connected descriptor.
+[00:22:58] So in order to avoid this memory leak, it's very important for the child to close this descriptor.
+[00:23:04] Okay, because remember this, the server's running in an infinite loop.
+[00:23:08] I mean, in theory, it would never, it would never terminate.
+[00:23:14] Okay.
+[00:23:15] And then to avoid a memory leak, we have to, in our handler, we have to have to have a sigchild handler that will reap all of the children that have terminated.
+[00:23:32] Okay, so let's look a little more detail how this, how this accept works.
+[00:23:41] So you have a client with a client file descriptor, and then you have a server that creates a listening descriptor.
+[00:23:48] So let's say that's, you know, descriptors are indexed by small integers.
+[00:23:52] So let's say that index is three.
+[00:23:55] The descriptor number is three.
+[00:23:58] So the server blocks an accept, waiting for this connection request.
+[00:24:05] The client makes a connection request using the connect call.
+[00:24:08] The server accepts the connect call and then it creates a child.
+[00:24:16] And then the child interacts with the client using the connected file descriptor that was returned from the
+[00:24:25] So that would be, say, descriptor number four.
+[00:24:29] It would just be some different number.
+[00:24:31] Okay, so the execution model we have for these process-based servers
+[00:24:38] is that we have the server processor listening for connection requests,
+[00:24:43] one after the other from clients.
+[00:24:46] And then we have multiple clients interacting concurrently with,
+[00:24:51] multiple children interacting concurrently with multiple children interacting concurrently
+[00:24:55] with multiple clients.
+[00:24:56] clients.
+[00:24:57] Okay?
+[00:24:59] Since each of these, each of these children are processes, there's no shared state between them.
+[00:25:06] And both parent and child inherit the, have, they inherit the descriptor
+[00:25:14] table, so they have, they both have copies of ListenFD and the listening descriptor and the
+[00:25:22] connected descriptor.
+[00:25:24] Okay.
+[00:25:25] And as we saw before, the parent must close its, its copy of the
+[00:25:28] of the connected file descriptor.
+[00:25:30] The child should close the listening descriptor,
+[00:25:33] but it's, you know, just to be, just because it's not needed.
+[00:25:39] All right, when you, so these are actually pretty simple to create,
+[00:25:44] and there's just a couple of things you have to keep in mind when you build a process-based server.
+[00:25:51] So first, as with any process that creates children, it has to reap these children that
+[00:26:00] terminated to avoid this memory leak.
+[00:26:05] The parent process has to close its copy of a connected file descriptor.
+[00:26:11] And there's a couple reasons that, in fact, if it doesn't, it'll not only create a memory leak,
+[00:26:17] but that the state associated with that descriptor will actually stay around forever because
+[00:26:25] the kernel won't close that connection.
+[00:26:29] So it, as we saw when we looked at file I.O.,
+[00:26:33] Now, this is just, this is the same kind of file we looked at before.
+[00:26:39] So the kernel keeps a reference count for each, each socket that's open.
+[00:26:44] So after the fork, now there's, there's two, there's a parent and the child, which are accessing the file table associated with the connected file descriptor.
+[00:26:55] Okay. So that, and the connection won't be closed until the reference count for that connected file description is zero, right?
+[00:27:01] So that file table entry won't be removed from the kernel until there's only, until there's zero references to it.
+[00:27:11] Okay.
+[00:27:12] So both the parent and the child have to close that, that descriptor.
+[00:27:19] Okay, now the good thing about process-based servers is that they do the job for us that we asked them to do, right?
+[00:27:27] We wanted them to handle, to interact with multiple clients concurrently or have that ability.
+[00:27:33] There's a very clean sharing model.
+[00:27:36] So there's private address spaces between the, any, all of the children, all of the children and the parent.
+[00:27:43] They share, they have separate descriptors, but they share, they have separate copies of the descriptor table, but they share the same open file table.
+[00:27:55] Okay. And there's, so in some sense, this is the simplest possible way to create a concurrent servers.
+[00:28:03] And if you can get by with not sharing any global variables or sharing address spaces, then this is this is the way to go.
+[00:28:12] Now, the disadvantage is that there's additional overhead for processes, right? Even with this copy-on-right trick that we saw for sharing the address space between the parent and the child, it's still non-trivial overhead.
+[00:28:32] And you have to actually do a lot of work if you want to share data between processes.
+[00:28:38] So like, let's say you want to have some kind of a shared cache between multiple processes.
+[00:28:43] You either have to use files, okay, on, on disk, or if you want to share memory, you have to use some kind of memory mapping.
+[00:28:56] Or you have to use what's these interprocess communication mechanisms, which we have to use some kind of memory mapping.
+[00:29:02] We haven't talked about, but there's ways, pipes are probably the ones you're
+[00:29:07] most familiar with. So a pipe allows one process to send data to another process. And there's
+[00:29:17] ways to share memory between processes, but they're cumbersome and require, have to be implemented
+[00:29:26] with care. Okay, now the second approach is, we call an event-based server. So the idea
+[00:29:34] here is that the server maintains a set of active connections.
+[00:29:41] So it has an array of connected file descriptors from different clients, okay?
+[00:29:50] And then it determines which of those, and it also has a listening descriptor. And then it determines
+[00:29:56] which of those descriptors have pending input. And it determines this using a system call called
+[00:30:05] select or e-pull. There's several ways to determine this. But basically using
+[00:30:10] select or e-pull, you can determine which of a set of descriptors has pending input. And then this,
+[00:30:22] and so the arrival of input at a descriptor is called an event because it changes the state
+[00:30:28] of the descriptor. Okay. So an event is always, event in general is always some kind of state
+[00:30:34] of state change. So in this case, when data
+[00:30:39] arrives on a socket, that's a change in this state. So there was no
+[00:30:46] data before the event, after the event, now there's data that the server can read. Okay.
+[00:30:55] So if the listening descriptor has input, then the server calls accept to accept the connection.
+[00:31:02] And for all, and then all connected descriptors that have pending inputs, it services those, it
+[00:31:08] services those. It reads from those in some order.
+[00:31:13] Now the details for how to do this are described in the book.
+[00:31:19] But basically, I mean, the conceptually, it's pretty simple. It's actually tricky to implement.
+[00:31:27] But the idea is that there's some set of active descriptors, right?
+[00:31:32] There's some set of descriptors, connected descriptors that you're using, that are being used right now to interact with a client.
+[00:31:42] There's some that are inactive. So if descriptors, descriptor was closed, then it's no longer active.
+[00:31:52] And then there's other descriptors that have never been used. So we just have this array of descriptors.
+[00:31:59] And then we record there, you know, the descriptor number for each of those connected, for each of those descriptors.
+[00:32:12] And then using select or Epole or some other.
+[00:32:19] or e-pull or some other mechanism, we somehow determine which of those active descriptors
+[00:32:24] have input. And then we service each of those. In the case of listen FD by calling and accept,
+[00:32:31] in the case of these connected descriptors, actually these are, this should be con FD, not client FD.
+[00:32:41] But in the case of these connected descriptors, we read the data from them. And the, when we read the data from
+[00:32:52] each descriptor, we do some work. So data arrives at a descriptor and then we read that data
+[00:33:03] and then we do some kind of work. Maybe in the case of an echo server, we echo it right back.
+[00:33:13] Okay? In the case of a web server, we may, if that data was a HTTP request, we might go and
+[00:33:20] fetch a file from disk and return it. Okay. But in any case, we notice that the description
+[00:33:27] has some data, we read that data, and then we respond to it in some way.
+[00:33:34] Okay. So that response, those multiple responses are concurrent flows. Okay. The, the, the, the,
+[00:33:43] when we're interacting with that client, we're interacting, we're creating concurrent flows,
+[00:33:49] well, concurrent flow for each, each client, and we're servicing those clients concurrently.
+[00:33:56] Okay, so even though it's a sequential program, right, we're not using fork or
+[00:34:00] anything. It's just a C program, straightforward C program. We're writing
+[00:34:06] in such a way that we're creating our own concurrent flows. So there's, as with any, any
+[00:34:18] approach, there's, there's advantages and disadvantages. So a big advantage of event-based
+[00:34:23] servers is that it's just a sequence, it's one process with the same, with one address
+[00:34:29] space, right? So it's very easy. You can use conventional debugger, GDB, to step through. You can
+[00:34:34] see everything, you have access to everything. So in that sense, they're much simpler to
+[00:34:39] debug, understand. And then there's no process or thread control overhead. So
+[00:34:46] when we, when we serve as a particular descriptor, it's very, it's very, there's very little
+[00:34:53] overhead, right? We just, the only overhead is sort of determining that that that
+[00:34:57] descriptor has input available. Okay. Okay. And so because of that, this is the
+[00:35:05] high performance web servers like Node.js, Engine X, Tornado, they all use this
+[00:35:13] event-based approach. If you want to get over 10,000, 10,000 requests per second, you have to go with
+[00:35:21] with something like this. Okay, the disadvantage is it's much harder to, more complex to code up than
+[00:35:29] than the other processor thread-based designs. And it's very difficult. It's very
+[00:35:36] difficult, so one of the hardest aspects of the writing an event-based server
+[00:35:44] is that you have to figure out how much work you're going to do in response to an event.
+[00:35:48] Okay, so let me give you, let's say this server is a web server, and you get input on a, on one
+[00:35:56] of your, a connected file descriptor.
+[00:36:00] The simplest, the simplest thing to do would be to then assume, to read the entire HTTP request
+[00:36:07] and not return until you've read the entire request.
+[00:36:13] Okay, so in that case, the amount of work that you do in response to an event is very coarse-grained.
+[00:36:21] There's a lot of instructions because we're going to read every single, every single line in that HTTP request header.
+[00:36:29] But it's, so that's an example of course grain.
+[00:36:33] It's very simple because every time you get a request on a connected descriptor, you just
+[00:36:38] you just read the whole HTTP request and then send a response.
+[00:36:44] Okay, so there's, on the other hand, it's vulnerable. Because what if a client misbehaves
+[00:36:53] and doesn't send the entire HTTP request? What if it sends half of the request?
+[00:36:57] So if you were going to design an event-based web server, you probably wouldn't want
+[00:37:03] to do that, right? Because that a single client, we'd be back in the situation we were
+[00:37:09] before where a single misbehaving client could sort of shut down the whole server.
+[00:37:15] So you might say, well, I'm going to, I'm going to, I'm going to, my unit of work that I do in response
+[00:37:23] to a request will be to read a single line from the request. Okay, so I'll read a single line and
+[00:37:31] then I'll, and then I'll return. Okay. So every, so now we're interleaving reading single
+[00:37:38] lines. And once I've read the entire request, then I'll, then I'll,
+[00:37:42] then I'll send the response.
+[00:37:45] So that's better, right?
+[00:37:46] So a misbehaving client, if it's sending like whole text lines at a time, even if it stops
+[00:37:55] stops halfway through, we'll still be able to make progress and service other clients.
+[00:38:01] So that's a finer-grained approach.
+[00:38:03] It's better.
+[00:38:04] It's probably more robust than waiting for the whole request, but it's still vulnerable because
+[00:38:11] the client could just send a partial line.
+[00:38:14] So now we're back.
+[00:38:16] So really, the only way to write a robust, event-based web server
+[00:38:21] is to be able to handle partial lines.
+[00:38:25] Just read when there's data available on a descriptor,
+[00:38:30] you just read whatever data is available.
+[00:38:32] You remember how much you read.
+[00:38:34] If it's not a whole line, you somehow have to remember that.
+[00:38:36] You have to buffer it, remember it.
+[00:38:38] So now it's getting really complicated, right?
+[00:38:41] But that's what you, that's the price you pay for this,
+[00:38:44] for this line.
+[00:38:45] low overhead, sort of easier to debug kind of model.
+[00:38:51] And then another disadvantage is that you can't, since it's really a sequential program, right, it's 1C program,
+[00:38:56] you can't take advantage of multiple cores.
+[00:38:59] So the only way to get sort of more performance out of something, an event-based server is just
+[00:39:04] to replicate copies of that server.
+[00:39:08] But you can't make an individual server go faster by using multiple cores.
+[00:39:13] Okay.
+[00:39:16] The third approach is to use threads to create these concurrent flows.
+[00:39:23] It's very similar to processes, but there are some important differences.
+[00:39:29] So let's look first at what we mean by a thread.
+[00:39:35] So let's go back, I'm going to, let's go back in and look at the traditional view of a process.
+[00:39:42] So we think of a process as some context.
+[00:39:45] That's data structures in the kernel, data that the kernel
+[00:39:48] data that the kernel keeps about that process, as well as this private address space, which contains
+[00:39:55] a stack, code, and data, and then the stack.
+[00:40:01] Okay, and then as part of the, and then the, the process context consists of context that's
+[00:40:07] associated with the program like the registers, condition codes, program counter, stack
+[00:40:12] pointer. And then it contains kernel context, which is information in the kernel
+[00:40:19] that the kernel that the kernel needs to implement this idea of a process. Okay, so all of this
+[00:40:26] data is actually stored in the kernel, but some of the data is directly associated with
+[00:40:33] the program and other other data is sort of support data that the kernel needs to, to implement
+[00:40:41] processes.
+[00:40:42] Okay.
+[00:40:44] So let's just take this picture, and we're just going to just move things around a little bit.
+[00:40:50] So what I've done is I've taken the stack off of the this virtual address space and sort of pulled it
+[00:41:04] out along with its stack pointer and the context that's associated with the program.
+[00:41:14] So the data registers, the condition codes, the stack pointer, the program counter.
+[00:41:19] Okay, and I've just renamed a thread context instead of program context,
+[00:41:24] but it's the same, it's the same thing.
+[00:41:27] And then I'm going to call this, this whole thing, the combination of a stack and this
+[00:41:33] thread context, I'm going to call that a thread.
+[00:41:36] And then everything else remains the same.
+[00:41:44] It's, it's, it's, we have, we still have our code and data, and we have the kernel context.
+[00:41:50] Okay, now by, by doing this sort of refactoring, and we have the kernel context.
+[00:41:55] and just moving things around, I can now imagine, so this stack isn't very much, right?
+[00:42:03] It's, so there's a, there's this, there's this stack space, and then there's a little bit of data here in the form of some registers and some things to be stored.
+[00:42:12] But this is a fairly small amount of data.
+[00:42:16] Now, when I refactor like this, now I can, I can think about there being multiple threads associated with the same process.
+[00:42:26] if I just keep different set of data, thread context for each thread, and then a private, a separate portion of the stack that's associated with that thread.
+[00:42:39] So now each thread shares the same code and data, the same virtual address space, has the same kernel context, okay, the same I.
+[00:42:52] But now it has its own separate individual stack.
+[00:43:01] Okay.
+[00:43:03] So local variables, things that you would store on a stack now would be private, sort of independent.
+[00:43:10] And it has its own set of its own program counter, its own stack pointer, its own set of registers and condition codes.
+[00:43:18] And then the one difference now is that each thread, instead of, there's still a process ID for this process, that's part of the kernel context.
+[00:43:32] But each thread now has its own thread ID as part of its thread.
+[00:43:36] context.
+[00:43:37] Okay, so now the kernel can just treat each of these as separate flows, right?
+[00:43:46] There's a separate, so it's just like a process now.
+[00:43:49] The kernel can remember where the, each thread has its own program counter.
+[00:43:55] And, but they're running code out of the same, the same code section in the virtual address space.
+[00:44:02] So they're sharing code, sharing data, but they have their own program counters so they can,
+[00:44:09] the kernel can provide, can provide,
+[00:44:11] each of these threads as a separate flow of control that it then schedules
+[00:44:16] just like it does a process or a similar way that does as a process.
+[00:44:22] But the difference is the reason that four threads in the first place is that when the kernel
+[00:44:30] wants to context switch from one thread to another, there's not that much information that
+[00:44:35] has to be saved and restored.
+[00:44:39] It's just a small amount of data.
+[00:44:42] So the kernel has to save the data at thread one context in some data structure some data structure some way,
+[00:44:47] and then restore the context for thread two.
+[00:44:51] But we're talking about a very low overhead kind of operation, right?
+[00:44:54] It doesn't have to mess around with page tables, virtual address space, or any other
+[00:44:59] of the process context.
+[00:45:06] So threads are kind of like processes, but they're different in the sense that they share
+[00:45:13] the same virtual address space.
+[00:45:14] And unlike processes which are created by fork, which creates a strict process hierarchy,
+[00:45:24] threads are just pools.
+[00:45:27] You can think of threads as pools of concurrent flows that access the same code and data.
+[00:45:37] And then the kernel is responsible for scheduling those flows in a way that so each flow gets time on the processor.
+[00:45:47] So much like processes, much like concurrent processes, we say that two threads
+[00:45:54] are concurrent if their flows overlap in time, otherwise they're sequential.
+[00:45:59] So this is the exact same example that I showed you when we looked at processes.
+[00:46:03] So here you have instead of three processes, we have three threads running it within the same process.
+[00:46:11] Thread A runs for a little bit, and then the kernel decides to swap it out and then the kernel decides to swap it
+[00:46:17] and run thread B.
+[00:46:19] So then thread B runs for a little bit.
+[00:46:22] And then the kernel decides to give thread C some time.
+[00:46:25] So it saves thread B's context, restores thread C's context,
+[00:46:30] and sets the PC to the PC value in thread C's context.
+[00:46:38] And so C runs.
+[00:46:40] And then the kernel decides to give A some time again, so then A runs some more.
+[00:46:45] So then A runs some more.
+[00:46:45] So because 3C.
+[00:46:48] thread A and B overlap in time.
+[00:46:51] They're running concurrently.
+[00:46:54] B and C don't overlap in time, so they're not running concurrently.
+[00:46:58] But A and C are concurrent because they overlap in time.
+[00:47:05] And so you could, you also have the option if there's multiple cores, then a thread can run on each core.
+[00:47:12] So then you can have true parallelism.
+[00:47:16] Okay. Okay. So like I said, threads and processes are
+[00:47:26] similar ideas, but in the sense that they each, they each thread and process
+[00:47:35] corresponds to some kind of logical flow, and they can run concurrently with other flows, and each
+[00:47:44] is scheduled and contact switched by the kernel.
+[00:47:49] But they're different because threads share all code and data except their local stacks.
+[00:47:54] And in fact, those local stacks, those local stacks, although they're
+[00:48:00] each thread has its own, it's really just sharing the same stack.
+[00:48:07] And so it's really the same portion of the virtual address space.
+[00:48:11] It's just that each, each thread is assigned its own part of that stack.
+[00:48:16] Okay, so even though threads have their own individual stacks,
+[00:48:20] um, since it's all part of the same virtual address space, a thread can access the
+[00:48:25] stack of any other thread if it's, and that's not a good thing to do, but it's possible.
+[00:48:30] So processes don't share any of this state.
+[00:48:35] They have their own private address spaces.
+[00:48:38] And threads are less expensive than processes.
+[00:48:41] The, it's cheaper to create them.
+[00:48:48] And the main reason is that there's just less context associated with the thread
+[00:48:52] than there is as a process.
+[00:48:53] And so in our system, when we measure a bunch of,
+[00:48:58] we just create and wait for a bunch of,
+[00:49:02] a bunch of,
+[00:49:03] wait for a process over and over again and then measure the time.
+[00:49:06] It turns out to be about 20,000 cycles to create and reap a process, about 10,000 cycles to create and reap a process.
+[00:49:12] About 10,000 cycles to create and reap a thread.
+[00:49:16] So the kernel provides threads to us using an interface called P-threads, POSIX threads. So this is a fairly recent standard that all Linux systems
+[00:49:33] and Windows, Macintosh.
+[00:49:37] So this is a sort of standard, posic standard,
+[00:49:41] for manipulating threads.
+[00:49:47] And so you can do things like create and reap threads.
+[00:49:50] So there's, this is sort of, sort of like fork,
+[00:49:53] and this is sort of like weight, but not quite,
+[00:49:58] because it doesn't create,
+[00:50:00] there's no hierarchy associated with these.
+[00:50:05] You can, you can, just like GitPid,
+[00:50:07] you can, you can, there's a function to, to get your thread ID.
+[00:50:13] You can kill threads, so one thread can kill another thread.
+[00:50:17] A thread, there's a, there's a function to exit a thread.
+[00:50:22] The, the normal exit system call terminates all the threads, and return is similar to P-thread exit
+[00:50:31] exit in the sense that it just terminates the current thread, the thread that calls it.
+[00:50:36] And then there's ways to access.
+[00:50:37] to access, synchronize access to shared variables, which we'll look at on Thursday
+[00:50:43] more detail.
+[00:50:44] Okay, so here's the P Threads Hello World program.
+[00:50:51] You know, your K&R book, the C reference manual, the very first thing that it does is it shows you
+[00:51:01] how to write the simplest possible C program called, so the famous Hello World program.
+[00:51:06] So that goes all the way back to like 1978 when K&R book,
+[00:51:10] was first written.
+[00:51:12] But that's that's caught on and whenever we learn a new language or we learn a new concept, we always
+[00:51:20] write the hello world program for that concept.
+[00:51:23] So the hello world program for threads, this is the simplest threads program
+[00:51:28] that I can think of, so I call it the hello world program for threads.
+[00:51:32] So this program defines a function, um, defines a function.
+[00:51:39] So, in POSIX,
+[00:51:41] A thread is executed by executing the code in a function called the thread routine.
+[00:51:49] Okay, and POSIX imposes, this thread routine takes a generic pointer as an argument, optional generic pointer, and it returns a generic pointer.
+[00:52:03] Okay, so anytime, if you want to pass anything to a thread, you've somehow got to pack up all that data into a single object that then you can take an address of.
+[00:52:13] of.
+[00:52:15] But you can see that this is an extremely general purpose.
+[00:52:21] So our Hello World program creates a thread by calling P-thread create, and we say instead
+[00:52:30] of a child, we call this a peer thread, okay?
+[00:52:34] So that there's no parent-child relationship.
+[00:52:37] Any threads can, threads can reap other threads, whether they created those threads or not.
+[00:52:46] Okay, so you don't have this strict.
+[00:52:48] parent-child hierarchy.
+[00:52:51] P-thread create creates a thread that executes the thread routine in this third argument and
+[00:53:01] returns the thread idea of that thread idea of that thread in the address in the integer pointed at by the
+[00:53:08] the first argument.
+[00:53:11] The second argument is set up, there's there's ways to set attributes to set attributes of threads that are
+[00:53:20] beyond the scope of this course,
+[00:53:23] and we'll always just have those no.
+[00:53:28] And then this fourth argument is the optional argument
+[00:53:32] that you want to pass to your thread routine.
+[00:53:34] Okay, so in this case, we're saying, call the thread routine
+[00:53:37] that's called thread with no arguments.
+[00:53:44] And then our thread routine just prints out,
+[00:53:47] Hello World, and then it returns.
+[00:53:49] In this case, it doesn't return anything, so it returns no.
+[00:53:52] But if we wanted to return something to the calling program, we could have returned
+[00:54:00] something, a pointer to some generic object.
+[00:54:03] Okay.
+[00:54:04] Okay, so the thread ID, the thread attributes are null, the thread routine, the thread arguments are
+[00:54:17] a void star P, and the return value is a void double.
+[00:54:24] So it's a pointer to the pointer that you want to return.
+[00:54:28] Okay. All right, so let's look at what happens.
+[00:54:31] when we execute hello world.
+[00:54:33] So the main thread runs for a while.
+[00:54:38] Then it calls P-thread create, which creates the peer thread,
+[00:54:44] which now is a concurrent flow that's running once the P-thread
+[00:54:48] creates returns, then we're running two concurrent flows.
+[00:54:53] We're running the main thread, and we're running the peer thread.
+[00:55:02] And so in this case, our Hello World waits for the peer thread to finish by
+[00:55:07] calling P-thread join.
+[00:55:08] the peer thread after it calls its printoff, it returns null, which terminates
+[00:55:19] the thread, at that point the P-thread join returns, and the P-thread join returns, and the main thread continues.
+[00:55:31] Okay, so using using these create, this create function, how would we write a thread-based concurrent echo server?
+[00:55:41] And again, it's very similar to the way we did it with the process-based design.
+[00:55:44] So we call, we acquire a listening descriptor by calling our open listen FD function just as before.
+[00:55:58] And then inside this infinite server loop, we get the size of the, we get the size of the, we get the size of the client adder struct, so which is, which is going to be a, large enough, large enough to fit any address.
+[00:56:17] And then we malloc space for the connected file descriptor.
+[00:56:23] So we're mallocing one integer-sized portion of dynamic storage for this connected descriptor that we're going to get back from Accept.
+[00:56:34] And we're going to, this is actually really important to avoid a nasty race condition that I'll show you in a second.
+[00:56:43] So now we call except, except, with our listening descriptor.
+[00:56:50] and client address and client length, just like before, and accept
+[00:56:54] returns the connected descriptor, and then we de-reference this connected descriptor pointer, and so, and
+[00:57:05] store that the value returned by accept in this location in the heap.
+[00:57:11] And then we call P-thread create by giving it the name of our thread routine, which in this
+[00:57:17] case is just simply a function we've defined in our program called
+[00:57:22] thread and the pointer to the connected file descriptor.
+[00:57:27] Okay, now our client, which our client, which our client, which our thread routine then will use to interact with the client.
+[00:57:37] Okay, so the thread routine de-references the argument, remember, is a pointer to a connected file descriptor.
+[00:57:44] So it de-references that pointer to get the, to get the actual integer connected descriptor.
+[00:57:55] And then it detacheses the thread.
+[00:57:57] So, um,
+[00:57:59] By default, threads run an independent and attached mode so they can be joined by other threads and they can be joined by other threads and they can be killed by other threads.
+[00:58:27] But by default, if the, it's similar, when, when threads are running in sort of unattached mode, detached mode, or undetached mode, then they, then they, when they,
+[00:58:31] they have to be reaped by a join function to acquire those resources.
+[00:58:36] But if we detach a thread, then it can't be, it can't be joined by any threads, but when it dies,
+[00:58:43] the kernel will automatically restore the, the, the, the resources associated with that thread.
+[00:58:52] So in this case, we're going to just detach this thread, so we don't have to worry about reaping it when it, when it finishes.
+[00:59:01] And then we're going to free this, this memory that was malicked.
+[00:59:06] So this is important. We have to free this memory that was malicked by the main thread in order to avoid a memory leak.
+[00:59:13] And then we call our echo function, so we interact with the echo client until the echo client's finished.
+[00:59:22] And then we close this descriptor, again, to avoid a potentially fatal memory leak.
+[00:59:30] So this thread-based execution model is very simple.
+[00:59:38] is very similar to the execution model that we saw with processes.
+[00:59:42] So we have a main thread that's listening for connection requests, or waiting for connection requests via accept.
+[00:59:52] And then we have, for each client, we have a peer thread that interacts with that client
+[00:59:59] using the connected descriptor that was passed in when we created the thread.
+[01:00:05] And then each thread has its own, since it has its own,
+[01:00:09] its own, since it has its own stack, it has separate space for its local variables.
+[01:00:16] And this is really the powerful thing about threads now. We can, with these things, they, by declaring
+[01:00:24] these local variables, we can create threads that won't interact with each other and won't
+[01:00:32] and can run independently.
+[01:00:33] Yes.
+[01:00:39] I guess, yeah, the question is, is there any time you wouldn't want to run detached?
+[01:00:45] want to run detached.
+[01:00:49] So when you run detached, you give up the power to kill other threads.
+[01:00:53] So, I don't know, if you, it's hard to, it's hard to come up with a good example, right?
+[01:00:59] But if you wanted the ability to be able to terminate other threads, you know, maybe if you had,
+[01:01:07] maybe if you were running a pool of, like, worker threads, and at some point, at some point,
+[01:01:18] I mean, I guess you can imagine a scenario where suppose you're running a pool of worker threads, you give them all jobs to do.
+[01:01:24] The first one that finishes, you take the result, and you don't need the results from the other threads.
+[01:01:29] So you might just want to kill those threads.
+[01:01:34] But it's, yeah, it's hard to come up with a really compelling reason.
+[01:01:47] Okay, so there's a few things to think about when you're writing thread-based server.
+[01:01:51] So the first is that you need to run detached to avoid potential memory leaks.
+[01:01:56] I'm sorry.
+[01:01:58] I forgot this word.
+[01:01:59] So the opposite of detached is joinable.
+[01:02:01] And so joinable threads, like I mentioned, can be reaped and killed by other threads.
+[01:02:06] Detached threads cannot, and their resources are automatically claimed on termination.
+[01:02:15] So the default states joinable, and you have to use this detach function call to make the thread detached.
+[01:02:22] The biggest issue with threads, though, like the biggest issue with threads, though, like the
+[01:02:27] The beautiful thing about threads is that you're sharing the same global address space, so it's very easy to share data structures.
+[01:02:34] You know, if you had multiple threads, if you had a web server, a concurrent web server that was built with multiple threads,
+[01:02:40] it'd be very easy to implement a cache that all the threads could use, right?
+[01:02:45] Because they're all sharing that same virtual address space.
+[01:02:48] But the thing that makes threads so nice, the ease with which you can share resources is also the thing that makes them
+[01:02:57] very tricky to deal with. So as soon as just like we saw with our shell lab handlers,
+[01:03:05] you know, as soon as you're, as soon as you have multiple flows accessing shared resources, you have to be very careful.
+[01:03:11] It's very easy to make mistakes.
+[01:03:14] And it's very easy to, or it's possible to, to share resources in unexpected and unintended ways.
+[01:03:23] For example, for example, if one, if one, it's very easy to, to share resources in unexpected and unintended ways.
+[01:03:25] If one, if one thread passes the address of a local variable on its stack to another thread,
+[01:03:35] then now that, the called thread now has access to the caller's thread, and there's nothing to prevent that, that
+[01:03:44] that called thread from manipulating local variables on the caller's stack.
+[01:03:49] Okay, now that would be a very bad thing to do, but it's possible.
+[01:03:53] You might, you might forget, you know, you might, you might, you might, you might, you might,
+[01:03:56] you might forget that the variable you're passing is a local variable and not a global.
+[01:04:01] Okay, and a really bad mistake in our, in our, hello, in our echo server example, you know, so we were very careful to Malik space for this, for this connected file descriptor that we passed into the peer thread that we were creating.
+[01:04:31] It would have been much easier just to pass the address of the address of the connected file descriptor.
+[01:04:38] into our peer thread.
+[01:04:41] It would be much easier, but it would also be wrong.
+[01:04:43] Can you see why?
+[01:04:59] Okay, let's say right here, when we call p-thread create,
+[01:05:02] instead of passing a pointer to a separately allocated region of the heap,
+[01:05:07] instead of doing that, we just pass the address of the connected file descriptor.
+[01:05:11] Same thing, right?
+[01:05:12] Okay, and then in our thread routine, we de-reference that pointer
+[01:05:23] to get the connected file descriptor.
+[01:05:28] Okay, if we just pass the address of the connection,
+[01:05:30] file descriptor.
+[01:05:33] This is really, it's really bad.
+[01:05:35] Can you see why?
+[01:05:38] Yes.
+[01:05:39] It does.
+[01:05:44] Okay, that's true.
+[01:05:45] And why is that bad?
+[01:05:47] I mean, just, yeah, that's right.
+[01:05:59] So what this is assuming,
+[01:06:02] this, by passing the address of this
+[01:06:07] connected file descriptor,
+[01:06:09] we're introducing a race.
+[01:06:11] Okay, and the race, what we're assuming
+[01:06:15] that the peer thread will be able to
+[01:06:20] de-reference that pointer
+[01:06:22] before the main thread goes back up and gets a new connected file descriptor.
+[01:06:29] So what happens, what happens, right?
+[01:06:35] We can't, in a concurrent system, we can't make any assumptions about how the kernel is going to schedule things.
+[01:06:40] Right, we saw this same thing with processes.
+[01:06:44] So what happens if after P-thread create, the main thread runs instead of the peer thread.
+[01:06:53] Okay, so we've passed the, we've passed the address of the connected file descriptor for this client.
+[01:06:59] client that we accepted the connection request from.
+[01:07:04] And then before the, before the peer thread can de-reference that argument, we get a new connected file descriptor.
+[01:07:17] Okay. And now the child runs and it dereferences that that descriptor. But what it gets now is the descriptor
+[01:07:31] that's corresponding to the second, the second child, not the first child. So now,
+[01:07:38] So now we have two threads talking to the same client using the same descriptor.
+[01:07:43] So do you see that?
+[01:07:51] So it's very tricky. This is like a real subtle, this is an example of sort of subtle errors
+[01:08:00] that you can introduce because of this unintended sharing.
+[01:08:03] And its cause, the root cause, is as you correctly pointed out, is that they're both sharing the same memory on the caller stack.
+[01:08:16] Yes.
+[01:08:17] In this case, what you could do, there's another, there's another,
+[01:08:25] thing you could do. You could just pass the descriptor itself.
+[01:08:31] So you could just cast the descriptor to a generic pointer and just pass that. And that's just kind
+[01:08:37] kind of yucky, though. That would work. Because instead of de-referencing it, the child would just use
+[01:08:46] it directly. Okay. So good. That's good. Okay. So the really good things with threads
+[01:09:09] is this ease of sharing, but that sharing also introduced.
+[01:09:12] introduces complications.
+[01:09:16] In fact, that's what we're going to look at ways to sort of control the sharing so that we're
+[01:09:22] going to sort of control the sharing so that we don't, so that we don't get unintended
+[01:09:29] unintended sharing.
+[01:09:30] Okay, so to summarize the approaches to concurrency that we've looked at, we have
+[01:09:43] process-based concurrency, so it's hard to share resources, but it's easy
+[01:09:49] to avoid unintended sharing, so in some ways it's safer and easier to program.
+[01:09:54] Event-based, so it's very low-level, very tedious. You have to be very careful about how you,
+[01:10:02] the granularity of the work that you do in response to events. But you have total control over scheduling
+[01:10:10] so you can decide which descriptors you're going to service and in which order. It's, since
+[01:10:17] This is a single flow of control.
+[01:10:20] You can debug it with a debugger, but it doesn't make use of multi-core.
+[01:10:25] So there's a handful of trade-offs there.
+[01:10:28] With thread-based systems, it's very easy to share resources, but that sharing can create problems
+[01:10:35] of its own.
+[01:10:37] It's fairly efficient compared to processors.
+[01:10:41] You don't have much control over the scheduling, so just like we saw, you know, you can't really
+[01:10:46] control which threads get executed in which order. And it can be difficult to debug
+[01:10:53] because there can be races that occur very rarely, very infrequently. And so the probability of
+[01:11:00] sort of creating one of those race conditions is difficult. Okay, so that's it for
+[01:11:11] today. Tomorrow we'll look at thread-based servers in more detail and how to write
+[01:11:18] thread-based systems efficiently and correctly.

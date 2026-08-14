@@ -13,6 +13,7 @@ const banner = `/*!
  */`;
 const frontmatter = '---\npermalink: /:basename\n---\n';
 const isProd = process.env.BUILD === 'production';
+const isCourseOnly = process.env.COURSE_ONLY === 'true';
 
 let hasWatched = false;
 
@@ -71,16 +72,23 @@ function build(
   };
 }
 
-cleanup();
+if (!isCourseOnly) cleanup();
 
-export default [
-  build('commons'),
-  build('home'),
-  build('categories'),
-  build('page'),
-  build('post'),
-  build('misc'),
-  build('theme', { outputName: 'Theme' }),
-  build('app', { src: SRC_PWA, jekyll: true }),
-  build('sw', { src: SRC_PWA, jekyll: true })
-];
+const standardBuilds = isCourseOnly
+  ? []
+  : [
+      build('commons'),
+      build('home'),
+      build('categories'),
+      build('page'),
+      build('course'),
+      build('post'),
+      build('misc'),
+      build('theme', { outputName: 'Theme' }),
+      build('app', { src: SRC_PWA, jekyll: true }),
+      build('sw', { src: SRC_PWA, jekyll: true })
+    ];
+
+export default isCourseOnly
+  ? [build('theme', { outputName: 'Theme' }), build('commons'), build('course')]
+  : standardBuilds;

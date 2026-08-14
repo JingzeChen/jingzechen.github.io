@@ -1,0 +1,3264 @@
+1
+00:00:01,330 --> 00:00:11,360
+Okay, let's continue on in our coverage of machine-level programming, the second in, I think, a six-part series.
+
+2
+00:00:12,260 --> 00:00:29,560
+As I mentioned yesterday, machine-level programming is sort of the core of this course, that it gives you a set of tools and understanding that take you well beyond what your sort of average run-of-the-mill programmer or software developer would know about.
+
+3
+00:00:29,560 --> 00:00:35,940
+And it's very powerful in terms of your better understanding of the system, what goes wrong,
+
+4
+00:00:37,100 --> 00:00:41,640
+why programs crash, what the meaning of those are.
+
+5
+00:00:41,720 --> 00:00:43,580
+And so it's a fairly core part of the material.
+
+6
+00:00:44,560 --> 00:00:53,160
+As you know, the data lab is due tonight, and the next lab out is called the bomb lab, and I believe that's coming out tonight as well.
+
+7
+00:00:53,800 --> 00:00:59,540
+So the bomb lab will rely on your ability to understand machine-level code.
+
+8
+00:00:59,560 --> 00:01:06,560
+So these two lectures will actually be enough to get you started on some of the earlier parts of that lab.
+
+9
+00:01:06,560 --> 00:01:17,560
+You'll learn a lot more at recitation on Monday, either in person or if you're viewing the recorded version of that, that will help you move along on BaumLab.
+
+10
+00:01:17,560 --> 00:01:29,540
+Like all the labs in this course, at least the first two, we give you a fair amount of time for them, but don't be fooled into thinking that means that means you can just slack off or work on other courses.
+
+11
+00:01:29,560 --> 00:01:33,620
+and then the last few moments jump in and finish this lab.
+
+12
+00:01:33,780 --> 00:01:39,920
+The bomb lab, once you get the hang of what you're doing, it's pretty, you can just kind of crank along,
+
+13
+00:01:40,220 --> 00:01:46,740
+but there's a certain learning curve that will take you to even get started on it effectively.
+
+14
+00:01:46,980 --> 00:01:48,080
+So don't put it off.
+
+15
+00:01:57,280 --> 00:01:59,320
+Where was this?
+
+16
+00:02:11,920 --> 00:02:20,880
+So last time we introduced the very basic principles of machine level programming, the idea of there being special principles of machine level programming, the idea of there being special state that you have access to.
+
+17
+00:02:20,900 --> 00:02:24,500
+the registers, which people came after class and asked,
+
+18
+00:02:24,500 --> 00:02:26,600
+are registers part of memory?
+
+19
+00:02:26,600 --> 00:02:28,560
+No. Are they part of the cache? No. Are they part of the cache?
+
+20
+00:02:28,560 --> 00:02:34,100
+No. They're special. They're different. They don't exist to a C level program.
+
+21
+00:02:34,100 --> 00:02:36,900
+When you're programming in C, you don't have any visibility into them.
+
+22
+00:02:36,900 --> 00:02:42,560
+And in general, today what we're going to do then is go beyond the sort of very basics
+
+23
+00:02:42,560 --> 00:02:47,480
+and start talking about the control, how you control the flow of execution of
+
+24
+00:02:47,480 --> 00:02:50,460
+instructions at the machine level, and how you control the flow of execution of execution.
+
+25
+00:02:50,460 --> 00:02:56,220
+and how you use those techniques to implement basic constructs, conditional statements,
+
+26
+00:02:56,220 --> 00:02:59,120
+loops, and switch statements.
+
+27
+00:02:59,120 --> 00:03:05,160
+And then next time we'll talk about procedures, which warrants a whole lecture of its own.
+
+28
+00:03:05,160 --> 00:03:14,000
+So the x86 and several machines of its generation have these curious little one-bit
+
+29
+00:03:14,000 --> 00:03:19,160
+bit flags that are called condition codes, and they're the basis of how conditional operations work.
+
+30
+00:03:19,160 --> 00:03:33,890
+So to a machine level programmer then, we talked last time that you have visibility of the set of registers and a memory.
+
+31
+00:03:33,890 --> 00:03:37,890
+But you also have more things, and this is only a partial list.
+
+32
+00:03:37,890 --> 00:03:41,890
+Actually, there's more and more stuff that you can add to this picture.
+
+33
+00:03:41,890 --> 00:03:51,250
+But we talked about in the 64-bit x8664, there's now 16 registers, eight of which have
+
+34
+00:03:51,270 --> 00:03:58,770
+names that are historic based on old X86 stuff, and eight of which were introduced,
+
+35
+00:03:58,770 --> 00:04:03,350
+and so they simply named those R8 through R15.
+
+36
+00:04:03,350 --> 00:04:10,350
+And of these registers, for the most part, the only one that's really special, is RSP, it's a stack pointer.
+
+37
+00:04:10,350 --> 00:04:15,850
+It tells you where, and we'll learn a lot more about stacks starting next time.
+
+38
+00:04:15,850 --> 00:04:21,830
+But it's sort of where the most, the state is that manages the execution of procedures.
+
+39
+00:04:21,850 --> 00:04:33,460
+And so you can't just use that or set it in arbitrary ways, but the other ones you more or less can with qualifications to that statement.
+
+40
+00:04:33,460 --> 00:04:38,460
+There's another register that they call the RIP, which has nothing to do with death.
+
+41
+00:04:38,460 --> 00:04:51,970
+It means, the IP means instruction pointer. In I-A-32 it was called E-I-P, and now it's called R-I-P, just like the register used to be E-A-X, and now it's R-R-X.
+
+42
+00:04:51,970 --> 00:04:56,970
+So all it contains is the address of the currently executing instruction.
+
+43
+00:04:56,970 --> 00:05:07,130
+And you can, it's not a register that you access in a normal way, but you actually, there are tricks that you can find out what the value of that is.
+
+44
+00:05:07,130 --> 00:05:13,130
+So that just tells you where in the program, what part of the program is currently being executed.
+
+45
+00:05:13,130 --> 00:05:17,130
+And then there's these things that are called condition codes, and we're only showing four.
+
+46
+00:05:17,130 --> 00:05:22,070
+There's actually more like eight of them, but not relevant to our general
+
+47
+00:05:22,130 --> 00:05:30,130
+that are all one-bit flags and they get set not directly, but as a side effect of other
+
+48
+00:05:30,130 --> 00:05:37,130
+operations that take place, and they're the basis for which conditional operation gets decided.
+
+49
+00:05:37,130 --> 00:05:40,540
+So let's go through what those mean.
+
+50
+00:05:40,540 --> 00:05:45,540
+And they're given names, but these names are actually useful to memorize what they mean.
+
+51
+00:05:45,540 --> 00:05:52,520
+So CF means the carry flag, and that's if you think of adding two numbers, think of them as two unsigned
+
+52
+00:05:52,540 --> 00:05:58,480
+numbers and you do the binary arithmetic and sometimes an extra one pops
+
+53
+00:05:58,480 --> 00:06:04,820
+out of the left-hand side, right? That's the carry bit. The numbers you added sort of were
+
+54
+00:06:04,820 --> 00:06:14,520
+too big to be contained in the 32 or 64-bit or even 16- or 8-bit result. And so an extra
+
+55
+00:06:14,520 --> 00:06:22,280
+bit was generated. That's called the carry bit. The zero flag is what it sounds like. It's set if
+
+56
+00:06:22,280 --> 00:06:28,040
+the value you just computed is zero. These are set typically by arithmetic instructions,
+
+57
+00:06:28,040 --> 00:06:35,340
+by the way. The sign flag is set if the value just computed as a one in the most significant bit,
+
+58
+00:06:35,500 --> 00:06:43,840
+meaning it's a negative value. And the O flag, overflow flag, is a two's complement version of overflow.
+
+59
+00:06:44,440 --> 00:06:51,760
+So in particular, if you remember from data lab, how do you know if addition of two values is overflowed?
+
+60
+00:06:51,760 --> 00:06:57,260
+It's if the signs of the operands are the same, but the sign of the result is different than that.
+
+61
+00:06:57,680 --> 00:07:03,390
+So either you added two positive numbers and got a negative result, that was a positive overflow,
+
+62
+00:07:03,390 --> 00:07:06,750
+or you added two negative numbers and got a negative result.
+
+63
+00:07:06,870 --> 00:07:08,190
+That's negative overflow.
+
+64
+00:07:08,730 --> 00:07:12,830
+You can't overflow if the two arguments are of opposite signs, right?
+
+65
+00:07:13,910 --> 00:07:21,280
+So those four flags get set as this sort of normal activity by many of the instructions,
+
+66
+00:07:21,280 --> 00:07:27,820
+not by our friend, the LEA instruction, which I mentioned is kind of a quirky instruction
+
+67
+00:07:27,820 --> 00:07:31,040
+that GCC really likes a lot, and you'll see it in a lot of places.
+
+68
+00:07:33,960 --> 00:07:39,800
+But in general, and most of the time those flags get completely ignored, because who cares, right?
+
+69
+00:07:40,600 --> 00:07:45,080
+But they do show up at various points when you're doing conditional operations.
+
+70
+00:07:47,740 --> 00:07:53,640
+So there's some special instructions whose only effect is to set condition codes, and
+
+71
+00:07:53,640 --> 00:07:58,460
+And the one that you'll see is especially is called Compare, CMP.
+
+72
+00:07:58,460 --> 00:08:04,540
+And by the way, the Q at the end of these is all just a reflection of they're operating on 64-bit words.
+
+73
+00:08:04,540 --> 00:08:07,900
+Quad-word, as I said.
+
+74
+00:08:07,900 --> 00:08:16,400
+So the comparison is sort of like a subtraction instruction instruction except that you don't, you don't do anything with the result.
+
+75
+00:08:17,200 --> 00:08:24,010
+A normal subtraction instruction is like x minus equals y. It will read two numbers, but
+
+76
+00:08:24,030 --> 00:08:28,140
+then it will store the result wherever X is stored.
+
+77
+00:08:28,140 --> 00:08:33,440
+But compare just takes these two values, does the subtraction, and doesn't do anything with the result,
+
+78
+00:08:33,440 --> 00:08:38,600
+but it will set these four condition flags.
+
+79
+00:08:38,600 --> 00:08:46,530
+And just a few things to keep in mind that are often will be sources of confusion is,
+
+80
+00:08:46,530 --> 00:08:55,320
+remember that the arguments in the way we write them in machine code is the opposite of what you'd expect.
+
+81
+00:08:55,320 --> 00:08:59,860
+By the way, somebody asked me last time, there's another, there's sort of two dialects
+
+82
+00:08:59,860 --> 00:09:03,620
+of assembly code used on x86 machines.
+
+83
+00:09:03,620 --> 00:09:08,140
+There's the one that's used by Intel and Microsoft, and we don't use it.
+
+84
+00:09:08,140 --> 00:09:14,760
+And then there's the one used that's sort of used by Linux systems, and that's the one we use.
+
+85
+00:09:14,760 --> 00:09:19,280
+And they're different, and one of the quirks of them is they write their arguments in different
+
+86
+00:09:19,280 --> 00:09:19,860
+order.
+
+87
+00:09:19,860 --> 00:09:25,180
+So it will drive you crazy reading, trying to read, if you're familiar with one, it's like if
+
+88
+00:09:25,180 --> 00:09:30,300
+If you've ever tried to drive a car on the wrong side of the road, you often will
+
+89
+00:09:30,300 --> 00:09:35,090
+crash or do bad things.
+
+90
+00:09:35,090 --> 00:09:40,630
+So that's just an aside that what I find, by the way, when I'm looking at code and I see a
+
+91
+00:09:40,630 --> 00:09:51,180
+compare instruction, I actually write as a comment, compare the two, but I flip the order so
+
+92
+00:09:51,180 --> 00:09:56,530
+that I'm sure that I sort of keep in my mind what the comparison was of.
+
+93
+00:09:56,530 --> 00:10:00,530
+And so these flags get set according to the rules of subtraction.
+
+94
+00:10:00,530 --> 00:10:06,040
+And so it turns out that the carry flag and the overflow flag, you have to sort of flip your sense
+
+95
+00:10:06,040 --> 00:10:10,320
+of what happened because it's a subtraction rather than an addition.
+
+96
+00:10:10,320 --> 00:10:14,830
+But it's the same general idea.
+
+97
+00:10:14,830 --> 00:10:19,310
+So that sort of shows you one particular one.
+
+98
+00:10:19,310 --> 00:10:25,180
+And another instruction that you'll see whose only purpose in the world is to set condition
+
+99
+00:10:25,180 --> 00:10:28,500
+flags, condition codes, is the test instruction.
+
+100
+00:10:28,500 --> 00:10:33,100
+And this is typically used to compare, as you'd think, it's when you have two values
+
+101
+00:10:33,100 --> 00:10:34,660
+and you want to compare them to each other.
+
+102
+00:10:35,260 --> 00:10:39,460
+And the test is if you really just have one value and you want to see what it's like.
+
+103
+00:10:39,580 --> 00:10:41,120
+Is it zero? Is it negative?
+
+104
+00:10:42,320 --> 00:10:43,900
+Those are the main things you care about.
+
+105
+00:10:44,060 --> 00:10:45,640
+In fact, that's the only thing you can determine.
+
+106
+00:10:46,320 --> 00:10:53,620
+But just because I guess they had, they had sort of a possibility of having two arguments to this
+
+107
+00:10:53,620 --> 00:10:56,060
+so they decided, well, let's go ahead and do it.
+
+108
+00:10:56,480 --> 00:10:58,480
+How do you have two arguments to a test instead?
+
+109
+00:10:58,500 --> 00:11:03,160
+instruction and the two results and then test that value.
+
+110
+00:11:03,160 --> 00:11:10,560
+So what you'll typically see is a test where both arguments are the same, say, say test Q, percent
+
+111
+00:11:10,560 --> 00:11:18,940
+R-a-X, comma, percent R-A-X, where, so that you're just anti-register to itself, and one property
+
+112
+00:11:18,940 --> 00:11:23,880
+of the and operation is, it's what they call item potent.
+
+113
+00:11:23,880 --> 00:11:31,670
+Adding, ending two things, the same things together gives you that same thing.
+
+114
+00:11:31,670 --> 00:11:33,610
+So we can see these.
+
+115
+00:11:33,610 --> 00:11:38,250
+And now, so I told you that's how the condition codes get set.
+
+116
+00:11:38,250 --> 00:11:39,890
+Now how do you actually read them?
+
+117
+00:11:39,890 --> 00:11:41,090
+How do you make use of them?
+
+118
+00:11:41,090 --> 00:11:48,650
+Well, there's two, in principle, you can actually extract and get the condition code values directly
+
+119
+00:11:48,650 --> 00:11:53,770
+out of this special status register, but that's very unusual to do that.
+
+120
+00:11:53,770 --> 00:12:00,790
+What's more common is you either try to read it and set a one-bit flag based on the result
+
+121
+00:12:00,790 --> 00:12:06,620
+in some other register, or you try and do a conditional branch.
+
+122
+00:12:06,620 --> 00:12:14,870
+So the first example where you try to read it in a way that you can make use of it is done with the set instruction.
+
+123
+00:12:14,870 --> 00:12:23,070
+And you'll see there's a whole range of set instructions, but their only difference is really just
+
+124
+00:12:23,070 --> 00:12:27,280
+what the condition they're setting based on.
+
+125
+00:12:27,280 --> 00:12:31,480
+So what a set instruction does is it sets a single
+
+126
+00:12:31,500 --> 00:12:39,800
+byte of a single register to either one or zero. And the basis for whether it's
+
+127
+00:12:39,800 --> 00:12:47,800
+sets it to one or to zero is based on what the condition codes are. In essence, what's the,
+
+128
+00:12:47,800 --> 00:12:53,580
+what happened to your most recent instruction beforehand? Was it an arithmetic instruction or
+
+129
+00:12:53,580 --> 00:12:59,740
+a set instruction or a test instruction or a test instruction or a compare instruction? And as you can
+
+130
+00:12:59,740 --> 00:13:01,540
+see, there's, they're all based.
+
+131
+00:13:01,560 --> 00:13:08,100
+on some logical combination of these condition codes that correspond to what
+
+132
+00:13:08,100 --> 00:13:10,440
+the names imply.
+
+133
+00:13:10,440 --> 00:13:18,580
+So for example, the set S instruction is true if the sign flag is true, meaning that the most recent
+
+134
+00:13:18,580 --> 00:13:20,840
+result was negative.
+
+135
+00:13:20,840 --> 00:13:27,980
+And there's other ones less than, less than are equal to, are two's complement comparisons, and
+
+136
+00:13:27,980 --> 00:13:32,240
+they have to take into consideration, did the most recent result cause in
+
+137
+00:13:32,260 --> 00:13:38,590
+overflow or not because that will affect the result of the comparison.
+
+138
+00:13:38,590 --> 00:13:43,470
+So that's part of the reason we tortured you with understanding two's complement arithmetic and
+
+139
+00:13:43,470 --> 00:13:48,570
+how you compare results and making you understand the bit level behavior so that you can
+
+140
+00:13:48,570 --> 00:13:57,530
+understand what these instructions do. So we're cruel, but we have a reason for our cruelty.
+
+141
+00:13:57,530 --> 00:14:01,790
+So you say one bite, how do you deal with one bite? Well, here's another thing we didn't
+
+142
+00:14:01,790 --> 00:14:05,190
+tell you yet, and we're going to keep tell you more stuff over and over and over
+
+143
+00:14:05,210 --> 00:14:10,610
+over again. It turns out for every one of these 16 registers, you can directly
+
+144
+00:14:10,610 --> 00:14:17,780
+set the lowest order byte of it to either 0 or 1, and it will affect it, it turns out it doesn't
+
+145
+00:14:17,780 --> 00:14:25,180
+affect any of the other seven bytes of that register. So, and they all have quirky names.
+
+146
+00:14:25,180 --> 00:14:35,480
+The L means low in there. So here's an example of using, putting all this
+
+147
+00:14:35,480 --> 00:14:38,060
+together to do something that's vaguely useful.
+
+148
+00:14:39,980 --> 00:14:47,300
+Suppose I want a function GT that will take two numbers and compare them and set the
+
+149
+00:14:47,300 --> 00:14:53,880
+result, return result value of 1 if x is greater than y, and 0 otherwise.
+
+150
+00:14:53,880 --> 00:14:59,640
+And so here's the assembly code with some tabbing problems.
+
+151
+00:14:59,640 --> 00:15:07,040
+Fix this kind of thing bugs me. Hold on.
+
+152
+00:15:07,040 --> 00:15:32,450
+And I want to try and do this. I will fix this later. I will fix this later. I will fix this later.
+
+153
+00:15:32,450 --> 00:15:43,120
+later. Anyways, it's not the end of the world. Normally in assembly code, one
+
+154
+00:15:43,120 --> 00:15:49,380
+thing you've noticed is that the instructions are indented by a tab space and the only
+
+155
+00:15:49,380 --> 00:15:54,780
+thing that's way over in the left margin are labels. So this is just sort of this
+
+156
+00:15:54,780 --> 00:16:00,480
+way the assembler is actually quite tolerant of formatting things, but this isn't
+
+157
+00:16:00,480 --> 00:16:07,200
+the way it normally looks. So anyways, the point is there's a comparing the one rule that
+
+158
+00:16:07,200 --> 00:16:12,000
+you need to understand about procedures is that the first argument is passed
+
+159
+00:16:12,000 --> 00:16:17,100
+in register RDI and the second in register RSI and the second in register RSI and that if
+
+160
+00:16:17,100 --> 00:16:20,820
+I'm going to return a result from a function I do that by storing it and
+
+161
+00:16:20,820 --> 00:16:28,930
+register R a X before I return. So the first instruction compares these two and
+
+162
+00:16:28,930 --> 00:16:34,810
+you notice how I flip the order that it says RSI which is Y and RDI which is X
+
+163
+00:16:34,810 --> 00:16:37,850
+is X but when I annotate it
+
+164
+00:16:37,870 --> 00:16:43,370
+I say X to Y so that I mentally am thinking in the order that the actual comparison
+
+165
+00:16:43,370 --> 00:16:48,910
+is made rather than the way they're listed. So I always do that when I'm looking at code to help
+
+166
+00:16:48,910 --> 00:16:56,210
+me flip those two around. And then here's our instruction. So that compare instruction set
+
+167
+00:16:56,210 --> 00:17:01,550
+these four condition code registers. And now the set G says, now set this
+
+168
+00:17:01,550 --> 00:17:09,450
+single byte register, the lowest byte of RAX to 01 if the result was
+
+169
+00:17:09,470 --> 00:17:19,960
+the comparison was greater. So according to this this rule.
+
+170
+00:17:19,960 --> 00:17:29,090
+And the effect of that was to set just this one byte of this 8 byte register to either 0 or 1.
+
+171
+00:17:29,090 --> 00:17:35,090
+Now my problem is that these remaining 7 bytes have whatever happened to be there before,
+
+172
+00:17:35,090 --> 00:17:43,960
+and I want it to be all zeros. So the the way it does it does it is a bit weird. There's an
+
+173
+00:17:43,960 --> 00:17:50,980
+instruction called move with zero extension byte to long.
+
+174
+00:17:50,980 --> 00:17:58,960
+Now you get to know these better with time. Let me, and what what that means is you can
+
+175
+00:17:58,960 --> 00:18:03,920
+actually copy a byte from any place like the lower-order byte of some other register
+
+176
+00:18:03,920 --> 00:18:10,300
+into a new register and you'll put zeros to the left of it. That's what they mean by
+
+177
+00:18:10,300 --> 00:18:16,760
+zero extension. That seems logical, but one thing you'll notice is the destination here is
+
+178
+00:18:16,780 --> 00:18:22,160
+E-A-X, which you'll recall, although it doesn't show it here, that's the lower
+
+179
+00:18:22,160 --> 00:18:32,180
+32 bits of register R-A-X. And then you'd say, well, that only got me halfway there,
+
+180
+00:18:32,180 --> 00:18:37,520
+right? How do I make sure the upper 32-bits are set to zero? Well, one of the weird
+
+181
+00:18:37,520 --> 00:18:47,080
+quirks of x-86-64 is for any computation where the result is for any computation where the result is a
+
+182
+00:18:47,080 --> 00:18:54,080
+a 32-bit result, it'll add zeros to the remaining 32 bits of the register.
+
+183
+00:18:54,080 --> 00:19:01,720
+And it's different, for example, the byte-level operations only affect the bytes. The two-byte or
+
+184
+00:19:01,720 --> 00:19:09,810
+operations like what you'd have if the data type were short only affect those two bytes. But
+
+185
+00:19:09,810 --> 00:19:17,650
+the four-byte instructions set the upper bytes to zero. And that was some, somebody at AMD, and I don't know
+
+186
+00:19:17,810 --> 00:19:23,250
+it is decided this was a good idea. And it might be a good idea, but it's really confusing.
+
+187
+00:19:24,820 --> 00:19:29,960
+But that's something you'll have to just sort of remember in the back of your mind when you see things
+
+188
+00:19:29,960 --> 00:19:35,850
+like this. So the effect of this instruction is to take this one-byte result, which is the lower
+
+189
+00:19:35,850 --> 00:19:43,880
+or byte of register R-A-X, copy it to the same place as it already is, but then set the remaining
+
+190
+00:19:43,880 --> 00:19:49,650
+seven bytes to zero, which is what we want. So you'll see this pattern quite a
+
+191
+00:19:49,670 --> 00:19:54,730
+often.
+
+192
+00:19:54,730 --> 00:19:55,730
+Question?
+
+193
+00:19:55,730 --> 00:19:56,830
+Got it?
+
+194
+00:19:56,830 --> 00:19:57,830
+Okay.
+
+195
+00:19:57,830 --> 00:20:00,830
+So now that's sort of, sometimes I want to do this.
+
+196
+00:20:00,830 --> 00:20:03,830
+I just want to get a one-bit flag as a result of the
+
+197
+00:20:03,830 --> 00:20:05,830
+result of the comparison.
+
+198
+00:20:05,830 --> 00:20:11,830
+But more generally, I want to do something with that information and not just set one bit.
+
+199
+00:20:11,830 --> 00:20:16,120
+So the simplest version is what about a conditional,
+
+200
+00:20:16,120 --> 00:20:19,120
+an if and possibly an else?
+
+201
+00:20:19,120 --> 00:20:23,880
+Well, that's done by, there's actually two ways to do it.
+
+202
+00:20:23,880 --> 00:20:29,340
+two ways to do it. So we'll go through the sort of general purpose, traditional way,
+
+203
+00:20:29,340 --> 00:20:35,560
+and then we'll show the more specialized, newer way, and we'll compare those. So the traditional way is
+
+204
+00:20:35,560 --> 00:20:41,280
+to use what's known as a jump instruction. And a jump instruction, normally instructions
+
+205
+00:20:41,280 --> 00:20:48,220
+execute in a particular order, just like when you're writing a program and you write a series of statements,
+
+206
+00:20:48,220 --> 00:20:53,760
+they execute one after the next. A jump instruction is a way you can go from wherever you
+
+207
+00:20:53,880 --> 00:21:03,140
+to someplace else and either skip over some instructions or jump back to some other previous position or wherever.
+
+208
+00:21:03,140 --> 00:21:13,330
+And there's two kinds of jumps, ones that are unconditional, well, there's several kinds, but an unconditional jump means when I say jump, you jump,
+
+209
+00:21:13,330 --> 00:21:20,330
+but there's other conditional jumps that will actually only do that jumping if the condition codes are set appropriately.
+
+210
+00:21:20,330 --> 00:21:24,310
+And you'll see that the names of these jump instructions are the same as the sentence
+
+211
+00:21:24,330 --> 00:21:33,330
+with the same conditions. So there's a variety of different reasons that the program may be given to either jump or not jump.
+
+212
+00:21:33,330 --> 00:21:42,840
+So I'm going to use this one example to show you several different versions of it.
+
+213
+00:21:42,840 --> 00:21:51,910
+And like everything, you'll see here, these particular programs aren't that useful, but they illustrate ideas.
+
+214
+00:21:51,910 --> 00:21:58,920
+So imagine I wanted to compute the difference of two values and
+
+215
+00:21:58,940 --> 00:22:00,760
+and then take their absolute value.
+
+216
+00:22:01,590 --> 00:22:04,330
+So there's various ways you can imagine doing it.
+
+217
+00:22:04,390 --> 00:22:09,250
+By the way I'm going to do it is decide to either subtract Y from X or X from Y,
+
+218
+00:22:09,250 --> 00:22:12,030
+or X from Y, depending on the relative values of those two.
+
+219
+00:22:12,870 --> 00:22:20,490
+And, of course, the astute observer will notice that this has problems if you have a T-min somewhere,
+
+220
+00:22:21,330 --> 00:22:26,090
+if the result, because there's no absolute value, but we're not going to worry about that.
+
+221
+00:22:29,000 --> 00:22:29,600
+So,
+
+222
+00:22:30,120 --> 00:22:32,920
+In other words, I just want to say if X is greater than Y,
+
+223
+00:22:32,920 --> 00:22:35,320
+then I want to subtract Y from X.
+
+224
+00:22:35,320 --> 00:22:39,660
+If X is less than or equal to Y, I want to subtract X from Y.
+
+225
+00:22:39,660 --> 00:22:45,620
+And here's the code for it, where the blue and the red are color-coding the different parts of it.
+
+226
+00:22:45,620 --> 00:22:58,520
+So here you see the compare instruction, and again, I've written them out in the reverse order to help me keep track of what the comparison is.
+
+227
+00:22:58,520 --> 00:23:00,740
+And it says, I'm going to compare X and Y.
+
+228
+00:23:00,760 --> 00:23:08,540
+and if X is less than or equal to y, I want to jump to a location specified by this label L4.
+
+229
+00:23:09,260 --> 00:23:17,060
+And so in general, in assembly code, if you give a name and then a colon, what's to the left of that is called a label.
+
+230
+00:23:17,060 --> 00:23:21,700
+And it's just a tag that that's only visible in the assembly code.
+
+231
+00:23:21,820 --> 00:23:30,710
+It's not actually in the object code that will later be used to compute an address for determining
+
+232
+00:23:30,710 --> 00:23:34,510
+that will encode where this jump will actually land.
+
+233
+00:23:35,430 --> 00:23:38,870
+When you're looking at assembly code, one of the features it provides
+
+234
+00:23:38,870 --> 00:23:43,650
+is a little bit easier way to understand it than to look at addresses.
+
+235
+00:23:44,350 --> 00:23:48,850
+And so it just tells you to be looking at that the jump would occur to this position.
+
+236
+00:23:50,520 --> 00:23:58,380
+And what you'll see here is, in these two branches, the blue code versus the red, what you're doing is in one case
+
+237
+00:23:58,380 --> 00:24:06,640
+subtracting Y from X, here you move X into R.A.X and you subtract Y from it. And you subtract
+
+238
+00:24:06,640 --> 00:24:29,930
+y from it. And here you do the opposite. You're subtracting X from Y. And in this case, so in the first case, you'll make the jump if X is less than or equal to Y. You'll subtract Y from X, and you'll do a return. And you'll do a return. And you remember that I don't have to do a
+
+239
+00:24:29,950 --> 00:24:34,890
+special to return a value back from a function. All I have to do is stick it and
+
+240
+00:24:34,890 --> 00:24:41,080
+register IAX. And the calling function will know that's where to find the return value. So
+
+241
+00:24:41,080 --> 00:24:47,380
+here it does a rep. And here it does the subtraction and it simply does a return directly from that part
+
+242
+00:24:47,380 --> 00:24:55,010
+of it. So it's a pretty straightforward piece of code, but you can see it's using this
+
+243
+00:24:55,010 --> 00:25:00,550
+jumping to create two different parts of code that get executed.
+
+244
+00:25:00,970 --> 00:25:02,970
+under different conditions.
+
+245
+00:25:02,970 --> 00:25:06,880
+Question.
+
+246
+00:25:06,880 --> 00:25:07,880
+What's that?
+
+247
+00:25:07,880 --> 00:25:13,850
+I'm sorry I didn't hear you.
+
+248
+00:25:13,850 --> 00:25:15,850
+Oh, well, there's a couple things.
+
+249
+00:25:15,850 --> 00:25:18,850
+One is you want the result to end up in R.A.X.
+
+250
+00:25:18,850 --> 00:25:19,950
+Right?
+
+251
+00:25:19,950 --> 00:25:23,950
+And remember, the subtract and all those arithmetic instructions
+
+252
+00:25:23,950 --> 00:25:27,170
+are just two argument instructions.
+
+253
+00:25:27,170 --> 00:25:31,270
+There, um, that you take two values and then you,
+
+254
+00:25:31,270 --> 00:25:35,270
+the one, the second argument, the destination argument,
+
+255
+00:25:35,270 --> 00:25:38,270
+you overwrite what was there with the new result.
+
+256
+00:25:38,270 --> 00:25:42,270
+So this is a pretty typical pattern you'll see.
+
+257
+00:25:42,270 --> 00:25:48,270
+You move some value into a register and then you, into R.A.X is very common.
+
+258
+00:25:48,270 --> 00:25:55,270
+And then you do some arithmetic operation with that register as a destination to kind of update it.
+
+259
+00:25:55,270 --> 00:26:01,230
+It's like if you were writing in C, if all the time you had to write sort of
+
+260
+00:26:01,230 --> 00:26:08,230
+x plus equals something, x minus equals, and that all your arithmetic had to be expressed in those terms.
+
+261
+00:26:08,230 --> 00:26:13,000
+terms.
+
+262
+00:26:13,000 --> 00:26:14,870
+Okay.
+
+263
+00:26:14,870 --> 00:26:21,870
+So it's fun to look at assembly code for about five minutes, and then you get sick of it.
+
+264
+00:26:21,870 --> 00:26:28,870
+So one thing that sort of present these same ideas, but give it in a little bit more abstract form,
+
+265
+00:26:28,870 --> 00:26:34,870
+is to write it in C, but in a form of C, that looks a lot like assembly code.
+
+266
+00:26:34,870 --> 00:26:41,870
+And in particular, one of the features of C that is not generally advertised is there's a
+
+267
+00:26:41,870 --> 00:26:47,320
+statement called go to. And you can put labels in your code.
+
+268
+00:26:47,320 --> 00:26:57,210
+And you can tell the program that if something happens, then you want to jump to that
+
+269
+00:26:57,210 --> 00:27:02,210
+part of the program. So it looks a lot like that assembly code, right?
+
+270
+00:27:02,210 --> 00:27:07,210
+That you saw jump J-L-E instead of what this says.
+
+271
+00:27:07,210 --> 00:27:13,190
+It's like I'm doing a test, and then if the test is, which in the test is, which in the
+
+272
+00:27:13,210 --> 00:27:18,210
+In this case, I call it N test because it's the opposite of the test that's in the original program.
+
+273
+00:27:18,210 --> 00:27:25,370
+And if that end test condition holds, I want to jump to another part of the program I'm calling else.
+
+274
+00:27:25,370 --> 00:27:32,560
+And you notice I uppercase that because it's not the actual else of an if then else.
+
+275
+00:27:32,560 --> 00:27:42,290
+And similarly, if this one is, well, actually to be most accurate, I should have simply said return result from this point.
+
+276
+00:27:42,290 --> 00:27:45,090
+This code's a little bit out of date.
+
+277
+00:27:45,090 --> 00:27:50,790
+out of date. So I should have said return result. But another version would be to have
+
+278
+00:27:50,790 --> 00:27:55,670
+done a go-to down to here and return the result from there. And you'll see different compilers
+
+279
+00:27:55,670 --> 00:28:02,740
+generate in different forms. So I'm going to typically use this way of presenting code just
+
+280
+00:28:02,740 --> 00:28:09,280
+so that you can look at and understand what these control structures look like without having
+
+281
+00:28:09,280 --> 00:28:18,940
+to sort of scrutinize the low-level assembly code instructions. So we can sort of take this question
+
+282
+00:28:18,940 --> 00:28:41,540
+Yeah. I think there's a homework or a practice problem of exactly that sort. So in general, you could do it in either way. And why the compiler picks one versus the other is, I think it's a completely arbitrary decision. But consistently, I found GCC does it this way.
+
+283
+00:28:45,560 --> 00:28:59,190
+Okay. So let's sort of talk, sort of imagine you're writing a compiler. How would you take this special case I just showed and generalize it into a rule for a compiler?
+
+284
+00:28:59,210 --> 00:29:02,210
+if-then-else expressions.
+
+285
+00:29:02,210 --> 00:29:08,210
+And I'm going to use the version of and see the question mark-coran version where you kind of
+
+286
+00:29:08,210 --> 00:29:14,210
+encapsulate that whole conditional as a single expression rather than the statement.
+
+287
+00:29:14,210 --> 00:29:18,210
+But you can understand that these rules would be the same in either case.
+
+288
+00:29:18,210 --> 00:29:28,210
+So imagine in general you had a C code where there's a test controlling whether to return the result of one expression or another.
+
+289
+00:29:28,210 --> 00:29:30,530
+or another.
+
+290
+00:29:30,530 --> 00:29:34,530
+And this is what my ABS diff code would look like
+
+291
+00:29:34,530 --> 00:29:37,040
+if I wrote it in that form.
+
+292
+00:29:37,040 --> 00:29:40,040
+And so in general, what we can say is
+
+293
+00:29:40,040 --> 00:29:42,620
+what we'll do is,
+
+294
+00:29:42,620 --> 00:29:46,620
+we'll take the test and invert it and say,
+
+295
+00:29:46,620 --> 00:29:49,810
+if that test is not true,
+
+296
+00:29:49,810 --> 00:29:52,320
+then we will,
+
+297
+00:29:52,320 --> 00:29:58,860
+so if N test is true,
+
+298
+00:29:58,860 --> 00:30:02,020
+then we will jump to some part of the code where
+
+299
+00:30:02,020 --> 00:30:06,120
+we've compiled the code for the else expression.
+
+300
+00:30:06,120 --> 00:30:11,120
+And if that test fails here, so that the original test condition holds,
+
+301
+00:30:11,120 --> 00:30:18,120
+then we'll stick in whatever code it takes to compute the then expression,
+
+302
+00:30:18,120 --> 00:30:21,120
+and then we'll merge back together.
+
+303
+00:30:21,120 --> 00:30:24,120
+In the case you saw where it's just a single little function,
+
+304
+00:30:24,120 --> 00:30:27,120
+we can just call a rep here and get out of the thing.
+
+305
+00:30:27,120 --> 00:30:32,120
+But if this is one line of code and then there's a whole bunch of lines after that,
+
+306
+00:30:32,120 --> 00:30:36,120
+typically you want to merge back together again and continue from there.
+
+307
+00:30:36,120 --> 00:30:38,120
+And so that's what this shows.
+
+308
+00:30:38,120 --> 00:30:42,120
+I'll finish by going to whatever it comes afterwards.
+
+309
+00:30:42,120 --> 00:30:45,690
+So this is a way I like to, you know,
+
+310
+00:30:45,690 --> 00:30:48,690
+although we're not writing compilers in this course,
+
+311
+00:30:48,690 --> 00:30:52,690
+I think it helps to think in terms of general rules
+
+312
+00:30:52,690 --> 00:30:56,690
+of how a compiler would translate C code into assembly code
+
+313
+00:30:56,690 --> 00:30:59,690
+so that when you see that assembly code,
+
+314
+00:30:59,690 --> 00:31:01,690
+you'll recognize these patterns and know what they mean.
+
+315
+00:31:01,690 --> 00:31:02,690
+what they mean.
+
+316
+00:31:02,690 --> 00:31:04,240
+Question.
+
+317
+00:31:04,240 --> 00:31:07,240
+After it goes to the else clause, does it like fall through to the done?
+
+318
+00:31:07,240 --> 00:31:08,240
+Yes.
+
+319
+00:31:08,240 --> 00:31:09,240
+Yes.
+
+320
+00:31:09,240 --> 00:31:18,330
+So just as we saw, yes, in general, like here, it would fall through to the done.
+
+321
+00:31:18,330 --> 00:31:23,920
+Good question.
+
+322
+00:31:23,920 --> 00:31:30,980
+Okay, so that's one version of conditional and that's the most general way and the way it used to always be done.
+
+323
+00:31:30,980 --> 00:31:34,980
+But there's another approach that you'll see fairly common in code.
+
+324
+00:31:34,980 --> 00:31:38,980
+it's sort of an optimization called conditional move.
+
+325
+00:31:38,980 --> 00:31:45,300
+And it's bit non-intuitive from a software developer's perspective of why you'd ever want to do this.
+
+326
+00:31:45,300 --> 00:31:51,300
+The basic idea is I'm going to compute both the then and the else the values they'd produce,
+
+327
+00:31:51,300 --> 00:31:55,300
+and only after that I'd choose which one I use.
+
+328
+00:31:55,300 --> 00:32:00,300
+So it seems wasteful, but it actually turns out to be more efficient
+
+329
+00:32:00,300 --> 00:32:03,300
+if they're fairly simple computations.
+
+330
+00:32:03,300 --> 00:32:05,300
+And the reason of that is,
+
+331
+00:32:05,300 --> 00:32:09,300
+and we'll see a little bit more when we talk about performance optimization.
+
+332
+00:32:09,300 --> 00:32:15,300
+A modern processor is a little like an oil tanker sailing in the sea,
+
+333
+00:32:15,300 --> 00:32:24,750
+meaning that it plows along in a certain direction, and it really is hard to get it to stop or to turn.
+
+334
+00:32:24,750 --> 00:32:27,750
+So that's, you say, what are you talking about?
+
+335
+00:32:27,750 --> 00:32:34,940
+Think of an instruction sequence as, you know, the ocean of code that you're cruising through.
+
+336
+00:32:34,940 --> 00:32:35,940
+And these.
+
+337
+00:32:35,940 --> 00:32:38,940
+can just fly through a straight sequence of code
+
+338
+00:32:38,940 --> 00:32:42,940
+because they are, they do what they call pipelining,
+
+339
+00:32:42,940 --> 00:32:45,940
+meaning they start bringing in parts of one instruction
+
+340
+00:32:45,940 --> 00:32:47,940
+before they're done with the next
+
+341
+00:32:47,940 --> 00:32:51,940
+and actually go up to depths of 20 or more instructions deep
+
+342
+00:32:51,940 --> 00:32:53,940
+of how far ahead they're working,
+
+343
+00:32:53,940 --> 00:32:56,940
+sort of fetching forward and future instructions
+
+344
+00:32:56,940 --> 00:32:59,940
+while finishing up the ones that still remain.
+
+345
+00:32:59,940 --> 00:33:04,160
+So that's my ocean line or my tanker analogy.
+
+346
+00:33:04,160 --> 00:33:06,160
+But all of a sudden you come, and then
+
+347
+00:33:06,160 --> 00:33:09,230
+And then what happens when they hit a branch,
+
+348
+00:33:09,230 --> 00:33:12,230
+they'll try to guess, it's called branch prediction,
+
+349
+00:33:12,230 --> 00:33:15,230
+and guess, where is this branch going to go,
+
+350
+00:33:15,230 --> 00:33:18,230
+where, you know, will the conditional branch be taken,
+
+351
+00:33:18,230 --> 00:33:20,230
+or is it going to fall through?
+
+352
+00:33:20,230 --> 00:33:21,230
+And they're pretty good at that.
+
+353
+00:33:21,230 --> 00:33:25,230
+They're good at it 98% of the time.
+
+354
+00:33:25,230 --> 00:33:30,260
+So they can even anticipate sort of curves in the road,
+
+355
+00:33:30,260 --> 00:33:33,420
+my analogy is breaking down,
+
+356
+00:33:33,420 --> 00:33:35,420
+and start going in that direction.
+
+357
+00:33:35,420 --> 00:33:40,420
+going in that direction and as long as they get it right, it's very efficient.
+
+358
+00:33:40,420 --> 00:33:48,420
+But if they get it wrong, it's as if you have to stop the thing, back it up, turn the other way, start again,
+
+359
+00:33:48,420 --> 00:33:55,420
+and that can take 40 instructions, 40 clock cycles, say, to do in bad situations.
+
+360
+00:33:55,420 --> 00:33:57,420
+So, and this is pretty common.
+
+361
+00:33:57,420 --> 00:34:03,420
+If you think of like an absolute value, can you predict whether a value is going to be positive or negative?
+
+362
+00:34:03,420 --> 00:34:04,420
+Not usually.
+
+363
+00:34:04,420 --> 00:34:09,420
+So about half the time, whatever you guess, you're going to guess wrong.
+
+364
+00:34:09,420 --> 00:34:15,420
+So these conditional move instructions, it turns out it's much easier to just plow through,
+
+365
+00:34:15,420 --> 00:34:22,610
+compute both, and then at the last minute, all you have to do is move a value into a register or not.
+
+366
+00:34:22,610 --> 00:34:27,840
+And that doesn't require stopping the whole processor and making this turn.
+
+367
+00:34:27,840 --> 00:34:33,840
+So that's my long explanation for, and if you don't want to understand that, I'll just say,
+
+368
+00:34:33,840 --> 00:34:35,840
+that I'll just say, well, just trust me.
+
+369
+00:34:35,840 --> 00:34:40,330
+It's a good idea sometimes.
+
+370
+00:34:40,330 --> 00:34:45,330
+So the general pattern then, if I use the same idea,
+
+371
+00:34:45,330 --> 00:34:49,330
+is I want to compute both results, and I'll call the result
+
+372
+00:34:49,330 --> 00:34:53,330
+and this is an E-VAL, this is E-VAL, the ELTS value.
+
+373
+00:34:53,330 --> 00:34:55,330
+I'll compute both of them.
+
+374
+00:34:55,330 --> 00:34:58,330
+I'll do my test, and then this red thing,
+
+375
+00:34:58,330 --> 00:35:02,330
+imagine that's all done with a single instruction that says,
+
+376
+00:35:02,330 --> 00:35:05,330
+I'll copy the value of E-VAL to result,
+
+377
+00:35:05,330 --> 00:35:08,630
+result, but only if a condition holds.
+
+378
+00:35:08,630 --> 00:35:12,870
+So that's why it's called a conditional move.
+
+379
+00:35:12,870 --> 00:35:15,010
+And we'll see this is the code.
+
+380
+00:35:15,010 --> 00:35:19,870
+By the way, you saw in my original version, sorry to have to jump back,
+
+381
+00:35:19,870 --> 00:35:30,300
+I had to explicitly tell the GCC don't put use conditional moves because it really wants to very badly.
+
+382
+00:35:30,300 --> 00:35:37,680
+And so you have to force it not to, and I did that here.
+
+383
+00:35:37,680 --> 00:35:39,380
+So here's the actual code then.
+
+384
+00:35:39,380 --> 00:35:42,380
+And again, you'll see the color coding.
+
+385
+00:35:42,380 --> 00:35:45,380
+That it's doing both subtractions.
+
+386
+00:35:45,380 --> 00:35:48,380
+It's actually doing the move and subtract.
+
+387
+00:35:48,380 --> 00:35:49,380
+Move and subtract.
+
+388
+00:35:49,380 --> 00:35:54,380
+So it's doing both the branches you saw before the then and the else branch.
+
+389
+00:35:54,380 --> 00:35:57,830
+It's doing a comparison.
+
+390
+00:35:57,830 --> 00:36:00,830
+And then here's the conditional move instruction.
+
+391
+00:36:00,830 --> 00:36:01,830
+C move.
+
+392
+00:36:01,830 --> 00:36:04,830
+In this case, the L here is not a word size.
+
+393
+00:36:04,830 --> 00:36:08,830
+It's the less than or equal to direction.
+
+394
+00:36:08,830 --> 00:36:09,830
+So.
+
+395
+00:36:09,830 --> 00:36:15,050
+In the case that I need the red value, basically.
+
+396
+00:36:15,050 --> 00:36:19,050
+You saw the red value was stored in register RDX.
+
+397
+00:36:19,050 --> 00:36:23,150
+In that case, I will copy it into the result register.
+
+398
+00:36:23,150 --> 00:36:31,690
+So again, it's like this idea of just go ahead and do everything and then pick at the last end.
+
+399
+00:36:31,690 --> 00:36:38,820
+And the point is that this one instruction, it looks just as far as for this processor execution,
+
+400
+00:36:38,820 --> 00:36:39,820
+it's sort of like a move instruction.
+
+401
+00:36:39,820 --> 00:36:42,820
+like a move instruction that it's fairly straightforward to do.
+
+402
+00:36:42,820 --> 00:36:50,110
+Okay, so why doesn't it do that all the time?
+
+403
+00:36:50,110 --> 00:36:52,110
+Well, there's a couple reasons.
+
+404
+00:36:52,110 --> 00:36:57,110
+One is that might be a really, really bad idea to do both computations.
+
+405
+00:36:57,110 --> 00:37:04,110
+If you have to, like, crack a password in one and, you know, find the nth prime number in another,
+
+406
+00:37:04,110 --> 00:37:07,110
+you probably don't want to do both of those.
+
+407
+00:37:07,110 --> 00:37:13,300
+So in general, in that case, and so the, and you'll notice,
+
+408
+00:37:13,300 --> 00:37:20,560
+GCC will only do this if both branches are fairly straightforward computations that they're trying to do.
+
+409
+00:37:20,560 --> 00:37:23,560
+And there's sometimes when you just plain can't do it.
+
+410
+00:37:23,560 --> 00:37:30,560
+So, for example, if you're using a conditional to guard whether a pointer can be dereferenced
+
+411
+00:37:30,560 --> 00:37:33,560
+or not because it's a null pointer, potentially a null pointer,
+
+412
+00:37:33,560 --> 00:37:43,640
+then you really don't want to try that null pointer dereference just as a way to save some time.
+
+413
+00:37:43,640 --> 00:37:44,640
+some time.
+
+414
+00:37:44,640 --> 00:37:52,640
+And similarly, if you could have a side effect, if the result of executing either branch could be to change
+
+415
+00:37:52,640 --> 00:37:57,640
+some other part of the program state, then you don't really want to do that either.
+
+416
+00:37:57,640 --> 00:38:05,640
+And so the conditional move only gets used then in this somewhat special case that you have two computations,
+
+417
+00:38:05,640 --> 00:38:09,640
+relatively easy to do, safe to do, no side effects.
+
+418
+00:38:09,640 --> 00:38:12,640
+But that happens just often enough that this is actually a worthwhile thing.
+
+419
+00:38:12,640 --> 00:38:13,640
+while thing.
+
+420
+00:38:13,640 --> 00:38:17,430
+Okay.
+
+421
+00:38:17,430 --> 00:38:19,430
+So that gets us conditionals.
+
+422
+00:38:19,430 --> 00:38:21,430
+And now let's look at loops.
+
+423
+00:38:21,430 --> 00:38:25,520
+That's the sort of next step up in control structures.
+
+424
+00:38:25,520 --> 00:38:30,550
+And C actually has three different kinds of loops.
+
+425
+00:38:30,550 --> 00:38:33,550
+It has a while loop, which you're familiar with,
+
+426
+00:38:33,550 --> 00:38:36,550
+and a four loop, which you're familiar with.
+
+427
+00:38:36,550 --> 00:38:39,550
+And it has a third one which in my whole life of writing,
+
+428
+00:38:39,550 --> 00:38:41,550
+and I've written a lot of C code in my life,
+
+429
+00:38:41,550 --> 00:38:44,550
+I've used this like about six times.
+
+430
+00:38:44,550 --> 00:38:45,710
+So.
+
+431
+00:38:45,710 --> 00:38:46,710
+But it turns out.
+
+432
+00:38:46,710 --> 00:38:49,710
+It's the simplest one to implement, so we'll go ahead and do it.
+
+433
+00:38:49,710 --> 00:38:52,710
+So it's called the do while loop.
+
+434
+00:38:52,710 --> 00:38:59,710
+And so the key word is do, and then there's some stuff you do, that's the body of the do.
+
+435
+00:38:59,710 --> 00:39:05,710
+And then there's a test at the end that tells you whether to keep repeating this loop.
+
+436
+00:39:05,710 --> 00:39:07,710
+So it sort of flips a normal while loop.
+
+437
+00:39:07,710 --> 00:39:11,710
+You have the conditional test at the front, and here you have it at the end.
+
+438
+00:39:11,710 --> 00:39:18,440
+And so it turns out if we think in terms of go-to, that's a pretty
+
+439
+00:39:18,440 --> 00:39:25,440
+straightforward thing to replace this with a code that will do a test.
+
+440
+00:39:25,440 --> 00:39:33,440
+And if the test holds, it will jump back and say, okay, re-execute that part of the program I was just in.
+
+441
+00:39:33,440 --> 00:39:43,530
+So it sets up a loop where you can think of it's literally a loop of control flow going round and round.
+
+442
+00:39:43,530 --> 00:39:50,960
+And by the way, this is actually a semi-useful function. It's called pop count.
+
+443
+00:39:50,960 --> 00:39:51,960
+sometimes.
+
+444
+00:39:51,960 --> 00:39:56,280
+How many ones are there in a word of data?
+
+445
+00:39:56,280 --> 00:39:58,280
+In this case, it's 64-bit word.
+
+446
+00:39:58,280 --> 00:40:02,280
+There's been some generations of data where you're
+
+447
+00:40:02,280 --> 00:40:06,280
+required to write this function using all your favorite operations
+
+448
+00:40:06,280 --> 00:40:12,500
+and with a fairly small limit on operations.
+
+449
+00:40:12,500 --> 00:40:16,940
+But we're not doing that today.
+
+450
+00:40:16,940 --> 00:40:25,190
+So here, my point is you see that there's a fairly straightforward way of
+
+451
+00:40:25,190 --> 00:40:30,190
+taking this particular loop and turning it into just a combination of conditional
+
+452
+00:40:30,190 --> 00:40:34,440
+that where you do is you jump back to where you were before.
+
+453
+00:40:34,440 --> 00:40:38,240
+And here's the actual code for it.
+
+454
+00:40:38,240 --> 00:40:42,240
+I won't go through all of it, but you can believe from these annotations
+
+455
+00:40:42,240 --> 00:40:45,240
+that it very closely follows the code here.
+
+456
+00:40:45,240 --> 00:40:51,330
+And the main thing to see is this jump, if not equal,
+
+457
+00:40:51,330 --> 00:40:57,190
+to label L2, and that takes you back to here.
+
+458
+00:40:57,190 --> 00:40:59,190
+And so the general form of it then,
+
+459
+00:40:59,190 --> 00:41:05,400
+is you take a do and then this part of it's called the body of the loop and
+
+460
+00:41:05,400 --> 00:41:06,400
+this is the test.
+
+461
+00:41:06,400 --> 00:41:10,400
+And so now you set up some code where you can execute the body,
+
+462
+00:41:10,400 --> 00:41:14,400
+perform the test, and if the test holds, you go back to the loop.
+
+463
+00:41:14,400 --> 00:41:20,420
+So a while loop is really just like a do loop,
+
+464
+00:41:20,420 --> 00:41:24,420
+a do while loop, except that you move the test to the beginning.
+
+465
+00:41:24,420 --> 00:41:27,420
+And the only difference, therefore, is with a do loop,
+
+466
+00:41:27,420 --> 00:41:31,420
+you don't do the test the first time through.
+
+467
+00:41:31,420 --> 00:41:32,420
+You're guaranteed.
+
+468
+00:41:32,420 --> 00:41:35,420
+to do it the first time no matter what.
+
+469
+00:41:35,420 --> 00:41:40,520
+While a while loop will explicitly test even at the very beginning
+
+470
+00:41:40,520 --> 00:41:45,220
+and skip over the loop if the condition doesn't hold.
+
+471
+00:41:45,220 --> 00:41:48,220
+So there's two ways to generate a code.
+
+472
+00:41:48,220 --> 00:41:51,220
+Well, there's more than two ways to generate code for a while loop.
+
+473
+00:41:51,220 --> 00:41:54,220
+But you'll find GCC actually uses two different ways.
+
+474
+00:41:54,220 --> 00:42:00,220
+One is what we'll find when we use this optimization setting I talked about
+
+475
+00:42:00,220 --> 00:42:03,200
+last time called minus capital O, which stands
+
+476
+00:42:03,220 --> 00:42:08,220
+for optimize G, which means debug, of course,
+
+477
+00:42:08,220 --> 00:42:10,220
+as you've already know.
+
+478
+00:42:10,220 --> 00:42:14,220
+There's some history to what the minus G flags means.
+
+479
+00:42:14,220 --> 00:42:17,440
+So, and as I mentioned last time,
+
+480
+00:42:17,440 --> 00:42:20,440
+this turns out to be the perfect level of optimization for
+
+481
+00:42:20,440 --> 00:42:23,440
+this course, where you want to be able to look at machine code
+
+482
+00:42:23,440 --> 00:42:27,440
+and understand it and how it relates to the C code.
+
+483
+00:42:27,440 --> 00:42:30,440
+Because it does some sort of simple optimizations,
+
+484
+00:42:30,440 --> 00:42:33,420
+but it doesn't try to rewrite your whole program to make it run
+
+485
+00:42:33,440 --> 00:42:39,050
+better. Whereas even with minus 01, which is the next level in the optimization,
+
+486
+00:42:39,050 --> 00:42:43,050
+you'll find sometimes it will do some pretty quirky stuff.
+
+487
+00:42:43,050 --> 00:42:50,400
+But when you actually, as a program developer, as a software developer out there,
+
+488
+00:42:50,400 --> 00:42:54,400
+or you talk to companies and you ask what optimization level do you use,
+
+489
+00:42:54,400 --> 00:42:59,400
+they'll probably say minus 02. That's sort of the common one.
+
+490
+00:42:59,400 --> 00:43:05,010
+So usually there's higher levels of optimization, and we're purposely backing off
+
+491
+00:43:05,010 --> 00:43:08,270
+that to make this code easier to understand.
+
+492
+00:43:08,270 --> 00:43:12,270
+So anyways, with this default optimization
+
+493
+00:43:12,270 --> 00:43:16,270
+we're using for this course, it does a transformation I call the
+
+494
+00:43:16,270 --> 00:43:18,270
+jump-to-middle translation.
+
+495
+00:43:18,270 --> 00:43:20,270
+These are, by the way, my own names.
+
+496
+00:43:20,270 --> 00:43:23,270
+You won't find them in any other document.
+
+497
+00:43:23,270 --> 00:43:29,300
+But the idea of it is, imagine again, I have a while-loop
+
+498
+00:43:29,300 --> 00:43:34,300
+of this form where there's a test and a body to execute.
+
+499
+00:43:34,300 --> 00:43:35,300
+Well, what I'll, the problem.
+
+500
+00:43:35,300 --> 00:43:39,300
+I have to do compared to before is somehow I have to execute the test
+
+501
+00:43:39,300 --> 00:43:42,300
+before I start the first iteration of the loop.
+
+502
+00:43:42,300 --> 00:43:45,300
+So the way I'll do it here is I'll just jump to the middle
+
+503
+00:43:45,300 --> 00:43:49,300
+of the what was the old loop code
+
+504
+00:43:49,300 --> 00:43:52,300
+to the test portion of that loop.
+
+505
+00:43:52,300 --> 00:43:55,300
+And then let that test determine whether I actually
+
+506
+00:43:55,300 --> 00:43:59,520
+enter the loop itself.
+
+507
+00:43:59,520 --> 00:44:05,580
+And so this is an example of a go-to code
+
+508
+00:44:05,580 --> 00:44:09,580
+a code version of my pop count function.
+
+509
+00:44:09,580 --> 00:44:14,640
+So I've written the pop count function using a while loop this time.
+
+510
+00:44:14,640 --> 00:44:21,180
+It turns out whether you use a do or a while loop, you'll get the same result in this particular function.
+
+511
+00:44:21,180 --> 00:44:30,720
+And you'll see the way it looks is it jumps to the test portion of the code,
+
+512
+00:44:30,720 --> 00:44:35,720
+and then if that holds it then actually starts in the first execution of the loop.
+
+513
+00:44:35,720 --> 00:44:36,720
+And then from there on it looks the same.
+
+514
+00:44:36,720 --> 00:44:42,000
+it looks the same as a do-while loop. It just does the what was in the
+
+515
+00:44:42,000 --> 00:44:51,290
+loop, does the test, jumps back to the beginning. And then there's a second method which
+
+516
+00:44:51,290 --> 00:44:57,430
+is in some ways more traditional. And you'll find that if you use optimization 1, which
+
+517
+00:44:57,430 --> 00:45:04,210
+is a fairly useful thing to do in practice. So just to show you that instead of deciding
+
+518
+00:45:04,210 --> 00:45:09,940
+which one I was going to show you, I decided to show you both. And the idea of that, and the idea
+
+519
+00:45:09,940 --> 00:45:14,880
+of that is to do a, essentially to take a while loop and turn it into a due
+
+520
+00:45:14,880 --> 00:45:22,480
+while loop, but introducing a conditional beforehand that would essentially guard your entrance
+
+521
+00:45:22,480 --> 00:45:29,940
+to the loop. So you do an initial test, and if that's false, then you skip over the loop altogether,
+
+522
+00:45:29,940 --> 00:45:37,310
+otherwise it's performed like a do while loop. And so that has a fairly straightforward
+
+523
+00:45:37,310 --> 00:45:42,090
+translation into code. And that, again, it looks a little different from before.
+
+524
+00:45:42,110 --> 00:45:47,790
+that it has an initial test, but then it looks like a do-while loop.
+
+525
+00:45:51,760 --> 00:45:56,940
+So I won't show you the assembly versions of those, but if you, if you looked at it, actually,
+
+526
+00:45:56,940 --> 00:46:04,660
+the code is all in directories that are linked to your, the class directory, the class directory,
+
+527
+00:46:04,660 --> 00:46:10,160
+so you can actually look at the code. And you'll see that it follows exactly the way I'm
+
+528
+00:46:10,160 --> 00:46:16,230
+describing it. And then a third kind of loop is the four loop.
+
+529
+00:46:16,750 --> 00:46:21,620
+which in C is actually a very powerful,
+
+530
+00:46:21,620 --> 00:46:25,060
+very general type of thing, and so it's very commonly used.
+
+531
+00:46:25,060 --> 00:46:30,240
+But you can see that the four loop has four components to it.
+
+532
+00:46:30,240 --> 00:46:35,620
+It has an initialization, it has a test, has a rule for doing an update
+
+533
+00:46:35,620 --> 00:46:40,820
+in case as a way to continue the loop, and then it has the body of the loop.
+
+534
+00:46:40,820 --> 00:46:47,600
+And so here's a version of my pop count function, where I'm just going through all
+
+535
+00:46:47,620 --> 00:46:55,850
+the bits in the word, extracting them out, and adding them, accumulating them to be the result.
+
+536
+00:46:56,950 --> 00:47:05,850
+So, ripping apart this four, you'll see that these four blocks of the loop correspond to the initialization
+
+537
+00:47:05,850 --> 00:47:16,400
+is to set I equal to zero. The test is to compare I to the word size, which I've set here to be eight times.
+
+538
+00:47:16,400 --> 00:47:22,000
+So however many bytes there are in an int, multiply that by 8 to get the word size.
+
+539
+00:47:23,150 --> 00:47:28,590
+And then the update is i++, and then the body is this stuff that's within the brackets here.
+
+540
+00:47:30,660 --> 00:47:45,220
+So I can think of that in general, one general way to think about a four loop in C is by this rule that will turn a four loop into a while loop.
+
+541
+00:47:47,260 --> 00:47:50,760
+And so what it says is I first,
+
+542
+00:47:50,780 --> 00:47:57,660
+do the initialization and then I do a loop where I guard it with this test.
+
+543
+00:47:57,660 --> 00:48:06,220
+And then what I keep doing is executing the body and then performing whatever update there is,
+
+544
+00:48:06,220 --> 00:48:08,700
+and then continuing with the test.
+
+545
+00:48:08,700 --> 00:48:19,060
+So that's sort of the semantics, the definition of the behavior of a for loop in C. So I can take
+
+546
+00:48:19,060 --> 00:48:26,020
+my different pieces of my for loop and say, well, okay, I'll take that rule and use
+
+547
+00:48:26,020 --> 00:48:30,140
+it to pack them in to form a while loop.
+
+548
+00:48:30,140 --> 00:48:35,680
+And of course, you know that you can sort of go between those two, and it's somewhat a matter of taste,
+
+549
+00:48:35,820 --> 00:48:39,600
+whether a given loop should be written using a for loop or a while loop.
+
+550
+00:48:43,900 --> 00:48:52,470
+So one reason why it's actually useful to do this minus 01 optimist.
+
+551
+00:48:52,490 --> 00:48:57,770
+I talk to you about is it's fairly common for the initial test to be trivially
+
+552
+00:48:57,770 --> 00:49:04,710
+trivially true. So for example, in here if i equals zero and I'm comparing it to the
+
+553
+00:49:04,710 --> 00:49:12,170
+word size, which would typically be 32, well, that test is true, that's a certain thing. And so
+
+554
+00:49:12,170 --> 00:49:17,790
+what you'll see is that the compiler can figure that out and just throw away this
+
+555
+00:49:17,790 --> 00:49:22,310
+guarding code that would have to be there otherwise.
+
+556
+00:49:22,550 --> 00:49:35,540
+So that, I believe, is the main reason why this is the transformation that gets used with the 01 optimization level is that oftentimes it doesn't need this initial test.
+
+557
+00:49:40,560 --> 00:49:48,940
+Okay, so now I'm going to finish up with what's in, to me at least, the loop stuff is sort of what you'd expect.
+
+558
+00:49:50,420 --> 00:49:57,520
+If you were to have to, you know, you know, turn C code into something very low level.
+
+559
+00:49:57,540 --> 00:50:01,160
+where all you could do is jumps and tests.
+
+560
+00:50:01,160 --> 00:50:03,520
+Well, maybe that's obvious, but maybe not.
+
+561
+00:50:04,120 --> 00:50:07,300
+The switch statement, on the other hand, is a totally different beast.
+
+562
+00:50:07,860 --> 00:50:12,700
+And I want to show you that because it has no counterpart in normal C-code
+
+563
+00:50:12,700 --> 00:50:14,720
+of how you'd even think about it.
+
+564
+00:50:16,260 --> 00:50:23,100
+And it's fairly a little bit harder to decipher, and you're going to have to do it in the bomb lab.
+
+565
+00:50:24,810 --> 00:50:29,830
+So here's an example of a switch statement that is of nothing.
+
+566
+00:50:29,850 --> 00:50:37,850
+Nothing about this is useful except to demonstrate some principles of how to turn a switch statement into assembly code.
+
+567
+00:50:37,850 --> 00:50:45,850
+So the point of it is, as you know and see, you switch on a particular value, some type of integer value.
+
+568
+00:50:45,850 --> 00:50:53,850
+And then it will match different cases where each of these cases has to be some constant numeric value.
+
+569
+00:50:53,850 --> 00:51:00,700
+Constant integer value. And one of the weirdest features of the weirdest features of
+
+570
+00:51:00,900 --> 00:51:06,440
+is, if you don't, at the end of a case, if you don't explicitly say break,
+
+571
+00:51:07,180 --> 00:51:09,280
+it'll do what's known as falling through.
+
+572
+00:51:10,040 --> 00:51:19,300
+So in this example here, it will divide Y by Z, and then it will just glide right into this statement
+
+573
+00:51:19,300 --> 00:51:20,740
+that adds Z to W.
+
+574
+00:51:22,090 --> 00:51:27,450
+This is, by the way, like one of the worst design decisions in the history of programming languages.
+
+575
+00:51:28,290 --> 00:51:31,230
+And it's been the cause of more and more.
+
+576
+00:51:31,350 --> 00:51:37,350
+you know, heartbreak and bugs that nobody could understand than any other single part of the language.
+
+577
+00:51:37,350 --> 00:51:43,710
+And for some bizarre reason, they've kept it alive, even into Java and all these other languages,
+
+578
+00:51:43,710 --> 00:51:50,610
+that fixed a lot of the worst parts, you know, the most dangerous parts of C, but somehow they kept this feature.
+
+579
+00:51:51,530 --> 00:52:00,930
+And so just as a advice, as a programmer, if you ever, ever use this where you purposely want it to go from one case to other,
+
+580
+00:52:00,930 --> 00:52:04,170
+you should have to put a comment in there to say,
+
+581
+00:52:04,990 --> 00:52:07,350
+trust me, I really did want it to fall through.
+
+582
+00:52:07,530 --> 00:52:10,770
+I know you almost never want to do this, but I do here.
+
+583
+00:52:12,040 --> 00:52:14,740
+So that's a fairly common convention.
+
+584
+00:52:14,740 --> 00:52:20,600
+And I don't know how many times I've had bugs that were because I forgot to put breaks in.
+
+585
+00:52:22,210 --> 00:52:25,030
+Anyways, enough of my editorializing.
+
+586
+00:52:26,470 --> 00:52:32,130
+The other feature you see and see is you can sort of bunch up.
+
+587
+00:52:32,150 --> 00:52:37,390
+multiple cases, if you think of it, that's just a special case of the fall through, right?
+
+588
+00:52:37,450 --> 00:52:40,950
+The case five has nothing to do but to fall through to six.
+
+589
+00:52:41,290 --> 00:52:43,590
+But, so that's the same general way.
+
+590
+00:52:43,590 --> 00:52:47,910
+And there's nothing, that's not, that's not bad, and it doesn't require a comment.
+
+591
+00:52:49,220 --> 00:52:51,320
+And the other one is that there's a default.
+
+592
+00:52:51,640 --> 00:52:57,440
+So if none of these cases match, either because X was zero or smaller, or X was a really
+
+593
+00:52:57,440 --> 00:53:03,630
+big number, or in this case, if X were four, there's no matching case.
+
+594
+00:53:03,650 --> 00:53:08,210
+And of course, you also know that these cases don't have to be in any particular order either.
+
+595
+00:53:09,420 --> 00:53:16,010
+So that's all the sort of features of a case statement, a switch statement, sorry.
+
+596
+00:53:18,320 --> 00:53:22,620
+So normally, if you write this in sort of, if you were told,
+
+597
+00:53:23,620 --> 00:53:32,360
+thou shall not use switch statements anymore, what you'd probably do is write this big long chain of if else, if else, if else, else, right?
+
+598
+00:53:34,480 --> 00:53:36,100
+And you'd expect that to be the way.
+
+599
+00:53:36,120 --> 00:53:37,820
+the machine code, but it's not.
+
+600
+00:53:37,820 --> 00:53:42,540
+And so let me show you what the machine code does.
+
+601
+00:53:42,540 --> 00:53:44,530
+And it's kind of a long story.
+
+602
+00:53:44,530 --> 00:53:54,770
+So think of the general form of it as being some blocks of code, the entry points of which are labeled
+
+603
+00:53:54,770 --> 00:53:56,990
+by these case values.
+
+604
+00:53:56,990 --> 00:54:01,950
+And then the blocks, you know, string together in various different ways and do various things.
+
+605
+00:54:01,950 --> 00:54:07,770
+What I'm going to do is compile a code for all of those blocks and store them away and
+
+606
+00:54:07,770 --> 00:54:14,770
+store them away in some part of memory, load up memory to contain these code blocks.
+
+607
+00:54:14,770 --> 00:54:25,250
+And then I'm going to build a table. And each entry of this table describes the starting location of one of these code blocks.
+
+608
+00:54:25,250 --> 00:54:37,280
+And I'll put them in order of my case labels. If I have, you know, I want to span a scope from, well, let's assume zero, but typically that's not the case
+
+609
+00:54:37,280 --> 00:54:44,280
+0 up to n minus 1, I'll have this table will have that many entries of addresses
+
+610
+00:54:44,280 --> 00:54:52,080
+to tell me where these code blocks are located.
+
+611
+00:54:52,080 --> 00:54:57,080
+And then I'm going to use this really cool instruction,
+
+612
+00:54:57,080 --> 00:55:04,330
+which is sort of like, it's as if you, it's like, it's like array indexing.
+
+613
+00:55:04,330 --> 00:55:06,330
+So if you think of array indexing.
+
+614
+00:55:06,330 --> 00:55:09,440
+It means you think of array indexing, it means you can grab a value
+
+615
+00:55:09,460 --> 00:55:13,460
+out of the middle of some, you know, array,
+
+616
+00:55:13,460 --> 00:55:19,290
+some set of values without having to step through them one by one.
+
+617
+00:55:19,290 --> 00:55:28,640
+And it's the same idea here that I will take my value and use that to figure out directly where I should
+
+618
+00:55:28,640 --> 00:55:35,950
+jump to a block of code without having to step through a bunch of other conditions.
+
+619
+00:55:35,950 --> 00:55:38,950
+So, and you can see the efficiency you gain from that.
+
+620
+00:55:38,950 --> 00:55:39,950
+It's the difference between.
+
+621
+00:55:39,950 --> 00:55:43,950
+sort of in one step, knowing exactly where you want to be,
+
+622
+00:55:43,950 --> 00:55:51,950
+versus stepping through, you know, on average, and over two conditions to get to where I want to go.
+
+623
+00:55:54,030 --> 00:55:57,030
+So let's look at this at the assembly code level.
+
+624
+00:55:57,030 --> 00:56:06,490
+And it's a little bit of a long thing because we have to build some machinery around this.
+
+625
+00:56:06,490 --> 00:56:10,490
+So here's my example. I've got three arguments.
+
+626
+00:56:10,490 --> 00:56:15,490
+So just remember I told you RDI and RSI and RSI.
+
+627
+00:56:15,490 --> 00:56:17,490
+for the first two arguments.
+
+628
+00:56:17,490 --> 00:56:21,350
+The third argument is in RDX.
+
+629
+00:56:21,350 --> 00:56:25,540
+And here's the beginning of the switch code.
+
+630
+00:56:25,540 --> 00:56:31,020
+It's just making a copy of argument Z here for some reason.
+
+631
+00:56:31,020 --> 00:56:36,020
+And then it's looking at comparing x to 6.
+
+632
+00:56:36,020 --> 00:56:40,240
+And why is 6 is 6 an important number?
+
+633
+00:56:40,240 --> 00:56:44,240
+Because you see 6 was the largest value of any of my cases.
+
+634
+00:56:44,240 --> 00:56:50,600
+And now it's using a jump instruction
+
+635
+00:56:50,600 --> 00:56:57,600
+to go to L8, what we'll find is that tells you what the default behavior should be.
+
+636
+00:56:57,600 --> 00:57:06,730
+So it's sort of flushing away the default cases, the default cases, the cases that are either X is too small or X is too large.
+
+637
+00:57:06,730 --> 00:57:08,730
+And I should mention there's a clever trick there.
+
+638
+00:57:08,730 --> 00:57:16,730
+If you look at JA, it means jump above, that's the unsigned comparison.
+
+639
+00:57:16,730 --> 00:57:19,730
+And what it's making use of is our
+
+640
+00:57:19,730 --> 00:57:24,760
+our result that you remember that if a number is negative,
+
+641
+00:57:24,760 --> 00:57:29,760
+if you think of it as an unsigned value, it becomes very large positive value.
+
+642
+00:57:29,760 --> 00:57:34,760
+So by doing the JA, instead of a JG,
+
+643
+00:57:34,760 --> 00:57:38,790
+right, jump greater than, I'm doing jump above,
+
+644
+00:57:38,790 --> 00:57:43,860
+it's saying, I want to jump to jump to the default if either
+
+645
+00:57:43,860 --> 00:57:50,970
+X is greater than 6,
+
+646
+00:57:50,970 --> 00:57:56,970
+than 6, but also it will cause it to jump if x is less than 0.
+
+647
+00:57:56,970 --> 00:57:58,380
+Got it?
+
+648
+00:57:58,380 --> 00:58:04,830
+So it's a clever trick of unsigned versus sign numbers that's taking advantage of.
+
+649
+00:58:04,830 --> 00:58:12,830
+And then the final part is this is the real heart of the work. This is my very special go-to instruction
+
+650
+00:58:12,830 --> 00:58:22,020
+that lets me index into a table and extract out of that an address and then jump to that address.
+
+651
+00:58:22,020 --> 00:58:37,910
+So that's what lets me go directly to some block of code based on whether my values we'll see will be in the range between 0 and 6.
+
+652
+00:58:37,910 --> 00:58:45,200
+So there'll be seven entries in that table.
+
+653
+00:58:45,200 --> 00:58:56,200
+One thing just to keep track of for later, you'll see that for some reason the GCC said, you know, if I look at all the code, I actually don't use W as a value.
+
+654
+00:58:56,200 --> 00:59:01,760
+W as initialized very much, so I won't bother doing it until somewhere within
+
+655
+00:59:01,760 --> 00:59:10,430
+the code blocks. So just, we'll have to keep track of that here. Okay, so this is the magic
+
+656
+00:59:10,430 --> 00:59:18,420
+construction. And now if we look, and this is all assembly code, you'll see this is the actual
+
+657
+00:59:18,420 --> 00:59:24,290
+jump table. And it's constructed, it's specified in assembly code, and it's the job of
+
+658
+00:59:24,290 --> 00:59:32,420
+the assembler to actually fill in the contents of this table. Excuse me. But what
+
+659
+00:59:32,440 --> 00:59:38,840
+the assembly code is telling the assembler is, I need a quad as just a declaration
+
+660
+00:59:38,840 --> 00:59:47,260
+to say, I need an 8 byte value here, and that value should match whatever address you decide,
+
+661
+00:59:47,260 --> 00:59:54,540
+you later determine is the address of where I'm going to stick label 8 and all these other ones.
+
+662
+00:59:54,540 --> 01:00:00,820
+And these are in the order, as I mentioned, from x equals 0 through 6. And we can already
+
+663
+01:00:00,820 --> 01:00:06,600
+see a few cases that are interesting here. Let me see if I've got a picture
+
+664
+01:00:06,600 --> 01:00:23,130
+on this. Yeah. So we can actually already see some of the logic of this switch statement built
+
+665
+01:00:23,130 --> 01:00:30,060
+into the ordering of entries in this table. So in particular, there is no case zero here, so
+
+666
+01:00:30,060 --> 01:00:36,510
+case zero should be the default. There is no case four here, so case four should be the default.
+
+667
+01:00:36,510 --> 01:00:41,950
+And it turns out, and we already saw before the JA instruction going to L8.
+
+668
+01:00:42,130 --> 01:00:47,050
+So L8 is actually where the code block is going to be for the default case.
+
+669
+01:00:47,490 --> 01:00:53,690
+So you see, basically, you can think of this is sometimes having holes in your switch statement,
+
+670
+01:00:54,130 --> 01:01:00,170
+and we're going to just fill in those holes by saying those should go to the default case.
+
+671
+01:01:03,520 --> 01:01:08,990
+And here, you'll notice that they're not put in any particularly logical order.
+
+672
+01:01:09,010 --> 01:01:19,770
+one thing you'll see, again, is L7 is repeated twice here
+
+673
+01:01:19,770 --> 01:01:23,780
+because it covers both cases five and six.
+
+674
+01:01:24,320 --> 01:01:27,660
+So again, you'll see this sort of doubling up is handled automatically
+
+675
+01:01:27,660 --> 01:01:33,660
+by the jump table will give you the same address for multiple different cases.
+
+676
+01:01:38,260 --> 01:01:41,680
+Okay, and now the rest of it is to look at the various code box.
+
+677
+01:01:41,680 --> 01:01:44,840
+And this, by the way, I'm showing you I took a five.
+
+678
+01:01:44,860 --> 01:01:48,460
+and I'm, you know, extracted little bits of it.
+
+679
+01:01:48,460 --> 01:01:51,860
+But normally you're looking at this whole listing in one big order.
+
+680
+01:01:51,860 --> 01:01:57,090
+So now we can look at the individual code box and see what's going on.
+
+681
+01:01:57,090 --> 01:02:02,090
+And you'll see, for example, case one told me to multiply two numbers.
+
+682
+01:02:02,090 --> 01:02:08,090
+And you'll see that the break, in the general, it's just going to be turned into return instructions here.
+
+683
+01:02:08,090 --> 01:02:13,600
+Because my function, let's go, sorry to jump in code.
+
+684
+01:02:13,600 --> 01:02:15,580
+You see, this function didn't.
+
+685
+01:02:15,600 --> 01:02:22,260
+a switch statement and then whatever it gets computed within the switch statement
+
+686
+01:02:22,260 --> 01:02:25,500
+gets returned as a result of this.
+
+687
+01:02:25,500 --> 01:02:32,300
+So the compiler doesn't actually come to a single point and say, okay, everyone return at this point.
+
+688
+01:02:32,300 --> 01:02:42,660
+It just sticks returns directly in wherever these breaks occur.
+
+689
+01:02:42,660 --> 01:02:47,310
+So here it does a multiply and a return.
+
+690
+01:02:47,310 --> 01:02:52,650
+Here's actually a curious, by the way, I'm always somewhat surprised by the way, I'm always somewhat surprised by
+
+691
+01:02:52,670 --> 01:02:59,900
+what the compiler does. It is never exactly what you'd expect. So in particular,
+
+692
+01:02:59,900 --> 01:03:12,520
+it patched together this fall-through case by two blocks of code, and it had to do these separately,
+
+693
+01:03:12,520 --> 01:03:23,420
+because remember, W was not set before I entered these code blocks. It deferred setting that.
+
+694
+01:03:23,420 --> 01:03:25,600
+And here I hit case three, and all of a sudden,
+
+695
+01:03:25,620 --> 01:03:30,220
+need whatever W was, which was one.
+
+696
+01:03:30,220 --> 01:03:35,520
+And so I guess the complier said, well, gosh, I guess a better set W to 1 here before we
+
+697
+01:03:35,520 --> 01:03:36,920
+continue.
+
+698
+01:03:36,920 --> 01:03:43,560
+So as a result, it sort of creates two code blocks, but it jumps from the second one, this
+
+699
+01:03:43,560 --> 01:03:50,440
+block, into partway through this other block.
+
+700
+01:03:50,440 --> 01:03:56,180
+Here's some actual, yeah, so here's the actual code.
+
+701
+01:03:56,180 --> 01:03:59,020
+This is the block that does the
+
+702
+01:03:59,040 --> 01:04:04,340
+division. It's very quirky how you have to write division. It's covered in the book. I won't go through it here.
+
+703
+01:04:05,370 --> 01:04:11,590
+And then this jump L6 is what I say go-to merge. And the merge is where you're bringing these two cases
+
+704
+01:04:11,590 --> 01:04:20,900
+together. Here is where it's setting L to one. Again, it's making use of this feature and that the upper
+
+705
+01:04:20,900 --> 01:04:35,020
+32 bits get set to zero, so I can use a move L instruction here. Yes, question. Did not have the code for
+
+706
+01:04:35,020 --> 01:04:35,260
+what?
+
+707
+01:04:37,490 --> 01:04:41,550
+The jump table is sort of embedded. Let me just show you real quick.
+
+708
+01:04:41,550 --> 01:04:45,510
+Hmm. No, probably bad idea.
+
+709
+01:04:45,510 --> 01:04:54,950
+The jump, if you look at the dot s file, the assembly code file, all this stuff I'm showing you,
+
+710
+01:04:54,950 --> 01:05:01,950
+I've extracted out of that. But it's all in there. And so the compiler generated these tables,
+
+711
+01:05:01,950 --> 01:05:07,950
+at least the sort of framework for these tables, the details of which get filled in by the assembler.
+
+712
+01:05:07,950 --> 01:05:08,950
+So it is generated.
+
+713
+01:05:08,950 --> 01:05:10,950
+So it is generated by the compiler.
+
+714
+01:05:10,950 --> 01:05:18,230
+Okay.
+
+715
+01:05:18,230 --> 01:05:21,230
+So that just shows you this one example of handling
+
+716
+01:05:21,230 --> 01:05:24,260
+a particular way to handle the fall through case.
+
+717
+01:05:24,260 --> 01:05:28,810
+And then the remaining ones, again, you'll see,
+
+718
+01:05:28,810 --> 01:05:31,810
+here I got, if I get to this case, I need the fact that
+
+719
+01:05:31,810 --> 01:05:35,810
+W is initialized to 1, so we'll do so here.
+
+720
+01:05:35,810 --> 01:05:39,480
+In the default case, it just assigns 2 to W,
+
+721
+01:05:39,480 --> 01:05:41,480
+and so that's all it does.
+
+722
+01:05:41,480 --> 01:05:44,480
+So anyways, I've actually shown you all the code blocks, but I've shown you
+
+723
+01:05:44,480 --> 01:05:50,480
+but I've shown you one by one, but they're just all kind of strong in the file and in no particular order.
+
+724
+01:05:50,480 --> 01:05:53,480
+It doesn't matter what order they are.
+
+725
+01:05:53,480 --> 01:06:01,880
+Yes.
+
+726
+01:06:01,880 --> 01:06:05,880
+Yes, so that was the reason for that jump above at the beginning.
+
+727
+01:06:05,880 --> 01:06:17,340
+So this jump above L8 was the way that if X was either less than 0 or greater than 6,
+
+728
+01:06:17,340 --> 01:06:20,590
+it would go to the default case.
+
+729
+01:06:20,590 --> 01:06:23,590
+And it will only do this indexing trick
+
+730
+01:06:23,590 --> 01:06:31,700
+if the, if X is between 0 and 6.
+
+731
+01:06:31,700 --> 01:06:34,120
+And that's typically the way this works.
+
+732
+01:06:34,120 --> 01:06:38,250
+You'll see that whatever range of values you give,
+
+733
+01:06:38,250 --> 01:06:41,250
+it has to figure out the smallest and the largest one,
+
+734
+01:06:41,250 --> 01:06:45,250
+set up so it goes to the default case if it's out of that range,
+
+735
+01:06:45,250 --> 01:06:49,250
+and then set up a table for the values within that range.
+
+736
+01:06:49,250 --> 01:06:50,250
+Question?
+
+737
+01:06:50,250 --> 01:06:54,140
+If the range of values is like some negative number to something else,
+
+738
+01:06:54,140 --> 01:06:58,270
+does it try to, like, does it index into it with that X somehow?
+
+739
+01:06:58,270 --> 01:07:02,270
+So the question, I realize I should be repeating questions.
+
+740
+01:07:02,270 --> 01:07:08,270
+The question is, what if it's a negative number for your case, which is perfectly legal?
+
+741
+01:07:08,270 --> 01:07:14,270
+It will typically add a bias to it effectively, so that whatever your lowest value was
+
+742
+01:07:14,270 --> 01:07:16,270
+becomes zero.
+
+743
+01:07:16,270 --> 01:07:19,270
+Or it'll do something like that to avoid having to do negative.
+
+744
+01:07:19,270 --> 01:07:21,270
+having to do negative indexing.
+
+745
+01:07:21,270 --> 01:07:23,270
+Another question, can I see?
+
+746
+01:07:23,270 --> 01:07:24,910
+Yes.
+
+747
+01:07:24,910 --> 01:07:29,060
+For cases, you can put another numbers you want.
+
+748
+01:07:29,060 --> 01:07:31,060
+Yeah, so you can go from zero to a million.
+
+749
+01:07:31,060 --> 01:07:36,340
+Yeah, and they could be, you could go zero and a million and nothing in between, right?
+
+750
+01:07:36,340 --> 01:07:37,340
+Yeah.
+
+751
+01:07:37,340 --> 01:07:38,340
+So you could have two cases.
+
+752
+01:07:38,340 --> 01:07:40,340
+You really don't want a million entry table
+
+753
+01:07:40,340 --> 01:07:42,500
+for just two cases.
+
+754
+01:07:42,500 --> 01:07:44,500
+So it will turn it into if else code.
+
+755
+01:07:44,500 --> 01:07:48,730
+But the clever thing it will do, if you know binary search,
+
+756
+01:07:48,730 --> 01:07:50,920
+it relies on the fact that it knows and advance
+
+757
+01:07:50,920 --> 01:07:55,620
+in advance all the values and it will actually set up a tree of if-else-else-es.
+
+758
+01:07:55,620 --> 01:08:01,580
+So really, it will do it, if you want to think algorithmically, it does it with a logarithmic number
+
+759
+01:08:01,580 --> 01:08:07,410
+of tests rather than a linear number of tests.
+
+760
+01:08:07,410 --> 01:08:08,410
+Question?
+
+761
+01:08:08,410 --> 01:08:16,730
+The case, the case is not zero-one-frey question.
+
+762
+01:08:16,730 --> 01:08:17,730
+Oh, yes.
+
+763
+01:08:17,730 --> 01:08:25,740
+Yeah, so, so there's two answers that, one is if, which I've actually answered both now.
+
+764
+01:08:25,740 --> 01:08:26,720
+If one is, if, if, what if?
+
+765
+01:08:26,740 --> 01:08:32,740
+there's some negative values or what if the lowest number is 5,700, right? Well,
+
+766
+01:08:32,740 --> 01:08:39,640
+what it will typically do is put some bias, you know, add or subtract some value so that the first case
+
+767
+01:08:39,640 --> 01:08:45,240
+is at value zero. So that's the way it handles, you know, ones that are just completely out of range.
+
+768
+01:08:45,240 --> 01:08:51,760
+And the other is, what if it's a really big spread of values and relatively sparse, how much
+
+769
+01:08:51,760 --> 01:08:56,980
+you're using it? And there it will revert to if-else code. And the compiler is, it's
+
+770
+01:08:57,000 --> 01:09:01,660
+own rules about how it does these things. You can sort of run experiments and try and reverse
+
+771
+01:09:01,660 --> 01:09:14,340
+engineer. Those are all valid questions, by the way. I appreciate them. Okay. So we're going to
+
+772
+01:09:14,340 --> 01:09:28,220
+get through this. So anyways, and like I said, I think in my own experience, you know, understanding the
+
+773
+01:09:28,220 --> 01:09:34,740
+the conditionals, you can kind of figure that out. It's intuitive. It sort of feels like what
+
+774
+01:09:34,740 --> 01:09:42,420
+you'd expect a program to do. Whereas the switch statement is maybe unexpected. It's a way
+
+775
+01:09:42,420 --> 01:09:51,450
+to do something that is not totally obvious, but then when you think about it and appreciate it, it's
+
+776
+01:09:51,450 --> 01:09:57,190
+actually gives you a good performance boost. You know, again, algorithmically, this jump table
+
+777
+01:09:57,190 --> 01:10:05,590
+makes it so it's a constant time, constant number of steps to get to where you need to in the switch
+
+778
+01:10:05,590 --> 01:10:12,110
+statement. If you just did it linearly one after the other, then that would be linear time
+
+779
+01:10:12,110 --> 01:10:18,650
+and you'd expect on, you know, if everything's uniform and average, about, it'd be about halfway through
+
+780
+01:10:18,650 --> 01:10:26,090
+on average. If you're, if it's sparse, you'll see it will set up a tree of conditionals so it can do
+
+781
+01:10:26,090 --> 01:10:31,630
+in logarithmic time. So no matter what, it will be better than just what you'd get in the obvious
+
+782
+01:10:31,630 --> 01:10:33,830
+form of if else. I saw a question over here.
+
+783
+01:10:36,040 --> 01:10:41,920
+Well, the good news is I don't set up the jump tree.
+
+784
+01:10:41,920 --> 01:10:45,620
+The compiler sets up the jump tree, right?
+
+785
+01:10:45,620 --> 01:10:49,780
+But if you're asking if I were a compiler, how would I set up the jump tree, right?
+
+786
+01:10:49,780 --> 01:10:51,780
+Which is a good question.
+
+787
+01:10:51,780 --> 01:10:56,820
+If you know binary search, right, that you've got a range of values and you pick, you compare it to the
+
+788
+01:10:56,820 --> 01:11:02,080
+middle value and it's either less or it's greater or equal.
+
+789
+01:11:02,080 --> 01:11:06,720
+And if it's less than you sort of recursively handle the one set and if it's greater
+
+790
+01:11:06,720 --> 01:11:07,680
+at the other hat.
+
+791
+01:11:07,680 --> 01:11:10,440
+That's exactly what these trees look like.
+
+792
+01:11:10,440 --> 01:11:22,680
+So they're balanced binary trees, and they're taking advantage of the fact that in C, which is not true in all languages, that all the case conditions you're looking at, are constants.
+
+793
+01:11:22,680 --> 01:11:28,150
+They're determined when the compiler is doing the compilation, those are constant values.
+
+794
+01:11:28,150 --> 01:11:36,750
+So it can sort them, figure out how many there are, what range of values there are, decide which version to do the thing and generate the code.
+
+795
+01:11:36,750 --> 01:11:41,340
+Other questions?
+
+796
+01:11:41,340 --> 01:11:42,340
+So these are all good.
+
+797
+01:11:42,340 --> 01:11:45,340
+And these are very good questions, though.
+
+798
+01:11:45,340 --> 01:11:50,340
+And you're starting to think about, you know, which is the way that computer scientists should think,
+
+799
+01:11:50,340 --> 01:11:56,340
+is how do you take some idea I've seen one case of, well, how do I handle condition X and condition Y?
+
+800
+01:11:56,340 --> 01:11:58,340
+And, you know, what happens if this.
+
+801
+01:11:58,340 --> 01:12:01,340
+That's exactly what we do.
+
+802
+01:12:01,340 --> 01:12:04,340
+We sort of, we're never happy with a simple explanation.
+
+803
+01:12:04,340 --> 01:12:09,340
+We want to understand how we could actually implement it as a program if we ever had to do so.
+
+804
+01:12:09,340 --> 01:12:28,020
+So, and just in general, the main thing you see is that there's a fairly limited bag of tricks for which the program implements conditional constructs.
+
+805
+01:12:28,020 --> 01:12:31,020
+You've seen basically three.
+
+806
+01:12:31,020 --> 01:12:37,590
+One is to use conditional jumps, go to different parts of the code.
+
+807
+01:12:37,590 --> 01:12:41,590
+Another to use conditional moves.
+
+808
+01:12:41,590 --> 01:12:43,590
+And the third is to use this jump table idea.
+
+809
+01:12:43,590 --> 01:12:52,590
+idea and those are really that plus a little bit to do of procedures is sort of all there is.
+
+810
+01:12:52,590 --> 01:13:00,590
+And all the other stuff you see in a program that sort of changes the flow of execution or what gets
+
+811
+01:13:00,590 --> 01:13:05,750
+executed are all built out of those basic primitives.
+
+812
+01:13:05,750 --> 01:13:12,750
+And that's generally true that what we see is, you know, when you go from C code to machine code,
+
+813
+01:13:12,750 --> 01:13:22,020
+you often have to kind of piece together various low-level instructions to implement some higher level construct.
+
+814
+01:13:22,020 --> 01:13:26,700
+And so we've seen these all in different forms now.
+
+815
+01:13:26,700 --> 01:13:36,700
+And next time then we'll talk about procedures, and that's, as you can imagine, a fairly major topic because it is worth one entire procedure.
+
+816
+01:13:36,700 --> 01:13:38,700
+Okay, very good. Thank you.
+

@@ -1,0 +1,3080 @@
+1
+00:00:00,050 --> 00:00:20,050
+So today we're going to continue our study of virtual memory by looking at, in more detail, at how address translation works, and then we'll learn about how virtual memory works on real systems, on Linux and X8664 systems.
+
+2
+00:00:20,050 --> 00:00:30,030
+And the payoff for that is that you'll really be able to now understand how fork and exec really work and how vital the virtual memory
+
+3
+00:00:30,050 --> 00:00:38,580
+system is to sort of the entire working of the system.
+
+4
+00:00:38,580 --> 00:00:44,080
+So let's look at some specific examples of how we do address translation.
+
+5
+00:00:44,080 --> 00:00:52,890
+And here's that reference slide. So let's suppose we have this simple memory system with 14-bit
+
+6
+00:00:52,890 --> 00:01:02,580
+virtual addresses, 12-bit physical addresses, page size of 64 bytes. So in our, we have, so we need
+
+7
+00:01:02,580 --> 00:01:09,440
+six VPO bits, offset bits, and then the remaining bits are the virtual page
+
+8
+00:01:09,440 --> 00:01:18,700
+number. And similarly, similarly, for our physical addresses, we need six offset bits, and the remaining bits
+
+9
+00:01:18,700 --> 00:01:27,540
+form the physical page number. Okay, now our, the TLB in this, in this system, has
+
+10
+00:01:27,540 --> 00:01:34,540
+and it's four-way set associative. So remember that the TLB caches has 16 entries and it's four-way set associative.
+
+11
+00:01:34,540 --> 00:01:36,540
+as page table entries.
+
+12
+00:01:36,540 --> 00:01:40,540
+And those page table entries are uniquely identified by the virtual page number.
+
+13
+00:01:40,540 --> 00:01:48,990
+So we only need to use the VPN to access entries to access entries in the TLB.
+
+14
+00:01:48,990 --> 00:01:55,990
+We have 16 entries, four-way set associative, so there's a total of four sets.
+
+15
+00:01:55,990 --> 00:02:04,970
+And so we use the two low order bits in the VPN as the index, and then the
+
+16
+00:02:04,970 --> 00:02:09,130
+And then the remaining bits, just like any other cache, are the tag bits.
+
+17
+00:02:09,130 --> 00:02:14,120
+Okay, and then this, we've initialized this with some various values.
+
+18
+00:02:14,120 --> 00:02:25,530
+Now notice that the actual contents of the TLB are in this region here, right?
+
+19
+00:02:25,530 --> 00:02:28,530
+So the set, this is just to help identify what's set.
+
+20
+00:02:28,530 --> 00:02:32,530
+There is no entry called set with a value of zero, right?
+
+21
+00:02:32,530 --> 00:02:36,530
+We just, we're just, we're just identifying that as a, yeah.
+
+22
+00:02:36,530 --> 00:02:42,920
+is a, we're just explicitly listing the index.
+
+23
+00:02:42,920 --> 00:02:45,920
+And so each of our entries in the TLB consists of this tag.
+
+24
+00:02:45,920 --> 00:02:52,980
+And if the TLB entry is valid, a physical page number.
+
+25
+00:02:52,980 --> 00:02:55,360
+Okay.
+
+26
+00:02:55,360 --> 00:03:05,520
+Now, we also need a page table, so we'll have, we'll assume that we have this page table with,
+
+27
+00:03:05,520 --> 00:03:08,520
+and we're just showing the first 16 entries.
+
+28
+00:03:08,520 --> 00:03:11,700
+And the each page table entry
+
+29
+00:03:11,720 --> 00:03:16,180
+consists of a physical page number and a valid bit.
+
+30
+00:03:16,180 --> 00:03:25,810
+If valid bit is on, then that indicates that the page is in memory and the PPN field gives the physical page number.
+
+31
+00:03:25,810 --> 00:03:32,880
+Okay, and again, there's no actual, this VPN column doesn't actually exist in the page table.
+
+32
+00:03:32,880 --> 00:03:42,570
+Okay, and now we have a simple, a simple direct mapped cache.
+
+33
+00:03:42,570 --> 00:03:43,550
+It's addressed with
+
+34
+00:03:43,570 --> 00:03:53,490
+physical addresses like and it contains 16 sets each with one line and we'll assume
+
+35
+00:03:53,490 --> 00:04:02,060
+assume a 4 byte block size so we have so we have a 4 byte block size so we need
+
+36
+00:04:02,060 --> 00:04:12,170
+two offset bits for the cache 16 sets means we need four byte index bits and then the
+
+37
+00:04:12,170 --> 00:04:16,460
+remaining bits are for the tags.
+
+38
+00:04:16,460 --> 00:04:24,780
+Now it's just an accident in the way that I define this this system that the cache tags are
+
+39
+00:04:24,780 --> 00:04:29,060
+exactly the same as the physical page number. So this this this is just the
+
+40
+00:04:29,060 --> 00:04:37,210
+coincidence and it doesn't isn't necessarily that way. Okay, now with the
+
+41
+00:04:37,210 --> 00:04:46,540
+the magic of AV audiovisual systems switch switch. Good. Okay, so let's
+
+42
+00:04:46,540 --> 00:04:51,540
+We're going to look at this, a couple examples, using this little system.
+
+43
+00:04:51,540 --> 00:05:16,310
+Okay, now, so let's suppose the CPU executes an instruction that generates an effective address, it's a virtual address, of 0X, 03,0,0,000, and then it passes that to the MMU, which is, needs to figure out the, the corresponding physical address, and then it needs to fetch the data from cache the data from cache or memory.
+
+44
+00:05:16,310 --> 00:05:30,710
+Okay, so let's, the first thing we do is we just write out the bits for this virtual address, okay, and then we identify the different fields.
+
+45
+00:05:30,710 --> 00:05:40,590
+Okay, so we have the offset, the virtual page offset bits, and then the remaining bits are the virtual page number, okay?
+
+46
+00:05:40,590 --> 00:06:08,400
+The offset in this case is 2-4, 0x-24. The VPN is F. And then we have the VPN is F. And then we have the 2-LBI bits, which are 1-1, so 3. And then we have the tag bits, which are also equal to 3.
+
+47
+00:06:08,400 --> 00:06:20,750
+So the first thing that the MMU does, given this address, is it checks the TLB on hoping that the page table entry that it needs is cached in the in the TLB.
+
+48
+00:06:21,700 --> 00:06:38,400
+So it goes, extracts the index bits, 3, and that that gives us, so now that, that says that if this page table entry is in the TLB, it's going to be in set 3.
+
+49
+00:06:39,580 --> 00:06:41,660
+Okay, so we go to set 3.
+
+50
+00:06:41,660 --> 00:06:50,430
+and now we're looking for an entry in set 3 with a tag of 3.
+
+51
+00:06:52,230 --> 00:06:55,770
+Okay, so we go across this one, there's four entries in this.
+
+52
+00:06:56,800 --> 00:07:00,860
+Here's an entry with a tag of 7, so that's not it, and plus the valid bit's 0.
+
+53
+00:07:02,040 --> 00:07:06,680
+Oh, here's a, here's an entry with a tag of 3 and a valid bit of 1.
+
+54
+00:07:06,680 --> 00:07:14,170
+So we lucked out the page table entries in the TLB, and so the TLB returns the TLB returns the value.
+
+55
+00:07:14,990 --> 00:07:21,370
+the physical page number, which is 0D, back to the MMU, which can now construct
+
+56
+00:07:21,370 --> 00:07:22,970
+the physical address.
+
+57
+00:07:23,810 --> 00:07:32,300
+So it constructs that physical address, PA, by copying, directly copying, the VPO bits to the
+
+58
+00:07:32,300 --> 00:07:33,940
+PPO bits, okay, right?
+
+59
+00:07:33,940 --> 00:07:40,320
+So you discussed the last time that the virtual page offsets always identical to the physical page offset,
+
+60
+00:07:40,320 --> 00:07:44,800
+because the block sizes in the virtual address space and the physical address space are the same
+
+61
+00:07:45,020 --> 00:07:52,020
+Okay, so here, so we get the low order PPO bits, and then the physical page number,
+
+62
+00:07:52,020 --> 00:07:59,020
+which came, which comes from the PTE that's cached in the TLB is zero XD, and so that forms the
+
+63
+00:07:59,020 --> 00:08:03,020
+PPN bits of the physical address.
+
+64
+00:08:03,020 --> 00:08:07,020
+So the cut these, these now constitute our physical address.
+
+65
+00:08:08,630 --> 00:08:14,430
+So now the next step, once we have the physical address is to look, to send that to the cache and ask the
+
+66
+00:08:14,430 --> 00:08:19,010
+to return the value at that address.
+
+67
+00:08:19,010 --> 00:08:22,010
+And in this case, we're just doing one byte accesses.
+
+68
+00:08:22,010 --> 00:08:28,040
+Okay. So we're asking the cache to return the byte that's in this, at this physical address.
+
+69
+00:08:28,040 --> 00:08:36,310
+Okay, so the cache, of course, it first checks to see if that, if the,
+
+70
+00:08:36,310 --> 00:08:40,340
+the byte that's requested is contained in some block in the cache.
+
+71
+00:08:40,340 --> 00:08:46,860
+Okay, so we, so it takes and it extracts the cache index bits.
+
+72
+00:08:46,860 --> 00:08:52,720
+which is 0101, so 5.
+
+73
+00:08:52,720 --> 00:08:57,720
+And so if this byte that's being requested is in the cache, it's going to be in set 5.
+
+74
+00:08:57,720 --> 00:09:06,220
+So we go to set 5, and then we're looking for a tag of 0xD.
+
+75
+00:09:06,220 --> 00:09:12,250
+And lo and behold, here's, we have a matching tag and a matching valid bit.
+
+76
+00:09:12,250 --> 00:09:16,250
+So the good, the line that we requested is in the cache.
+
+77
+00:09:16,250 --> 00:09:19,440
+And the word that, the word that we requested is in the cache.
+
+78
+00:09:19,440 --> 00:09:22,440
+that we requested is at offset 2.
+
+79
+00:09:22,440 --> 00:09:30,450
+Okay, so we go to, so this is offset 1, this is offset 2.
+
+80
+00:09:30,450 --> 00:09:34,080
+Oh no, I'm sorry.
+
+81
+00:09:34,080 --> 00:09:50,510
+Let's see.
+
+82
+00:09:50,510 --> 00:09:55,040
+Oh, I'm sorry.
+
+83
+00:09:55,040 --> 00:09:57,580
+It's at, I was getting confused.
+
+84
+00:09:57,580 --> 00:09:59,580
+These are the index bits.
+
+85
+00:09:59,580 --> 00:10:01,580
+So the offset is actually zero.
+
+86
+00:10:01,580 --> 00:10:06,340
+And here's the, this is our physical address.
+
+87
+00:10:06,340 --> 00:10:08,340
+Okay.
+
+88
+00:10:08,340 --> 00:10:12,860
+And the, the value of that offset is zero.
+
+89
+00:10:12,860 --> 00:10:13,860
+So we're asking.
+
+90
+00:10:13,860 --> 00:10:21,950
+for the, in the fifth set, we're asking for the byte at offset 0, and that's 0 x3 6.
+
+91
+00:10:21,950 --> 00:10:30,950
+So we have a hit. The cache returns that byte back to the MMU, which passes it back to the processor,
+
+92
+00:10:30,950 --> 00:10:37,480
+which stores it in a register, most likely.
+
+93
+00:10:37,480 --> 00:10:39,480
+Okay, so let's look at another example.
+
+94
+00:10:39,480 --> 00:10:47,770
+And I've recorded these here for you if you want to go back and look at them.
+
+95
+00:10:47,770 --> 00:10:49,990
+Let's look at another example.
+
+96
+00:10:49,990 --> 00:10:57,990
+Well, this with, so this time the CPU sends a virtual address of 0X 0020 to the MMU.
+
+97
+00:10:57,990 --> 00:11:21,420
+Okay. And so if we, if we write out the bits for that virtual address, we get this result, and then we mark off the virtual page offset, the virtual page number, and the TLB index, low order bits of the virtual page number, and the TLB index, low order,
+
+98
+00:11:21,420 --> 00:11:25,990
+and then the tag for the TLB.
+
+99
+00:11:25,990 --> 00:11:28,990
+So as step one, same as before, check with the TLB.
+
+100
+00:11:28,990 --> 00:11:32,990
+And let's see if that page table entries in the TLB, in the TLB.
+
+101
+00:11:32,990 --> 00:11:39,970
+In the, in the, in the, in the, in the TLB.
+
+102
+00:11:39,970 --> 00:11:53,310
+So we're asking, in this case, this set, if this, if this page table entry is in the, it'll be in set 0, it'll be in set 0,
+
+103
+00:11:53,310 --> 00:11:57,330
+and it'll have a tag of zero.
+
+104
+00:11:57,330 --> 00:12:03,800
+of 0. So we look in set 0 for a tag of 0.
+
+105
+00:12:03,800 --> 00:12:06,830
+This doesn't match 03.
+
+106
+00:12:06,830 --> 00:12:09,280
+Here's 09, that doesn't match.
+
+107
+00:12:09,280 --> 00:12:11,280
+09, that doesn't match.
+
+108
+00:12:11,280 --> 00:12:14,280
+Zero, 0 matches, but the valid bits, 0.
+
+109
+00:12:14,280 --> 00:12:15,280
+So this isn't a valid entry.
+
+110
+00:12:15,280 --> 00:12:19,280
+It's just a coincidence that this tag was 0.
+
+111
+00:12:19,280 --> 00:12:21,340
+So this is a TLB miss.
+
+112
+00:12:21,340 --> 00:12:23,570
+Okay, so that's a bummer because
+
+113
+00:12:23,570 --> 00:12:27,570
+now we have to go off the chip and make an expensive
+
+114
+00:12:27,570 --> 00:12:34,790
+memory access to read that page table entry from the page table.
+
+115
+00:12:34,790 --> 00:12:37,500
+So now we have to check with the page table.
+
+116
+00:12:37,500 --> 00:12:40,500
+So now we have to check with the page table.
+
+117
+00:12:40,500 --> 00:12:56,480
+And we're looking for virtual page 0.
+
+118
+00:12:56,480 --> 00:13:04,360
+So we check the entry at virtual page 0
+
+119
+00:13:04,360 --> 00:13:08,460
+to see if that page is in memory.
+
+120
+00:13:08,460 --> 00:13:11,600
+And if so, if it has a valid
+
+121
+00:13:11,620 --> 00:13:15,620
+it is in memory because the valid bits 1.
+
+122
+00:13:15,620 --> 00:13:19,620
+So this, so we have a valid physical page number.
+
+123
+00:13:19,620 --> 00:13:23,620
+So the memory returns the page table entry, or the
+
+124
+00:13:23,620 --> 00:13:28,260
+the PPN back to the
+
+125
+00:13:28,260 --> 00:13:34,580
+MMU, which is a, it's a 0x, 0x28.
+
+126
+00:13:34,580 --> 00:13:38,580
+And now the MMU can use that physical page number
+
+127
+00:13:38,580 --> 00:13:41,580
+to construct the physical address.
+
+128
+00:13:41,580 --> 00:13:42,560
+So as before, we copy.
+
+129
+00:13:42,580 --> 00:13:47,960
+the virtual page offset directly into the physical page offset.
+
+130
+00:13:47,960 --> 00:13:55,960
+And then our PPN is 2.8. So we have 1-0, it's 2-1008.
+
+131
+00:13:55,960 --> 00:14:01,250
+So now the concatenated those form the physical address.
+
+132
+00:14:01,250 --> 00:14:09,380
+And now the MMU has a physical address that it can hand off to the cache and request that the cache
+
+133
+00:14:09,380 --> 00:14:12,380
+cash return that value at that physical address.
+
+134
+00:14:12,380 --> 00:14:13,380
+address.
+
+135
+00:14:13,380 --> 00:14:27,220
+So now the cache gets that physical address and it extracts the cache index bits, which in this case are 8,
+
+136
+00:14:27,220 --> 00:14:29,220
+okay, 0x8.
+
+137
+00:14:29,220 --> 00:14:35,770
+So if this, the block, if the word that we're looking for is contained in the cache, I'm sorry,
+
+138
+00:14:35,770 --> 00:14:41,120
+if the byte that we're looking for is contained in the cache, it'll be in set 8.
+
+139
+00:14:41,120 --> 00:14:47,480
+Okay, so we go, so the cache goes to set 8, and it looks for a matching tag, which
+
+140
+00:14:47,500 --> 00:14:54,590
+which in this case is, it turns out that it's 28, just like the PPN, just by coincidence.
+
+141
+00:14:54,590 --> 00:15:04,030
+So in set 8, we have a tag of, we have an entry, the block has a tag of 24, so there's a miss.
+
+142
+00:15:04,030 --> 00:15:05,260
+Okay.
+
+143
+00:15:05,260 --> 00:15:13,380
+So this is a cache miss, so now the cache has to request, pass that physical address to the memory, to fetch that bite.
+
+144
+00:15:13,380 --> 00:15:14,380
+Yes?
+
+145
+00:15:14,380 --> 00:15:23,860
+How do you, yeah, the question is, how do you know, how do you determine the size of the,
+
+146
+00:15:23,860 --> 00:15:26,860
+a virtual page offset and yes, it's based on the page size.
+
+147
+00:15:26,860 --> 00:15:29,790
+So what are we assuming the page is?
+
+148
+00:15:29,790 --> 00:15:31,790
+It was 64 bytes.
+
+149
+00:15:31,790 --> 00:15:40,030
+So 64 bytes, so that's why we have six, six VPO and PPO bits.
+
+150
+00:15:40,030 --> 00:15:45,260
+Okay, so is that clear to everybody?
+
+151
+00:15:45,260 --> 00:15:55,930
+That's the kind of thing that sometimes turns up on exams, you know, just.
+
+152
+00:15:55,930 --> 00:15:56,930
+Yes.
+
+153
+00:15:56,930 --> 00:16:02,960
+Is there any relationship between the length of physical page number and the cash tag?
+
+154
+00:16:02,960 --> 00:16:06,060
+Okay, so the question is, is there any relationship
+
+155
+00:16:06,060 --> 00:16:10,150
+between the length of the physical page number and the cache tag.
+
+156
+00:16:10,150 --> 00:16:15,150
+This was just a complete coincidence. Okay, it just happened, it was just a coincidence.
+
+157
+00:16:15,150 --> 00:16:19,150
+They normally, they don't necessarily have to line up like that.
+
+158
+00:16:19,150 --> 00:16:24,420
+Any other questions?
+
+159
+00:16:24,420 --> 00:16:25,420
+Yes.
+
+160
+00:16:25,420 --> 00:16:29,640
+So, in this case, the fact that the PDN is also like it was a coincidence.
+
+161
+00:16:29,640 --> 00:16:32,090
+So, so.
+
+162
+00:16:32,090 --> 00:16:38,090
+For instance, if I'd had more sets in my cache, then I'd need more bits and they'd spill over, right?
+
+163
+00:16:38,090 --> 00:16:40,070
+If my, if my, it was just, it was just,
+
+164
+00:16:40,090 --> 00:16:49,090
+a coincidence because I had six PPO bits and just a block size of four and four sets.
+
+165
+00:16:49,090 --> 00:16:55,090
+So if I, if my cache had more sets, the cash index would spill over and then the cash tag wouldn't
+
+166
+00:16:55,090 --> 00:16:57,090
+match up with the physical page number.
+
+167
+00:16:57,090 --> 00:17:00,680
+Okay.
+
+168
+00:17:00,680 --> 00:17:04,680
+So it's a similar situation before where, like, in this case, it's just coincidence.
+
+169
+00:17:04,680 --> 00:17:05,680
+That's right.
+
+170
+00:17:05,680 --> 00:17:07,680
+It's similar to the question before.
+
+171
+00:17:07,680 --> 00:17:09,680
+It just happened to be a coincidence.
+
+172
+00:17:09,680 --> 00:17:11,680
+Maybe I should have chosen a different example, but.
+
+173
+00:17:11,680 --> 00:17:13,030
+Um.
+
+174
+00:17:13,030 --> 00:17:18,780
+They're completely independent.
+
+175
+00:17:18,780 --> 00:17:28,100
+Everybody else good?
+
+176
+00:17:28,100 --> 00:17:32,620
+Okay, so now I want to, I want to talk to you about how,
+
+177
+00:17:32,620 --> 00:17:34,620
+how this stuff all works in a real system.
+
+178
+00:17:34,620 --> 00:17:37,620
+In this case, it's a Core I7 system from Intel,
+
+179
+00:17:37,620 --> 00:17:39,620
+it's an x86-66-64.
+
+180
+00:17:39,620 --> 00:17:43,620
+It's a family of high-end desktop systems,
+
+181
+00:17:43,620 --> 00:17:46,620
+X8664, similar to the,
+
+182
+00:17:46,620 --> 00:17:55,500
+the shark machines that you use to do your labs.
+
+183
+00:17:55,500 --> 00:17:56,500
+So here's the,
+
+184
+00:17:56,500 --> 00:18:01,820
+Here's the way the memory system looks in the core I-7.
+
+185
+00:18:01,820 --> 00:18:05,010
+The processor package is the chip.
+
+186
+00:18:05,010 --> 00:18:07,200
+Okay, so that's like a single.
+
+187
+00:18:07,200 --> 00:18:11,680
+And then there's four cores in this package.
+
+188
+00:18:11,680 --> 00:18:16,680
+Each core is a separate, has a separate CPU,
+
+189
+00:18:16,680 --> 00:18:20,680
+and can execute instructions separately.
+
+190
+00:18:20,680 --> 00:18:22,480
+Okay?
+
+191
+00:18:22,480 --> 00:18:27,990
+So each of these cores has a register file, and then some hardware
+
+192
+00:18:27,990 --> 00:18:31,410
+some hardware that fetches instructions.
+
+193
+00:18:31,410 --> 00:18:33,410
+It has two L1 caches.
+
+194
+00:18:33,410 --> 00:18:36,410
+There's a data cache called a D-cash,
+
+195
+00:18:36,410 --> 00:18:42,140
+which is used to fetch data, which holds data,
+
+196
+00:18:42,140 --> 00:18:45,140
+which holds data, fetched from memory.
+
+197
+00:18:45,140 --> 00:18:48,140
+And then there's an instruction cache called an iCache,
+
+198
+00:18:48,140 --> 00:18:54,550
+which holds instructions, fetched from the code region.
+
+199
+00:18:54,550 --> 00:18:59,550
+So data, this, the de-cash has data only, the iCash has data only,
+
+200
+00:18:59,550 --> 00:19:05,550
+instructions only. They're each 32K bytes, eight-way set associative.
+
+201
+00:19:05,550 --> 00:19:10,700
+So they're very small, but they have fairly high associativity.
+
+202
+00:19:10,700 --> 00:19:16,860
+And then the next level in the hierarchy is an L2 so-called unified cache,
+
+203
+00:19:16,860 --> 00:19:21,410
+because they can hold both instructions and data.
+
+204
+00:19:21,410 --> 00:19:28,020
+It's a little bit bigger, 256K bytes, and also eight-way associative.
+
+205
+00:19:28,020 --> 00:19:31,020
+And so both of these caches are on the, on the core.
+
+206
+00:19:31,020 --> 00:19:33,300
+on the core itself.
+
+207
+00:19:33,300 --> 00:19:35,040
+Okay.
+
+208
+00:19:35,040 --> 00:19:40,040
+And then outside, and then there's an L3 cache, which is shared by all cores,
+
+209
+00:19:40,040 --> 00:19:44,650
+which is 8 megabytes and 16-way associative.
+
+210
+00:19:44,650 --> 00:19:48,650
+Okay, so the access is, because the L1 cache is closest to the processor,
+
+211
+00:19:48,650 --> 00:19:50,840
+this is fast.
+
+212
+00:19:50,840 --> 00:19:53,840
+This is like four cycles to access L1.
+
+213
+00:19:53,840 --> 00:20:02,190
+L2 is bigger, and a little further away, so it's about 10 cycles to access
+
+214
+00:20:02,190 --> 00:20:16,020
+to access this. And L3 is off the core, right? So it has to go over a connection, some connection off the chip into this cache.
+
+215
+00:20:16,020 --> 00:20:26,590
+And so the access time for this L3 cache is like 50, 30 to 50 cycles.
+
+216
+00:20:26,590 --> 00:20:34,700
+Now the MMU has, it also has a hierarchy of TLBs. And I was talking with a St.LBs. And I was talking with a
+
+217
+00:20:34,720 --> 00:20:44,910
+after class the last lecture, and I mistakenly said that the system didn't have a hierarchy of TLBs, but it does.
+
+218
+00:20:44,910 --> 00:20:53,420
+There's a small L1 data TLB and a separate instruction TLB.
+
+219
+00:20:53,420 --> 00:20:59,490
+So this has 64 total entries in its four-way set associative.
+
+220
+00:20:59,490 --> 00:21:03,030
+So how many sets are there then in this?
+
+221
+00:21:03,030 --> 00:21:06,820
+How many sets in this?
+
+222
+00:21:06,820 --> 00:21:07,820
+How many sets in the L1?
+
+223
+00:21:07,820 --> 00:21:09,820
+data TLB?
+
+224
+00:21:09,820 --> 00:21:15,700
+16, right?
+
+225
+00:21:15,700 --> 00:21:16,700
+Good.
+
+226
+00:21:16,700 --> 00:21:19,700
+And then the instruction TLB has more entries, interestingly.
+
+227
+00:21:19,700 --> 00:21:23,590
+So it's an interesting decision.
+
+228
+00:21:23,590 --> 00:21:29,590
+I guess the, I guess the thinking, I don't really know, I'm just trying to conjecturing,
+
+229
+00:21:29,590 --> 00:21:34,880
+that the reason they would make the instruction TLB bigger
+
+230
+00:21:34,880 --> 00:21:46,670
+is that the penalty for missing on instructions would be much larger.
+
+231
+00:21:46,670 --> 00:21:47,670
+But yeah, I'm not sure.
+
+232
+00:21:47,670 --> 00:21:50,440
+But yeah, I'm not sure that's an interesting decision.
+
+233
+00:21:50,440 --> 00:21:57,820
+And then there's a unified TLB below that, which is larger, larger still.
+
+234
+00:21:57,820 --> 00:22:04,400
+So the, I think, if you're wondering, I mean, it's interesting to think, like, why do they have these, like,
+
+235
+00:22:04,400 --> 00:22:06,500
+like these second level caches?
+
+236
+00:22:06,500 --> 00:22:10,500
+Why didn't they just make these L1 caches bigger?
+
+237
+00:22:10,500 --> 00:22:20,350
+And in the case of the, in the case of the, in the case of the decash and the iCash over here,
+
+238
+00:22:20,350 --> 00:22:21,350
+I'll show you.
+
+239
+00:22:21,350 --> 00:22:26,350
+just a little bit if you hang on, there's a really interesting reason why they can't make
+
+240
+00:22:26,350 --> 00:22:29,350
+these things bigger or much bigger right there.
+
+241
+00:22:29,350 --> 00:22:37,540
+There's a, there's a, so there's a, there's a, there's a property of the, they're sort of,
+
+242
+00:22:37,540 --> 00:22:43,540
+they're constrained in the size of the offset and index bits in these, these caches.
+
+243
+00:22:43,540 --> 00:22:45,540
+It's interesting, I'll show you in a second.
+
+244
+00:22:45,540 --> 00:22:52,680
+For that, for the TLB, I mean, one reason that comes to mind for why they didn't
+
+245
+00:22:52,700 --> 00:23:01,700
+why they have the second level is that if they decided just to make the L1 DTLB and ITLBs bigger,
+
+246
+00:23:01,700 --> 00:23:10,700
+you know, take the, take the transistors that they used for this L2 and just give them to the level 1 TLBs.
+
+247
+00:23:10,700 --> 00:23:22,210
+It, you kind of by partitioning those, by partitioning those, those, those, that storage ahead of time, you're kind of, you're kind of,
+
+248
+00:23:22,210 --> 00:23:30,410
+locking yourself in. So if you didn't have this level 2 TLB and and you just
+
+249
+00:23:30,410 --> 00:23:36,650
+increased, say you gave half, and so it made L1 and the data TLB and instruction TLB twice
+
+250
+00:23:36,650 --> 00:23:44,250
+as big, then you're sort of locking yourself in, right? If you run, you might run out of, you
+
+251
+00:23:44,250 --> 00:23:52,640
+you still might run out of instructions and have capacity misses in that, in that L1 cache, you
+
+252
+00:23:52,660 --> 00:23:54,380
+And similarly for data, right?
+
+253
+00:23:54,380 --> 00:23:58,060
+So you're not sure you may, in a particular program,
+
+254
+00:23:58,060 --> 00:24:05,280
+there may be a lot more data page table entries than instruction page table entries, or vice versa.
+
+255
+00:24:06,280 --> 00:24:13,270
+So by creating the second level of cash, you're kind of hedging your bets, right?
+
+256
+00:24:13,270 --> 00:24:21,720
+So you may, the missed penalty, when you have this L2 cache, the miss penalty, the miss penalty, the
+
+257
+00:24:21,720 --> 00:24:26,720
+miss penalty in L1 isn't nearly as big as it would be as if you didn't.
+
+258
+00:24:26,720 --> 00:24:35,850
+Okay. So that, that's sort of the thinking that goes on. Now there's a, there's a memory
+
+259
+00:24:35,850 --> 00:24:43,620
+controller which kind of fetches data from memory, and then there's links to other
+
+260
+00:24:43,620 --> 00:24:53,800
+cores and to the I-O bridge. Now, end-to-end, so it's really interesting. So it's, it's interesting to see
+
+261
+00:24:53,800 --> 00:24:57,960
+how this all fits together end-to-end. So it's interesting to see how this all fits together end. So,
+
+262
+00:24:58,120 --> 00:25:06,220
+Let's look at it. So the CPU generates a virtual address. In Intel systems, the virtual
+
+263
+00:25:06,220 --> 00:25:19,680
+addresses are 48 bits. We have 4K-size blocks, so 12 offset bits, and then 36 VPN bits.
+
+264
+00:25:19,680 --> 00:25:26,600
+So first we look in the cache, I mean, in the TLB, and there's, as we said before, there's 16
+
+265
+00:25:26,600 --> 00:25:30,600
+TLB sets. This is the L1. I'm showing the L1 data TLB.
+
+266
+00:25:30,620 --> 00:25:39,290
+So we break it up into four TLBI index bits and 32 tag bits. So we do a look-up
+
+267
+00:25:39,290 --> 00:25:46,570
+on the in the TLB to see if we can find the PTE that the PTE that contains the corresponding physical page
+
+268
+00:25:46,570 --> 00:25:54,310
+number for this virtual address. If we have a hit, then the MMU can just construct the physical
+
+269
+00:25:54,310 --> 00:26:01,330
+address directly by copying, as we saw before, copying the VPO to the PPO and then using the PPN
+
+270
+00:26:01,330 --> 00:26:11,410
+that was returned from the TLB. How's that for now, acronym? If there's a TLB miss,
+
+271
+00:26:11,410 --> 00:26:20,970
+then the system has to fetch the system has to fetch the corresponding PPN from the page table using that
+
+272
+00:26:20,970 --> 00:26:26,050
+multi-way lookup we looked, multi-level lookup we looked at before. And I'll show you how
+
+273
+00:26:26,050 --> 00:26:34,160
+this works in a little more detail coming up. But the end result is that a page table entry
+
+274
+00:26:34,160 --> 00:26:39,380
+is located and the PPN is extracted from that and
+
+275
+00:26:39,380 --> 00:26:45,380
+and concatenated with the PPO to form the physical address.
+
+276
+00:26:45,380 --> 00:26:49,510
+Then the MMU passes that physical address to the
+
+277
+00:26:49,510 --> 00:26:56,770
+cache. The L1 data cache has 64 sets, so we need six
+
+278
+00:26:56,770 --> 00:27:00,960
+cache index bits. Now, here's what I was alluding to before
+
+279
+00:27:00,960 --> 00:27:10,400
+before notice that the number of cash index and cash offset bits is exactly identical
+
+280
+00:27:10,400 --> 00:27:18,300
+to the VPO in the virtual address okay so the the the cash offset and index bits in the
+
+281
+00:27:18,300 --> 00:27:25,960
+physical address are identical to the the the VPO the offset bits in the virtual
+
+282
+00:27:25,960 --> 00:27:30,460
+address okay and this is not a coincidence okay unlike that other example I
+
+283
+00:27:30,460 --> 00:27:32,000
+showed you this is not a coincidence
+
+284
+00:27:32,020 --> 00:27:40,300
+And this is at the root, this is at the root of why the L1 cache is so small.
+
+285
+00:27:41,140 --> 00:27:47,380
+It's that the way Intel implements their cache lookups, which we'll see in a second,
+
+286
+00:27:47,940 --> 00:27:55,300
+depends on the cash index and cash offset bits in the physical address being identical to the offset bits in the virtual address.
+
+287
+00:27:56,440 --> 00:28:01,780
+So anyway, so then we do our cache, we do our cache lookup using the cache does a lookup using the,
+
+288
+00:28:01,780 --> 00:28:09,420
+using this physical address, takes the index bits to identify a set, uses the
+
+289
+00:28:09,420 --> 00:28:18,340
+tag to see if there's a match. If there is, then we have a hit, which returns the resulting word back to
+
+290
+00:28:18,340 --> 00:28:26,080
+the CPU. Otherwise, there's a miss, so then the cache has to request the data from L2, L3, and main
+
+291
+00:28:26,080 --> 00:28:31,790
+memory. Eventually, worst case, that that data comes from main memory.
+
+292
+00:28:31,790 --> 00:28:37,360
+So I guess, worst case, it comes from disk, right, if you have a page miss, a page fault.
+
+293
+00:28:38,740 --> 00:28:43,710
+So eventually, though, the data comes back and is returned back to the CPU.
+
+294
+00:28:46,720 --> 00:28:52,960
+Now, the page table entries on an Intel systems have the following structure.
+
+295
+00:28:54,480 --> 00:29:04,910
+You can see that the level one page, which levels, the level one through three pages, which levels, the level one
+
+296
+00:29:04,910 --> 00:29:11,220
+through three pages, remember that, that page table entry points to the address
+
+297
+00:29:11,220 --> 00:29:18,540
+of the next level page table, okay? So it contains the level one, the level one PTE, contains the
+
+298
+00:29:18,540 --> 00:29:26,060
+level one PTE contains the base address, the physical address of the level two table, okay,
+
+299
+00:29:26,060 --> 00:29:32,360
+and so on. There's a, there's a bit, there's a bit, this is the valid bit, this is the valid bit they call
+
+300
+00:29:32,360 --> 00:29:35,660
+it the P for present, the P for present, so this is the present. So this
+
+301
+00:29:35,900 --> 00:29:42,340
+whether the page is in memory or not. If it's not, then it's, then it's, then there's a, the location
+
+302
+00:29:42,340 --> 00:29:53,190
+of that, of that page table on disk. There's bits, the control, whether the, the, the, that
+
+303
+00:29:53,190 --> 00:30:00,390
+page table can be read, is it, is a read only, or it can be written. Oh, actually, this
+
+304
+00:30:00,390 --> 00:30:07,680
+this corresponds to all reachable pages. So, you know, you know, you can, so all reachable pages, so all, all
+
+305
+00:30:07,680 --> 00:30:14,680
+of the portion of the address space that's covered by this particular page table entry.
+
+306
+00:30:14,680 --> 00:30:21,480
+There's also a bit that indicates whether users can access that or if they need to be running
+
+307
+00:30:21,480 --> 00:30:27,940
+in kernel mode. So this is how the kernel protects its code and data from user programs.
+
+308
+00:30:29,430 --> 00:30:38,070
+There's a bit here to indicate whether we should be using writeback or write-through for these page tables.
+
+309
+00:30:38,230 --> 00:30:43,540
+And all the systems I know of use writeback just because of the miss penalty, the enormous
+
+310
+00:30:43,540 --> 00:30:45,450
+mispenalty.
+
+311
+00:30:45,450 --> 00:30:50,310
+Forget what CD does.
+
+312
+00:30:50,310 --> 00:30:55,310
+There's a, there's a reference bit which is set when the MMU reads or writes.
+
+313
+00:30:55,310 --> 00:31:03,780
+Um, reads or writes that the page table at this points to.
+
+314
+00:31:03,780 --> 00:31:10,880
+And there's, and then there's a, there's a bit that indicates whether the page size is either 4K bytes or 4 megabytes.
+
+315
+00:31:10,880 --> 00:31:12,110
+Okay.
+
+316
+00:31:12,110 --> 00:31:12,530
+And then there's a, there's a bit that indicates that indicates whether there's a bit that indicates whether there's a bit that.
+
+317
+00:31:12,550 --> 00:31:20,730
+There's this, there's this, there's this new disable, it's the XD bit which, which
+
+318
+00:31:20,730 --> 00:31:27,930
+which disables allows you to disable or enable execution from all the pages reachable from that page table
+
+319
+00:31:27,930 --> 00:31:28,930
+entry.
+
+320
+00:31:28,930 --> 00:31:36,600
+So this is how the stack, modern systems protect the stack, from code injection attacks.
+
+321
+00:31:36,600 --> 00:31:43,240
+Okay, the last level page table entry points to a fork, it points to not another page table table, but actually
+
+322
+00:31:43,240 --> 00:31:50,930
+a page in memory. And so the same, we have the same bits here, the same 40 bits that give
+
+323
+00:31:50,930 --> 00:32:01,290
+the physical address of that page in memory. And then we have the indication of whether that page is present
+
+324
+00:32:01,290 --> 00:32:09,370
+in memory or not, and the read write and permission, execute permission bits right through
+
+325
+00:32:09,370 --> 00:32:14,370
+or right back. There's a reference, there's this reference bit. And then there's this reference bit.
+
+326
+00:32:14,390 --> 00:32:20,150
+there's a dirty bit which the MMU sets when it writes to that page.
+
+327
+00:32:20,150 --> 00:32:25,630
+Okay, so this is how, this is how the OS knows that it needs to, when it selects this, if it
+
+328
+00:32:25,630 --> 00:32:31,840
+selects this page as a victim, it looks at the dirty bit to see if it needs to write that
+
+329
+00:32:31,840 --> 00:32:32,760
+page back.
+
+330
+00:32:32,760 --> 00:32:33,950
+Did you have a question?
+
+331
+00:32:33,950 --> 00:32:41,160
+Oh, the protection that are being provided by the use like S bit, where you said
+
+332
+00:32:41,160 --> 00:32:41,320
+they're both.
+
+333
+00:32:41,320 --> 00:32:47,600
+Oh, execute, execute means that you can't execute means that you can't execute any instructions.
+
+334
+00:32:47,600 --> 00:32:51,600
+You can't load any instructions from that page.
+
+335
+00:32:51,600 --> 00:32:52,600
+Okay.
+
+336
+00:32:52,600 --> 00:33:03,190
+The, this user or supervisor mode determines whether you can access that page.
+
+337
+00:33:03,190 --> 00:33:09,190
+So if it's set to supervisor mode, only the supervisor mode only the kernel can access that page.
+
+338
+00:33:09,190 --> 00:33:10,190
+Anything on that page.
+
+339
+00:33:10,190 --> 00:33:17,630
+If it's set to you, then any user code and kernel code can access that page.
+
+340
+00:33:17,630 --> 00:33:18,630
+Any other questions?
+
+341
+00:33:18,630 --> 00:33:23,340
+Okay.
+
+342
+00:33:23,340 --> 00:33:24,340
+Okay.
+
+343
+00:33:24,340 --> 00:33:25,560
+Okay.
+
+344
+00:33:25,560 --> 00:33:31,920
+address translation then is the physical for this process, so the kernel for each process maintains
+
+345
+00:33:31,920 --> 00:33:35,920
+the set of page tables, of course, and then it maintains the, you know, set of page tables, of course, and
+
+346
+00:33:35,920 --> 00:33:44,170
+then it maintains the address of the first level one table in a register called CR3.
+
+347
+00:33:44,170 --> 00:33:52,960
+Okay, and this is a physical address, points to the base of the level one page table.
+
+348
+00:33:52,960 --> 00:33:56,960
+The VPN is broken up into 36 divided by four.
+
+349
+00:33:56,960 --> 00:34:06,960
+divided by 4 equals 9 bits that give offsets into each page table entry.
+
+350
+00:34:06,960 --> 00:34:21,490
+Okay, so there's 2 to the 9th potential page table entries in each, in each, in each of these different page tables.
+
+351
+00:34:21,490 --> 00:34:28,490
+So the VPN1 is used, the high order 9 bits are used to compute an offset into that table.
+
+352
+00:34:28,490 --> 00:34:32,760
+into that table.
+
+353
+00:34:32,760 --> 00:34:41,710
+And you can see each level one PTE covers a swath of memory that's 512 gigabytes in size.
+
+354
+00:34:41,710 --> 00:34:48,910
+So you can see for most programs that exist today, you only need one level one page table
+
+355
+00:34:48,910 --> 00:34:50,510
+entry to be initialized.
+
+356
+00:34:50,510 --> 00:34:56,640
+That would cover, you know, the vast majority of your programs.
+
+357
+00:34:56,640 --> 00:35:01,640
+The next nine bits, it's, so the page table entry, the page table entry, you know, the vast majority of your programs.
+
+358
+00:35:01,640 --> 00:35:13,020
+in the level one page table points to the, it gives the physical address of the level 2 page table.
+
+359
+00:35:13,020 --> 00:35:22,680
+And then the VPN bits in the virtual address are used to compute an offset into that table and so on.
+
+360
+00:35:22,680 --> 00:35:23,580
+It just cascades.
+
+361
+00:35:23,580 --> 00:35:32,100
+And then finally, the last, the low order bits of the 9 bits of the VPN are used to form an offset into the
+
+362
+00:35:32,100 --> 00:35:41,560
+level four page table which in which each each each PTE points to an actual page
+
+363
+00:35:41,560 --> 00:35:47,820
+okay gives a physical page number so then that that that physical page number then is
+
+364
+00:35:47,820 --> 00:35:55,100
+is extracted and concatenated with the the the the the VPO which we've copied down to
+
+365
+00:35:55,100 --> 00:36:08,540
+form a physical address okay so is that everybody good okay now there's this there's this
+
+366
+00:36:08,540 --> 00:36:11,420
+this cool trick which I was alluding to earlier
+
+367
+00:36:11,440 --> 00:36:13,940
+that limits the size of L1 cache.
+
+368
+00:36:15,260 --> 00:36:25,480
+Now, to this point, we've been using a model where the MMU takes the virtual, does address translation,
+
+369
+00:36:26,160 --> 00:36:32,420
+and creates a complete virtual address, a physical address, and then it sends that physical address to the cache.
+
+370
+00:36:33,400 --> 00:36:40,200
+Okay, but in reality, Intel does this cute trick to speed up L1 cache accesses.
+
+371
+00:36:40,200 --> 00:36:47,880
+So what, in reality, what happens? So we're given a virtual address, okay?
+
+372
+00:36:47,880 --> 00:37:06,620
+And in this virtual address, the index and off, the physical, the index and offset bits in the physical address are identical, exactly correspond to the PPO and the physical address, which is exactly identical to the VPO and the virtual address.
+
+373
+00:37:06,620 --> 00:37:12,830
+So what that means is that when the MMU is given a virtual address,
+
+374
+00:37:12,850 --> 00:37:20,200
+it can send the VPO off to the L1 cache, even though it's a, even though
+
+375
+00:37:20,200 --> 00:37:34,590
+L1 is, is, is physically, is physically addressed, we can send the VPO and the virtual address to the L1 cache because of this, because of this phenomenon that the PPO is identical to the VPO.
+
+376
+00:37:34,590 --> 00:37:42,710
+So even before the MMU is doing any address translation, it can send this, these, these, these VPO bits to the
+
+377
+00:37:42,710 --> 00:38:05,260
+And then the cash can get busy extracting the index, the cash index bits, looking up, you know, looking up all of the lines in that, in that set, and then have everything ready for the tag check, which can only occur after the address translation happens.
+
+378
+00:38:05,260 --> 00:38:12,970
+So it can only occur once there's a physical address with a, from which we can extract the
+
+379
+00:38:12,970 --> 00:38:15,040
+the cache tag.
+
+380
+00:38:15,040 --> 00:38:19,160
+So this, so there's a little bit of parallelism now in the L1 cache accesses.
+
+381
+00:38:19,160 --> 00:38:27,160
+So we can be, the MMU can be doing address translation while the L1 cache gets going on its
+
+382
+00:38:27,160 --> 00:38:31,920
+look-up.
+
+383
+00:38:31,920 --> 00:38:41,700
+Okay, so now let's look at how Linux implements virtual, virtual memory, and in doing so, we'll now get a
+
+384
+00:38:41,700 --> 00:38:46,440
+a clear understanding of how fork and exec and loading really work.
+
+385
+00:38:46,440 --> 00:38:47,300
+Okay, so we've seen this.
+
+386
+00:38:47,320 --> 00:38:52,320
+picture like this several times before. This is the virtual address space of a Linux
+
+387
+00:38:52,320 --> 00:38:58,360
+process. Because we have, because of the way the virtual memory system works, every process has a
+
+388
+00:38:58,360 --> 00:39:07,230
+very similar-looking address space. The program text, the code, is always loaded at
+
+389
+00:39:07,230 --> 00:39:17,900
+the same 0x-400,000 address. Then that's followed by initialized data, which comes from the
+
+390
+00:39:17,900 --> 00:39:24,500
+dot data section of the executable binary. And then there's a BSS section which
+
+391
+00:39:24,500 --> 00:39:35,140
+contains un-initialized data that was defined in the binary. And then the heap, then the heap grows
+
+392
+00:39:35,140 --> 00:39:44,130
+up from the initialized data. It's pointed to by a global variable called, a global variable
+
+393
+00:39:44,130 --> 00:39:48,690
+a global variable in this process context called break, so the kernel keeps track of where
+
+394
+00:39:48,690 --> 00:39:54,070
+the top of the heap is for this process. There's a memory mapped region for shared
+
+395
+00:39:54,070 --> 00:40:02,700
+libraries. And then at the top of the user, the user level, user accessible memory, there's
+
+396
+00:40:02,700 --> 00:40:09,460
+this user stack which grows down and which is pointed to by RSP. And then the, the kernel
+
+397
+00:40:09,460 --> 00:40:16,800
+code and data live up in the upper portion of the address space. Now, this picture isn't
+
+398
+00:40:16,800 --> 00:40:20,400
+completely accurate. There's actually like a big gap.
+
+399
+00:40:20,420 --> 00:40:27,050
+between the top of the stack and the beginning of the kernel code and data.
+
+400
+00:40:27,050 --> 00:40:35,370
+The reason for that is that the Intel architecture says that the, so there's 48 virtual address bits.
+
+401
+00:40:35,370 --> 00:40:43,130
+So if that's, if the high order bit of that 48-bit address is zero, then all the, all the remaining
+
+402
+00:40:43,130 --> 00:40:49,070
+bits have to be zero. All of the remaining six, the remainder of the 64 high
+
+403
+00:40:49,070 --> 00:40:54,790
+order bits need to be zero. So it's kind of like sign extension, right? And if that, if that high
+
+404
+00:40:54,790 --> 00:41:02,570
+order bit in the 48-bit address is one, then you extend the one all the way up to the remaining
+
+405
+00:41:02,570 --> 00:41:08,090
+remaining high-order bits. Okay, so those are the only feasible bits. So what that does is it creates
+
+406
+00:41:08,090 --> 00:41:13,110
+a, the colonel's living, the kernels living in, the colonels living in a portion
+
+407
+00:41:13,130 --> 00:41:21,570
+of the virtual address space where the 12 high-order bits are all ones.
+
+408
+00:41:21,570 --> 00:41:27,570
+Okay. So that creates, so you can think of it, this is, the kernel lives in the very top of the
+
+409
+00:41:27,570 --> 00:41:36,380
+64-bit address space. Okay. Another way to think of it, and kernel addresses always start
+
+410
+00:41:36,380 --> 00:41:41,020
+with one, the most significant bit is one, and user addresses always have a most significant bit of zero.
+
+411
+00:41:41,020 --> 00:41:45,960
+Okay, but that's just a detail. It doesn't, doesn't really affect things. But
+
+412
+00:41:45,980 --> 00:41:54,520
+What is important is that this is the process, virtual address space of a process, right?
+
+413
+00:41:54,560 --> 00:41:59,040
+And so the kernel exists in the virtual address space of each process.
+
+414
+00:41:59,920 --> 00:42:09,550
+And it, so there's kernel code and data, and then it also maps, it has a region of its virtual address space that maps
+
+415
+00:42:09,550 --> 00:42:17,030
+maps each element of this, of this region with an address and physical
+
+416
+00:42:17,030 --> 00:42:23,500
+memory. Okay, so this mapping, this region is, corresponds to the amount of DRAM
+
+417
+00:42:23,500 --> 00:42:28,320
+on the chip. And so it's a mechanism that the kernel uses to get access to physical addresses.
+
+418
+00:42:29,220 --> 00:42:34,660
+Okay. And this is important because, remember, the kernel, there's, you can never,
+
+419
+00:42:34,660 --> 00:42:41,680
+you can't turn off address translation, right? It's always happening. Okay. So even, even when
+
+420
+00:42:41,680 --> 00:42:46,080
+the kernel runs, the address translation is happening. The kernel's generating virtual
+
+421
+00:42:46,080 --> 00:42:56,200
+addresses. So this, this, this, this region, this is mapped to a region of physical
+
+422
+00:42:56,200 --> 00:43:03,690
+memory so that if, if the kernel accesses byte zero of this, of this block, it'll, it'll
+
+423
+00:43:03,690 --> 00:43:10,440
+it'll actually be the, the, the, the, the, the, the, the, the, the, the corresponding physical
+
+424
+00:43:10,440 --> 00:43:15,580
+address will be zero. And if it accesses a byte at an offset of one in
+
+425
+00:43:15,580 --> 00:43:20,280
+in this region, the corresponding physical address from the address
+
+426
+00:43:20,280 --> 00:43:25,150
+address translation process will be one. Okay. So basically by reading and writing into this
+
+427
+00:43:25,150 --> 00:43:31,570
+region, the kernel is reading and writing into physical memory. And this, so there's portions
+
+428
+00:43:31,570 --> 00:43:38,650
+of the kernel that are identical for every process, right? The code's the same. It's not, but
+
+429
+00:43:38,650 --> 00:43:46,170
+then there's process-specific data structures that the kernel maintains for each process,
+
+430
+00:43:46,190 --> 00:43:52,410
+that form the context for that process. So we refer to these, we refer to all these,
+
+431
+00:43:52,410 --> 00:43:59,640
+what all these data structures as the context. And these, of course, have to be, these will be different
+
+432
+00:43:59,640 --> 00:44:10,000
+for each process. Now, Linux organizes this, this virtual address region as a collection
+
+433
+00:44:10,000 --> 00:44:16,820
+of what it calls areas. And areas like a segment. Think of it as just a chunk of it as just a chunk of, a contiguous
+
+434
+00:44:16,820 --> 00:44:20,820
+chunk of related memory items.
+
+435
+00:44:20,820 --> 00:44:32,020
+So the, there's a, there's an area for code, there's an area for code, there's an area for data, shared
+
+436
+00:44:32,020 --> 00:44:43,680
+shared libraries have areas, there's an area for this, the stack. And it, it contains, it contains,
+
+437
+00:44:43,680 --> 00:44:48,870
+there's a structure for each process called the task struct, task struct, and this
+
+438
+00:44:48,870 --> 00:44:57,280
+contains a pointer to the MM struct, which has a bunch of stuff in it, but it contains
+
+439
+00:44:57,280 --> 00:45:03,280
+the address of the level one page table. Okay, so that's part of the context. When this
+
+440
+00:45:03,280 --> 00:45:10,240
+process runs, when this process is scheduled, the kernel will take this entry, this PGD entry,
+
+441
+00:45:10,240 --> 00:45:16,940
+and it'll copy it into CR3. Okay, so that's how it switches. Just by changing the CR3 register,
+
+442
+00:45:16,940 --> 00:45:20,930
+the kernel changes the address space. So that's how it switches.
+
+443
+00:45:20,950 --> 00:45:32,670
+That's how, and once that, once that, once that CR3 value is changed, then the process no longer has access to the previous processes, page tables, right?
+
+444
+00:45:32,670 --> 00:45:40,080
+So, so, and then there's a, and then there's a pointer to a list of these, these so-called area-structs.
+
+445
+00:45:40,080 --> 00:45:47,230
+The area struct identifies the start and the beginning and end of the region.
+
+446
+00:45:47,230 --> 00:45:51,070
+Any protections, like is this read-only region?
+
+447
+00:45:51,070 --> 00:45:55,470
+For example, so the code section would be said as read-only or is it read-only?
+
+448
+00:45:55,470 --> 00:45:56,770
+Or is it read-right?
+
+449
+00:45:56,770 --> 00:46:02,220
+And then there's some other some other flags, which we'll see later.
+
+450
+00:46:02,220 --> 00:46:14,410
+In particular, when we look at sharing and mapping, for our purposes, these
+
+451
+00:46:14,430 --> 00:46:19,470
+flag bits tell us whether the page is shared with other processes or whether
+
+452
+00:46:19,470 --> 00:46:27,630
+it's private to this process. So normally the default is that pages are all private, but
+
+453
+00:46:27,630 --> 00:46:32,210
+you have the option if you do if you do a fair amount of work you can get processes to
+
+454
+00:46:32,210 --> 00:46:37,830
+share to share memory. Okay, so let's look at what happens when we have a page
+
+455
+00:46:37,830 --> 00:46:48,090
+fault. So let's say, so there's, you know, the processor, issues and instruction, the address
+
+456
+00:46:48,110 --> 00:46:56,110
+process determines that the corresponding page isn't contained in memory, so it triggers a page fault.
+
+457
+00:46:56,110 --> 00:47:03,300
+And so the fault handler, there's several, there's several things that might have happened.
+
+458
+00:47:03,300 --> 00:47:10,340
+One, maybe we were reading memory. It faulted because that memory, that memory, that area doesn't even exist.
+
+459
+00:47:10,340 --> 00:47:18,320
+So we haven't even created, the kernel hasn't even created, allocated that page in virtual
+
+460
+00:47:18,340 --> 00:47:19,340
+memory yet.
+
+461
+00:47:19,340 --> 00:47:21,340
+Okay, so that's an error.
+
+462
+00:47:21,340 --> 00:47:25,340
+So that's accessing a non-existing page elicits a seg-fault.
+
+463
+00:47:25,340 --> 00:47:32,340
+So the kernel figures that out because it runs down this list of area-structs and it doesn't
+
+464
+00:47:32,340 --> 00:47:38,340
+find this address anywhere within the ranges of those areas.
+
+465
+00:47:38,340 --> 00:47:43,780
+So that's a seg-fault caused by accessing a non-existing page.
+
+466
+00:47:43,780 --> 00:47:48,760
+Another possibility is that the instruction is attempting to write into a
+
+467
+00:47:48,780 --> 00:47:55,100
+a read-only section segment of the virtual address space.
+
+468
+00:47:55,100 --> 00:47:59,870
+Well, there's nothing in the page table.
+
+469
+00:47:59,870 --> 00:48:07,030
+The MMU typically would check the permission bits in the page table entry and throw an exception
+
+470
+00:48:07,030 --> 00:48:11,030
+if a write is trying to write to write to a read-only page.
+
+471
+00:48:11,030 --> 00:48:15,030
+But in this case, there was no page table entry, right?
+
+472
+00:48:15,030 --> 00:48:18,190
+That's why it triggered a page fault.
+
+473
+00:48:18,190 --> 00:48:20,190
+So the MMU doesn't know that this is a read-only.
+
+474
+00:48:20,190 --> 00:48:22,190
+an illegal right.
+
+475
+00:48:22,190 --> 00:48:27,450
+The kernel can check the protection for this area.
+
+476
+00:48:27,450 --> 00:48:32,540
+And if in the case of text, it'll be set to read only.
+
+477
+00:48:32,540 --> 00:48:36,020
+So that triggers a protection exception,
+
+478
+00:48:36,020 --> 00:48:40,760
+which actually Linux reports is a SEG fault.
+
+479
+00:48:40,760 --> 00:48:49,140
+And then the other option is that maybe we're trying to read data from a valid area.
+
+480
+00:48:49,140 --> 00:48:52,140
+So then the kernel faults
+
+481
+00:48:52,140 --> 00:49:00,260
+faults the requested page in and and returns the requested data back to the
+
+482
+00:49:00,260 --> 00:49:05,820
+back to the CPU.
+
+483
+00:49:05,820 --> 00:49:06,820
+Okay.
+
+484
+00:49:06,820 --> 00:49:08,820
+The last thing I want to look at today is a, yes.
+
+485
+00:49:08,820 --> 00:49:18,460
+Okay.
+
+486
+00:49:18,460 --> 00:49:26,300
+Sorry?
+
+487
+00:49:26,300 --> 00:49:27,300
+Yeah.
+
+488
+00:49:27,300 --> 00:49:30,300
+So all of the segments are contained in the executable file.
+
+489
+00:49:30,300 --> 00:49:31,590
+Okay.
+
+490
+00:49:31,590 --> 00:49:35,590
+There's a, at the beginning of the Elf binary,
+
+491
+00:49:35,590 --> 00:49:40,100
+there's a list of all the different segments.
+
+492
+00:49:40,100 --> 00:49:41,100
+Okay.
+
+493
+00:49:41,100 --> 00:49:53,760
+When exec loads, the binary creates, it creates areas for each of those, each of those segments.
+
+494
+00:49:53,760 --> 00:49:54,760
+Is that good?
+
+495
+00:49:54,760 --> 00:49:55,860
+Yes.
+
+496
+00:49:55,860 --> 00:50:01,630
+So how does that, it still first checks like...
+
+497
+00:50:01,630 --> 00:50:07,120
+This is after the page vault.
+
+498
+00:50:07,120 --> 00:50:11,900
+Yes.
+
+499
+00:50:11,900 --> 00:50:13,900
+The MMU doesn't know about these.
+
+500
+00:50:13,900 --> 00:50:16,900
+Okay, so, yeah, the question was exactly how are these
+
+501
+00:50:16,900 --> 00:50:20,990
+these areas structs used, and they're used,
+
+502
+00:50:20,990 --> 00:50:23,990
+they're used, in this, in this example anywhere,
+
+503
+00:50:23,990 --> 00:50:24,990
+they're used during the page.
+
+504
+00:50:24,990 --> 00:50:27,060
+page faults.
+
+505
+00:50:27,060 --> 00:50:36,570
+And also, just as an aside, I've shown, these actually are implemented as lists, but in the real system,
+
+506
+00:50:36,570 --> 00:50:41,570
+they use some kind of tree, red black tree or something like that.
+
+507
+00:50:41,570 --> 00:50:50,400
+Okay, so I want to talk to, the last thing we're going to look at today is this,
+
+508
+00:50:50,400 --> 00:50:54,460
+is this interesting idea called mapping.
+
+509
+00:50:54,460 --> 00:50:59,750
+And it will help us understand a lot about what's going on in the system when it executes fork and
+
+510
+00:50:59,750 --> 00:51:03,460
+that execs fork and exec.
+
+511
+00:51:03,460 --> 00:51:11,160
+So VM areas are initialized by associating them with disk objects.
+
+512
+00:51:11,160 --> 00:51:12,860
+Okay.
+
+513
+00:51:12,860 --> 00:51:18,020
+And so this process, using a process known as memory mapping.
+
+514
+00:51:18,020 --> 00:51:19,120
+Right?
+
+515
+00:51:19,120 --> 00:51:26,690
+So the every area, and thus every page within that area,
+
+516
+00:51:26,690 --> 00:51:31,200
+is associated with some portion of a file.
+
+517
+00:51:31,200 --> 00:51:33,200
+And it's that, and that's the,
+
+518
+00:51:33,200 --> 00:51:40,220
+the initial contents of the pages in that area come from that file.
+
+519
+00:51:40,220 --> 00:51:41,220
+Okay.
+
+520
+00:51:41,220 --> 00:51:49,260
+So an area can be backed by, what we call, or get its initial values from either a regular file on disk.
+
+521
+00:51:49,260 --> 00:51:59,990
+So we saw this, so in the case of pages that are containing code, that area that has code
+
+522
+00:51:59,990 --> 00:52:03,990
+is mapped to a portion of the executable binary.
+
+523
+00:52:03,990 --> 00:52:08,060
+And then the initial values of that area come from that
+
+524
+00:52:08,060 --> 00:52:10,060
+that executable binary file.
+
+525
+00:52:10,060 --> 00:52:15,700
+Okay, so that's how, that's how we get, that's how we get data copied
+
+526
+00:52:15,700 --> 00:52:20,860
+back and forth from, or from executables into, into memory.
+
+527
+00:52:20,860 --> 00:52:27,720
+The file can also be an anonymous file, meaning it's a file,
+
+528
+00:52:27,720 --> 00:52:31,720
+it's a file, it's some anonymous file that consists of all zeros.
+
+529
+00:52:31,720 --> 00:52:34,720
+It's an anonymous file of arbitrary size that consists of all zeros.
+
+530
+00:52:34,720 --> 00:52:36,720
+that consists of all zeros.
+
+531
+00:52:36,720 --> 00:52:38,720
+So, of course, it doesn't exist.
+
+532
+00:52:38,720 --> 00:52:40,720
+This is just a trick.
+
+533
+00:52:40,720 --> 00:52:43,780
+So this allows us to create
+
+534
+00:52:43,780 --> 00:52:49,040
+to create pages that are initialized to all zeros.
+
+535
+00:52:49,040 --> 00:52:50,040
+Okay.
+
+536
+00:52:50,040 --> 00:52:55,620
+And then, so the, if a page is associated with the anonymous file,
+
+537
+00:52:55,620 --> 00:53:00,680
+then the first fault will allocate a physical page of all zeros.
+
+538
+00:53:00,680 --> 00:53:03,810
+So this is called the Demand Zero page.
+
+539
+00:53:03,810 --> 00:53:04,810
+Okay.
+
+540
+00:53:04,810 --> 00:53:05,790
+So it's brought in on
+
+541
+00:53:05,810 --> 00:53:10,830
+demand and it's initialized to zeros.
+
+542
+00:53:10,830 --> 00:53:16,830
+Once a file, once a page that's backed by an anonymous file is written to,
+
+543
+00:53:16,830 --> 00:53:20,830
+or dirtied, then it's like any other page.
+
+544
+00:53:20,830 --> 00:53:21,830
+Okay.
+
+545
+00:53:21,830 --> 00:53:32,470
+And then dirty pages are copied back and forth between memory and a special swap file.
+
+546
+00:53:32,470 --> 00:53:37,600
+Now you remember, and normally processes don't share anything with each other.
+
+547
+00:53:37,600 --> 00:53:38,600
+Okay.
+
+548
+00:53:38,600 --> 00:53:40,600
+But it's possible using this idea of math.
+
+549
+00:53:40,600 --> 00:53:46,720
+of mapping for processes to be mapped to the same objects.
+
+550
+00:53:46,720 --> 00:53:56,390
+So suppose that we have two processes with their own separate virtual address spaces and the pages in these
+
+551
+00:53:56,390 --> 00:54:00,700
+two processes are being mapped to portions of physical memory.
+
+552
+00:54:00,700 --> 00:54:10,020
+So let's say there's an area, a segment in process one that's been mapped to this to this object.
+
+553
+00:54:10,020 --> 00:54:11,120
+So to this portion of
+
+554
+00:54:11,140 --> 00:54:16,580
+of a file.
+
+555
+00:54:16,580 --> 00:54:23,500
+Now, process two can also map to that same object.
+
+556
+00:54:26,190 --> 00:54:29,990
+And notice even at a completely different virtual address.
+
+557
+00:54:29,990 --> 00:54:35,800
+So there's no, there's no relationship between the region of this virtual address space that's
+
+558
+00:54:35,800 --> 00:54:41,860
+mapped to the shared object in process one and the region of the virtual address space in
+
+559
+00:54:41,860 --> 00:54:46,660
+process two that's mapped to the same object.
+
+560
+00:54:46,660 --> 00:54:48,260
+And the kernel, because these, the kernel,
+
+561
+00:54:48,280 --> 00:54:52,330
+These objects have unique names, right, they're files.
+
+562
+00:54:52,330 --> 00:54:58,670
+The kernel can check the other processes to see if any other processes are mapping to that object.
+
+563
+00:54:58,670 --> 00:55:04,460
+And if so, map this region of the virtual address space to those same physical pages.
+
+564
+00:55:04,460 --> 00:55:10,970
+Okay, so now we have a situation where each process is accessing some chunk of its virtual
+
+565
+00:55:10,970 --> 00:55:18,770
+address space, and those accesses are actually being done on the same region of physical
+
+566
+00:55:18,790 --> 00:55:20,610
+memory.
+
+567
+00:55:20,610 --> 00:55:21,510
+So this might be useful.
+
+568
+00:55:21,510 --> 00:55:29,090
+You might imagine, you know, say these processes are servers, you know, say you've forked a bunch of copies
+
+569
+00:55:29,090 --> 00:55:36,080
+of Apache, you might want to have some kind of shared cache, maybe a shared memory cache between
+
+570
+00:55:36,080 --> 00:55:39,700
+those, all those different copies.
+
+571
+00:55:39,700 --> 00:55:46,680
+So this, this would be, in this case, your cache would be a file, a file on disk.
+
+572
+00:55:46,680 --> 00:55:53,680
+And then as you access regions of that file, those pages get copied into physical
+
+573
+00:55:53,680 --> 00:55:54,680
+memory.
+
+574
+00:55:54,680 --> 00:56:00,680
+So that would allow you to have a shared cache in the memory across all those processes.
+
+575
+00:56:00,680 --> 00:56:09,940
+Now, sometimes there's another, objects can also be private, meaning they shouldn't
+
+576
+00:56:09,940 --> 00:56:12,840
+be shared, okay, across processes.
+
+577
+00:56:12,840 --> 00:56:19,830
+And there's a special, an especially interesting kind of private object.
+
+578
+00:56:19,830 --> 00:56:24,040
+called a private copy-on-write object.
+
+579
+00:56:24,040 --> 00:56:32,650
+So the idea here, and you'll see, this will become very important when we, this will become very important
+
+580
+00:56:32,650 --> 00:56:42,290
+when we look and see how fork actually works, the idea is that we have an object that we have two
+
+581
+00:56:42,290 --> 00:56:49,300
+processes that are mapping to the same object, but instead of this being a shared object,
+
+582
+00:56:49,300 --> 00:56:52,340
+it's what we call this private copy-on-write object.
+
+583
+00:56:52,340 --> 00:57:01,340
+And just like before, these two regions of the virtual address space map into the same region of physical memory.
+
+584
+00:57:01,340 --> 00:57:13,660
+But they're tagged using the, and this is where those flag bits come in, the, the pages in this area are flagged as private copy on right.
+
+585
+00:57:13,660 --> 00:57:26,360
+Okay, now what that means is normally, if this was a shared object, let's say this was a shared object in Process 2,
+
+586
+00:57:26,360 --> 00:57:31,020
+wrote, did a write into this region of the virtual address space.
+
+587
+00:57:31,660 --> 00:57:37,040
+If this was a shared object, that right would also be reflected on the disk, on the file on disk.
+
+588
+00:57:41,480 --> 00:57:49,740
+But if it's flagged, instead of being shared, if that area, this area is marked as flagged as private
+
+589
+00:57:49,740 --> 00:58:01,940
+copy on right, then if Process 2 does a right to a page in that area, then instead of
+
+590
+00:58:01,940 --> 00:58:11,710
+reflecting that change in physical memory and on the shared object, it makes a copy of that
+
+591
+00:58:11,710 --> 00:58:17,710
+of that page, a separate copy of that page, and maps it to some unused portion of the physical
+
+592
+00:58:17,710 --> 00:58:26,790
+address space. Okay, so that's why we have the name copy on right. So if we, but if we
+
+593
+00:58:26,790 --> 00:58:33,790
+read, if we read values from this area, nothing happens. It's just, we'll just read from
+
+594
+00:58:33,790 --> 00:58:37,030
+this portion of the physical address space.
+
+595
+00:58:37,030 --> 00:58:44,170
+It's only when we do a right to some page in an area that's flagged as private copy on
+
+596
+00:58:44,170 --> 00:58:52,450
+right, it's only when we do that right that the system first makes a copy of that page and
+
+597
+00:58:52,450 --> 00:58:56,140
+then does the right.
+
+598
+00:58:56,140 --> 00:58:59,260
+Now why on earth would, why on earth would anybody want to do this?
+
+599
+00:58:59,260 --> 00:59:05,080
+Actually, this notion of copy on right is another one of these kind of fundamental
+
+600
+00:59:05,080 --> 00:59:13,080
+important system concepts that's used a lot whenever you want to share things efficiently.
+
+601
+00:59:13,080 --> 00:59:14,850
+Yes.
+
+602
+00:59:14,850 --> 00:59:33,640
+If you, well, oh, the rights all go through.
+
+603
+00:59:33,640 --> 00:59:43,190
+Um, yeah, the memory system, okay, this is a really, really good question.
+
+604
+00:59:43,190 --> 00:59:48,190
+And it's, it's beyond our scope, but the memory system takes care of those.
+
+605
+00:59:48,190 --> 00:59:50,190
+And it provides some guarantees.
+
+606
+00:59:50,190 --> 00:59:53,170
+So it, the memory system, you're right, it's received.
+
+607
+00:59:53,190 --> 01:00:01,170
+from multiple cores, it's receiving multiple instructions, multiple addresses.
+
+608
+01:00:01,170 --> 01:00:06,670
+And the memory system itself takes care of sort of providing some ordering on those.
+
+609
+01:00:06,670 --> 01:00:12,670
+And it provides, it provides some sort of non-trivial guarantees on what you can assume the ordering is.
+
+610
+01:00:12,670 --> 01:00:20,020
+But that's a, that's a pretty, pretty complicated topic that we'll get into.
+
+611
+01:00:20,020 --> 01:00:25,040
+It's called the consistency, it's called the consistency model.
+
+612
+01:00:25,040 --> 01:00:32,150
+So every processor provides some kind of consistency model.
+
+613
+01:00:32,150 --> 01:00:33,150
+Any other questions?
+
+614
+01:00:33,150 --> 01:00:41,240
+Okay, so why is this copy-on-write technique useful and interesting?
+
+615
+01:00:41,240 --> 01:00:49,100
+Well, it turns out, I mean, if you think about fork, it seems like it would be terribly expensive,
+
+616
+01:00:49,100 --> 01:00:56,520
+right? You have, if you want to fork a process, you know, the naive way to do it would just be to
+
+617
+01:00:56,520 --> 01:01:04,260
+you have to somehow get an exact copy of the address space, but a separate copy
+
+618
+01:01:04,260 --> 01:01:11,370
+of the address space that's identical. So if you approach this naively, you'd have to make copies of all
+
+619
+01:01:11,370 --> 01:01:20,410
+the page tables, all of the other data structures, and you'd also have to copy all the memory.
+
+620
+01:01:20,410 --> 01:01:28,520
+So if you're, you know, if you're forking a process that's created a huge number of virtual pages,
+
+621
+01:01:28,540 --> 01:01:37,760
+in its address space, those would all have to be copied to and mapped to different portions of the physical address of the memory.
+
+622
+01:01:37,760 --> 01:01:45,910
+Okay, so you'd have, it would be very expensive, right, potentially almost unbounded, depending on how much memory you were using.
+
+623
+01:01:45,910 --> 01:01:54,990
+Right? So, but fortunately, this, this copy-on-write technique provides an efficient solution.
+
+624
+01:01:54,990 --> 01:02:03,730
+And so the idea, when we do fork, when we, when we, when a process,
+
+625
+01:02:03,750 --> 01:02:09,330
+executes fork, the kernel has to create exact copies of all those internal
+
+626
+01:02:09,330 --> 01:02:14,420
+data structures, the MM struct, the area struct, the
+
+627
+01:02:14,420 --> 01:02:15,420
+page tables.
+
+628
+01:02:15,420 --> 01:02:16,420
+There's no way to get around that.
+
+629
+01:02:16,420 --> 01:02:20,870
+Okay, but those aren't, those aren't really huge.
+
+630
+01:02:20,870 --> 01:02:24,870
+They're not as potentially huge as the actual data that the
+
+631
+01:02:24,870 --> 01:02:26,870
+program is accessing.
+
+632
+01:02:26,870 --> 01:02:35,750
+And then it flags each page in both processes as read only,
+
+633
+01:02:35,750 --> 01:02:36,750
+even though they're not, no matter where they are.
+
+634
+01:02:36,750 --> 01:02:40,630
+No matter where they are, any process, any page in that process,
+
+635
+01:02:40,630 --> 01:02:42,950
+it flags as read only.
+
+636
+01:02:42,950 --> 01:02:46,290
+And then it flags each VM area struct in both processes
+
+637
+01:02:46,290 --> 01:02:50,230
+as private copy on write.
+
+638
+01:02:50,230 --> 01:02:55,490
+So on return, now each process has the identical address space
+
+639
+01:02:55,490 --> 01:02:59,360
+because it has identical page tables.
+
+640
+01:02:59,360 --> 01:03:02,160
+Okay, we've made copies of the page tables
+
+641
+01:03:02,160 --> 01:03:06,260
+and all of the other structures.
+
+642
+01:03:06,260 --> 01:03:10,480
+And as long as those processes just read, then they're
+
+643
+01:03:10,500 --> 01:03:14,860
+sharing the same physical pages, right?
+
+644
+01:03:14,860 --> 01:03:25,490
+It's only when a process does a write that the system will create a new page, will create a new page using this copy-on-write mechanism.
+
+645
+01:03:25,490 --> 01:03:44,500
+So it's only when a process writes to a page will, it tries to do a write, the page is flagged as read-only, okay, in the PTE, that triggers a fault. The kernel looks at that, looks up the access,
+
+646
+01:03:44,500 --> 01:03:49,240
+looks up the flags for that for that particular page, sees it as private copy on right.
+
+647
+01:03:50,380 --> 01:03:58,870
+And so it makes a copy of the target page and maps it to a new region of the physical address space.
+
+648
+01:04:00,360 --> 01:04:07,600
+And then does the allows the, and then when the right executes again, and then it restarts, when the
+
+649
+01:04:07,600 --> 01:04:16,200
+when the fault handler returns, it restarts that instruction. And now the right is writing to the copy. Okay, so what
+
+650
+01:04:16,300 --> 01:04:22,020
+does, a very clever technique, it defers the copying till as long as, till as
+
+651
+01:04:22,020 --> 01:04:26,420
+late as possible, and it only does copying when it's absolutely needed.
+
+652
+01:04:26,420 --> 01:04:33,900
+Okay, so in some sense it's the most, it provides you with the most efficient way to, most space
+
+653
+01:04:33,900 --> 01:04:39,820
+efficient way to represent those two, those two different virtual address spaces.
+
+654
+01:04:39,820 --> 01:04:45,340
+And so what's interesting is that regions of the virtual address space that that are read
+
+655
+01:04:45,340 --> 01:04:51,000
+from never get copied, right? So they, it's perfectly fine for those two processes
+
+656
+01:04:51,000 --> 01:04:57,320
+to share, to share that data on physical memory because it's never written to, right?
+
+657
+01:04:57,320 --> 01:05:09,950
+so. Okay, so that's why, that's why Fork isn't so bad. Now, exec VE,E, now that we know
+
+658
+01:05:09,950 --> 01:05:17,610
+about sharing and, or now that we know about this, this mapping notion, the exact VE function, the
+
+659
+01:05:17,610 --> 01:05:26,020
+exec VE function loads and runs a new program in the current process, okay?
+
+660
+01:05:26,020 --> 01:05:31,280
+And so what it does is it frees all the, all the area structs for the current process, right?
+
+661
+01:05:31,280 --> 01:05:38,670
+So exec's not creating a new process, it's running a new program in a new virtual address space
+
+662
+01:05:38,670 --> 01:05:41,770
+within the current process, okay?
+
+663
+01:05:41,770 --> 01:05:48,530
+So it, it, so it frees all the area structs and page tables for the current process.
+
+664
+01:05:50,880 --> 01:05:56,050
+Okay, and then it creates new area structs and page tables for the new areas.
+
+665
+01:05:56,050 --> 01:06:10,040
+And the programs, so the program and initialized data, those areas are backed by the file, in this case, the executable binary.
+
+666
+01:06:10,040 --> 01:06:18,560
+And the program is backed by the portion of the executable that contains code, and the data segment is backed by the portion of the executable file that contains code, and the data segment is backed by the portion of the
+
+667
+01:06:18,560 --> 01:06:23,850
+executable file that contains initialized data.
+
+668
+01:06:23,850 --> 01:06:30,440
+So these two together are private, what we call they're private, okay, these, this object
+
+669
+01:06:30,440 --> 01:06:38,250
+isn't being shared with, with anything else, and it's file backed because these, this
+
+670
+01:06:38,250 --> 01:06:41,440
+area is backed by portions of a file.
+
+671
+01:06:41,440 --> 01:06:50,210
+The un-initialized data, which was specified in the BSS section of the binary, that's defined as
+
+672
+01:06:50,230 --> 01:06:58,650
+private demand zero area. So this, so these, these pages will all be, remember
+
+673
+01:06:58,650 --> 01:07:04,760
+by definition, by definition, BSS is uninitialized. Okay, and so the system
+
+674
+01:07:04,760 --> 01:07:13,980
+initializes these to zero. So any pages then, any pages in the heap are also
+
+675
+01:07:13,980 --> 01:07:19,660
+private demand zero. Now the memory mapped region for shared libraries,
+
+676
+01:07:19,660 --> 01:07:24,980
+remember every, every process shares the same copy of Lib C in memory.
+
+677
+01:07:25,000 --> 01:07:50,580
+So this is a region, the virtual address space, that's shared, okay, because it's shared by multiple processes, and it's backed by files, and it's backed by files, and the file in this case is the .0 file, the shared object file, file, and the code for this region is backed by text, the portion of the, this object file that contains code, and data is, initialized data is backed by a portion of this file that contains code, the portion of the portion of this file that
+
+678
+01:07:50,580 --> 01:07:58,420
+contains data and data is initialized data is backed by a portion of this file that that contains data.
+
+679
+01:07:58,420 --> 01:08:10,040
+Now there's, I haven't shown it here, but there's other, there's other portions of this, of this region that need to be a private copy on write because different
+
+680
+01:08:10,040 --> 01:08:19,580
+lib C functions, if a lib C function has static variables or contains state, like a random number generator,
+
+681
+01:08:19,580 --> 01:08:25,250
+typical random number generator, retained state across each invocation.
+
+682
+01:08:26,490 --> 01:08:29,110
+Okay, so that state would be different for each process.
+
+683
+01:08:29,290 --> 01:08:36,070
+So there needs to be a sort of private copy-on-right area for any data that's being written to.
+
+684
+01:08:40,550 --> 01:08:47,250
+And I suppose the system would just, would just, if you made this entire region,
+
+685
+01:08:50,090 --> 01:08:54,690
+now, you'd have to have to have second portions of this that would be private copy-on-right.
+
+686
+01:08:55,270 --> 01:08:57,590
+And then the stack is private demand zero.
+
+687
+01:08:59,580 --> 01:09:08,720
+Okay, so what what exec does is it just sets, it creates new areas that are backed backed by a different,
+
+688
+01:09:09,220 --> 01:09:11,100
+by the object file that you want to execute.
+
+689
+01:09:13,240 --> 01:09:18,040
+And it creates areas for BSS and stack that are backed by anonymous files,
+
+690
+01:09:18,040 --> 01:09:25,490
+and it creates this memory mapped region that's a shared object, which corresponds to LBSIC.
+
+691
+01:09:26,340 --> 01:09:28,440
+And then it sets the program counter.
+
+692
+01:09:28,500 --> 01:09:36,440
+RIP to the entry point in text and then once as this program runs now notice
+
+693
+01:09:36,440 --> 01:09:42,710
+we haven't loaded anything right all we've done is set mappings we've just we've just
+
+694
+01:09:42,710 --> 01:09:47,640
+created data structures in the kernel and we've we've created mappings between
+
+695
+01:09:47,640 --> 01:09:52,060
+portions of the address space and these objects but nothing's actually been
+
+696
+01:09:52,060 --> 01:10:00,120
+copied into memory yet okay this is all we've just created we've modified data structures in
+
+697
+01:10:00,120 --> 01:10:01,940
+the kernel
+
+698
+01:10:01,960 --> 01:10:08,960
+Now, but once the, once the loader sets RIP to the entry point, the first instruction,
+
+699
+01:10:08,960 --> 01:10:18,020
+in this text segment, then Linux will fault in all the code and data that's needed on demand.
+
+700
+01:10:19,710 --> 01:10:27,360
+So loading, loading hap is deferred until the loading of a page of code or data is deferred
+
+701
+01:10:27,360 --> 01:10:32,020
+until until that code or data page is actually referenced and accessed.
+
+702
+01:10:32,020 --> 01:10:36,360
+So it's very, this is very clever, very interesting, I think.
+
+703
+01:10:36,360 --> 01:10:46,310
+How, how, it's like yet another example of how useful and tightly integrated virtual memory is with the operation of the system.
+
+704
+01:10:47,510 --> 01:10:49,050
+Right? You wouldn't have to do this.
+
+705
+01:10:49,710 --> 01:10:55,070
+You could just, as part of the loading process, you could just copy those, take those object files.
+
+706
+01:10:56,210 --> 01:11:01,810
+You could just have a loop that would read these object files and just copy them into, copy them into memory.
+
+707
+01:11:02,330 --> 01:11:03,310
+And create page tape.
+
+708
+01:11:03,330 --> 01:11:05,330
+entries for them as you did it.
+
+709
+01:11:05,330 --> 01:11:09,330
+But even that would be efficient, that would be inefficient too, right?
+
+710
+01:11:09,330 --> 01:11:15,330
+What if you had a very large array that you had initialized to some non-zero value?
+
+711
+01:11:15,330 --> 01:11:23,550
+That would require you to copy that that entire array in at load time, even though you may be only accessing a small portion of that data structure.
+
+712
+01:11:23,550 --> 01:11:36,260
+Now, the kernel provides a function called m-map that allows you to do your memory mapping, just like the kernel does.
+
+713
+01:11:36,260 --> 01:11:37,900
+does.
+
+714
+01:11:37,900 --> 01:11:38,900
+Okay.
+
+715
+01:11:38,900 --> 01:11:45,900
+And so it's basically a way, it's a system call that allows you to request the kernel to map a region of virtual memory
+
+716
+01:11:45,900 --> 01:11:51,600
+on your, on, on, on, on, on, on its behalf.
+
+717
+01:11:51,600 --> 01:12:03,390
+And so this MAP function takes a virtual, a pointer, which is some pointer into the virtual address space,
+
+718
+01:12:03,390 --> 01:12:09,580
+and it maps, tries to map, tries to map length bytes starting at this address space,
+
+719
+01:12:09,580 --> 01:12:17,320
+It tries to map that portion of the virtual address space to the object, to an offset,
+
+720
+01:12:17,320 --> 01:12:23,540
+to some object specified by this file descriptor.
+
+721
+01:12:23,540 --> 01:12:28,020
+So remember, when you open a file, you get back a file descriptor.
+
+722
+01:12:28,020 --> 01:12:35,120
+So it's mapping this region of the virtual address space, starting its start for length bytes,
+
+723
+01:12:35,120 --> 01:12:40,890
+to a region of the file denoted by this integer file descriptor,
+
+724
+01:12:40,890 --> 01:12:51,460
+or file so it's mapping length bytes in that file starting at offset offset.
+
+725
+01:12:51,460 --> 01:12:58,370
+Now, and then there's the user can specify different flags, what kind of protection they want for
+
+726
+01:12:58,370 --> 01:13:05,190
+this, this, whether it's private or whether it's read or whether it's read only or read
+
+727
+01:13:05,190 --> 01:13:12,750
+read right. And they can also specify the type of object. If you can also specify the type of object, if
+
+728
+01:13:12,750 --> 01:13:18,470
+If you map an anonymous, if you use this flag in M-Map, then you get a demand
+
+729
+01:13:18,470 --> 01:13:20,210
+zero page.
+
+730
+01:13:20,210 --> 01:13:22,960
+Okay, that's the anonymous file.
+
+731
+01:13:22,960 --> 01:13:27,640
+In which case you don't need to specify this file descriptor.
+
+732
+01:13:27,640 --> 01:13:34,550
+And you can map that object as being private or shared, like we talked about before.
+
+733
+01:13:34,550 --> 01:13:44,540
+Now the kernel will, it will return a pointer to the start of this mapped area.
+
+734
+01:13:44,540 --> 01:13:50,540
+necessarily this start address is like a hint to the kernel. So if it can, it will
+
+735
+01:13:50,540 --> 01:13:54,480
+it will try to map that area. But if that portion of the virtual address space is already contained
+
+736
+01:13:54,480 --> 01:14:02,100
+in some already existing area, then it'll pick an unused portion of the virtual address space to map.
+
+737
+01:14:02,100 --> 01:14:15,670
+Okay, so what we're doing really is we're taking an offset into some file specified by that FD argument.
+
+738
+01:14:15,670 --> 01:14:24,720
+and length number of bytes and we're associating that or mapping that into
+
+739
+01:14:24,720 --> 01:14:27,720
+the same sized region of the virtual address space.
+
+740
+01:14:27,720 --> 01:14:36,980
+So now if we do, if we read, if we read, now again, nothing gets copied.
+
+741
+01:14:36,980 --> 01:14:40,650
+Okay, it's just the mapping.
+
+742
+01:14:40,650 --> 01:14:49,830
+So that if we were to read a portion of, let's say we mapped an unused portion of the virtual address space.
+
+743
+01:14:49,830 --> 01:14:51,330
+And then using M-map.
+
+744
+01:14:51,330 --> 01:14:53,810
+And then after M-map, we just started scanning.
+
+745
+01:14:53,830 --> 01:14:56,330
+through this portion of the virtual address space.
+
+746
+01:14:56,330 --> 01:14:57,860
+You know, say it's an array.
+
+747
+01:14:57,860 --> 01:15:02,270
+We've M-MAPped a big array.
+
+748
+01:15:02,270 --> 01:15:05,270
+As we read, each non-existing page will be swapped in automatically.
+
+749
+01:15:05,270 --> 01:15:10,850
+Okay, it'll trigger page fault,
+
+750
+01:15:10,850 --> 01:15:16,170
+and it'll be swapped in, and the value that it has will be
+
+751
+01:15:16,170 --> 01:15:26,420
+determined by the contents of this portion of the file.
+
+752
+01:15:26,420 --> 01:15:30,900
+Okay, and then, so one, here's an example of how you can use M-map.
+
+753
+01:15:30,900 --> 01:15:43,630
+M-map to do, and this is kind of an interesting example, we're copying a file from standard in to standard out without ever transferring data to user space.
+
+754
+01:15:43,630 --> 01:15:50,630
+So the normal of the sort of, the naive way to do this would be to read from a file, read from standard in, and then write to standard out.
+
+755
+01:15:50,630 --> 01:15:53,630
+So two SISCalls, one read and one write.
+
+756
+01:15:53,630 --> 01:15:59,630
+We can actually do this using using one M-map and then a single write.
+
+757
+01:15:59,630 --> 01:16:00,950
+Okay.
+
+758
+01:16:01,950 --> 01:16:11,870
+we open a file, ARGV1 is standard in, or we, I'm sorry, we open a file that was passed
+
+759
+01:16:11,870 --> 01:16:22,190
+in on the command line, we get its size, and then we call M-Map copy function to say, copy, copy
+
+760
+01:16:22,190 --> 01:16:31,540
+copy the bytes, the size bytes from this file to standard out. So this m-map copy
+
+761
+01:16:31,540 --> 01:16:37,570
+function does M-map using that file descriptor sets it as read-only,
+
+762
+01:16:37,570 --> 01:16:50,990
+private, sets the size, and length means everything, or at an offset of 0, and then
+
+763
+01:16:50,990 --> 01:16:58,690
+we do one right syscall to standard out, passing it the pointer to the buffer that we
+
+764
+01:16:58,690 --> 01:17:03,290
+want to copy and of size bytes.
+
+765
+01:17:03,290 --> 01:17:08,180
+So as this as we, as we, so as we, so as we, so this
+
+766
+01:17:08,200 --> 01:17:16,350
+This will read bytes, the right call will read bytes in buff P, one after the other.
+
+767
+01:17:16,350 --> 01:17:24,050
+And as that happens, they'll be faulted in, and then it will write them, and then it will write them
+
+768
+01:17:24,050 --> 01:17:29,180
+to the descriptor indicated by the one, which is standard out.
+
+769
+01:17:29,180 --> 01:17:32,310
+Okay, so that's, that's it for today.
+
+770
+01:17:32,310 --> 01:17:36,980
+Hope you guys have a good weekend and see you next week.
+

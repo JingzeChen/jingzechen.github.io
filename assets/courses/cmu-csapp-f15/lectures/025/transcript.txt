@@ -1,0 +1,785 @@
+[00:00:00] All right, well, good afternoon, everybody.
+[00:00:03] Welcome, good to see you, and welcome to our viewers on video as well.
+[00:00:09] Okay, so today we're going to look at some additional issues around the problem of synchronizing threaded programs.
+[00:00:17] First, though, let's review from last time a few of the concepts.
+[00:00:22] So recall that a semaphore is a non-negative global synchronization variables manipulated by P&V operations.
+[00:00:31] And the P operation takes as an argument, a semaphore.
+[00:00:37] If the semifor values non-zero, it decrements the semaphore and then continues.
+[00:00:44] If the semaphore values zero, then it blocks, waiting for that semaphore value to be incremented by a V operation.
+[00:00:56] After the V operation increments, after some V operation increments, after some V operation increments, the semifference
+[00:01:01] The P operation continues by decrementing S and then returning control to the caller.
+[00:01:10] The V operation never blocks.
+[00:01:13] It, it, first, it increments the semaphore value S, and then it looks in the queue of,
+[00:01:20] of, for, to see if there's any processes that are blocked, waiting for that semaphore to be non-zero.
+[00:01:26] If, if there are, then it, it selects selects one of those,
+[00:01:31] using some unspecified criteria.
+[00:01:34] And then it restarts that thread that's, or that P operation that's waiting on the semaphore.
+[00:01:44] Okay, and then this, the semantics of the P and V ensure that semaphore values are always greater than equal to 0.
+[00:01:56] Now, the first thing we saw how to protect shared variables by using a semaphore values.
+[00:02:03] using a semaphore called the Mutex that guarantees mutually exclusive access
+[00:02:09] to the critical sections that are updating that those variables or data structures.
+[00:02:16] And the way that we do this is very simple. We initialize the Mutex to 1 and then surround
+[00:02:23] the critical section with a P and a V. Now there's other ways that we can, so here's an
+[00:02:31] example where we're using semaphores to provide mutual exclusion.
+[00:02:35] But we can also use semaphores to coordinate access to shared data structures in different ways.
+[00:02:44] And so the idea here, before we were using the semaphore just to protect the access to a shared variable.
+[00:02:51] But we can also coordinate access in different ways by keep...
+[00:02:55] In these kind of scenarios, we're using the semaphore to keep track of state, to count things, to keep track of state, to count things, to keep track of state.
+[00:03:04] of state and to notify other other threads of changes in state.
+[00:03:08] Okay, so it's a very different usage model.
+[00:03:11] And two classic examples that we're going to look at are the producer consumer problem and a reader's writers'
+[00:03:18] problem. So let's look at producer consumer first.
+[00:03:21] So the idea in the producer consumer problem is that you have a shared resource in the form of a buffer
+[00:03:28] buffer. The buffer has a bounded size, so it consists of a
+[00:03:33] It consists of N slots and each slot can hold an item.
+[00:03:37] Okay.
+[00:03:38] There's a producer thread which produces items and then inserts them into the buffer.
+[00:03:44] And then inserts them into the buffer.
+[00:03:48] And there's a consumer thread that retrieves, removes items from the buffer,
+[00:03:53] then consumes them by acting on them in some way, processing on them in some way.
+[00:03:58] So the synchronization variable, the synchronization pattern is that the
+[00:04:03] is that the producer waits for an empty slot, right?
+[00:04:07] So if there's, if the buffer is full, the producer can't insert an item into the buffer.
+[00:04:13] So it waits for an empty slot, and then when it finds an empty slot, when an empty slot becomes available,
+[00:04:20] it inserts the item into the buffer.
+[00:04:23] And then it notifies the consumer that there's now a new item in the, in the buffer.
+[00:04:30] The consumer, of course, of course, that has to wait.
+[00:04:33] that has to wait for an item to show up in the buffer.
+[00:04:38] Otherwise, I mean, it can't remove an item from an empty buffer.
+[00:04:42] So it has to wait for an item to be available in the buffer.
+[00:04:47] And when an item becomes available, it removes it from the buffer,
+[00:04:52] and then notifies the producer that there's now an available slot.
+[00:04:56] Okay.
+[00:04:57] So this actually, this very simple pattern is actually really, really useful and shows up
+[00:05:04] up in a lot of applications. So, for example, a multimedia application,
+[00:05:09] in a multimedia application, a producer might be producing, say, MPEG frames in a video,
+[00:05:17] and a consumer would be consuming those MPEG frames and then painting the screen appropriately.
+[00:05:24] Another important application is in graphical user interfaces.
+[00:05:29] So graphical user interfaces are typically implemented using this producer consumer model.
+[00:05:34] where the mouse clicks, motions of the mouse,
+[00:05:39] of the mouse, keyboard clicks, those are all recorded as events, those are all recorded as events.
+[00:05:47] They're detected by the system, recorded as events, and placed into some kind of a queue.
+[00:05:54] And then various other parts of the system retrieve items from the queue and react to them.
+[00:05:59] So, for example, the graphics system will retrieve events like mouse events,
+[00:06:04] and mouse movements, mouse clicks,
+[00:06:08] and it'll paint the screen accordingly, right?
+[00:06:10] So it'll reflect, it'll repaint the screen so that the,
+[00:06:13] so that the, to show you that the cursor's moving,
+[00:06:17] right?
+[00:06:18] Or if you change the focus, it'll repaint it.
+[00:06:21] So it's a very, very common model.
+[00:06:25] And as we'll see later, multi-threaded, we can build
+[00:06:28] multi-threaded concurrent servers using this model.
+[00:06:32] Okay.
+[00:06:34] So let's see how we would have
+[00:06:35] implement the producer consumer on an N-element buffer.
+[00:06:39] So this, the implementation requires a mute text to guarantee mutual exclusive access to the resource, of course.
+[00:06:47] And then it requires then two other semaphores, counting semaphores, slots is a semaphore that counts the available slots in the buffer, and items is
+[00:06:59] counts the available items. Okay. And we've, we can implement a semaphore that counts the available slots in the buffer.
+[00:07:04] We can implement it with this package called S-Buff.
+[00:07:11] So the S-Buff package defines a type called S-Buff underscore T that packages up all of the data
+[00:07:21] structures that are needed to implement the shared buffer.
+[00:07:25] So there's a pointer to the buffer, which we were going to implement as an array,
+[00:07:30] and we'll implement a circular buffer on this array.
+[00:07:35] The maximum number of slots N, so the size of the buffer.
+[00:07:40] And then two pointers front and rear to keep track of the front and rear to keep track of the the front and rear of the buffer.
+[00:07:47] So to keep track of the first and last items in the buffer.
+[00:07:51] And then the three semaphores, the Mutex and the two counting semaphors.
+[00:07:56] And then the package consists of these four public functions.
+[00:08:00] S-buff init, which creates the is called
+[00:08:05] It's called once to create the buffer and initialize everything.
+[00:08:09] Allocate the space and initialize things.
+[00:08:12] And then deonit, which frees up the space.
+[00:08:15] And then a function to insert an item into the queue
+[00:08:20] and a function to remove an item from a queue and return that item.
+[00:08:24] So in this case, items are just ints.
+[00:08:31] So to create the, to initialize this buffer,
+[00:08:39] with N slots, we first allocate the space for the buffer N-inths.
+[00:08:46] We set the size to be the value N that was passed in.
+[00:08:52] We indicate the empty buffer by setting front and rear to be zero.
+[00:08:59] Okay.
+[00:09:00] And so whenever front and rear are zero, that's, we have an empty buffer.
+[00:09:04] And then we initialize the three semaphores.
+[00:09:07] So the Mutex, um, we are zero.
+[00:09:08] Like all mutexes, is initialized to 1.
+[00:09:12] The slots semaphore, which keeps track of the number of available slots
+[00:09:16] is initialized to N.
+[00:09:19] And the item semaphore is initialized to 0.
+[00:09:23] Okay.
+[00:09:25] And D and NED is really simple.
+[00:09:27] It just frees up the heap space that we allocate it.
+[00:09:31] Okay, so now let's look at how we insert an item into the buffer.
+[00:09:36] So we call, we want to insert this integer item
+[00:09:39] into this buffer pointed at by SP.
+[00:09:43] So first, the thread waits for an available slot, okay, by doing a P on the slot semaphore, right?
+[00:09:53] So P will block until slots is greater than or equal to 1.
+[00:09:59] Okay, once there's an available slot, then it, it, it, it's going to update
+[00:10:08] to update the rear of the buffer.
+[00:10:13] Okay, so we're going to put this item onto the rear of the buffer.
+[00:10:16] And so it needs to protect that access to that shared buffer with a mutex.
+[00:10:23] Then it does the, by doing a P on the mutex, updating our rear pointer.
+[00:10:30] Okay, so we pre-increment it.
+[00:10:32] So we increment it, so we increment the rear pointer and then take the mod of that in to
+[00:10:38] to compute the index that we're going to insert the item into.
+[00:10:44] Okay, then we do a V on the mutex, okay, so that other other threads can update that shared data structure.
+[00:10:55] And then we do a V on the number of items to notify any consumers that there's now an item in the, in the buffer.
+[00:11:04] So this, this V is kind of interesting. You think of it's kind of like a signal, right?
+[00:11:08] So you're sort of signaling.
+[00:11:09] signaling consumers that now some event has occurred in the system.
+[00:11:18] Now to remove an item, it's symmetric, but instead of operating on the slot semaphore, it operates
+[00:11:25] on the item's semaphore.
+[00:11:27] So to remove an item, a consumer first does a P on the items semaphore.
+[00:11:34] So this now is waiting for an available item.
+[00:11:36] It's waiting for the semaphore to be greater than equal to one. When that happens, then the
+[00:11:41] the P returns and then we do we do the update protected by a mutex by
+[00:11:50] by pre incrementing front taking the mod and then reading that value and returning it and
+[00:11:58] returning it and placing it into this local local variable item then we release the
+[00:12:06] mutex and then we do a V on the number of slots which which which is an
+[00:12:11] to any producers that there's now a new available slot.
+[00:12:16] Okay.
+[00:12:20] So any questions about that?
+[00:12:21] So it's a little more subtle.
+[00:12:26] This looks really simple, but like all concurrency problems, it's actually very subtle.
+[00:12:31] So you can have, potentially you can have many producers and many consumers all operating on the same,
+[00:12:40] you know, the same, the same shared buffer.
+[00:12:44] So this, so what would happen if we have
+[00:12:49] two consumers did a P on this item semaphore at the exact same time.
+[00:12:55] Say we're running on two cores and we have two threads and we have two threads and they each
+[00:13:00] each execute that P at the same time on that same item semaphore.
+[00:13:08] Okay, so even even though they access it at the same time, the kernel will make sure
+[00:13:12] that one of them will execute first.
+[00:13:14] Okay, so the kernel will serialize those P operations and it
+[00:13:21] there's no telling which one gets it first, but whoever runs their P first will
+[00:13:28] decrement this item semaphore. And then when the next, when the next thread executes its P,
+[00:13:37] items will either be zero or non-zero, okay, as a result. So somebody wins, there's kind of,
+[00:13:44] it's kind of like a controlled race, and somebody wins the race, always wins the race,
+[00:13:48] because the kernel is serializing.
+[00:13:51] these P operations and it's executing them atomically.
+[00:13:55] Okay.
+[00:13:59] Okay.
+[00:14:00] Now there's a generalization of the mutual exclusion problem called the reader-writer problem.
+[00:14:07] So with the mutual exclusion problem, we were guaranteeing each thread mutually exclusive access
+[00:14:17] to its critical section that's updating a particular resource or accessing a particular resource, and we
+[00:14:24] did this the exact same way whether that access was a read or a right.
+[00:14:29] But that's overly conservative in this case because we could, if all we were doing, if we had multiple
+[00:14:37] threads that were just reading the resource, there would be no reason to do P's
+[00:14:42] and Vs on that resource. If we're not changing, if we're not changing the resource,
+[00:14:48] if we're just reading it and there's nobody else writing it, then there's no need to
+[00:14:53] protect, right? So for readers, we can have as many readers as we want all at the same time reading, reading the resource, the variable, or a set of variables. And there's no need for any kind of synchronization at all. Okay. So the producer consumer is sort of a generalization of that mutual exclusion problem, which enforces mutual exclusion only when it's absolutely necessary. Okay, so there can be as there can be as many readers, reading
+[00:15:23] the resource, but when a writer wants to write, then it has to have mutual exclusive access to the resource.
+[00:15:30] Okay. So this is a kind of thing, this is also a very useful pattern. You have in an online airline
+[00:15:41] reservation system, you have multiple clients accessing a shared database.
+[00:15:45] Okay, so as long as those clients are reading the database, you can have, they can all be reading at the same time.
+[00:15:52] But as soon as somebody wants to make a reservation and update the database, then that update has to have.
+[00:15:57] happen a mutually exclusive way.
+[00:16:01] You know, if you had, also if you had like any kind of shared data structure, like a cache in a concurrent
+[00:16:07] proxy, like that you're going to be writing soon, or if you haven't already started, that
+[00:16:15] that cache is being shared by multiple threads, and multiple threads may be reading that cache,
+[00:16:22] but when you get a new page and you want to cache it, then that cache it's a new page.
+[00:16:26] And that constitutes a right and that right needs to happen in a mutual exclusive way.
+[00:16:32] Now, the initial research, the researchers that, the researchers that pose this readers' writers'
+[00:16:42] problems defined sort of several classes of reader-writer problems.
+[00:16:49] The first reader-writer's-writers' problems is an implementation that favors readers.
+[00:16:56] So the idea is that no reader should be kept waiting, unless a writer already has a P has sort of acquired the lock on that, or the mutex, on that resource.
+[00:17:15] So in this case, you know, say there's a writer waiting to get to acquire the mutex and another reader comes in, then in this implementation, that reader
+[00:17:26] would get priority over the writer, and it would be able to read the, to do its read,
+[00:17:34] and the writer would have to wait.
+[00:17:36] And so, of course, now if multiple readers keep coming in, then this could starve out the writer, right?
+[00:17:42] So a writer could be starved sort of indefinitely waiting for all these readers to finish.
+[00:17:48] And it's just based on, you know, based on how the operating system decides to schedule
+[00:17:57] these these various reader threads, the writer could be starved out.
+[00:18:03] So that's what we mean by when we say that it favors readers.
+[00:18:07] Now the second readers' writers' problems is the sort of the opposite of that.
+[00:18:14] So it favors writers.
+[00:18:15] Right? So any, once a writer is ready to write, then it gets priority over any waiting readers.
+[00:18:21] So in this case, if we have multiple writers that want to write,
+[00:18:27] they could starve out readers.
+[00:18:29] And now there's other variants that sort of deal with this starvation issue, this potential starvation issue,
+[00:18:39] but we won't look at them here.
+[00:18:42] So the, let's look at the solution to the first reader's writers problem.
+[00:18:48] So right, initially, a thread is either a reader in this sort of simplification,
+[00:18:55] or it's a writer.
+[00:18:57] If we look at the writers, this is pretty simple. It's just the writers are just,
+[00:19:03] are just doing a P on this semaphore.
+[00:19:09] So this semaphore W is the sort of serves as like a mutex that protects the
+[00:19:15] protects the resource for writers.
+[00:19:18] So it ensures that there's at most one writer at most one writer at any time executing its critical section.
+[00:19:27] And it does that by just this very familiar, this familiar P followed by a V.
+[00:19:34] You know, readers are a little more interesting.
+[00:19:38] So with the reader, we have this shared, this global variable called read count, which is going to keep track of the number of readers
+[00:19:46] that are waiting to read the, to read the resource.
+[00:19:51] And there's a mute text, semaphore mutex, that protects the accesses, the updates to read count.
+[00:19:58] Okay, the reads and the rights to read count.
+[00:20:02] And then there's this W semaphore.
+[00:20:04] which as we saw here is used to protect the critical section in the writer.
+[00:20:11] And initially, both of these are set to one.
+[00:20:17] So the reader in this infinite loop, in each iteration of this infinite loop,
+[00:20:21] it is going to increment read count.
+[00:20:24] So it protects that access by doing a P on the mutex,
+[00:20:29] which is associated with read count.
+[00:20:31] So only one reader can be, so this, this is a key on the mutex,
+[00:20:36] So this region between the P and the V constitutes the critical section corresponding to read count.
+[00:20:45] So after the P completes, then we increment the read count. So now there's an additional reader.
+[00:20:55] So we can have potential an arbitrary number of these reader threads, right?
+[00:20:59] So this, we're indicating that there's, there's a new reader now. And if read count is one, that that that means we're the first
+[00:21:08] So this is sort of the first reader into the this implicit cue of waiting readers.
+[00:21:15] So if read count is one, if we're the first reader, then we do a P on W, then we do a P on W,
+[00:21:23] okay, which now will lock out any, any future writers.
+[00:21:29] Now if there's already a writer that's done, it's P of W, then this will block waiting for that writer to finish.
+[00:21:37] Okay.
+[00:21:39] But if there's no.
+[00:21:40] writer inside of its critical section, then this P will just decrement the semaphore
+[00:21:48] W from 1 to 0 and then lock out any subsequent writers.
+[00:21:53] Okay, after, so now after it's done this increment and read of the read count variable, then it releases
+[00:22:01] the mutex so that other readers can can access read count. Okay, now, but it's still holding, it's
+[00:22:16] it's holding so this is this is kind of interesting right it's it's holding
+[00:22:20] this semaphore that that locks out the writers but it's not holding the any any mutex right
+[00:22:27] so the reader now can just it can just read it can do its read and other readers that that are in
+[00:22:37] the same the same section of the code can also do their reads right so so we're not so we're
+[00:22:46] allowing multiple readers now inside this critical section but but no writers okay
+[00:22:53] so everything so everything works looks like it works good now after after we read now the number
+[00:22:59] of readers now is going to be we want to decrement the number of readers so we
+[00:23:03] acquire the mutex on on read count we decrement read count and then we check to see if
+[00:23:11] we're the last reader okay so if there's no more readers in other words if read count is zero
+[00:23:18] Then now we can release the mute text for the writer so that any now writers can access that resource.
+[00:23:24] And after we release that the writers, the writers' mute text, then we release the mutex for a read count.
+[00:23:37] So any questions about this?
+[00:23:43] So an interesting thing for you to think about, just if you have any spare time, is how you might write a version of this, how you might write a version of this reader's writers problem that favors writers.
+[00:23:55] instead of readers.
+[00:23:56] Okay.
+[00:23:57] Yes.
+[00:24:00] Okay.
+[00:24:02] So the question is a mutex allows for multiple readers?
+[00:24:04] Oh, no.
+[00:24:06] Okay, so the question is a mutex allows for multiple readers.
+[00:24:09] The fact that we, no, the fact that we're releasing
+[00:24:13] really, the fact that we're releasing this mutex here,
+[00:24:15] that this mutex is only protecting access to read count.
+[00:24:19] So we acquire it here and we release it here after we've,
+[00:24:23] after we've accessed read count.
+[00:24:25] Okay, but we're not protecting the critical
+[00:24:28] the critical section of the reader with any mutex.
+[00:24:33] Except for we're keeping writers out by, if we're the first one in, if we're the first one in, if we're the first reader,
+[00:24:40] you can add, there's like this implicit cue of readers that we're keeping track of with read count.
+[00:24:49] Okay, so if we're the first ones in, meaning we're the first reader, then we acquire this, the
+[00:24:57] the P on the writer's mutex.
+[00:24:59] Now, of course, if there's a writer inside this critical section, then this P will wait until the
+[00:25:06] writer releases.
+[00:25:09] Okay.
+[00:25:10] But once we've acquired this, this mutex W, then we're, we're locking out any writers.
+[00:25:18] Okay, because they'll, any writer that arrives will do a P and it'll block right here
+[00:25:24] on waiting for that W to be non-zero.
+[00:25:27] non-zero. Okay, so we're just, we're blocking out any writers, but then we're allowing any readers to just, to access the resource.
+[00:25:37] Okay? Okay, good. Yes, question. Question is blocking slow? It can be, depends. Well, first of all, you're making a call into the kernel, so it's a system call. So you're crossing that boundary, and there's always overhead associated with that. And then blocking, you're blocked until, you know, it can be sort of an
+[00:26:05] arbitrary amount of time, right, until someone does a, some thread does a V.
+[00:26:09] So yeah, it can be slow, right?
+[00:26:13] It just depends.
+[00:26:36] a blocked P won't be in its queue forever, right?
+[00:26:41] The kernel does some kind of, something that's fair, so it guarantees that a P won't remain blocked
+[00:26:47] indefinitely.
+[00:26:48] Okay, any other questions?
+[00:26:55] Okay, so we can kind of put all of this together and use the, use our producer-consumer
+[00:27:08] model to implement a pre-threaded concurrent echo server.
+[00:27:13] Now, so far, when we've used threads to, in all our examples of using threads and processes for servers, we created a new thread or process whenever a new connection request arrived, and then when, when, and then that thread interacted with the client, and then whenever, whenever that interaction was finished, it closed the connection and exited and killed the thread or process.
+[00:27:39] Now, that's, that's okay, but it's, it's, it's inefficient, right?
+[00:27:44] Because we're, this creating and killing threads, uh, introduces overhead.
+[00:27:50] So, another way to do this is to pre, to create the threads or processes ahead of time, create a pool of threads where each thread, where each thread, so we create a pool of these worker threads where each of these worker threads interacts with, can interact with a client.
+[00:28:09] So instead of sort of creating processes and threads on demand, we create a, what we call a set of pre-threaded or pre-threaded threads or pre-threaded threads or pre-forked processes that do the work.
+[00:28:24] So the idea is that we have this master thread in our server that's waiting for connection requests from clients by repeated calls to accept.
+[00:28:38] And then when it, when this thread receives,
+[00:28:41] a connection request from the client, the accept, the accept function returns
+[00:28:47] a connected file descriptor, okay, associated with the connection to the client, and then it inserts
+[00:28:55] that descriptor into a, into a buffer. Okay, now remember, descriptors are just small integers that
+[00:29:03] index the descriptor table, right? So they can be passed around from thread to thread, because
+[00:29:09] All the threads are sharing the same, the same, uh, set, the same descriptor table, right?
+[00:29:18] So the master thread puts the, uh, repeatedly, accepts connection requests, and inserts
+[00:29:25] the corresponding, uh, connected file descriptor into the buffer.
+[00:29:30] Now, each worker thread, um, waits for the, so in this case, the items are descriptors, so the
+[00:29:38] so the worker threads, they're all waiting on this, for items to it.
+[00:29:42] appear in this buffer, okay?
+[00:29:45] And when an item appears, one of the threads will remove that item,
+[00:29:52] and then use that descriptor to interact with the, with the client over the connected file
+[00:29:57] descriptor associated with the connection that exists between the client and the server.
+[00:30:04] Okay, so now we have, we have, we have these, the concurrency comes in the form of these multiple
+[00:30:09] worker threads interacting with multiple clients, and then when a worker thread
+[00:30:14] finishes servicing a particular client, then it just goes and it checks for the
+[00:30:21] next file descriptor in the buffer.
+[00:30:26] So this is much more efficient than our previous model where for each new client we had to create
+[00:30:31] a thread or a process and then destroy that thread or process once we were finished.
+[00:30:36] Okay, so we're sort of re-amortizing all the work that that we had to go through to create
+[00:30:42] these worker threads by leaving them running.
+[00:30:45] And then replacing the destruction or the killing of that thread with replacing it with just a simple and very fast operation of removing an item from the buffer.
+[00:31:00] Okay, so let's let's see how we would implement this.
+[00:31:06] And like all of these server examples, it's surprisingly simple, right?
+[00:31:11] This is a fully functioning, a real server, but we can do it in one page.
+[00:31:16] one page of code.
+[00:31:20] So for this pre-th, we're going to use threads for our concurrent server, and we're going to use the
+[00:31:26] S-buff package.
+[00:31:27] So we're going to create this shared buffer, a global variable called S-buff.
+[00:31:36] And we have listening descriptor and connected descriptor, and we have the client length
+[00:31:43] and client adder that will be used in the accept call, and we have the thread ID that will be used in the accept
+[00:31:45] call and we have the thread ID that will be used in the when we create
+[00:31:51] the when we create this thread so now that we start by we're going to in this
+[00:31:57] program we're going to pass in the port number so this the server is going to
+[00:32:01] be listening on some port so we pass that port number in as is the first
+[00:32:06] argument so we call open listen FD on ARV of 1 and open listen FD creates a
+[00:32:15] listening descriptor and returns
+[00:32:17] it returns the value of that descriptor in LISNFFD.
+[00:32:22] And then we call S buff init to initialize our shared buffer with S buff size file descriptors.
+[00:32:34] And then we create a collection of N threads worker threads, each of which will execute the thread routine,
+[00:32:41] which we've called thread, and no argument.
+[00:32:47] So once we create these, all of these threads, then we go in this infinite loop,
+[00:32:51] where we call accept on this listening descriptor.
+[00:33:02] So then accept will block until a connection request arrives.
+[00:33:06] And when it does, the accept returns with a connected file descriptor that can be used to interact with the client.
+[00:33:12] And once we get that connected file descriptor, then we just simply insert it.
+[00:33:18] we insert that connected file descriptor into our shared buffer and
+[00:33:25] then wait for the connection request the next connection request so our server's very
+[00:33:30] efficient right we're we're just doing an accept and then a very fast insert into the
+[00:33:34] buffer okay and then we're going to let the worker threads do all the work
+[00:33:38] associated with those with that with with with that that that that queue of descriptors now the
+[00:33:48] The thread routine first detaches, okay, so this is a case where we don't want to run joinable, because we're never going to join, to join, we're never going to wait for these threads or have any, any reason to kill them from the main thread.
+[00:34:07] So this, so now this worker thread in this infinite loop, each iteration, it removes an item from the buffer, so it blocks until there's an item from the buffer, so it blocks until there's an item that it can, that it can remove from the buffer.
+[00:34:19] and it sets it to this local variable con-fD, and then it calls a helper sort of this, this is like the helper function that implements the helper function that implements the logic for this particular server.
+[00:34:34] And this is this in this case, it's an echo server.
+[00:34:38] So this echo count routine will interact with the client echoing whatever the client sends us until the client closes the connection.
+[00:34:48] And then when it's, so whenever the client is finished,
+[00:34:50] then we close the, we close the our end of the connection and go back and get the
+[00:34:59] next item out and get the next item out of the buffer.
+[00:35:02] And I should point out that echo count is just a placeholder. This could be anything. This could
+[00:35:07] be the logic for a web server or for any kind of web service, or any kind of service.
+[00:35:16] Now, the, the, to initialize this echo count function, we need to initialize this echo count function, we
+[00:35:26] We need to initialize the mutex.
+[00:35:31] So this echo count function is going to have, it defines a global variable called byte count.
+[00:35:39] So this, in this echo server, we're going to keep track of the number of bytes that we've received from all the clients that we're interacting with.
+[00:35:47] Okay, so there's a global variable called byte count, which is shared by all the threads.
+[00:35:52] And we're going to update this, this byte count variable every time.
+[00:35:56] we receive something, every time we receive data from the client.
+[00:36:02] And we're going to use Mutex to protect the accesses to bite count.
+[00:36:08] Okay, so we're going to initially, we're going to have to initialize, we're going to have to
+[00:36:13] call a function that initializes, that initializes this by, by first initializing
+[00:36:21] the mutex, and then setting byte count to zero. And then within echo count itself,
+[00:36:29] there's we've already seen a way to initialize a package.
+[00:36:42] You know, if we have some kind of package of package of library functions that are going to be used by multiple threads,
+[00:36:47] there's several ways to actually initialize this package.
+[00:36:51] So one way is to explicitly call, have the main thread call this initialization function once.
+[00:37:00] Okay, so we've seen that with like the s buff package, right?
+[00:37:03] The main thread has to call, the main thread calls S buffin it once,
+[00:37:11] okay, before any of the peer threads execute, any of the worker threads execute, any of the worker threads execute.
+[00:37:17] But there's another way we can do this, too. We can have the worker threads actually call the initialization function.
+[00:37:25] And we can use this technique provided by, by P threads, where we define a static variable, so this is a static variable,
+[00:37:36] local variable, but you recall that this is actually treated like a global variable.
+[00:37:42] So each, every thread has access to this variable, okay.
+[00:37:49] But its scope is limited to the, to the echo count function.
+[00:37:54] So no other function can access this variable, but each thread that executes this
+[00:38:03] thread routine has access to it. And in this context, it's treated like a global,
+[00:38:10] right? So if one thread updates the value, every other, every thread sees that same value.
+[00:38:16] Okay, so we can use this mechanism from P threads by, so we can create this variable of type
+[00:38:26] P thread wants T and initialize it to this special P threads value, which is sort of like
+[00:38:32] the P-threads un-uninitialized value. So this is a value that P-threads knows about that indicates
+[00:38:41] that this variable once hasn't been initialized. And then we call the P-thread-once function, passing
+[00:38:53] this variable that we, the address of this variable created that we created, and the address of the
+[00:39:00] function to call to initialize whatever it is we want to initialize. In this case, the echo count, the echo count variable. And so what this does, every thread will call P-thread once, but only one thread will actually call the initialization function. Only the very first thread that executes P-thread once will call it. The other
+[00:39:33] threads, this P-thread once call will be like a no-off.
+[00:39:38] Yes, question. Well, that's the other option. So, so the advantage of this is that the
+[00:39:46] advantage of this is that you can, I guess the advantage is, I don't know, it's just another way you
+[00:39:57] can do it. You, I guess it avoids, it avoids having to do it in the master thread that
+[00:40:03] you can make your, you can make this package sort of self-contained, right?
+[00:40:09] You're not really counting on the master doing anything.
+[00:40:13] But yeah, that's the other way we could have done it.
+[00:40:15] So I just wanted to show you this other technique.
+[00:40:19] Okay, so once we initialize, once we, once some thread calls a net echo count, then we initialize the Rio package for all of our accesses on this connected descriptor.
+[00:40:36] And then we repeatedly read a line of text from the client.
+[00:40:40] Okay. And then in a protected way, we increment byte count with the number of bytes that we received from the client, which is returned by this Rio read line B function.
+[00:40:56] And then we print a little message just to sort of keep track so we can see, keep track of our running total.
+[00:41:04] And then we release the mutex on this, on the byte count, the global bite count variable.
+[00:41:09] And then we echo that line back to the client.
+[00:41:14] Okay.
+[00:41:16] So any questions about that?
+[00:41:17] Yes, questions.
+[00:41:18] So the line that declares it will only get executed the first time that finds this?
+[00:41:28] Okay.
+[00:41:29] The question is, the line that declares the static variable once.
+[00:41:35] Will it only be executed the first time a thread executes that statement?
+[00:41:42] No, it's, so the answer is no, every, every thread will define this variable and assign it
+[00:41:47] and assign it to this, this, this, this, this, this, this, this, this, this, this, this, this, this
+[00:41:55] will only happen once, is the call to a knit echo count. Okay, so, um, the first thread that executes
+[00:42:03] this p thread once call will actually call a knit echo count. Every other thread, every
+[00:42:10] every subsequent thread, will not call it. It'll be like a no-up.
+[00:42:14] So, so.
+[00:42:15] Does it use the once as a flag?
+[00:42:18] Yeah, it uses the once.
+[00:42:19] It's just an opaque.
+[00:42:20] When the other function calls the declaration line,
+[00:42:27] want it be resetting the flag by resetting its P-thread once in it?
+[00:42:33] Yeah, somehow it will, but somehow the P-thread once is keeping track that it's executed.
+[00:42:39] Okay.
+[00:42:41] So I'm really not sure how it's implemented.
+[00:42:45] Okay.
+[00:42:46] So somehow P-thread wants, yeah, I guess every, you know, this, you know, this,
+[00:42:52] I mean, this is just the C declaration, right?
+[00:42:54] So there's no, the P-threads has no control over declarations, right?
+[00:43:00] So every thread will get, every thread will sort of update the static variable.
+[00:43:08] And you're right, if the first thread, the second thread would overwrite this value again.
+[00:43:19] But somehow P-thread once can, keeps track of that, okay, in a, in some way,
+[00:43:25] that I'm not sure about how that works.
+[00:43:29] But this is the way you get that behavior.
+[00:43:37] Okay, now there's some other issues around synchronizing threads,
+[00:43:41] sort of correctness issues, that we have to be aware of.
+[00:43:46] And so I hope you're sort of getting the sense that this threaded programming is kind of a tricky
+[00:43:51] business, right?
+[00:43:52] And so one issue that we always have to be aware of is this idea called thread safety.
+[00:43:59] So in general, a thread routine,
+[00:44:02] can only, should only call functions that are thread safe, that have this property called thread safety.
+[00:44:08] Okay. And a function is thread safe if and only if that function can be invoked by multiple threads at the same time.
+[00:44:19] Okay, so if we have a function F, it's thread safe if and only if its execution can be interleaved by multiple threads.
+[00:44:29] Okay. And so we can identify a four different
+[00:44:37] classes of thread unsafe functions.
+[00:44:40] So one class is the functions that fail to protect shared variables with Mutexes.
+[00:44:46] Okay?
+[00:44:48] So we've already seen that with bad count.
+[00:44:50] That was an example of a thread unsafe.
+[00:44:52] That main routine was an example of an unsafe thread function.
+[00:44:56] Or no, the thread function was an example of an unsafe thread function
+[00:45:02] because it didn't protect the update of the count variable.
+[00:45:06] Another class of functions that are,
+[00:45:10] that are threat unsafe are those functions that keep track of state across multiple invocations.
+[00:45:17] So if they're storing state in some global variable, global variable, private or public global variable,
+[00:45:24] then that's thread unsafe because multiple threads will be accessing that state.
+[00:45:31] Another way, another kind of threat unsafe function are functions that return a pointer to a static variable.
+[00:45:39] So there's a number of function.
+[00:45:41] there's a number of functions in the standard C library that were written before threads were even on anybody's radar.
+[00:45:48] And so an example is the C-time function, which takes as an argument, a time-struct, a binary time-struct, and returns a pointer to a string, date and time-string.
+[00:46:04] But the address in that pointer is always the same, right?
+[00:46:08] So this function is defining some kind of static variable.
+[00:46:11] and then it's converting the binary time structure into a string that's always at the same location and it's returning the address of that string.
+[00:46:24] So every invocation returns the exact same address, but with different content at that address.
+[00:46:32] Okay.
+[00:46:32] And this, you know, they just, they didn't realize that this was a bad thing to do for threaded programs because nobody was writing threaded programs at the time.
+[00:46:40] And then obviously any function that calls a threat unsafe function is threat unsafe function.
+[00:46:47] Okay, so let's look at these these different classes of functions.
+[00:46:52] Okay, so the class one functions fail to protect shared variables.
+[00:46:57] And so the fix, as we've seen, is to use P&V to guarantee mutual exclusive access and thereby protect the accesses to the variable.
+[00:47:05] So we saw this with that good count program.
+[00:47:08] And then the problem is, and also as we saw with good count is that the synchronic
+[00:47:12] operations can be slow.
+[00:47:14] So if they're in a tight interloop, it can really slow your program down.
+[00:47:19] Okay, the class two threat on safe functions rely on some kind of persistent state
+[00:47:27] across invocations of that function.
+[00:47:30] Okay, so the classic example is the Lipsy RAND function.
+[00:47:36] Who's, and this, the implementation of which is, is an implementation of which I took from
+[00:47:43] the K&R book.
+[00:47:44] So this is a pseudo random number generator.
+[00:47:52] It's pseudo random in the sense that if you give it the same key, it'll return the same sequence of values.
+[00:48:00] Okay.
+[00:48:01] So this is kind of nice because it allows, when you're testing, it allows repeatability.
+[00:48:07] So every time you call it, if you call it with the same seed, you're guaranteed you'll get the same results.
+[00:48:12] And the way this is implemented,
+[00:48:15] is that there's the seed, there's a seed variable called Next, which is used in each iteration of the random number generator.
+[00:48:29] And it's defined as a global, private, so static makes it private, so it's not accessible to programs that are calling the RAND function, but it's used by the RAND function.
+[00:48:43] And so this variable is initialized to one.
+[00:48:46] There's a function called S-RAND, which allows the user to set the seed value.
+[00:48:53] So the default seed value is one.
+[00:48:56] But if the user calls S-RAN, they can pass in a seed,
+[00:48:59] which will be then, which is assigned to this next variable.
+[00:49:05] And then each iteration of RAND does an operation on the seed.
+[00:49:12] So it takes that the next value that's going to be used is the,
+[00:49:18] is a property of the previous value,
+[00:49:20] the function of the previous value.
+[00:49:22] And then it returns a pseudo-random number
+[00:49:25] that's a function of that next value.
+[00:49:27] Okay, so it's relying on this, each iteration,
+[00:49:31] each time you call RAND,
+[00:49:33] you're relying on this next value
+[00:49:36] that was computed by the previous time that you called RAND.
+[00:49:40] Okay, now this is perfectly fine,
+[00:49:43] and there's no problem with this in a non-threaded situation.
+[00:49:48] But what happens, if multiple
+[00:49:50] threads now. So suppose you have multiple threads and they're each calling this RAND
+[00:49:58] function, sort of interleaving calls to RAND, the fact that the fact that that RAND is relying on this previous
+[00:50:07] state, if multiple threads are calling RAND, it's going to break this pseudo-random
+[00:50:14] property. So each thread, the random numbers of each thread gets back are not
+[00:50:20] only a function of the previous, the seed from the previous time that thread
+[00:50:25] called the function, but also a function of the other threads that are calling it.
+[00:50:31] Right? So, so if a particular thread calls this random number generator multiple times,
+[00:50:39] it potentially won't see the same sequence of pseudo random numbers because other threads
+[00:50:44] will be jumping in. Okay. And okay, okay, okay, so it's, so it's
+[00:50:52] It's not incorrect in that the program will fail, but if the program is counting on the pseudo-random property, then it creates a problem.
+[00:51:02] So the solution to this is to rewrite RAND and require it to require the caller to keep track of this next variable.
+[00:51:15] Okay, so each caller will keep its own local copy of next and it'll pass in a pointer to RAND.
+[00:51:22] Rand will compute that value.
+[00:51:24] So now this will be updating state in the calling, the calling thread, but this is local state on the, on that thread stack.
+[00:51:32] So every thread will have its own copy of Next.
+[00:51:37] So, but we have to create a new function, and we'll call it underscore R.
+[00:51:44] This stands for reentrant, which is a property we'll look at in just a second.
+[00:51:48] But it's more work for the programmer because now the programmer because now the programmer has to maintain this.
+[00:51:53] this sort of this next value.
+[00:51:57] Okay.
+[00:52:01] Okay.
+[00:52:02] Another way that threads, the functions are unsafe
+[00:52:05] is this, are these functions that always retain
+[00:52:10] return a pointer to some global,
+[00:52:13] to the same global variable
+[00:52:15] or typically it's a static variable,
+[00:52:17] but they always return the same value each time,
+[00:52:21] the same address.
+[00:52:23] Okay, so you can see this is similar to that race that we encountered
+[00:52:27] we encountered before where we were passing the address of a connected file descriptor to a worker thread.
+[00:52:34] Okay. So now we're creating arrays. So let's say one thread, let's say one thread calls this function.
+[00:52:40] So for example, see time takes this time struct as an argument, okay, which it can correspond
+[00:52:48] to an arbitrary time. It could be the current time or just some arbitrary time that the caller
+[00:52:52] constructed and it returns a pointer to a char star so it just
+[00:52:59] returns a pointer to a string that represents the date and the time right so an
+[00:53:03] an ASCII asky string that that represents the date and time but it's
+[00:53:13] always it's always returning a pointer to the same the same location in memory okay
+[00:53:22] so you can see the problem if if thread A calls this C time function with with one
+[00:53:28] with one time struct, it gets back a pointer to the character string corresponding
+[00:53:35] to that time struct. But now let's say before, before thread A can use that, read that,
+[00:53:42] that string, another thread called C-time, and that instance of C-time will overwrite the copy
+[00:53:50] of the time string for that, that thread A computed. So when thread A finally gets a chance to access
+[00:53:59] that time string, it's accessing thread B's time string and not thread A's time string.
+[00:54:06] Okay, and it just depends if thread A can get to that and read that variable before thread B overwrites it,
+[00:54:13] then everything's fine. Otherwise, thread A is accessing the wrong time string. Okay, so there's a couple of ways to fix this.
+[00:54:22] Like, we could rewrite the function, the C-time function, to take, as, add another argument,
+[00:54:30] that passes in the location, the address of the time string.
+[00:54:37] So we could require the caller to allocate space for the time string and pass in the address to the
+[00:54:44] C-time function.
+[00:54:46] Okay, but this has, this has, this has, this has, this would require us to change all the instances
+[00:54:51] where we call C-time.
+[00:54:55] But we'd also have to change the implementation of C-time in the LIB-C in the library, in the library, in the library.
+[00:55:03] And so we can't, we don't have access to Lib C's source on our system, right?
+[00:55:09] So that's just not a feasible thing.
+[00:55:11] Plus, it would break every other program that called C-time, right?
+[00:55:15] So we just can't do that.
+[00:55:18] The, another, a better option, is to create a new function of our own,
+[00:55:23] called C-time underscore T-S for thread-safe.
+[00:55:28] So we'll create our own sort of wrapper function for the C-time.
+[00:55:35] And we'll use a technique called lock and copy to provide thread-safe access to C-time.
+[00:55:44] So the way it works is that we'll write this new function, C-time underscore T-S, which just like C-time,
+[00:55:52] takes this pointer to this time struct.
+[00:55:56] But then it adds a second argument, which is a pointer to a pointer to the thread's private copy of the time string.
+[00:56:06] Okay. So the caller allocates the space and passes the pointer to this, to that, to that string.
+[00:56:17] And then within C-time, we have a local variable called shared, the shared pointer.
+[00:56:23] Okay, so this is going to point.
+[00:56:24] point to that shared global data structure that C-time is accessing.
+[00:56:32] And so first we do the lock, that's the lock part of lock and copy, by acquiring a
+[00:56:36] mutex, and then we call C-time, so only one thread at a time, we'll have this mutex.
+[00:56:45] So whatever thread, so once we return from P, we know that we're the only thread in this critical
+[00:56:52] section. So we call C-time, the normal Lipsy C-time.
+[00:56:57] function which returns a pointer to this to the same location and then we do
+[00:57:04] the copy part we copy that that string to the private string that was passed in to
+[00:57:13] our function once we've done the copy then we can release the mutex and then we
+[00:57:19] returned a pointer we returned private p back to the caller okay so
+[00:57:30] And we don't, we don't, this is just more of a convenience to the caller, because programs
+[00:57:36] that are using C-time are expecting to get that pointer back.
+[00:57:40] Okay, so by using lock and copy, we have to, we have to make changes.
+[00:57:44] We have to write this new function, but it's fairly simple.
+[00:57:48] And then we have to make changes every place in our program where we call C-time, we have to
+[00:57:53] update those to calls to C-time underscore T-time and create this local
+[00:58:01] string array.
+[00:58:03] Okay. Yes.
+[00:58:19] Well, typically, these by why it has to be a pointer, but white's not just any type of variable that would cause this kind of condition and or why it's just to be a pointer to. And so they're sort of updating the data structure and then returning a pointer to it. So it wouldn't make, I don't know how. I don't know how.
+[00:58:34] I guess it could return a struct, and it would always return, no, no.
+[00:58:43] I can't think of any, I can't think of any reason why they would return anything but a pointer.
+[00:58:48] Because they're typically updating some data structure and then returning a pointer to it.
+[00:59:02] If they were returning, if they were returning scalers, those scalers would always be returned in E-A-X, or R-A-X.
+[00:59:14] So actually, that would be okay, right?
+[00:59:15] It would just be, it's the pointer that causes a problem because it's always returning that value in E-A-X, but it's always returning the same value in E-A-X, always pointing to the same value in E-A-X, always pointing to the same data structure.
+[00:59:28] Okay, good.
+[00:59:30] Okay, now one, one potentially significant disadvantage of lock and copy is that this copy might not always be as simple as just doing, doing like, a stir copy. If, if it's a complex, if,
+[00:59:52] the function that you're calling is computing some complex data structure, like a nested,
+[00:59:57] you know, a struct, which contains structs and pointers to arrays, then this copy can get quite
+[01:00:03] complicated, right? It would require what we call a deep copy.
+[01:00:08] So that can be, that can be very difficult, too. But in this case, it's simple.
+[01:00:13] We're just, we're just doing a, we're just copying one string to another.
+[01:00:17] Okay, and then finally, the, the fourth class of thread on, say, functions are functions are functions that
+[01:00:23] call unsafe functions, right?
+[01:00:25] So it's kind of obvious.
+[01:00:27] And then the obvious fix is to not call threat unsafe functions from within your function, and then you can
+[01:00:33] make it thread safe.
+[01:00:37] Now, there's a very interesting, an important subclass of thread safe functions called reentrant functions.
+[01:00:45] So a reentrant, a function is reentrant if it contains no accesses to shared variables.
+[01:00:54] So if all the, if every variable that it accesses is contained on the, is declared as a local variable and stored on the, on, is declared as a local variable and stored on the stack for that function.
+[01:01:08] Okay, that's called a reentron function.
+[01:01:09] And because there's no accesses of any kind to shared variables, there's no, there's no synchronization required because every function is operating accessing its own local copy of all the variables.
+[01:01:22] And if multiple,
+[01:01:24] multiple threads execute two instances of a reentrant function.
+[01:01:31] It's okay. Each thread has its own separate stack. So you don't need to worry about any kind of synchronization. They can run independently.
+[01:01:40] So the reason reentron functions are so important is because it's expensive to do synchronization.
+[01:01:46] And so you can avoid it completely with these reent function, reent functions, so they're efficient.
+[01:01:52] So as the, as the diagram shows,
+[01:02:00] reentron function is thread safe, but not every thread safe function is reentrant.
+[01:02:08] So we saw that before, right? When we have a function that accesses a shared variable, we can
+[01:02:13] make it thread safe by protecting it with a mutex. Okay, but it's not reent
+[01:02:19] because it's accessing shared variables. Now, all the functions in the standard C library, which
+[01:02:32] are enumerated in the back of your K and R text are thread safe, okay, but not necessarily
+[01:02:37] reent.
+[01:02:39] And most syscalls are thread safe with just a few exceptions that I've listed here.
+[01:02:45] I don't think, I don't think this is complete, but these are just sort of examples of some notable ones.
+[01:02:51] And so for each, each of these thread unsafe functions, Linux provides a reentrant version, which is denoted by underscore R.
+[01:03:03] And then that reentrant version has a different set of parameters, typically.
+[01:03:08] The only exception that I know about is INET N2A, which is sort of an obsolete network
+[01:03:16] protocol for converting sort of binary network addresses to human-readable ASCII addresses.
+[01:03:26] But this has been obsoled by other calls, so it's, I guess they just never, never bothered to create
+[01:03:34] a reentron version for it because there's other options, alternatives to using that.
+[01:03:39] So another thing we have to worry about as we've seen is races.
+[01:03:46] And this is the real bugaboo in threaded programs.
+[01:03:51] And it typically involves some kind of unexpected sharing.
+[01:03:55] So in this case, I want to revisit this this incorrect threaded program that, where we introduce
+[01:04:05] introduce a race by passing.
+[01:04:06] When we create the thread, we pass the argument to the thread, which is like the local
+[01:04:12] thread ID, we pass an address of a variable that we have stored on the stack.
+[01:04:19] And this case, the I, the loop, the loop iterator. And so we've seen that this causes
+[01:04:31] this causes arrays. So we, we set initially I is zero. Then we create a new thread,
+[01:04:40] which is pure thread zero. And then this thread de-references the pointer to get
+[01:04:47] its local copy of the sort of local thread ID.
+[01:04:53] But now we've introduced the race between the increment of I and the de-referencing of the incrementing of
+[01:05:03] the incrementing of I in the main thread and the de-referencing of I in the peer thread.
+[01:05:09] So if this de-referencing happens before I is incremented, then we're good.
+[01:05:15] But if this de-referencing happens after we increment I, so in other words that when I equal
+[01:05:20] one, then we get the wrong value in the peer thread for my idea.
+[01:05:31] So you might wonder, I think there was a question before about, you know, this seems, the odds of
+[01:05:36] this happening seems so low, why are you even worrying about it?
+[01:05:41] So we actually create, just to sort of test this out, we wrote a program to see if we could
+[01:05:49] actually see this race in practice.
+[01:05:53] And that's one of the great things.
+[01:05:55] about like 2.13 is that we can just try stuff out, right? So we just tried
+[01:06:00] it out. So we wrote it, we wrote a simple main thread that creates a hundred different
+[01:06:07] threads, each with the, we pass the, as the argument, we passed the address of this local variable
+[01:06:14] I, okay? And then in each peer thread, we detach the thread, dereference, and then we
+[01:06:22] have a function that saves the value. So we're storing, we're storing, we're storing, we're
+[01:06:28] storing that value of I for future reference.
+[01:06:34] Okay, so now if there's no race, each of the 100 threads would get a separate distinct thread ID, right?
+[01:06:41] So each value is 0 through 99.
+[01:06:44] If we made a histogram of it, there would be exactly one instance of each value of I.
+[01:06:51] But if there was a race, there would be, for some values of I, there would be multiple instances that were encountered in multiple threads.
+[01:06:59] So you can see if we go back here, if we lose, if the peer thread loses
+[01:07:08] the race and I gets incremented before it can de-reference, now we've got peer thread 0 actually
+[01:07:20] gets an ID of 1. Okay. And then peer thread 1, if there's no race, it'll get
+[01:07:30] the correct value of 1. So now we've got two instances of 1. Okay.
+[01:07:34] Okay?
+[01:07:37] So let's look.
+[01:07:38] So this is the case.
+[01:07:40] So we've plotted the results for a case where there's no race.
+[01:07:43] So along the x-axis, sorry, this is too small.
+[01:07:46] The x-axis gives us all the 100 values of i, 0 through 99.
+[01:07:51] And then the y-axis is the count.
+[01:07:53] So this is a hit, we're doing a histogram of, for these, all the values, 0 through 99.
+[01:08:01] So in this case, every value has exactly one instance, so no race.
+[01:08:05] There was no race in no races involved in all 99 or all 100 instances.
+[01:08:15] If we run it on a single core laptop, so now each thread is sort of taking its turn on a single core
+[01:08:22] core, it happens a few times, right?
+[01:08:26] So there's a few times where the one thread gets preempted and the other thread begins to run
+[01:08:33] to run before it can, so the peer, one thread gets preempted before it can de-reference
+[01:08:40] the variable so it gets the wrong, the wrong value.
+[01:08:44] But it's not very common.
+[01:08:45] It just, it happened one, two, three, four, five, six, seven times.
+[01:08:51] But now if we run this program on a, on a multi-core server, you can see it happens a lot.
+[01:08:56] In fact, it happens most of the time.
+[01:08:58] So it almost never, we almost never get the correct, the correct value.
+[01:09:03] for my ID.
+[01:09:04] Okay, so this is just another example of some of the, the things that can just drive you crazy
+[01:09:11] can just drive you crazy if you're not careful when you, when you program it in threads, with threads.
+[01:09:16] Okay, and so as we saw, the way to eliminate these kind of erases is to avoid this, the sharing of
+[01:09:27] state, and in this case by allocating, for each thread allocating a separate block in the heap that'll hold the,
+[01:09:36] the that'll hold the local ID for that thread and then passing a pointer to that
+[01:09:43] that unique block of storage to the thread.
+[01:09:51] Okay, so if that, if all of that isn't enough to worry about, and by now you should be losing
+[01:09:57] losing sleep at the very thought of writing a threaded program, another thing to worry about
+[01:10:03] is deadlock. Okay. So here, a program is a program is deadlocked.
+[01:10:10] if it's waiting for some condition to occur that will never occur.
+[01:10:14] Okay.
+[01:10:16] So let's say a typical scenario, right, P is a potential, the P operation is a potential problem
+[01:10:25] because it blocks, right?
+[01:10:27] And it's waiting for that semaphore that it's blocking on to become non-zero.
+[01:10:34] Well, it's, it's not too hard to imagine scenarios where some, there's some combination of P's
+[01:10:39] some combination of P's, of P operations that sort of block each other out.
+[01:10:44] other out and make it impossible for the condition they're waiting on to occur.
+[01:10:50] So for example, let's say you've got two, two threads that need two, two threads one and two, that need
+[01:11:00] two different resources, A and B, in order to proceed.
+[01:11:03] So they have to acquire, they have to do a P on the mute text that, on the mute text that's associated with, the
+[01:11:12] the mute texts that are associated with these two researches that are associated with these two
+[01:11:14] resources. So let's say process one acquires A. So it does a P on A's Mutex.
+[01:11:22] That's one. It's okay. So it succeeds. So it acquires that resource. And then it gets
+[01:11:31] preempted by thread two, which acquires B first. Instead of acquiring A, thread B for some reason
+[01:11:40] acquires B. So now thread A holds the lock on resource A and thread A holds the lock on resource A and
+[01:11:47] thread two holds the lock on resource B.
+[01:11:52] And so now, let's say, thread two gets preempted, so now,
+[01:11:57] and thread one runs.
+[01:11:58] And so now it's waiting, it's trying, it tries to acquire
+[01:12:03] the lock on resource B, but thread two holds that lock.
+[01:12:11] And at the same time, thread two tries to acquire the lock on resource A,
+[01:12:17] but process one is holding that, right?
+[01:12:19] So they're each, so here's a case where thread A is
+[01:12:22] waiting for this semaphore associated with B to become non-zero. So it's blocked in
+[01:12:30] this P operation. And at the same time, thread two is blocked in the P operation for the P operation
+[01:12:37] for resource A. Neither of those semaphores will ever be released, so thread one and two are
+[01:12:46] deadlocked. Okay. And it happened because just there was this inocuous little bug in this case where
+[01:12:55] where the threads acquired their resources in different orders.
+[01:12:59] So here's an example of a program that deadlocks.
+[01:13:09] And if you looked at this, you know, the fact that it's wrong and buggy doesn't jump out at you, right?
+[01:13:15] So this, this kind of stuff is very subtle.
+[01:13:18] So here's, here's a program we're going to create two threads.
+[01:13:22] We've got an array, and we have an array of mutexes, an array of two mutexes.
+[01:13:33] Texas. So we create two threads and we pass each thread. It's a local thread
+[01:13:40] ID, so of zero and one. And so here we're avoiding the race. We're just casting this thread ID
+[01:13:47] to be to a pointer, okay, which is a little strange, but it's okay. And then we're waiting
+[01:13:54] for those threads to finish. Okay. Each thread is going to acquire two semaphors
+[01:14:06] these two mutexes, but it's going to do it in a different order.
+[01:14:11] Okay, so it's going to do it as a function, it's going to take the ID, so it's going to, so
+[01:14:20] thread zero will first acquire a mutex zero and then, and then acquire
+[01:14:26] mutex 1 minus 0, so then it'll acquire mutax 1, and then it'll acquire mutax 1, and thread 1 will
+[01:14:34] will first acquire mutex 1 and then acquire mutex 0. Okay, so if we were to draw that
+[01:14:43] that and then it'll attempt to then it'll increment count. So this is totally bogus,
+[01:14:48] but it's just to illustrate the problem. So you can see thread zero does a P on semaphore
+[01:14:56] zero followed by a P on semaphore-1, and thread one does a P on semifore 1, followed by a P on semaphore-0.
+[01:15:06] And so we can see this that this is a problem very clearly if we go back to our progress graphs.
+[01:15:13] So if you look at thread zero,
+[01:15:19] it's doing a P on semaphore 1 and followed a P on semaphore 1 followed by a V on semaphore 1 followed
+[01:15:27] by a V on semaphore 1. And thread 1 is also is doing a P on semaphore 1 followed by a V on
+[01:15:35] on semaphore 1. So if you take, if you take the intersection of these two regions, you get
+[01:15:45] the forbidden region for semaphore 1. Okay, so this is the region that enforces mutual exclusion.
+[01:15:51] So on this, on this, the resource associated with semaphore 1.
+[01:15:56] And if you do the same thing for semaphore 0, so here in thread 1, we're acquiring semaphore 0 here and releasing it here.
+[01:16:06] And in thread zero, we're acquiring it here and releasing it here.
+[01:16:13] So if you take the intersection of those two, you get this forbidden region for s0.
+[01:16:20] Okay, now the problem is right.
+[01:16:27] is right, is this region here, this so-called deadlock region.
+[01:16:33] Because by the rules of, you know, time can't go backwards,
+[01:16:39] or once a trajectory enters into this deadlock region, then it's doomed.
+[01:16:46] Because there's no, once it enters this, once it enters this deadlock region,
+[01:16:52] there's nowhere for it to go. Eventually, no matter how it progresses,
+[01:16:58] every trajectory will lead to this point.
+[01:17:00] to this point here where it's boxed in and can no longer proceed.
+[01:17:05] So, and interestingly, this sort of, this region back here,
+[01:17:19] on the sort of the tail end of these two forbidden regions,
+[01:17:25] this represents states that can never be reached.
+[01:17:28] So these are unreachable states, which may or may not be interesting.
+[01:17:34] And then what makes this so nasty is that
+[01:17:37] that it's non-deterministic, right?
+[01:17:41] Some programs, some trajectories, if they get lucky, they'll skirt this deadlock region, and then the
+[01:17:49] program will run fine, right?
+[01:17:50] There's, okay, so if a trajectory maybe just by some, you know, just by some arbitrary scheduling
+[01:18:01] decision made by the kernel, the trajectory, the trajectory gets past the deadlock region in
+[01:18:11] this direction, and then it'll eventually
+[01:18:15] run without any problem.
+[01:18:18] So it's just, it's only if the trajectory lands it within the deadlock region then there were,
+[01:18:24] that were in trouble.
+[01:18:26] So, so this is the really nasty, the really nasty part, is that you may run your program for a
+[01:18:32] million times, and every trajectory, every one of those million trajectories
+[01:18:38] skirts the deadlock region.
+[01:18:40] Okay, but on the million and first time that you run it, it, it, it, it, it's, it's, you
+[01:18:46] It enters the deadlock region and then deadlocks.
+[01:18:51] So it's a very tough problem to deal with.
+[01:18:55] Now fortunately, it's easy to avoid if threads that are acquiring locks on resources acquire all those locks in the same order, okay?
+[01:19:09] So in our example, if we rewrite this program so that each thread, thread zero and thread one, acquire their locks in the same order.
+[01:19:17] So semaphore 0 first, followed by semaphore 1, then if that happens, then if that happens, and we, we, you can see, it eliminates the potential deadlock region.
+[01:19:31] Okay.
+[01:19:34] So now, so now any trajectory that we take will, will be fine, we'll be fine because we've eliminated that we've eliminated that,
+[01:19:45] because we've eliminated that that deadlock region.
+[01:19:49] And the order that we release the locks doesn't matter because that, that sort of affects the,
+[01:19:55] the, it affects this sort of unreachable region, you know, the size and shape of this unreachable region.
+[01:20:06] But it, there's never, there's, the order that we release the locks can never introduce a deadlock region.
+[01:20:13] Okay, so that's it for today.
+[01:20:19] Okay, so that's it for today.
+[01:20:20] I hope you all have a very nice Thanksgiving holiday, and we'll see you on Tuesday.

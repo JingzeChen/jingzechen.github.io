@@ -1,0 +1,3176 @@
+1
+00:00:00,000 --> 00:00:04,860
+Well, good afternoon, everybody. Welcome. Good to see you.
+
+2
+00:00:04,860 --> 00:00:16,990
+Today we're going to continue our study of exceptional control flow by looking at some higher level mechanisms known as Linux signals and C non-local jumps.
+
+3
+00:00:16,990 --> 00:00:26,490
+Now, we're going to spend most of our time looking at signals because they have a lot of subtleties, the semantics can be kind of confusing.
+
+4
+00:00:26,490 --> 00:00:30,530
+So we're going to spend most of our time there. And I'll mention
+
+5
+00:00:30,530 --> 00:00:38,140
+the idea of non-local jumps, but for details on those, you'll want to look in your
+
+6
+00:00:38,140 --> 00:00:43,340
+textbook and in the slides at the supplemental slides at the end of this slide deck.
+
+7
+00:00:45,670 --> 00:00:54,390
+Now, to motivate the notion of signals, I want to talk a little bit about shell programs.
+
+8
+00:00:56,000 --> 00:01:02,000
+Now, as we mentioned last time, there's only one way to create processes on a Linux system, and that's
+
+9
+00:01:02,000 --> 00:01:08,750
+using the fork call. In fact, all of the processes on the system actually
+
+10
+00:01:08,750 --> 00:01:14,710
+form a hierarchy. So that the very first process created when you boot the system up is the
+
+11
+00:01:14,710 --> 00:01:20,310
+init process, which has a process ID of one. And then all other processes on the system
+
+12
+00:01:20,310 --> 00:01:27,880
+are descendants of that, of that init process. Now, the init process, when it starts up,
+
+13
+00:01:27,880 --> 00:01:32,300
+it creates demons, which are long-running programs that provide
+
+14
+00:01:32,300 --> 00:01:40,060
+services typically. So, for example, a web server, other kinds of services that you always
+
+15
+00:01:40,060 --> 00:01:47,080
+want running on the system. And then eventually it creates a login, so-called log-in shells, which provide
+
+16
+00:01:47,080 --> 00:01:53,780
+the command line interface to users. So when you log into a Linux system, what you eventually
+
+17
+00:01:53,780 --> 00:02:01,930
+get to is a login shell that's expecting you to type commands. Now, the
+
+18
+00:02:01,930 --> 00:02:07,320
+Log-in shells, execute programs on your behalf.
+
+19
+00:02:08,520 --> 00:02:14,470
+So when we type something into the shell, say we type the L-S command, command.
+
+20
+00:02:14,470 --> 00:02:21,590
+We're asking, we're asking the shell to run the executable program called L-S.
+
+21
+00:02:22,790 --> 00:02:27,390
+And so what the shell will do is it will create a child, and then it will execute
+
+22
+00:02:27,390 --> 00:02:35,070
+LS within that child process. And it's possible that that process may create
+
+23
+00:02:35,070 --> 00:02:43,070
+other other child processes. So a shell is an application program, no different
+
+24
+00:02:43,070 --> 00:02:50,720
+from any other program, that executes programs on the behalf of users. The default
+
+25
+00:02:50,720 --> 00:02:56,460
+shell for Linux is called Bash, but there's other shells that that were created on
+
+26
+00:02:56,460 --> 00:03:01,140
+earlier, with earlier versions of
+
+27
+00:03:01,160 --> 00:03:02,520
+of UNIX.
+
+28
+00:03:02,520 --> 00:03:05,560
+S.H was the original shell, it's called the Bourne shell,
+
+29
+00:03:05,560 --> 00:03:07,860
+because it was created by Stephen Bourne.
+
+30
+00:03:07,860 --> 00:03:11,000
+And when Berkeley came out with their distribution of Unix,
+
+31
+00:03:11,000 --> 00:03:14,680
+they created a shell called CSH.
+
+32
+00:03:14,680 --> 00:03:20,820
+Now, the execution in a shell is a shell is a sequence of read
+
+33
+00:03:20,820 --> 00:03:22,720
+and evaluate steps.
+
+34
+00:03:22,720 --> 00:03:27,440
+So first, a shell prints out a prompt, and then it waits for,
+
+35
+00:03:27,440 --> 00:03:30,400
+it waits for you to type something in on the command line and hit
+
+36
+00:03:30,400 --> 00:03:31,400
+return.
+
+37
+00:03:31,400 --> 00:03:44,620
+And typically what you're typing in is a command, which is just, so the first thing you type is a command, and then you follow that with optional arguments separated by spaces.
+
+38
+00:03:44,620 --> 00:04:01,070
+Okay. So once you hit, once you type in a command and those optional arguments and hit return, the shell checks for the end of file character, which is a control D, D to a terminal, and if so it exits,
+
+39
+00:04:01,070 --> 00:04:05,550
+it exits otherwise it evaluates that command line.
+
+40
+00:04:05,550 --> 00:04:13,250
+And the evaluation consists, and then when it returns from the evaluation, it just does the same
+
+41
+00:04:13,250 --> 00:04:14,750
+thing over it.
+
+42
+00:04:14,750 --> 00:04:20,940
+Now the evaluation consists of the following kinds of steps.
+
+43
+00:04:20,940 --> 00:04:30,920
+First, it parses the command line and by, and in the process, so it takes the command line,
+
+44
+00:04:30,920 --> 00:04:33,260
+which in this example is in buff, buff, and it produces an RV, and in the process, so it takes the command line, and it
+
+45
+00:04:33,260 --> 00:04:41,260
+it produces an ARGV array, where ARG V is a command, and then ARGV 1 and 2 and so on are the optional arguments.
+
+46
+00:04:41,260 --> 00:04:50,980
+And the convention in a shell is that if the command line is terminated by an ampersand, then you're
+
+47
+00:04:50,980 --> 00:04:56,860
+asking the shell to run that job, to run that command in the background, meaning the shell won't
+
+48
+00:04:56,860 --> 00:05:03,770
+wait for that job to finish before it goes through its next read step. If it, if it, if the
+
+49
+00:05:03,770 --> 00:05:07,410
+the line that you type doesn't have an ampersand, then you're asking the shell to run
+
+50
+00:05:07,410 --> 00:05:13,580
+that job in the foreground, which means the shell will wait.
+
+51
+00:05:13,580 --> 00:05:21,900
+So first we parse this command line into an ARGV array and we return whether or not it was terminated
+
+52
+00:05:21,900 --> 00:05:23,800
+by an ampersand.
+
+53
+00:05:23,800 --> 00:05:26,490
+So BG for background.
+
+54
+00:05:26,490 --> 00:05:30,890
+If ARG0 was null, then that means we just hit a, we just hit return, right?
+
+55
+00:05:30,890 --> 00:05:32,610
+So it's an empty line.
+
+56
+00:05:32,610 --> 00:05:36,350
+So we'll just return and just ignore those.
+
+57
+00:05:36,350 --> 00:05:37,330
+Now a shell.
+
+58
+00:05:37,350 --> 00:05:41,950
+also implements what are called built-in commands.
+
+59
+00:05:41,950 --> 00:05:49,690
+So various things like jobs, BG, FG, are examples of built-in commands, which are examples of built-in commands,
+
+60
+00:05:49,690 --> 00:05:53,180
+which are just implemented in the shell itself.
+
+61
+00:05:53,180 --> 00:06:00,080
+So if you type, if the first thing you type, if the command you enter is a built-in, then the shell
+
+62
+00:06:00,080 --> 00:06:06,740
+will check that, it will check that, it will check ARGV-0 to see if it's a built-in command.
+
+63
+00:06:06,740 --> 00:06:08,200
+And if it is, it'll just execute it'll just execute it.
+
+64
+00:06:08,220 --> 00:06:13,560
+it, whatever it is you asked it to do.
+
+65
+00:06:13,560 --> 00:06:14,560
+Okay.
+
+66
+00:06:14,560 --> 00:06:20,560
+Otherwise, if it's not a built-in, then that means that you're asking the shell to run some program.
+
+67
+00:06:20,560 --> 00:06:22,420
+Okay.
+
+68
+00:06:22,420 --> 00:06:30,000
+So in that case, the shell will fork a child, and then the child will execute that program by
+
+69
+00:06:30,000 --> 00:06:37,360
+calling exec VE, passing as the first argument, the name of the command, and as the second
+
+70
+00:06:37,360 --> 00:06:41,620
+and third arguments, ARV, and the environment, respectively.
+
+71
+00:06:41,640 --> 00:06:46,680
+Now, exec VE, if you recall from last time, never returns unless there's an error.
+
+72
+00:06:47,240 --> 00:07:01,720
+So we check the return value for exec VE, and if it returns less than 0, in fact, the only time it'll return, if it does return, it'll always return minus 1.
+
+73
+00:07:02,240 --> 00:07:03,840
+But we're just being careful here.
+
+74
+00:07:04,780 --> 00:07:11,480
+So we check that for an error and print an error message if we find an error, and then, and print an error message if we find an error.
+
+75
+00:07:11,740 --> 00:07:12,740
+exit.
+
+76
+00:07:12,740 --> 00:07:24,140
+So once the, once the, once the, once the parent gets control again, then it waits for that foreground
+
+77
+00:07:24,140 --> 00:07:25,140
+job to terminate.
+
+78
+00:07:25,140 --> 00:07:33,870
+Okay, so if it's not a background job, then it waits for it to terminate by calling wait-pid and waiting
+
+79
+00:07:33,870 --> 00:07:38,870
+for that child, that foreground job to terminate, and then, and reaping it.
+
+80
+00:07:38,870 --> 00:07:43,870
+Otherwise, if it's a background job, it just prints a message and goes on.
+
+81
+00:07:43,870 --> 00:07:46,040
+So this is really interesting, right?
+
+82
+00:07:46,160 --> 00:07:54,120
+That there's really, the only difference between a foreground job and a background job is just that the shell does a weight pit on that job or not, right?
+
+83
+00:07:54,120 --> 00:07:57,320
+So otherwise, there's really, there's really no difference.
+
+84
+00:07:58,810 --> 00:08:09,830
+Now, what's the problem, there's a problem with our example shell, and that the problem is that we're doing the right thing for the foreground job.
+
+85
+00:08:10,170 --> 00:08:16,670
+We always have to reap these children so they, they, uh, so that they're, they're, they're state,
+
+86
+00:08:16,690 --> 00:08:19,930
+can be released.
+
+87
+00:08:19,930 --> 00:08:24,190
+But we're not, we're not doing anything to reap any background jobs, right?
+
+88
+00:08:24,190 --> 00:08:28,630
+When if it's a background job, so if not BG, we're just printing a message and then we're
+
+89
+00:08:28,630 --> 00:08:33,520
+returning and then we're returning and then we're continuing with this read-evaluate step
+
+90
+00:08:33,520 --> 00:08:40,440
+and never, never going back and taking care of that, of that background job.
+
+91
+00:08:40,440 --> 00:08:46,220
+So this is a problem because that the background job will eventually become, if we
+
+92
+00:08:46,220 --> 00:08:49,980
+we have enough of those jobs, we create a memory leak that could crash the system, right?
+
+93
+00:08:49,980 --> 00:08:56,570
+So this is an error. So what are we going to do about this? Well, it turns out that exceptional control flow
+
+94
+00:08:56,570 --> 00:09:05,660
+will help us solve this problem. And what happens is that the kernel will notify the shell
+
+95
+00:09:05,660 --> 00:09:14,710
+when any of its children terminate. Okay? And then the shell can can then react to that and issue a weight pit.
+
+96
+00:09:14,710 --> 00:09:25,710
+And this notification mechanism that the kernel uses is something called a signal.
+
+97
+00:09:25,710 --> 00:09:36,710
+So a signal is a signal is a small message that the kernel delivers to a process to notify it that there's been some event in the system.
+
+98
+00:09:36,710 --> 00:09:48,760
+Now, so this is very similar to the exceptions that we studied the last time, right, except it's it's all implemented in software.
+
+99
+00:09:48,760 --> 00:09:56,760
+Now, signals are always sent from the kernel, but sometimes they're sent at the request of another process.
+
+100
+00:09:56,760 --> 00:10:00,760
+Right? Sometimes the kernel will notice that there's some event.
+
+101
+00:10:00,760 --> 00:10:08,470
+Other times, another process will ask the kernel to send a message to some other process.
+
+102
+00:10:08,470 --> 00:10:18,470
+Now, we say that it's a small message because the only information that's contained in a signal is its unique integer ID.
+
+103
+00:10:18,470 --> 00:10:22,690
+and the fact that it was it was delivered.
+
+104
+00:10:22,690 --> 00:10:31,690
+Okay, so that's, so that there's nothing else in a signal except except that it arrived and that it has some, some, some unique ID.
+
+105
+00:10:31,690 --> 00:10:41,300
+Now, examples of these are the sig-int. So signals have this, this unique ID, and then they also have a name.
+
+106
+00:10:41,300 --> 00:10:49,230
+So the sig-int is what the, when you type Control C, and then they also have a name.
+
+107
+00:10:49,230 --> 00:10:56,230
+on the command line, the colonel sends a Cig-int to every any processes in the
+
+108
+00:10:56,230 --> 00:10:57,230
+foreground.
+
+109
+00:10:57,230 --> 00:11:00,230
+And the default action of receiving a Cig-int is to terminate.
+
+110
+00:11:00,230 --> 00:11:05,230
+So this is how if you're running a foreground job, you hit Control C, you get the prompt back
+
+111
+00:11:05,230 --> 00:11:08,740
+because it kills that job.
+
+112
+00:11:08,740 --> 00:11:13,740
+Sig-kill, number nine, can be used to terminate any program.
+
+113
+00:11:13,740 --> 00:11:19,190
+So these two have, SIG-int and SIG-Kill have the same effect on the same effect on the
+
+114
+00:11:19,190 --> 00:11:23,190
+effect on the programs that they kill the program.
+
+115
+00:11:23,190 --> 00:11:30,320
+The unique aspect of SIG-Kill is that there's no way to ignore it or override it.
+
+116
+00:11:30,320 --> 00:11:32,320
+Okay, so this is like the fail-safe.
+
+117
+00:11:32,320 --> 00:11:39,320
+As we'll see, there are there are ways to catch and ignore other signals like SIG-int.
+
+118
+00:11:39,320 --> 00:11:44,320
+SIG-SEG-V is the, our favorite seg-fault, segmentation violation.
+
+119
+00:11:44,320 --> 00:11:48,320
+So if you access a region of memory that's protected or
+
+120
+00:11:48,320 --> 00:12:02,320
+or not legal, then your program will, the kernel will send your, that process, a SIG-Seg-Seg-V signal, and the default,
+
+121
+00:12:02,320 --> 00:12:07,320
+the default effect of that is to terminate the program.
+
+122
+00:12:07,320 --> 00:12:12,320
+Sig-A-A-Larm is a way within your program you can arrange for a signal to be sent to yourself.
+
+123
+00:12:12,320 --> 00:12:18,300
+So you can say, inside your program, send me a SIG alarm signal signal in
+
+124
+00:12:18,320 --> 00:12:19,320
+three seconds.
+
+125
+00:12:19,320 --> 00:12:20,320
+Something like that.
+
+126
+00:12:20,320 --> 00:12:25,020
+So this is a way to do things like you can set up timers, you can set up timeouts,
+
+127
+00:12:25,020 --> 00:12:30,020
+like if you want to, if you want to, if you want to set a timeout value and you're doing
+
+128
+00:12:30,020 --> 00:12:36,020
+some some work and you want to guard against that work taking exceptionally long time,
+
+129
+00:12:36,020 --> 00:12:40,020
+you can, you can use SIG alarm to set a timeout.
+
+130
+00:12:40,020 --> 00:12:45,150
+And then a very important one, as we'll see, that will be very important for our shell,
+
+131
+00:12:45,150 --> 00:12:49,130
+is the SIG child signal, which the kernel sends to
+
+132
+00:12:49,150 --> 00:12:54,240
+to a parent every time one of its children terminates or stops.
+
+133
+00:12:54,240 --> 00:12:55,630
+Okay.
+
+134
+00:12:55,630 --> 00:12:59,630
+So this, as we'll see, now, we'll see this is how we're going,
+
+135
+00:12:59,630 --> 00:13:02,630
+this is how our shell is going to actually reap its,
+
+136
+00:13:02,630 --> 00:13:04,630
+all of its children, right?
+
+137
+00:13:04,630 --> 00:13:08,630
+It's by taking advantage of this sig-child signal.
+
+138
+00:13:08,630 --> 00:13:11,400
+But before I can show you that,
+
+139
+00:13:11,400 --> 00:13:14,400
+we need to go through a number of concepts
+
+140
+00:13:14,400 --> 00:13:18,560
+around signals.
+
+141
+00:13:18,560 --> 00:13:20,070
+Okay.
+
+142
+00:13:20,070 --> 00:13:21,050
+Like I said, the
+
+143
+00:13:21,070 --> 00:13:28,160
+the semantics of signals, it's probably one of the thorniest aspects of Linux.
+
+144
+00:13:28,160 --> 00:13:40,700
+It was developed very early in the lifespan of Linux when, and it maybe wasn't as clean as it could be, right?
+
+145
+00:13:40,700 --> 00:13:45,700
+So in order to get a handle on signals, we're going to have to be very careful about defining terms
+
+146
+00:13:45,700 --> 00:13:48,700
+and very careful about the way we talk about them.
+
+147
+00:13:48,700 --> 00:13:52,500
+So we say that the kernel sends,
+
+148
+00:13:52,500 --> 00:13:57,530
+sends or delivers a signal to some destination process.
+
+149
+00:13:57,530 --> 00:14:04,720
+And it does this by setting some state in the context of the destination process.
+
+150
+00:14:04,720 --> 00:14:14,330
+Now, nothing happens except that some bits get changed in the destination process context.
+
+151
+00:14:14,330 --> 00:14:19,330
+Okay, there's no, there's no impact of, immediate impact of sending a signal.
+
+152
+00:14:19,330 --> 00:14:25,120
+Now a kernel sends a signal,
+
+153
+00:14:25,120 --> 00:14:29,120
+either because it detected some event in the system,
+
+154
+00:14:29,120 --> 00:14:33,150
+like a child process is terminated, for example,
+
+155
+00:14:33,150 --> 00:14:38,150
+or another process has asked the kernel to send,
+
+156
+00:14:38,150 --> 00:14:43,330
+to deliver a process, a signal on its behalf.
+
+157
+00:14:43,330 --> 00:14:45,330
+And there's a number of ways to do that.
+
+158
+00:14:45,330 --> 00:14:47,330
+One of them is with the kill system call.
+
+159
+00:14:47,330 --> 00:14:51,450
+It's kind of an unfortunate term, isn't it?
+
+160
+00:14:51,450 --> 00:14:55,450
+I mean, the, so kill is a general way to send signals.
+
+161
+00:14:55,450 --> 00:14:57,450
+And the, the, the, the,
+
+162
+00:14:57,450 --> 00:15:01,690
+The impact is sometimes not to kill the program, right?
+
+163
+00:15:01,690 --> 00:15:07,800
+But for some reason, they chose to call it kill.
+
+164
+00:15:07,800 --> 00:15:17,880
+Now, the destination process receives a signal when it's forced by the kernel to act in some way,
+
+165
+00:15:17,880 --> 00:15:22,400
+to react in some way, to the delivery of a signal.
+
+166
+00:15:22,400 --> 00:15:24,160
+So these are two very different things.
+
+167
+00:15:24,160 --> 00:15:29,760
+Sending a signal sets state in the context of the destination process.
+
+168
+00:15:29,760 --> 00:15:32,360
+Receiving a signal is what happens when.
+
+169
+00:15:32,380 --> 00:15:40,480
+the destination process is finally forced by the kernel to act in some way, to react in some way.
+
+170
+00:15:40,480 --> 00:15:49,770
+Now, some possible ways to react are to just ignore the signal, okay? To terminate the
+
+171
+00:15:49,770 --> 00:15:58,200
+process, or to catch the signal by executing a user-level function called a signal handler.
+
+172
+00:15:58,200 --> 00:16:03,200
+So in this case, when we, when we catch signals, it's very similar to the signal handler.
+
+173
+00:16:03,200 --> 00:16:10,240
+and execute a signal handler. It's very similar to executing an exception handler
+
+174
+00:16:10,240 --> 00:16:14,240
+in response to some kind of event in the system.
+
+175
+00:16:14,240 --> 00:16:19,240
+Now the difference is that exception handlers are in the kernel. Signal handlers are actually
+
+176
+00:16:19,240 --> 00:16:25,040
+just in your C code. And they execute in your process.
+
+177
+00:16:25,040 --> 00:16:34,960
+So the way to think about if we catch a signal by executing a signal handler, we have our process.
+
+178
+00:16:34,960 --> 00:16:42,790
+We have our process executing instructions, and then a signal is received by that process.
+
+179
+00:16:42,790 --> 00:16:51,590
+So the kernel passes control to a signal handler, which is also just in the code that's executing in the current process.
+
+180
+00:16:51,590 --> 00:16:55,970
+It's just a function in our C code.
+
+181
+00:16:55,970 --> 00:17:03,970
+The signal handler runs, and when it returns, it eventually returns back to the next instruction, and then we continue.
+
+182
+00:17:03,970 --> 00:17:05,970
+So it's just like kind of like an interrupt.
+
+183
+00:17:05,970 --> 00:17:07,330
+kind of like an interrupt, right?
+
+184
+00:17:07,330 --> 00:17:16,420
+We just temporarily pause what we're doing in our code to execute this handler before just continuing on.
+
+185
+00:17:16,420 --> 00:17:27,650
+Okay, now we say that a signal is pending if it's been sent by the kernel but not yet received.
+
+186
+00:17:27,650 --> 00:17:28,650
+Okay.
+
+187
+00:17:28,650 --> 00:17:36,710
+So at any given point in time, there can only be one pending signal of any particular type.
+
+188
+00:17:36,710 --> 00:17:40,690
+So this has very important consequences for using signals.
+
+189
+00:17:40,710 --> 00:17:43,310
+because you can't cue signals up, right?
+
+190
+00:17:43,310 --> 00:17:46,710
+At any point in time, there's, there can only be one pending
+
+191
+00:17:46,710 --> 00:17:50,710
+SIG child signal, for example, or SIG-int signal.
+
+192
+00:17:50,710 --> 00:17:56,770
+And if a subsequent SIG-child signal, say, is sent, it just overrides,
+
+193
+00:17:56,770 --> 00:18:00,770
+well, you can think of it as, it has no impact.
+
+194
+00:18:00,770 --> 00:18:03,770
+It's just discarded, right, if there's already a pending signal.
+
+195
+00:18:03,770 --> 00:18:06,770
+So they don't queue up in any meaningful way.
+
+196
+00:18:06,770 --> 00:18:11,920
+Now, a process can block the receipt of certain signals.
+
+197
+00:18:11,920 --> 00:18:12,920
+signals.
+
+198
+00:18:12,920 --> 00:18:21,240
+Now, it can't stop signals from being delivered, but it can stop the process from having to react to
+
+199
+00:18:21,240 --> 00:18:24,240
+react to that signal when it's received.
+
+200
+00:18:24,240 --> 00:18:27,730
+Okay.
+
+201
+00:18:27,730 --> 00:18:38,730
+So blocked signals can be delivered, but they won't be received until the signals unblocked.
+
+202
+00:18:38,730 --> 00:18:41,730
+And pending signals are received at most once.
+
+203
+00:18:41,730 --> 00:18:52,900
+Now, the kernel keeps track of these pending and blocked signals in bit vectors that
+
+204
+00:18:52,920 --> 00:18:55,220
+we'll call pending and blocked.
+
+205
+00:18:55,220 --> 00:18:58,920
+And pending represents the set of pending signals, right,
+
+206
+00:18:58,920 --> 00:19:04,920
+where each bit in the pending bit vector corresponds to some particular signal.
+
+207
+00:19:04,920 --> 00:19:06,920
+Okay, so this is why they can't be cued, right?
+
+208
+00:19:06,920 --> 00:19:13,080
+Because there's only one bit, for any signal K, there's only one bit in the bit vector.
+
+209
+00:19:13,080 --> 00:19:18,080
+And if we, and when we deliver a signal, we're just setting, we'll set that bit, the kernel will set that bit.
+
+210
+00:19:18,080 --> 00:19:22,080
+If we deliver another signal of the same type, it'll just set that bit again,
+
+211
+00:19:22,080 --> 00:19:26,850
+which has no effect.
+
+212
+00:19:26,850 --> 00:19:32,410
+Now the kernel sets that the bit and pending when the signals delivered and it clears it clears
+
+213
+00:19:32,410 --> 00:19:35,930
+it when the signals received.
+
+214
+00:19:35,930 --> 00:19:42,730
+And the kernel also provides mechanism for users to block signals with this blocked bit
+
+215
+00:19:42,730 --> 00:19:43,290
+vector.
+
+216
+00:19:43,290 --> 00:19:47,290
+So the blocked bit vector is the same size as the pending bit vector.
+
+217
+00:19:47,290 --> 00:19:52,200
+Turns out it's just a 32-bit int, okay.
+
+218
+00:19:52,200 --> 00:19:55,620
+And it can be set and cleared, the bits in that can be set and cleared using
+
+219
+00:19:55,640 --> 00:19:58,890
+the SIGPROC-Mask system call.
+
+220
+00:19:58,890 --> 00:20:10,210
+Okay, now the blocked, in the Linux literature, the blocked bit vector is also called the signal mask.
+
+221
+00:20:10,210 --> 00:20:14,210
+Okay, now we're, I want to look in a little more detail about sending and receiving signals.
+
+222
+00:20:14,210 --> 00:20:20,880
+So let's start first with sending signals. First, we need to understand the idea of a process
+
+223
+00:20:20,880 --> 00:20:29,400
+group. So every process belongs to exactly one process group. And those, so here
+
+224
+00:20:29,400 --> 00:20:31,380
+I'm showing a shell that's in process group.
+
+225
+00:20:31,400 --> 00:20:37,070
+It has a process ID of 10 and a process group ID of 10.
+
+226
+00:20:37,070 --> 00:20:45,360
+The shell created a foreground job, which has a process ID of 20 and a process group ID of 20.
+
+227
+00:20:45,360 --> 00:20:53,600
+And then all of the children that this foreground job created have the same process group ID of 20.
+
+228
+00:20:53,600 --> 00:21:00,020
+So these process groups can be set by a system called set process group ID.
+
+229
+00:21:00,020 --> 00:21:03,020
+And you can fetch that process group ID.
+
+230
+00:21:03,020 --> 00:21:04,000
+And you can fetch that process group.
+
+231
+00:21:04,020 --> 00:21:07,020
+using the get process group system call.
+
+232
+00:21:07,020 --> 00:21:13,050
+So you can see in this example, what the shell has done is it created a foreground child.
+
+233
+00:21:13,050 --> 00:21:19,050
+So it created this child and it changed the process group ID to be equal to
+
+234
+00:21:19,050 --> 00:21:22,050
+be equal to the process ID of the child.
+
+235
+00:21:22,050 --> 00:21:31,080
+And then when this child created other child, children, they just inherited the same process group ID.
+
+236
+00:21:31,080 --> 00:21:34,570
+Okay.
+
+237
+00:21:34,570 --> 00:21:36,570
+Now this notion of a process group is useful.
+
+238
+00:21:36,570 --> 00:21:43,810
+is useful because it allows you to send signals to groups of processes at the same time.
+
+239
+00:21:43,810 --> 00:21:50,620
+And you can do that with a program called kill, which is typically in slash bin directory.
+
+240
+00:21:50,620 --> 00:21:55,960
+And that the kill program, you can use the kill program to send an arbitrary signal to either
+
+241
+00:21:55,960 --> 00:22:02,870
+an individual process or all the processes in one process group.
+
+242
+00:22:02,870 --> 00:22:08,410
+So let's look at an example. This program, this Forks program, this Forks program, and
+
+243
+00:22:08,430 --> 00:22:16,000
+creates two children, with each of which has a process group of
+
+244
+00:22:16,000 --> 00:22:22,230
+a 24817. And of course, they have different process, they have different process IDs.
+
+245
+00:22:22,230 --> 00:22:34,350
+And so if we do a PS, we see these two, we see these two processes running. And these just go into loop, so they'll just run continuously.
+
+246
+00:22:34,350 --> 00:22:41,330
+Okay. Now we can, we can use kill to kill.
+
+247
+00:22:41,330 --> 00:22:43,990
+to kill an individual process.
+
+248
+00:22:43,990 --> 00:22:50,950
+For example, so if we call it, the first argument indicates what signal you want to send.
+
+249
+00:22:51,070 --> 00:22:55,070
+So in this case, it's signal 9, which is the sig-kill signal.
+
+250
+00:22:55,790 --> 00:23:02,810
+So kill minus 9 is a very typical, usually if you want to kill processes, you just kill minus 9.
+
+251
+00:23:03,960 --> 00:23:12,610
+And actually, one of my favorite auto lab nicknames for 213 was the nickname was the nickname was kill minus
+
+252
+00:23:12,710 --> 00:23:23,060
+So then the second argument is the, if it's, is the, is the process ID.
+
+253
+00:23:23,060 --> 00:23:32,560
+So this is asking, this is asking the kernel to kill process ID 24818 by sending it a sig-kill signal.
+
+254
+00:23:32,560 --> 00:23:42,520
+Now, if the, if the process ID is preceded by a dash, then it sends a sig-kill to every
+
+255
+00:23:42,520 --> 00:23:48,200
+process in process group to then it it treats this argument as a process group
+
+256
+00:23:48,200 --> 00:23:53,680
+and then it sends a signal to every process in that process group so in this case it
+
+257
+00:23:53,680 --> 00:24:00,720
+will send a sig-kill to both of these both of these children processes and then
+
+258
+00:24:00,720 --> 00:24:06,900
+afterwards we if we do a PS we see that those processes are gone okay that it really
+
+259
+00:24:06,900 --> 00:24:14,290
+did work that way now another way to send signals is by typing either control C or
+
+260
+00:24:14,530 --> 00:24:19,720
+Z to the command line.
+
+261
+00:24:19,720 --> 00:24:26,440
+Control C causes the kernel to send a CIG-int to every job in the foreground process group, and Control
+
+262
+00:24:26,440 --> 00:24:36,340
+Z causes it to send a S-C-T-stop signal to every job in the in the foreground process group.
+
+263
+00:24:36,340 --> 00:24:39,340
+The default action for SIG-int is to terminate the process.
+
+264
+00:24:39,340 --> 00:24:44,940
+The default action for the SIG-T-stop is to suspend the process, stop it, stop it until it receives
+
+265
+00:24:44,940 --> 00:24:54,760
+a C-O-N-T signal.
+
+266
+00:24:54,760 --> 00:24:57,260
+So you can see an example of this.
+
+267
+00:24:57,260 --> 00:25:05,270
+Here we have a program that creates a parent and a child running in the foreground.
+
+268
+00:25:05,270 --> 00:25:07,270
+So the parents running in the foreground.
+
+269
+00:25:07,270 --> 00:25:16,490
+Now when we type Control Z to the command line, the shell notifies us that it's suspended that process.
+
+270
+00:25:16,490 --> 00:25:21,490
+And if we do a PS, we can see the parent and the child
+
+271
+00:25:21,490 --> 00:25:28,520
+indeed are suspended so the PS indicates that it's suspended or stopped using T.
+
+272
+00:25:28,520 --> 00:25:42,500
+Now next we type in the built-in, the shell built-in, which is FG, and FG restores those suspended jobs to the foreground.
+
+273
+00:25:42,500 --> 00:25:51,000
+So after typing FG, now we're running this our program again in the foreground.
+
+274
+00:25:51,000 --> 00:25:55,980
+And then we can kill it by typing Control C, which elicits a C
+
+275
+00:25:56,000 --> 00:25:59,000
+whose default action is to terminate.
+
+276
+00:25:59,000 --> 00:26:03,000
+And then when we do a PS, we see that indeed that they're gone.
+
+277
+00:26:03,000 --> 00:26:13,040
+Now, the third way that we can send signals is by using the kill system call.
+
+278
+00:26:13,040 --> 00:26:17,760
+So here's an example of how that works.
+
+279
+00:26:17,760 --> 00:26:21,760
+So in this, in this example, we're creating N children,
+
+280
+00:26:21,760 --> 00:26:25,280
+each of which goes into an infinite loop,
+
+281
+00:26:25,280 --> 00:26:31,590
+and we're recording the process idea of each child that we create.
+
+282
+00:26:31,590 --> 00:26:33,570
+And then in it, we go, in another,
+
+283
+00:26:33,590 --> 00:26:40,590
+We go through and we kill each of those child processes by using the kill function,
+
+284
+00:26:40,590 --> 00:26:46,590
+passing it the process ID, and the signal that we want sent to that process.
+
+285
+00:26:46,590 --> 00:26:48,070
+Okay.
+
+286
+00:26:48,070 --> 00:26:54,070
+And then we do our due diligence and reap each one of those children that we've terminated.
+
+287
+00:26:54,070 --> 00:26:58,520
+Now, this isn't strictly necessary because we're going to exit.
+
+288
+00:26:58,520 --> 00:27:03,580
+As soon as this fork 12 function returns, we're going to exit the code.
+
+289
+00:27:03,580 --> 00:27:04,580
+So we're going to exit the code.
+
+290
+00:27:04,580 --> 00:27:10,360
+But we're just being, you know, careful here and maybe a little pedantic.
+
+291
+00:27:10,360 --> 00:27:20,140
+But, okay, now let's look at how a process receives signals.
+
+292
+00:27:20,140 --> 00:27:36,050
+Now suppose process A is running along, executing its user code, and then there's a control passes into the kernel because of some exception.
+
+293
+00:27:36,050 --> 00:27:42,330
+Now, that exception can be either a timer going off, maybe an interrupt, or it can be a
+
+294
+00:27:42,330 --> 00:27:49,580
+a trap, you know, user calls a system call, okay, but it's always caused the trap into
+
+295
+00:27:49,580 --> 00:27:55,800
+the, or the transfer and control into the kernel is always caused by some exception.
+
+296
+00:27:55,800 --> 00:28:04,060
+So at this point, the kernel, calls its scheduler function, and it decides to do a context
+
+297
+00:28:04,060 --> 00:28:14,520
+switch from process A to process B. And it gets process B all set up, and right before it returns from
+
+298
+00:28:14,520 --> 00:28:23,100
+that exception and right before it's ready to pass control back to the user code
+
+299
+00:28:23,100 --> 00:28:33,840
+and process B, it checks for any signals that, any pending signals. Okay. And it does this by
+
+300
+00:28:33,840 --> 00:28:41,510
+computing a bit vector, PNB, so pending non-blocked, which is the logical end of the pending
+
+301
+00:28:41,510 --> 00:28:46,610
+bit vector and the inverse of the blocked bit vector.
+
+302
+00:28:46,610 --> 00:28:54,020
+So PNB is a list of all the pending signals that aren't blocked. Okay, so these are all
+
+303
+00:28:54,020 --> 00:29:01,480
+the pending signals that should be received. If now if PNB is all zeros, then
+
+304
+00:29:01,480 --> 00:29:07,880
+there's no pending signals, so it just returns, it passes control back, it passes
+
+305
+00:29:07,880 --> 00:29:15,340
+control back to process B, which can continue executing. However, if PNB is non-zero, then it
+
+306
+00:29:15,340 --> 00:29:23,340
+chooses the smallest non-zero bit in PNB and it forces process P to receive that signal,
+
+307
+00:29:23,340 --> 00:29:36,980
+the corresponding signal. The receipt of the signal triggers some action in the process. And then we repeat
+
+308
+00:29:36,980 --> 00:29:44,840
+that for all the non-zero signals K that, or non-zero bits that are set in PNB.
+
+309
+00:29:44,840 --> 00:29:49,560
+And finally, when we've gone through all the non-zero bits, then we pass control
+
+310
+00:29:49,560 --> 00:29:56,950
+to the next instruction in the process P.
+
+311
+00:29:56,950 --> 00:30:08,350
+So the receipt of a signal always triggers some action, which is either the process terminates, the process
+
+312
+00:30:08,350 --> 00:30:16,140
+stops until it's restarted by a sig-cont signal, the process ignores the signal. Okay, so that's,
+
+313
+00:30:16,140 --> 00:30:22,580
+there's always some predefined default action. But we can modify that, that default action, but we can modify
+
+314
+00:30:22,580 --> 00:30:29,610
+that default action by using a function, a system call called signal.
+
+315
+00:30:29,610 --> 00:30:36,800
+So we can, now signal is a little, that's another sort of misleading kind of term, just like kill,
+
+316
+00:30:36,800 --> 00:30:40,800
+right? Because when we send a signal to a process, we don't always want to kill it.
+
+317
+00:30:40,800 --> 00:30:46,800
+And signal doesn't actually signal anything. It just, it just modifies the default action
+
+318
+00:30:46,800 --> 00:30:54,770
+associated with some signal. Okay, so if the signal function takes a signal function takes a signal number,
+
+319
+00:30:54,790 --> 00:31:01,800
+and then specifies a change in the default action for that signal.
+
+320
+00:31:01,800 --> 00:31:10,180
+And those default actions can be either to ignore the signal, okay, ignore signals of type signal,
+
+321
+00:31:10,180 --> 00:31:20,980
+revert to the default behavior for that signal, or we can give it, or it can be the address of a user-level
+
+322
+00:31:20,980 --> 00:31:26,160
+level signal handler, which is a function that we've declared in our C program.
+
+323
+00:31:26,160 --> 00:31:43,160
+Okay. There's nothing special about the function. It has a certain prototype. It takes a single argument, which is the signal number. So when that function gets called, in response to receiving a signal, in response to receiving a signal number, that argument will be set to the signal number.
+
+324
+00:31:43,160 --> 00:31:59,660
+Okay. So calling signal with a, and specifying a signal handler is called installing a handler, and then executing the handler is referred to as catching or executing the handler, and then executing.
+
+325
+00:31:59,680 --> 00:32:02,850
+They are handling the signal.
+
+326
+00:32:02,850 --> 00:32:06,650
+And, and this, this handler then, is just like an exception handler.
+
+327
+00:32:06,650 --> 00:32:15,710
+When it returns, it will, when it's executed, it will interrupts the, whatever is currently executing in the process.
+
+328
+00:32:15,710 --> 00:32:22,680
+And when it returns, it'll return back to that point and continue executing.
+
+329
+00:32:22,680 --> 00:32:28,500
+Okay, so here's a simple example of, um, of installing a handler.
+
+330
+00:32:28,500 --> 00:32:32,800
+So here in Maine, we're, we're going to install a SIG-int handler.
+
+331
+00:32:32,800 --> 00:32:39,730
+which is called Sigint underscore handler, which is defined up here.
+
+332
+00:32:39,730 --> 00:32:49,760
+And the prototype for this function is returns nothing, and it takes a single integer argument, which is the signal number, and returns nothing.
+
+333
+00:32:49,760 --> 00:32:50,760
+Okay.
+
+334
+00:32:50,760 --> 00:32:57,760
+And after we install that handler, then we're going to execute the pause syscall, which just waits for a signal handler to execute
+
+335
+00:32:57,760 --> 00:33:02,140
+a signal handler to execute. Okay, so pause terminates the current, or suspends
+
+336
+00:33:02,140 --> 00:33:09,020
+the current process until a signal is received and a handler executes in that process. And
+
+337
+00:33:09,020 --> 00:33:16,400
+then pause, then pause returns. So we're going to wait until a sigint happens. So
+
+338
+00:33:16,400 --> 00:33:23,700
+sigint recall is when we type control C. So when you were doing your bombs, did, did
+
+339
+00:33:23,700 --> 00:33:28,750
+did you panic at some point and try to hit control C to get out of it? Okay. So that
+
+340
+00:33:28,750 --> 00:33:34,470
+That snarky message you got, that was, we did that by installing a signal,
+
+341
+00:33:34,470 --> 00:33:37,230
+a sig-int handler in, in your bomb.
+
+342
+00:33:37,230 --> 00:33:42,520
+Okay, so when you type Control C, that elicits a
+
+343
+00:33:42,520 --> 00:33:48,700
+a sig-int, when that sig-int is received, we printed this message and then
+
+344
+00:33:48,700 --> 00:33:51,630
+eventually let you exit.
+
+345
+00:33:51,630 --> 00:34:02,720
+Now, signals are another examples of concurrency. Now, we've seen
+
+346
+00:34:02,720 --> 00:34:04,120
+concurrency.
+
+347
+00:34:04,120 --> 00:34:08,220
+earlier in the form of processes, right?
+
+348
+00:34:08,220 --> 00:34:12,820
+Concurrent flows overlapping in time.
+
+349
+00:34:12,820 --> 00:34:16,300
+Okay. Logical flows overlapping in time.
+
+350
+00:34:16,300 --> 00:34:19,300
+By definition are concurrent.
+
+351
+00:34:19,300 --> 00:34:26,060
+Now, with processes, because they have separate address spaces,
+
+352
+00:34:26,060 --> 00:34:29,060
+those concurrent flows never interfere with each other.
+
+353
+00:34:29,060 --> 00:34:33,060
+Right? So in some sense, processes are very easy to deal with
+
+354
+00:34:33,060 --> 00:34:37,040
+and we don't really have to worry about one process
+
+355
+00:34:37,060 --> 00:34:42,520
+doesn't have to worry about being interfered with by another process.
+
+356
+00:34:42,520 --> 00:34:47,520
+In fact, you have to go to great lengths to share, like to share things between processes.
+
+357
+00:34:47,520 --> 00:34:55,250
+You have to use specific system calls in order to say share memory between two processes.
+
+358
+00:34:55,250 --> 00:35:02,240
+Now, signals are another form of concurrency. This is the second time in this class that you've experienced
+
+359
+00:35:02,240 --> 00:35:09,000
+concurrency. And so a signal is just a concurrent flow, it's just a logical flow. So a
+
+360
+00:35:09,000 --> 00:35:15,220
+The handler is just another logical flow that runs concurrently with your program.
+
+361
+00:35:15,220 --> 00:35:22,950
+So we're, let's say we're executing a while loop in Process A, okay, and that while loop is executing.
+
+362
+00:35:22,950 --> 00:35:31,830
+And then process A receives a signal, a signal which causes a transfer of control to this handler.
+
+363
+00:35:31,830 --> 00:35:39,920
+This handler executes, so this is a concurrent flow that overlaps in time with the while loop in process A.
+
+364
+00:35:39,920 --> 00:35:48,180
+Eventually, this handler returns, and we return back to process A.
+
+365
+00:35:48,180 --> 00:36:06,200
+Now, one of the reasons signals are so tricky is because of this overlapping concurrent flow, this concurrency, because the signal handler runs in the same process as the main program.
+
+366
+00:36:06,200 --> 00:36:10,200
+So it shares all the global variables of that program.
+
+367
+00:36:10,200 --> 00:36:21,580
+So that signal handler is a function that you've declared and it has access to all the state, all the global state in the program.
+
+368
+00:36:21,580 --> 00:36:27,740
+Okay. And the existence of this shared global state can create real problems, right?
+
+369
+00:36:27,740 --> 00:36:41,760
+And we'll, we'll get into more details about some of those problems.
+
+370
+00:36:41,760 --> 00:36:49,760
+So another way to look at these signal handlers as concurrent flows is using this context switch diagram.
+
+371
+00:36:49,760 --> 00:37:01,450
+So suppose we're executing in process A, and now at some point a signal is delivered to process A.
+
+372
+00:37:01,450 --> 00:37:06,450
+Now nothing happens, right? Just the pending bit gets set in process A at this point.
+
+373
+00:37:06,450 --> 00:37:19,960
+Now at some point, there's a transfer of control into the kernel, and the kernel decides to do a context switch from A to B, and now B gets to run for a while.
+
+374
+00:37:19,960 --> 00:37:21,960
+There's another transfer of control to the kernel.
+
+375
+00:37:21,960 --> 00:37:27,170
+and the kernel decides to schedule process A.
+
+376
+00:37:27,170 --> 00:37:37,040
+And now right before it returns control to process A, it notices, it notices that the pending bit for this signal is set,
+
+377
+00:37:37,040 --> 00:37:40,040
+so it causes process A to receive that signal.
+
+378
+00:37:40,040 --> 00:37:43,040
+So that executes the handler code.
+
+379
+00:37:43,040 --> 00:37:49,100
+When the handler returns, it returns for briefly to the kernel, which then transfers control back
+
+380
+00:37:49,100 --> 00:37:53,100
+back to the next instruction that the process was going to execute.
+
+381
+00:37:53,100 --> 00:37:54,100
+to execute.
+
+382
+00:37:54,100 --> 00:38:01,370
+Now handlers are also tricky because they can be interrupted by other handlers.
+
+383
+00:38:01,370 --> 00:38:09,760
+So suppose we have our main program that catches a signal S, which causes a transfer of control
+
+384
+00:38:09,760 --> 00:38:15,320
+to Handler S. And then while Handler S, oh, did you have a question?
+
+385
+00:38:15,320 --> 00:38:28,170
+Oh, okay. While Handler S is executing, the program catches signal T, the program catches signal T.
+
+386
+00:38:28,190 --> 00:38:35,980
+which causes a transfer of control to the handler for T.
+
+387
+00:38:35,980 --> 00:38:45,430
+And then when that handler returns, it returns to the point, to the, to the instruction in Handler S that was where it was interrupted.
+
+388
+00:38:45,430 --> 00:38:49,430
+And then Handler S continues its execution.
+
+389
+00:38:49,430 --> 00:38:54,430
+And eventually it returns back to the point in the main program where it was interrupted.
+
+390
+00:38:54,430 --> 00:39:04,660
+Now, signals that the kernel always blocks pending signals of the type
+
+391
+00:39:04,680 --> 00:39:06,680
+currently being handled.
+
+392
+00:39:06,680 --> 00:39:12,000
+So a handler for a signal of type T can't be interrupted
+
+393
+00:39:12,000 --> 00:39:16,070
+by the receipt of another signal of that same type.
+
+394
+00:39:16,070 --> 00:39:21,160
+Okay, it can be, as I showed in the previous slide, it can be interrupted by a signal of another type,
+
+395
+00:39:21,160 --> 00:39:23,160
+but not by a signal of the same type.
+
+396
+00:39:23,160 --> 00:39:28,160
+So that's sort of an implicit form of blocking.
+
+397
+00:39:28,160 --> 00:39:34,610
+But there's the kernel also provides a system call that allows you to explicitly block
+
+398
+00:39:34,610 --> 00:39:38,610
+and unblock signals in the form of the
+
+399
+00:39:38,610 --> 00:39:41,700
+SIGPROC function.
+
+400
+00:39:41,700 --> 00:39:48,700
+And then there's associated, so this allows you to block and unblock a set of signals
+
+401
+00:39:48,700 --> 00:39:54,990
+and then there's some support functions that allow you to create those sets.
+
+402
+00:39:54,990 --> 00:40:05,240
+So just think of these as bit vectors and these functions will set and set and reset and reset the bits in those bit vectors.
+
+403
+00:40:05,240 --> 00:40:12,950
+So let's see how we can use SIG PROC mask to temporarily block and unblock a signal.
+
+404
+00:40:12,950 --> 00:40:20,950
+So this is going to turn out to be very important for you when you, working on your shells, which is your next lab assignment.
+
+405
+00:40:20,950 --> 00:40:25,860
+Okay.
+
+406
+00:40:25,860 --> 00:40:28,860
+So what we do, we'll use SIG empty set to create an empty mask.
+
+407
+00:40:28,860 --> 00:40:33,860
+So this is a mask with all zeros, okay, with no elements in the set.
+
+408
+00:40:33,860 --> 00:40:37,020
+And then we're going to add a single element to the set,
+
+409
+00:40:37,020 --> 00:40:48,130
+which is SIG-int. And now we have some code that we don't want to be interrupted by the seed of SIG-int.
+
+410
+00:40:48,130 --> 00:40:56,900
+So we want to temporarily block the receipt of SIG-int signals. And we do it by calling SIG-PROC
+
+411
+00:40:56,900 --> 00:41:09,220
+with the command, say, I want to block the signals that are in the set specified by mask.
+
+412
+00:41:09,220 --> 00:41:15,950
+And I'll assign the, so this will become my new mask.
+
+413
+00:41:15,950 --> 00:41:19,950
+So this becomes the new blocked bit vector.
+
+414
+00:41:19,950 --> 00:41:24,110
+Okay. Or the not the, the new signal mask.
+
+415
+00:41:24,110 --> 00:41:31,110
+And it makes a copy of the old one and stores it at the address specified in the third argument.
+
+416
+00:41:31,110 --> 00:41:38,880
+So at this point, after we return from SIG PROC mask, SIGN signals are blocked and they won't be received.
+
+417
+00:41:38,880 --> 00:41:43,420
+And then we, so we can execute
+
+418
+00:41:43,440 --> 00:41:49,610
+this code knowing that we won't be interrupted by receipt of a SIG-int.
+
+419
+00:41:49,610 --> 00:41:58,050
+And then we can restore the previous block set by using the SIG-set mask operation and
+
+420
+00:41:58,050 --> 00:42:10,190
+passing in the previous mask that we saved up here when we initially blocked SIG-In.
+
+421
+00:42:10,190 --> 00:42:16,040
+Okay, so signals and signal handling is a really tricky business. And there's sort
+
+422
+00:42:16,040 --> 00:42:21,390
+of three things that make them so tricky and kind of nasty, really.
+
+423
+00:42:21,390 --> 00:42:27,420
+One is that you have to be very careful to write handlers that are safe.
+
+424
+00:42:27,420 --> 00:42:34,810
+Okay, so there's, you can write signal handlers that are unsafe in the sense that they'll create a deadlock in your program.
+
+425
+00:42:34,810 --> 00:42:36,580
+Okay.
+
+426
+00:42:36,580 --> 00:42:45,770
+Or you can, or you can write signal handlers that'll corrupt a global data structure that's being modified by the main program.
+
+427
+00:42:45,770 --> 00:42:51,770
+So, I mean, imagine, imagine your main programming is updating some, um,
+
+428
+00:42:51,770 --> 00:42:54,770
+some data structure like a linked list.
+
+429
+00:42:54,770 --> 00:42:57,770
+And right in the middle of updating that data structure,
+
+430
+00:42:57,770 --> 00:42:59,770
+when it's no longer consistent,
+
+431
+00:42:59,770 --> 00:43:03,790
+the program gets interrupted by the receipt of a signal.
+
+432
+00:43:03,790 --> 00:43:08,370
+And if that signal handler is updating that same data structure,
+
+433
+00:43:08,370 --> 00:43:11,370
+reading that structure or modifying it,
+
+434
+00:43:11,370 --> 00:43:14,590
+then it's going to encounter it in an inconsistent state
+
+435
+00:43:14,590 --> 00:43:16,590
+and you're in trouble.
+
+436
+00:43:16,590 --> 00:43:18,170
+Okay.
+
+437
+00:43:18,170 --> 00:43:23,900
+So this, the fact that it's the fact that it's,
+
+438
+00:43:23,900 --> 00:43:25,900
+the fact that it's easy,
+
+439
+00:43:25,900 --> 00:43:31,900
+to write signal handlers that are unsafe is one aspect that makes them tough to deal with.
+
+440
+00:43:31,900 --> 00:43:36,900
+Another aspect is they have this funny semantics that signals aren't queued.
+
+441
+00:43:36,900 --> 00:43:46,020
+And so if you're not really careful about this, it's very easy to use the receipt of signals to count events.
+
+442
+00:43:46,020 --> 00:43:48,180
+And you can't do that.
+
+443
+00:43:48,180 --> 00:43:53,180
+If signals were queued, you could use the receipt of a signal to count events in the system,
+
+444
+00:43:53,180 --> 00:43:55,180
+but you can't do it because their signals aren't queued.
+
+445
+00:43:55,180 --> 00:43:57,630
+signals aren't queued.
+
+446
+00:43:57,630 --> 00:44:01,630
+And then a third aspect of signals, which makes them tough, is that
+
+447
+00:44:01,630 --> 00:44:05,630
+they're not even portable across different versions of Linux.
+
+448
+00:44:05,630 --> 00:44:07,180
+Okay.
+
+449
+00:44:07,180 --> 00:44:12,980
+So if you use Solaris or some form of BSD, it's not necessarily,
+
+450
+00:44:12,980 --> 00:44:16,980
+the signal handling semantics aren't necessarily the same as they are in Linux.
+
+451
+00:44:16,980 --> 00:44:18,230
+Okay.
+
+452
+00:44:18,230 --> 00:44:21,230
+So we'll look at all three of these in a little more detail.
+
+453
+00:44:21,230 --> 00:44:26,860
+First, we'll start with writing safe handlers.
+
+454
+00:44:26,860 --> 00:44:28,860
+So let me give you some guidelines.
+
+455
+00:44:28,860 --> 00:44:33,120
+for how to write safe handlers.
+
+456
+00:44:33,120 --> 00:44:36,410
+And this is just the collection of,
+
+457
+00:44:36,410 --> 00:44:43,630
+this is just a collection of sort of collected wisdom from various sources.
+
+458
+00:44:43,630 --> 00:44:48,980
+But it covers a lot of aspects of signal handlers.
+
+459
+00:44:48,980 --> 00:44:52,980
+So the first guideline is to keep your handlers as simple as possible.
+
+460
+00:44:52,980 --> 00:44:55,980
+For example, the simplest possible handler I can think of
+
+461
+00:44:55,980 --> 00:44:58,980
+just sets a global variable and then it returns.
+
+462
+00:44:58,980 --> 00:45:00,940
+And in fact,
+
+463
+00:45:00,940 --> 00:45:10,520
+In fact, the CMU cert, provides guidelines for sort of compliant programs.
+
+464
+00:45:10,520 --> 00:45:15,520
+And this is the only signal handler that they allow.
+
+465
+00:45:15,520 --> 00:45:17,520
+This is the only compliant signal handler.
+
+466
+00:45:17,520 --> 00:45:21,710
+One that just sets a global variable and then returns.
+
+467
+00:45:21,710 --> 00:45:26,400
+Okay.
+
+468
+00:45:26,400 --> 00:45:33,400
+Guideline number one, call only functions in your handlers that are, that have this property of async signal safety.
+
+469
+00:45:33,400 --> 00:45:35,040
+Okay.
+
+470
+00:45:35,040 --> 00:45:37,040
+We'll look at this in a second.
+
+471
+00:45:37,040 --> 00:45:39,040
+But I want to point out that printf, S printf,
+
+472
+00:45:39,040 --> 00:45:41,040
+Maliq, exit,
+
+473
+00:45:41,040 --> 00:45:45,360
+functions that are very common and commonly used are not safe.
+
+474
+00:45:45,360 --> 00:45:52,920
+Guideline number two is to always save and restore error no
+
+475
+00:45:52,920 --> 00:45:54,920
+on entry and exit.
+
+476
+00:45:54,920 --> 00:45:56,920
+So you know, error no is a global,
+
+477
+00:45:56,920 --> 00:45:59,920
+a global variable that's set whenever there's an error
+
+478
+00:45:59,920 --> 00:46:02,270
+in a system level function.
+
+479
+00:46:02,270 --> 00:46:06,270
+So you need to save and, you need to save and restore it on entry and exit
+
+480
+00:46:06,270 --> 00:46:07,270
+so that it doesn't get over.
+
+481
+00:46:07,270 --> 00:46:15,780
+It doesn't get overwritten if you're interrupted by another handler.
+
+482
+00:46:15,780 --> 00:46:29,820
+Okay, if you're accessing any shared data structures inside a signal handler that are also accessed by your main routine, then you need to temporarily block signals while you access that data structure,
+
+483
+00:46:29,820 --> 00:46:32,940
+both in the main routine and your signal handler.
+
+484
+00:46:32,940 --> 00:46:35,940
+And the reason for this is what I described earlier.
+
+485
+00:46:35,940 --> 00:46:39,940
+If your main routine is updating that global data structure and then it gets interrupted,
+
+486
+00:46:39,940 --> 00:46:50,880
+and the signal handler is reading that data structure, it's going to find it in an inconsistent state, and bad things will happen.
+
+487
+00:46:50,880 --> 00:46:57,880
+Okay, you want to be sure to declare any global variables that are shared between signal handlers and the main routine as volatile.
+
+488
+00:46:57,880 --> 00:47:07,410
+Okay, the volatile attribute will prevent the compiler from putting that value in a register.
+
+489
+00:47:07,410 --> 00:47:14,410
+So if you declare a global variable as volatile, it will always be, reads and writes will always go to and from memory.
+
+490
+00:47:14,410 --> 00:47:17,080
+Okay, so this is very important.
+
+491
+00:47:17,080 --> 00:47:32,100
+You might, if you don't declare these global variables as volatile, and the compiler chooses to put one of those in a register, then you may miss that variable being updated.
+
+492
+00:47:32,100 --> 00:47:39,190
+So suppose your signal handler is setting a global variable.
+
+493
+00:47:39,190 --> 00:47:46,340
+And now suppose your main routine is spinning, waiting for that global variable to get set.
+
+494
+00:47:46,340 --> 00:47:49,340
+Well, if it's in a register, the right to that variable will just update.
+
+495
+00:47:49,340 --> 00:47:52,340
+just update the register, right?
+
+496
+00:47:52,340 --> 00:47:58,340
+And so your main routine is in danger of just spinning forever, not, not seeing the change.
+
+497
+00:47:58,340 --> 00:48:04,500
+Okay, so always use volatile to, so that they're not stored in registers.
+
+498
+00:48:04,500 --> 00:48:19,520
+And then if you have, if you have a special kind of global called a flag, which by definition is a variable that's only read or written, not incremented or updated, it's just read or written,
+
+499
+00:48:19,520 --> 00:48:24,520
+If you have a variable with that property, then you can declare it with the
+
+500
+00:48:24,520 --> 00:48:27,520
+the SIG atomic T attribute.
+
+501
+00:48:27,520 --> 00:48:34,520
+And if you do that, then the system guarantees that reads and writes to that variable will be atomic.
+
+502
+00:48:34,520 --> 00:48:38,520
+So you don't have to, in other words, you don't have to protect accesses
+
+503
+00:48:38,520 --> 00:48:43,520
+to these shared, to accesses or references to those global variables.
+
+504
+00:48:43,520 --> 00:48:49,580
+Okay, and so by this by atomic, what means that the, the read or right of that flag,
+
+505
+00:48:49,580 --> 00:48:53,580
+will always happen in one uninterruptible step.
+
+506
+00:48:53,580 --> 00:48:58,130
+Okay, one uninterruptible load or store, particular.
+
+507
+00:48:58,130 --> 00:49:04,570
+Now, in practice, on most systems, the SIG-Atomic T is an int.
+
+508
+00:49:04,570 --> 00:49:09,600
+Okay, it's, so you can, you can read or write an int with one instruction.
+
+509
+00:49:09,600 --> 00:49:11,600
+Okay, so it's, it's atomic.
+
+510
+00:49:11,600 --> 00:49:20,600
+But if you want to be portable, you declare it with SIG-atomic T, and then it'll, it'll work on all systems.
+
+511
+00:49:20,600 --> 00:49:24,450
+systems.
+
+512
+00:49:24,450 --> 00:49:28,720
+Okay, we mentioned this property of async signal safety.
+
+513
+00:49:28,720 --> 00:49:36,680
+Now a function is safe to be used inside of a signal handler if it's either reentrant, okay, or
+
+514
+00:49:36,680 --> 00:49:39,490
+if it can't be interrupted by signals.
+
+515
+00:49:39,490 --> 00:49:45,490
+And a reent function, as we'll see when we study threads, is a function where all of its, all of
+
+516
+00:49:45,490 --> 00:49:50,740
+the data that it accesses is on its own stack.
+
+517
+00:49:50,740 --> 00:49:55,160
+So no global variables, no pointers to global variables, everything's stored on the stack.
+
+518
+00:49:55,180 --> 00:50:00,360
+locally. So that means you can be, it's called reentrant
+
+519
+00:50:00,360 --> 00:50:04,280
+because you can have multiple instances of that function and they all have their own
+
+520
+00:50:04,280 --> 00:50:11,590
+separate copies of all of the variables that they're using. Now the POSIX standard
+
+521
+00:50:11,590 --> 00:50:20,520
+guarantees 117 different functions to be async signal saved. These include
+
+522
+00:50:20,520 --> 00:50:26,580
+underscore exit, right, weight, weight, pit, sleep, kill. But unfortunately, there's
+
+523
+00:50:26,580 --> 00:50:28,800
+some very popular functions that aren't on this.
+
+524
+00:50:28,820 --> 00:50:32,820
+list, printf, S printf, things that you really want to use.
+
+525
+00:50:32,820 --> 00:50:37,820
+And in fact, write is the only output function that's async signal safe.
+
+526
+00:50:37,820 --> 00:50:47,670
+So this is kind of a problem because especially when, you know, you'd often like your
+
+527
+00:50:47,670 --> 00:50:53,990
+signal handlers to output information, but you can't, if you want to really be pedantic and careful,
+
+528
+00:50:53,990 --> 00:51:01,820
+you can't use printf. In fact, it's possible to write a program. And I'll try to, I'll try to,
+
+529
+00:51:01,820 --> 00:51:09,050
+it's possible to write a program that does a tight loop of printfs in the main routine
+
+530
+00:51:09,050 --> 00:51:15,040
+and then a steady stream of interreps which execute a
+
+531
+00:51:15,040 --> 00:51:20,770
+handleer which also does a printf.
+
+532
+00:51:20,770 --> 00:51:29,400
+Now, the printf call has to acquire what's called a lock on the terminal.
+
+533
+00:51:29,400 --> 00:51:36,380
+Okay, each printf, inside that library function, it acquires a lock, which means only one
+
+534
+00:51:36,400 --> 00:51:40,960
+instance of printf can write to the terminal at any point in time.
+
+535
+00:51:40,960 --> 00:51:49,030
+If another function tries to acquire that lock, it has to wait until whatever function owns the
+
+536
+00:51:49,030 --> 00:51:51,010
+lock releases it.
+
+537
+00:51:51,010 --> 00:51:57,490
+Okay, so a lock prevents, a lock is a way for, to get mutually exclusive access to shared
+
+538
+00:51:57,490 --> 00:51:59,660
+resources.
+
+539
+00:51:59,660 --> 00:52:07,760
+So if we have a tight loop in our main routine with executing printf, imagine what happens if one
+
+540
+00:52:07,780 --> 00:52:13,980
+of those printups acquires a lock on the terminal and then gets interrupted
+
+541
+00:52:13,980 --> 00:52:20,380
+now by the receipt of a signal now within the signal handler it calls another printf
+
+542
+00:52:20,380 --> 00:52:27,760
+and that printf tries to acquire that lock and it blocks forever because nothing's
+
+543
+00:52:27,760 --> 00:52:31,600
+going to release that lock because the the main routine was interrupted by the
+
+544
+00:52:31,600 --> 00:52:39,450
+handler so you have what's called a classical a classical a classical condition
+
+545
+00:52:39,450 --> 00:52:41,950
+called deadlock which is we have a process
+
+546
+00:52:41,970 --> 00:52:44,470
+waiting for an event that will never occur.
+
+547
+00:52:44,470 --> 00:52:51,190
+In this case, the printf and the signal handler is waiting for a lock to be released that will never be released.
+
+548
+00:52:51,190 --> 00:53:02,430
+So it's interesting, you can try this. It's, it's not too hard to create this deadlock situation.
+
+549
+00:53:02,430 --> 00:53:07,430
+So to deal with this, I really didn't want to tell you guys that you couldn't have any output in your programs.
+
+550
+00:53:07,430 --> 00:53:10,430
+And Wright's a very difficult thing to deal with.
+
+551
+00:53:10,430 --> 00:53:14,440
+So I created a small little library.
+
+552
+00:53:14,460 --> 00:53:22,300
+called the Safe I.O.O. library consists of three routines, and they're available
+
+553
+00:53:22,300 --> 00:53:30,780
+to you in the CSAPP.c file, which is distributed on the website. And it consists of three reent
+
+554
+00:53:30,780 --> 00:53:39,780
+routines. SIO put S-S prints a string, put L prints along, prints along, and SIO error
+
+555
+00:53:39,780 --> 00:53:50,820
+prints along and SIO error prints a message and then exits.
+
+556
+00:53:50,820 --> 00:53:56,560
+So you can safely use, take my word for it, you can safely use this in your signal handlers.
+
+557
+00:53:56,560 --> 00:54:03,900
+So if we were going to rewrite our sig-int handler from the binary bomb, we could rewrite it like
+
+558
+00:54:03,900 --> 00:54:13,200
+this and now we have every function is async signal safe. All right, now signals are also tough because
+
+559
+00:54:13,200 --> 00:54:24,400
+of this funky non-kewing semantics. And so it's really easy to make mistakes when you have
+
+560
+00:54:24,400 --> 00:54:34,820
+an implicit assumption that the receipt of a signal that can be used to count the occurrence of an event.
+
+561
+00:54:34,820 --> 00:54:46,320
+So let's look at this, let's look at this example program. We install a SIG Child Handler. Okay, and this is, actually, this, this sort of I want
+
+562
+00:54:46,320 --> 00:54:50,560
+to close the loop, remember when we talked about our example shell, we're wondering,
+
+563
+00:54:50,560 --> 00:54:55,920
+how are we going to reap those background children? Well, we do it by installing a SIG child handle
+
+564
+00:54:55,920 --> 00:55:02,910
+like we're doing in this example. So this, here we have a program that installs this SIG child
+
+565
+00:55:02,910 --> 00:55:11,250
+handler, and then it creates N different child processes, where each child sleeps for a little
+
+566
+00:55:11,250 --> 00:55:18,480
+bit and exits. And then it spins until
+
+567
+00:55:18,500 --> 00:55:23,880
+the C-count variable becomes zero.
+
+568
+00:55:23,880 --> 00:55:30,780
+The parent, I'm sorry, the parent spins until the c-count variable becomes zero.
+
+569
+00:55:30,780 --> 00:55:43,920
+Now in the, in our child handler, we have a global that's initialized to zero, c-count.
+
+570
+00:55:43,920 --> 00:55:52,400
+And then we wait, we're going to wait, so this child, when the child handler gets called, that means it's called because we received a C-child signal.
+
+571
+00:55:52,400 --> 00:55:54,400
+So in our, in our handler, we're going to wait.
+
+572
+00:55:54,400 --> 00:56:02,010
+we're going to reap that child by calling weight, and then we'll decrement
+
+573
+00:56:02,010 --> 00:56:10,600
+C count. Okay. So once all of the children have been, have been reaped, C count will be zero,
+
+574
+00:56:10,600 --> 00:56:20,480
+and then the parent can exit this wild loop. Okay, now in this particular example, N was 5, but when
+
+575
+00:56:20,480 --> 00:56:29,880
+we run this code, we only, the handler only gets called twice. Okay, so the handler only gets called twice. Okay, so
+
+576
+00:56:29,940 --> 00:56:35,940
+the message handler reaped child only gets executed twice, right, which means
+
+577
+00:56:35,940 --> 00:56:44,010
+the handler was only called twice. We created five children. We terminated five children, but we only
+
+578
+00:56:44,010 --> 00:56:54,320
+reaped two. Okay, so that the problem is that when we, the problem is that we assumed that the receipt,
+
+579
+00:56:54,320 --> 00:57:01,810
+that the, um, that the execution of the child handler corresponded to the single receipt of a
+
+580
+00:57:01,810 --> 00:57:04,710
+single sig child signal, okay?
+
+581
+00:57:04,710 --> 00:57:10,370
+When in reality, these signals aren't queued.
+
+582
+00:57:10,370 --> 00:57:16,150
+We had, in reality, multiple sig-child signals were delivered to that child, which kept
+
+583
+00:57:16,150 --> 00:57:20,220
+overriding that bit in the pending bit vector.
+
+584
+00:57:20,220 --> 00:57:26,760
+And the delivery of those signals didn't have, didn't cause any reaction in the process until
+
+585
+00:57:26,760 --> 00:57:30,460
+that process was just about ready to be rescheduled.
+
+586
+00:57:30,460 --> 00:57:34,120
+And only then was where it was a signal received, but even
+
+587
+00:57:34,140 --> 00:57:38,140
+even though, like, say, three signals were delivered, only one was received.
+
+588
+00:57:38,140 --> 00:57:47,660
+Okay. So you can't use events. In this case, we're using event, we're using signals to count events, which in this case,
+
+589
+00:57:47,660 --> 00:58:07,280
+which in this case, is the termination of a child. Okay, so the receipt of a signal, in this case, it only indicates that at least one child terminated, right? Not not one child terminated. All we can infer from the receipt of that
+
+590
+00:58:07,340 --> 00:58:11,540
+is that at least one child has terminated.
+
+591
+00:58:11,540 --> 00:58:23,190
+Okay, so to fix that, when we receive a SIG child, we have to put, we have to put the weight that's reaping our children.
+
+592
+00:58:23,190 --> 00:58:26,190
+We have to put that in this, in a loop.
+
+593
+00:58:26,190 --> 00:58:38,220
+So we have to assume that the receipt of a SIG child, if we get a SIG child, there could be multiple terminated children that we have to, that we have to reap.
+
+594
+00:58:38,220 --> 00:58:40,200
+And so we put that we put that in this,
+
+595
+00:58:40,220 --> 00:58:46,280
+loop and we execute this loop until there's no more terminated children, in which case,
+
+596
+00:58:46,280 --> 00:58:54,520
+wait, we'll exit with an error code of minus 1 and an error know of E child. So this isn't really
+
+597
+00:58:54,520 --> 00:58:59,860
+an error. It's just, it just means there's no more terminated children. So we check as long as if our
+
+598
+00:58:59,860 --> 00:59:06,160
+error knows, not E child, then we have an error. Otherwise, we terminated normally, as we
+
+599
+00:59:06,160 --> 00:59:13,900
+expected. Now, if we run this code, now we see that we reap all five children
+
+600
+00:59:13,900 --> 00:59:24,990
+as we should. Okay, so let's the litany of problems with signals. First, it's easy to write
+
+601
+00:59:24,990 --> 00:59:32,440
+handlers that aren't safe. Second, it's easy to get the semantics wrong. Third, they're
+
+602
+00:59:32,440 --> 00:59:38,960
+often not even portable across different versions of Unix. So there's some older systems, I don't
+
+603
+00:59:38,960 --> 00:59:46,560
+There's some earlier versions of Unix that after you catch a signal, it restores
+
+604
+00:59:46,560 --> 00:59:53,660
+the default action. So you have to reinstall the handler every time a handler gets called, you have to
+
+605
+00:59:53,660 --> 01:00:00,000
+re-install that handler by calling signal inside the handler itself. We don't have to do that for
+
+606
+01:00:00,000 --> 01:00:09,650
+that for Linux systems. On some systems, when you have so-called slow syscalls, for
+
+607
+01:00:09,650 --> 01:00:16,190
+example, read, you know, if you do a read system call, the kernel doesn't wait
+
+608
+01:00:16,190 --> 01:00:24,170
+around for that data to arrive. It's, you know, it sends a request to the disk controller and
+
+609
+01:00:24,170 --> 01:00:29,080
+then it schedules another process, right? So in a way that the read call is sort of, and
+
+610
+01:00:29,080 --> 01:00:33,760
+then only when the data arrives and the interrupt comes in and announcing that
+
+611
+01:00:33,760 --> 01:00:39,780
+the data arrives, does that read call finish and then restore and return. So you
+
+612
+01:00:39,780 --> 01:00:43,780
+you can think of read is actually kind of broken up into two parts, right?
+
+613
+01:00:43,780 --> 01:00:54,000
+And so the functions like read, these kind of functions are called slow syscalls.
+
+614
+01:00:54,000 --> 01:01:04,370
+And on some systems, if the process receives a signal before a slow system call has finished, the
+
+615
+01:01:04,370 --> 01:01:09,090
+kernel will just abort that system call and return from that system call with an error.
+
+616
+01:01:09,090 --> 01:01:10,090
+Okay.
+
+617
+01:01:10,090 --> 01:01:12,570
+So from user's point of view,
+
+618
+01:01:12,590 --> 01:01:18,430
+you're doing a read call and it returns with this this e-inter signal, this
+
+619
+01:01:18,430 --> 01:01:23,290
+E-inter error. You did nothing wrong. You just happened to have the bad luck of being
+
+620
+01:01:23,290 --> 01:01:29,330
+interrupted by some signal. And so in your user code, you have to check for that. And if if a
+
+621
+01:01:29,330 --> 01:01:34,490
+slow system call like read is interrupted by signal, you have to redo it. So you have to put,
+
+622
+01:01:34,490 --> 01:01:39,150
+which is really a pain, right, because you have to put these these read calls in a loop and
+
+623
+01:01:39,150 --> 01:01:41,670
+keep looping until it succeeds.
+
+624
+01:01:41,670 --> 01:01:46,400
+And finally, some systems don't block signals of the type being handled.
+
+625
+01:01:48,430 --> 01:01:52,130
+So the solution for this is a replacement for signal.
+
+626
+01:01:52,270 --> 01:01:54,150
+So the problem is with the signal syscall.
+
+627
+01:01:54,950 --> 01:02:02,190
+And the solution is a newer syscall called SIG action, which provides a mechanism, a replacement for signal
+
+628
+01:02:02,190 --> 01:02:06,490
+that provides a mechanism for portable and predictable signal handling.
+
+629
+01:02:07,560 --> 01:02:13,280
+And so what I've done, what I've done is created a wrapper called uppercase
+
+630
+01:02:13,300 --> 01:02:22,320
+signal that takes the same arguments as the signal call, but inside it calls the
+
+631
+01:02:22,320 --> 01:02:28,690
+the SIG action function to get portable signal handling. And so it's it's not really
+
+632
+01:02:28,690 --> 01:02:36,580
+important to go into detail about this. The point is, in your code, you always want
+
+633
+01:02:36,580 --> 01:02:43,700
+to call uppercase signal using the wrapper that provided in CSAPP.C. And then,
+
+634
+01:02:43,700 --> 01:02:48,200
+And if you do that, then you'll always block signals of the type being handled.
+
+635
+01:02:48,200 --> 01:02:55,200
+The system will automatically restart slow sys calls that have been interrupted by signals.
+
+636
+01:02:55,200 --> 01:03:00,690
+Okay, so fortunately, there's an easy fix for this.
+
+637
+01:03:00,690 --> 01:03:10,880
+Now let's, let's finish up with, there's some interesting, I mentioned that signals are
+
+638
+01:03:10,880 --> 01:03:14,880
+difficult because of the fact that they're concurrent flows.
+
+639
+01:03:14,880 --> 01:03:19,880
+So I want to look at some sort of subtle issues that you can run into because of this concurrency.
+
+640
+01:03:19,880 --> 01:03:26,750
+And I want to talk about how to identify those errors and how to fix them.
+
+641
+01:03:26,750 --> 01:03:38,880
+So here's a program that this is like a simple shell program that maintains a jobs list, right?
+
+642
+01:03:38,880 --> 01:03:43,880
+So every time it creates a new child, it adds it to the jobs list.
+
+643
+01:03:43,880 --> 01:03:47,880
+And every time that child terminates, it removes it removes it from the jobs list.
+
+644
+01:03:47,880 --> 01:03:48,880
+Okay?
+
+645
+01:03:48,880 --> 01:03:56,900
+So, so our simple shell, just in a loop, it just in a loop, it just
+
+646
+01:03:56,920 --> 01:04:02,480
+creates a child and then executes a program within that child.
+
+647
+01:04:02,480 --> 01:04:12,610
+And then in the parent, it correctly blocks all of the signals temporarily while it adds a job to the job queue.
+
+648
+01:04:12,610 --> 01:04:17,810
+And then it unblocks and then it unblocks those signals.
+
+649
+01:04:17,810 --> 01:04:31,980
+Okay, so this is correct in that it's protecting access to this shared job queue because that that job queue is also manipulated by the SIG child handler.
+
+650
+01:04:31,980 --> 01:04:40,290
+So when a child terminates and the parent receives the sig child, this handler runs,
+
+651
+01:04:40,290 --> 01:04:47,750
+and this handler goes through and it reaps all of the children, potentially terminated children.
+
+652
+01:04:47,750 --> 01:04:52,750
+And then for each one, it deletes that that job from the job queue.
+
+653
+01:04:52,750 --> 01:04:53,250
+All right?
+
+654
+01:04:53,250 --> 01:04:55,410
+So here's a classic case.
+
+655
+01:04:55,410 --> 01:05:00,910
+We have two concurrent flows, our main routine and our signal handler.
+
+656
+01:05:00,910 --> 01:05:03,240
+They're each accessing a shared data.
+
+657
+01:05:03,260 --> 01:05:16,050
+structure, in this case the job queue, and they're correctly blocking signals while they update this job queue.
+
+658
+01:05:16,050 --> 01:05:26,340
+But this program has a really subtle and nasty bug in it. Can you see what it is?
+
+659
+01:05:26,340 --> 01:05:36,570
+What's a sequence of events that would cause this program to fail?
+
+660
+01:05:36,570 --> 01:05:52,640
+Yes. Exactly. That's exactly it's exactly it. So is it possible that the child process
+
+661
+01:05:52,660 --> 01:05:56,660
+could terminate before the parent has a chance to add that job to the queue.
+
+662
+01:05:56,660 --> 01:05:58,660
+And the answer is yes, right?
+
+663
+01:05:58,660 --> 01:06:04,660
+You cannot make any assumptions about the execution ordering of the child in the process
+
+664
+01:06:04,660 --> 01:06:06,660
+or about how long they run.
+
+665
+01:06:06,660 --> 01:06:11,660
+Right? So it's, it's very possible that the child can,
+
+666
+01:06:11,660 --> 01:06:16,660
+after the fore, control returns to the child instead of the parent,
+
+667
+01:06:16,660 --> 01:06:21,660
+and then the child terminates before the parent ever has a chance to add that job to the job case.
+
+668
+01:06:21,660 --> 01:06:22,660
+to the job queue.
+
+669
+01:06:22,660 --> 01:06:35,840
+So now what's happened is that the child is deleting a job that hasn't been added to the job queue.
+
+670
+01:06:35,840 --> 01:06:41,080
+And now when the parent finally gets around to running, it adds that job to the job queue, and that job
+
+671
+01:06:41,080 --> 01:06:43,980
+will never be deleted.
+
+672
+01:06:43,980 --> 01:06:51,430
+So this is the kind of subtle, nasty, horrible kind of bug that you run into when you're dealing
+
+673
+01:06:51,430 --> 01:06:57,050
+with concurrency. Trying to keep track of all of these interleaving of events can just
+
+674
+01:06:57,050 --> 01:07:04,560
+make your head explode. All right. Now, and it happens and signal, it happens with any kind of concurrency
+
+675
+01:07:04,560 --> 01:07:10,720
+where you have concurrent flows accessing shared resources and signal handlers are no different.
+
+676
+01:07:10,720 --> 01:07:15,120
+Now we'll look at principled ways where we can deal with this kind of sharing when we study threads
+
+677
+01:07:15,120 --> 01:07:23,640
+later on. But I just want to point this out to you and scare you a little bit. All right, so
+
+678
+01:07:23,640 --> 01:07:27,440
+So here's how we would fix that.
+
+679
+01:07:27,440 --> 01:07:36,320
+What we have to do is somehow avoid the, avoid the, avoid the, the, the, the, avoid the possibility of the child
+
+680
+01:07:36,320 --> 01:07:44,280
+handler executing before the parent can add the corresponding job to the job queue.
+
+681
+01:07:44,280 --> 01:07:49,710
+Now we can't control whether the child executes first or the parent executes first,
+
+682
+01:07:49,710 --> 01:07:55,500
+and we can't control how long the child runs, but we can't control how long the child runs, but we can't control when the
+
+683
+01:07:55,500 --> 01:07:59,900
+The SIG child handler runs because we can block signals.
+
+684
+01:07:59,900 --> 01:08:10,030
+So what we'll do, we'll modify our program to, we'll use SIGPROC mask to block SIGCHILD
+
+685
+01:08:10,030 --> 01:08:14,550
+signals before we create the child, okay.
+
+686
+01:08:14,550 --> 01:08:21,940
+So at this point, after this invocation of SIGPROC, SigChild signals are blocked.
+
+687
+01:08:21,940 --> 01:08:28,830
+Okay, then we create the child, and before we do our execVE, since we don't know that
+
+688
+01:08:28,830 --> 01:08:35,650
+child may need to reap its children, right? We don't know if it, by default,
+
+689
+01:08:35,650 --> 01:08:45,500
+children inherit the blocked bit vector of their parents. Okay, so when this child runs, after it
+
+690
+01:08:45,500 --> 01:08:50,900
+returns from fork, at this point, right after the fork, a SIG child is blocked in the child as well.
+
+691
+01:08:50,900 --> 01:08:58,820
+Right, so if we didn't do anything, if the child created children and try to reap, you know, reap them
+
+692
+01:08:58,820 --> 01:09:03,480
+with a SIG child handler, that SIG child wouldn't run. So that would be a problem.
+
+693
+01:09:03,480 --> 01:09:10,040
+So in the child, before we execute the program itself, we unblock SIG child. And this was an example
+
+694
+01:09:10,040 --> 01:09:18,280
+that I was alluding to last time of how it's useful sometimes to separate creating processes with executing
+
+695
+01:09:18,280 --> 01:09:25,370
+programs. So this allows us to get our signal mask set up the way we want it before we run
+
+696
+01:09:25,370 --> 01:09:36,370
+our program in the child. So now, even if the child terminates early, the
+
+697
+01:09:36,370 --> 01:09:45,400
+SIG child handler won't run until after we've added the job to the job queue because we don't
+
+698
+01:09:45,400 --> 01:09:58,520
+unblock SIG child until after the, until after we call ad job. Okay, now there's another,
+
+699
+01:09:58,520 --> 01:10:04,220
+so this, this sort of scenario will be very relevant to you when you do your shell lab.
+
+700
+01:10:04,220 --> 01:10:05,210
+Okay.
+
+701
+01:10:05,210 --> 01:10:07,710
+So you want to be careful not to make that mistake.
+
+702
+01:10:12,260 --> 01:10:15,680
+Another thing that you're going to need to do in your shell lab.
+
+703
+01:10:16,940 --> 01:10:22,100
+Now, you remember in our simple shell example, we did the weight inside the main routine.
+
+704
+01:10:22,180 --> 01:10:24,220
+So we waited for foreground jobs using weight.
+
+705
+01:10:25,260 --> 01:10:31,300
+But now in a real shell, we're going to have our SIG child handler do all the weights, call all the weights.
+
+706
+01:10:32,240 --> 01:10:37,400
+And it, so we can't put the weight has to go in the SIG child handler, can't go in the main routine.
+
+707
+01:10:40,400 --> 01:10:40,560
+Okay.
+
+708
+01:10:41,000 --> 01:10:50,920
+So if we can't put a weight in the main routine, how are we going to, how are we going to detect that our foreground job is finished?
+
+709
+01:10:52,810 --> 01:11:06,990
+Right? So somehow, so what we could do, we could define in the SIG child handler, when we reap the foreground job, right?
+
+710
+01:11:06,990 --> 01:11:17,490
+We've created a foreground job. When we reap that foreground job, we could set this global flag, we could declare the process, this
+
+711
+01:11:17,490 --> 01:11:24,490
+process ID variable, PID as a global flag, and then just assign the process ID of
+
+712
+01:11:24,490 --> 01:11:31,580
+the, of the, of the, of the foreground job. Okay, so in this, this is an example of a handler. It's
+
+713
+01:11:31,580 --> 01:11:43,080
+just, all it does, it sets a flag and then exits. And then in our main routine, okay, we want to, we want to
+
+714
+01:11:43,080 --> 01:11:49,280
+we want to block SIG child just by, just like before, okay, to avoid that, that race condition between
+
+715
+01:11:49,280 --> 01:11:54,420
+between the parent and the child. And then we create, and then we
+
+716
+01:11:54,560 --> 01:12:04,190
+create the child, and then in the, and then the parent, we set PID to zero, okay?
+
+717
+01:12:04,190 --> 01:12:13,190
+Then we unblock SIG child, and then we wait for the SIG child handler to run and set PID to non-zero.
+
+718
+01:12:13,190 --> 01:12:20,600
+Okay. Okay. Okay, everybody see that? I mean, this, so this is correct, right? But it's extremely
+
+719
+01:12:20,600 --> 01:12:30,280
+wasteful, right? We're spinning, we're using valuable processor cycles in this tight spin loop, just
+
+720
+01:12:30,280 --> 01:12:33,680
+executing over and over and over and over and over and over for who knows how long.
+
+721
+01:12:35,040 --> 01:12:37,080
+Okay, so that's not a good, that's not a good solution.
+
+722
+01:12:38,430 --> 01:12:43,720
+All right, so let's look at a couple other things we might consider, and that have been considered
+
+723
+01:12:43,720 --> 01:12:45,900
+by generations of 213 students.
+
+724
+01:12:49,300 --> 01:12:54,740
+So one thing, you might think, well, I'll just, instead of just putting a semicolon here,
+
+725
+01:12:55,380 --> 01:13:04,660
+I'll pause, and then I'll wait for the SIG child handler to run, and then I'll go back up,
+
+726
+01:13:04,660 --> 01:13:07,350
+and I'll check PID again.
+
+727
+01:13:08,760 --> 01:13:10,220
+Now, you have to put this in a loop.
+
+728
+01:13:10,300 --> 01:13:15,540
+It still has to be in a loop because we have other signal handlers in our program.
+
+729
+01:13:15,640 --> 01:13:16,560
+We have a SIG-int handler.
+
+730
+01:13:17,620 --> 01:13:22,420
+So it might be if we do the pause here and the SIG-A-N comes in and the SIG-N handler runs,
+
+731
+01:13:23,060 --> 01:13:27,080
+that would cause us to exit the pause function and go back up.
+
+732
+01:13:27,080 --> 01:13:29,620
+So we have to keep checking P-I-D because we're not sure.
+
+733
+01:13:30,480 --> 01:13:34,620
+We have to keep checking for the specific signal handler, sig-child handler,
+
+734
+01:13:34,620 --> 01:13:37,560
+to run instead of other handlers that might run.
+
+735
+01:13:39,530 --> 01:13:45,870
+But this is actually wrong because it has a race.
+
+736
+01:13:46,030 --> 01:13:47,550
+Can you see what the race is?
+
+737
+01:13:54,420 --> 01:13:55,300
+What's wrong with this?
+
+738
+01:13:55,360 --> 01:13:58,420
+There's a good chance that this thing will block forever.
+
+739
+01:14:03,620 --> 01:14:03,820
+Yes?
+
+740
+01:14:16,020 --> 01:14:20,420
+Yeah, that's, so the problem, the problem with this is like,
+
+741
+01:14:20,860 --> 01:14:26,100
+so if the signal is received after PID is checked,
+
+742
+01:14:26,900 --> 01:14:28,680
+but before the pause executes,
+
+743
+01:14:28,780 --> 01:14:33,360
+Okay, which is possible, right?
+
+744
+01:14:33,360 --> 01:14:37,540
+It's unlikely, but it's possible.
+
+745
+01:14:37,540 --> 01:14:52,880
+If that signals arrives here, then the handler will set PID to non-zero, and then we'll execute the pause, and then we'll execute the pause, and the pause will be blocked forever waiting for a signal that'll never arrive, right?
+
+746
+01:14:52,880 --> 01:14:55,880
+Because the SigChile signal already came.
+
+747
+01:14:55,880 --> 01:14:58,650
+Very subtle, right?
+
+748
+01:14:58,650 --> 01:15:02,230
+So this code looks okay, it looks benign, but it's wrong.
+
+749
+01:15:02,230 --> 01:15:09,960
+but it's wrong and and your program would just hang forever so we say
+
+750
+01:15:09,960 --> 01:15:14,900
+well okay that's no good we could replace the pause with a sleep so we could say let's let's
+
+751
+01:15:14,900 --> 01:15:21,820
+check PID and then sleep for some predetermined amount of time in this case one
+
+752
+01:15:21,820 --> 01:15:29,900
+second and then go back up and check PID again so this while this is correct it's way
+
+753
+01:15:29,900 --> 01:15:33,780
+too slow right we're asking the system to wait for a second which is an eternity
+
+754
+01:15:33,780 --> 01:15:36,600
+And there's forms of sleep,
+
+755
+01:15:36,600 --> 01:15:39,500
+nanosecond, where you can wait, instead of units of
+
+756
+01:15:39,500 --> 01:15:41,700
+seconds, you can wait in units of nanoseconds.
+
+757
+01:15:42,200 --> 01:15:44,080
+But what value do you use, right?
+
+758
+01:15:44,220 --> 01:15:48,870
+If it's, it's, so that's, if you choose a value that's too large,
+
+759
+01:15:48,990 --> 01:15:51,290
+then you have this problem, this slowness problem.
+
+760
+01:15:51,710 --> 01:15:54,730
+If you choose a sleep time that's too small,
+
+761
+01:15:54,930 --> 01:15:57,370
+then you have the other problem that it's inefficient.
+
+762
+01:15:58,740 --> 01:16:03,830
+So the solution is to use Sigsispend, which is the last
+
+763
+01:16:03,830 --> 01:16:05,650
+last thing we're going to look at today.
+
+764
+01:16:06,560 --> 01:16:15,940
+So SIG suspend is a function that takes a signal mask, and it's equivalent to an uninterruptible
+
+765
+01:16:15,940 --> 01:16:18,940
+version of these three statements.
+
+766
+01:16:18,940 --> 01:16:25,260
+So we block the signals that are specified in the signal mask.
+
+767
+01:16:25,260 --> 01:16:34,750
+And then it's atomic in the sense that after that this, this, these two statements can't be interrupted.
+
+768
+01:16:34,750 --> 01:16:37,140
+They're always executed together.
+
+769
+01:16:37,140 --> 01:16:41,210
+Okay, so we block these signals, and then we execute the
+
+770
+01:16:41,230 --> 01:16:49,750
+pause. So there's no chance of a signal interrupting this program in between the
+
+771
+01:16:49,750 --> 01:17:00,380
+SIG PROC mask and the pause. Okay. And then when a signal does come in and the
+
+772
+01:17:00,380 --> 01:17:05,220
+execution of the handler causes pause to exit, then we set the mask back to what it was
+
+773
+01:17:05,220 --> 01:17:13,030
+before. Okay. So the proper way then to wait for a signal is to use SIG suspend in the
+
+774
+01:17:13,030 --> 01:17:18,860
+following way. So here's our, here's our program again. We, before we create
+
+775
+01:17:18,860 --> 01:17:25,060
+the child, we block SIG child, then we create the child, and now we're going to wait for the
+
+776
+01:17:25,060 --> 01:17:32,710
+SIG child to be received. Now SIG child is still blocked. Okay, so there's no danger
+
+777
+01:17:32,710 --> 01:17:39,780
+of the SIG child handle or running. Okay, so we set that global variable to zero.
+
+778
+01:17:39,780 --> 01:17:46,370
+And then while it's, while it's non-zero, we repeatedly call SIG suspend. And so
+
+779
+01:17:46,390 --> 01:17:49,890
+SIG suspend is using the previous mask that was set up here.
+
+780
+01:17:49,890 --> 01:17:55,420
+So SIGSyspend is using the mask where SIG child is unblocked.
+
+781
+01:17:55,420 --> 01:18:01,420
+Okay, when we, when we entered this first SIGPROC mask, SIG child was unblocked.
+
+782
+01:18:01,420 --> 01:18:08,800
+So this allows inside the SIG suspend, SIG child is unblocked.
+
+783
+01:18:08,800 --> 01:18:15,120
+Okay, so it allows for the handler now to be received or to be executed.
+
+784
+01:18:15,120 --> 01:18:19,700
+Okay, so when it, and it does it does it.
+
+785
+01:18:19,720 --> 01:18:27,490
+safely because of the atomic nature of those first two instructions.
+
+786
+01:18:27,490 --> 01:18:35,430
+So once the, so it's possible that the implicit pause inside of SIG child could be interrupted by, say,
+
+787
+01:18:35,430 --> 01:18:41,540
+another signal, like SIG int, okay, in which case we'd loop back up, we'd notice that PID
+
+788
+01:18:41,540 --> 01:18:47,660
+was still zero, and we'd go back into SIG suspend with, with SIG child unblocked.
+
+789
+01:18:47,660 --> 01:18:50,230
+Okay? So that makes sense to everybody?
+
+790
+01:18:50,230 --> 01:18:52,450
+And now, so this is exactly the behavior we want.
+
+791
+01:18:52,470 --> 01:18:55,370
+We're not wasting resources, but we've eliminated the race.
+
+792
+01:18:59,110 --> 01:19:00,650
+Okay, so that's it for today.
+
+793
+01:19:00,750 --> 01:19:08,870
+If you're interested, non-local jumps are this weird thing in C that allows a function to return to some other function that didn't call it.
+
+794
+01:19:10,750 --> 01:19:15,450
+But it's described in your textbook and also in some additional slides here if you're interested.
+

@@ -1,0 +1,816 @@
+[00:00:01] Okay, let's continue on in our coverage of machine-level programming, the second in, I think, a six-part series.
+[00:00:12] As I mentioned yesterday, machine-level programming is sort of the core of this course, that it gives you a set of tools and understanding that take you well beyond what your sort of average run-of-the-mill programmer or software developer would know about.
+[00:00:30] And it's very powerful in terms of your better understanding of the system, what goes wrong,
+[00:00:37] why programs crash, what the meaning of those are.
+[00:00:42] And so it's a fairly core part of the material.
+[00:00:45] As you know, the data lab is due tonight, and the next lab out is called the bomb lab, and I believe that's coming out tonight as well.
+[00:00:54] So the bomb lab will rely on your ability to understand machine-level code.
+[00:01:00] So these two lectures will actually be enough to get you started on some of the earlier parts of that lab.
+[00:01:07] You'll learn a lot more at recitation on Monday, either in person or if you're viewing the recorded version of that, that will help you move along on BaumLab.
+[00:01:18] Like all the labs in this course, at least the first two, we give you a fair amount of time for them, but don't be fooled into thinking that means that means you can just slack off or work on other courses.
+[00:01:30] and then the last few moments jump in and finish this lab.
+[00:01:34] The bomb lab, once you get the hang of what you're doing, it's pretty, you can just kind of crank along,
+[00:01:40] but there's a certain learning curve that will take you to even get started on it effectively.
+[00:01:47] So don't put it off.
+[00:01:57] Where was this?
+[00:02:12] So last time we introduced the very basic principles of machine level programming, the idea of there being special principles of machine level programming, the idea of there being special state that you have access to.
+[00:02:21] the registers, which people came after class and asked,
+[00:02:24] are registers part of memory?
+[00:02:27] No. Are they part of the cache? No. Are they part of the cache?
+[00:02:29] No. They're special. They're different. They don't exist to a C level program.
+[00:02:34] When you're programming in C, you don't have any visibility into them.
+[00:02:37] And in general, today what we're going to do then is go beyond the sort of very basics
+[00:02:43] and start talking about the control, how you control the flow of execution of
+[00:02:47] instructions at the machine level, and how you control the flow of execution of execution.
+[00:02:50] and how you use those techniques to implement basic constructs, conditional statements,
+[00:02:56] loops, and switch statements.
+[00:02:59] And then next time we'll talk about procedures, which warrants a whole lecture of its own.
+[00:03:05] So the x86 and several machines of its generation have these curious little one-bit
+[00:03:14] bit flags that are called condition codes, and they're the basis of how conditional operations work.
+[00:03:19] So to a machine level programmer then, we talked last time that you have visibility of the set of registers and a memory.
+[00:03:34] But you also have more things, and this is only a partial list.
+[00:03:38] Actually, there's more and more stuff that you can add to this picture.
+[00:03:42] But we talked about in the 64-bit x8664, there's now 16 registers, eight of which have
+[00:03:51] names that are historic based on old X86 stuff, and eight of which were introduced,
+[00:03:59] and so they simply named those R8 through R15.
+[00:04:03] And of these registers, for the most part, the only one that's really special, is RSP, it's a stack pointer.
+[00:04:10] It tells you where, and we'll learn a lot more about stacks starting next time.
+[00:04:16] But it's sort of where the most, the state is that manages the execution of procedures.
+[00:04:22] And so you can't just use that or set it in arbitrary ways, but the other ones you more or less can with qualifications to that statement.
+[00:04:33] There's another register that they call the RIP, which has nothing to do with death.
+[00:04:38] It means, the IP means instruction pointer. In I-A-32 it was called E-I-P, and now it's called R-I-P, just like the register used to be E-A-X, and now it's R-R-X.
+[00:04:52] So all it contains is the address of the currently executing instruction.
+[00:04:57] And you can, it's not a register that you access in a normal way, but you actually, there are tricks that you can find out what the value of that is.
+[00:05:07] So that just tells you where in the program, what part of the program is currently being executed.
+[00:05:13] And then there's these things that are called condition codes, and we're only showing four.
+[00:05:17] There's actually more like eight of them, but not relevant to our general
+[00:05:22] that are all one-bit flags and they get set not directly, but as a side effect of other
+[00:05:30] operations that take place, and they're the basis for which conditional operation gets decided.
+[00:05:37] So let's go through what those mean.
+[00:05:41] And they're given names, but these names are actually useful to memorize what they mean.
+[00:05:46] So CF means the carry flag, and that's if you think of adding two numbers, think of them as two unsigned
+[00:05:53] numbers and you do the binary arithmetic and sometimes an extra one pops
+[00:05:58] out of the left-hand side, right? That's the carry bit. The numbers you added sort of were
+[00:06:05] too big to be contained in the 32 or 64-bit or even 16- or 8-bit result. And so an extra
+[00:06:15] bit was generated. That's called the carry bit. The zero flag is what it sounds like. It's set if
+[00:06:22] the value you just computed is zero. These are set typically by arithmetic instructions,
+[00:06:28] by the way. The sign flag is set if the value just computed as a one in the most significant bit,
+[00:06:36] meaning it's a negative value. And the O flag, overflow flag, is a two's complement version of overflow.
+[00:06:44] So in particular, if you remember from data lab, how do you know if addition of two values is overflowed?
+[00:06:52] It's if the signs of the operands are the same, but the sign of the result is different than that.
+[00:06:58] So either you added two positive numbers and got a negative result, that was a positive overflow,
+[00:07:03] or you added two negative numbers and got a negative result.
+[00:07:07] That's negative overflow.
+[00:07:09] You can't overflow if the two arguments are of opposite signs, right?
+[00:07:14] So those four flags get set as this sort of normal activity by many of the instructions,
+[00:07:21] not by our friend, the LEA instruction, which I mentioned is kind of a quirky instruction
+[00:07:28] that GCC really likes a lot, and you'll see it in a lot of places.
+[00:07:34] But in general, and most of the time those flags get completely ignored, because who cares, right?
+[00:07:41] But they do show up at various points when you're doing conditional operations.
+[00:07:48] So there's some special instructions whose only effect is to set condition codes, and
+[00:07:54] And the one that you'll see is especially is called Compare, CMP.
+[00:07:58] And by the way, the Q at the end of these is all just a reflection of they're operating on 64-bit words.
+[00:08:05] Quad-word, as I said.
+[00:08:08] So the comparison is sort of like a subtraction instruction instruction except that you don't, you don't do anything with the result.
+[00:08:17] A normal subtraction instruction is like x minus equals y. It will read two numbers, but
+[00:08:24] then it will store the result wherever X is stored.
+[00:08:28] But compare just takes these two values, does the subtraction, and doesn't do anything with the result,
+[00:08:33] but it will set these four condition flags.
+[00:08:39] And just a few things to keep in mind that are often will be sources of confusion is,
+[00:08:47] remember that the arguments in the way we write them in machine code is the opposite of what you'd expect.
+[00:08:55] By the way, somebody asked me last time, there's another, there's sort of two dialects
+[00:09:00] of assembly code used on x86 machines.
+[00:09:04] There's the one that's used by Intel and Microsoft, and we don't use it.
+[00:09:08] And then there's the one used that's sort of used by Linux systems, and that's the one we use.
+[00:09:15] And they're different, and one of the quirks of them is they write their arguments in different
+[00:09:19] order.
+[00:09:20] So it will drive you crazy reading, trying to read, if you're familiar with one, it's like if
+[00:09:25] If you've ever tried to drive a car on the wrong side of the road, you often will
+[00:09:30] crash or do bad things.
+[00:09:35] So that's just an aside that what I find, by the way, when I'm looking at code and I see a
+[00:09:41] compare instruction, I actually write as a comment, compare the two, but I flip the order so
+[00:09:51] that I'm sure that I sort of keep in my mind what the comparison was of.
+[00:09:57] And so these flags get set according to the rules of subtraction.
+[00:10:01] And so it turns out that the carry flag and the overflow flag, you have to sort of flip your sense
+[00:10:06] of what happened because it's a subtraction rather than an addition.
+[00:10:10] But it's the same general idea.
+[00:10:15] So that sort of shows you one particular one.
+[00:10:19] And another instruction that you'll see whose only purpose in the world is to set condition
+[00:10:25] flags, condition codes, is the test instruction.
+[00:10:28] And this is typically used to compare, as you'd think, it's when you have two values
+[00:10:33] and you want to compare them to each other.
+[00:10:35] And the test is if you really just have one value and you want to see what it's like.
+[00:10:40] Is it zero? Is it negative?
+[00:10:42] Those are the main things you care about.
+[00:10:44] In fact, that's the only thing you can determine.
+[00:10:46] But just because I guess they had, they had sort of a possibility of having two arguments to this
+[00:10:54] so they decided, well, let's go ahead and do it.
+[00:10:56] How do you have two arguments to a test instead?
+[00:10:58] instruction and the two results and then test that value.
+[00:11:03] So what you'll typically see is a test where both arguments are the same, say, say test Q, percent
+[00:11:11] R-a-X, comma, percent R-A-X, where, so that you're just anti-register to itself, and one property
+[00:11:19] of the and operation is, it's what they call item potent.
+[00:11:24] Adding, ending two things, the same things together gives you that same thing.
+[00:11:32] So we can see these.
+[00:11:34] And now, so I told you that's how the condition codes get set.
+[00:11:38] Now how do you actually read them?
+[00:11:40] How do you make use of them?
+[00:11:41] Well, there's two, in principle, you can actually extract and get the condition code values directly
+[00:11:49] out of this special status register, but that's very unusual to do that.
+[00:11:54] What's more common is you either try to read it and set a one-bit flag based on the result
+[00:12:01] in some other register, or you try and do a conditional branch.
+[00:12:07] So the first example where you try to read it in a way that you can make use of it is done with the set instruction.
+[00:12:15] And you'll see there's a whole range of set instructions, but their only difference is really just
+[00:12:23] what the condition they're setting based on.
+[00:12:27] So what a set instruction does is it sets a single
+[00:12:32] byte of a single register to either one or zero. And the basis for whether it's
+[00:12:40] sets it to one or to zero is based on what the condition codes are. In essence, what's the,
+[00:12:48] what happened to your most recent instruction beforehand? Was it an arithmetic instruction or
+[00:12:54] a set instruction or a test instruction or a test instruction or a compare instruction? And as you can
+[00:13:00] see, there's, they're all based.
+[00:13:02] on some logical combination of these condition codes that correspond to what
+[00:13:08] the names imply.
+[00:13:10] So for example, the set S instruction is true if the sign flag is true, meaning that the most recent
+[00:13:19] result was negative.
+[00:13:21] And there's other ones less than, less than are equal to, are two's complement comparisons, and
+[00:13:28] they have to take into consideration, did the most recent result cause in
+[00:13:32] overflow or not because that will affect the result of the comparison.
+[00:13:39] So that's part of the reason we tortured you with understanding two's complement arithmetic and
+[00:13:43] how you compare results and making you understand the bit level behavior so that you can
+[00:13:49] understand what these instructions do. So we're cruel, but we have a reason for our cruelty.
+[00:13:58] So you say one bite, how do you deal with one bite? Well, here's another thing we didn't
+[00:14:02] tell you yet, and we're going to keep tell you more stuff over and over and over
+[00:14:05] over again. It turns out for every one of these 16 registers, you can directly
+[00:14:11] set the lowest order byte of it to either 0 or 1, and it will affect it, it turns out it doesn't
+[00:14:18] affect any of the other seven bytes of that register. So, and they all have quirky names.
+[00:14:25] The L means low in there. So here's an example of using, putting all this
+[00:14:35] together to do something that's vaguely useful.
+[00:14:40] Suppose I want a function GT that will take two numbers and compare them and set the
+[00:14:47] result, return result value of 1 if x is greater than y, and 0 otherwise.
+[00:14:54] And so here's the assembly code with some tabbing problems.
+[00:15:00] Fix this kind of thing bugs me. Hold on.
+[00:15:07] And I want to try and do this. I will fix this later. I will fix this later. I will fix this later.
+[00:15:32] later. Anyways, it's not the end of the world. Normally in assembly code, one
+[00:15:43] thing you've noticed is that the instructions are indented by a tab space and the only
+[00:15:49] thing that's way over in the left margin are labels. So this is just sort of this
+[00:15:55] way the assembler is actually quite tolerant of formatting things, but this isn't
+[00:16:00] the way it normally looks. So anyways, the point is there's a comparing the one rule that
+[00:16:07] you need to understand about procedures is that the first argument is passed
+[00:16:12] in register RDI and the second in register RSI and the second in register RSI and that if
+[00:16:17] I'm going to return a result from a function I do that by storing it and
+[00:16:21] register R a X before I return. So the first instruction compares these two and
+[00:16:29] you notice how I flip the order that it says RSI which is Y and RDI which is X
+[00:16:35] is X but when I annotate it
+[00:16:38] I say X to Y so that I mentally am thinking in the order that the actual comparison
+[00:16:43] is made rather than the way they're listed. So I always do that when I'm looking at code to help
+[00:16:49] me flip those two around. And then here's our instruction. So that compare instruction set
+[00:16:56] these four condition code registers. And now the set G says, now set this
+[00:17:02] single byte register, the lowest byte of RAX to 01 if the result was
+[00:17:09] the comparison was greater. So according to this this rule.
+[00:17:20] And the effect of that was to set just this one byte of this 8 byte register to either 0 or 1.
+[00:17:29] Now my problem is that these remaining 7 bytes have whatever happened to be there before,
+[00:17:35] and I want it to be all zeros. So the the way it does it does it is a bit weird. There's an
+[00:17:44] instruction called move with zero extension byte to long.
+[00:17:51] Now you get to know these better with time. Let me, and what what that means is you can
+[00:17:59] actually copy a byte from any place like the lower-order byte of some other register
+[00:18:04] into a new register and you'll put zeros to the left of it. That's what they mean by
+[00:18:10] zero extension. That seems logical, but one thing you'll notice is the destination here is
+[00:18:17] E-A-X, which you'll recall, although it doesn't show it here, that's the lower
+[00:18:22] 32 bits of register R-A-X. And then you'd say, well, that only got me halfway there,
+[00:18:32] right? How do I make sure the upper 32-bits are set to zero? Well, one of the weird
+[00:18:38] quirks of x-86-64 is for any computation where the result is for any computation where the result is a
+[00:18:47] a 32-bit result, it'll add zeros to the remaining 32 bits of the register.
+[00:18:54] And it's different, for example, the byte-level operations only affect the bytes. The two-byte or
+[00:19:02] operations like what you'd have if the data type were short only affect those two bytes. But
+[00:19:10] the four-byte instructions set the upper bytes to zero. And that was some, somebody at AMD, and I don't know
+[00:19:18] it is decided this was a good idea. And it might be a good idea, but it's really confusing.
+[00:19:25] But that's something you'll have to just sort of remember in the back of your mind when you see things
+[00:19:30] like this. So the effect of this instruction is to take this one-byte result, which is the lower
+[00:19:36] or byte of register R-A-X, copy it to the same place as it already is, but then set the remaining
+[00:19:44] seven bytes to zero, which is what we want. So you'll see this pattern quite a
+[00:19:50] often.
+[00:19:55] Question?
+[00:19:56] Got it?
+[00:19:57] Okay.
+[00:19:58] So now that's sort of, sometimes I want to do this.
+[00:20:01] I just want to get a one-bit flag as a result of the
+[00:20:04] result of the comparison.
+[00:20:06] But more generally, I want to do something with that information and not just set one bit.
+[00:20:12] So the simplest version is what about a conditional,
+[00:20:16] an if and possibly an else?
+[00:20:19] Well, that's done by, there's actually two ways to do it.
+[00:20:24] two ways to do it. So we'll go through the sort of general purpose, traditional way,
+[00:20:29] and then we'll show the more specialized, newer way, and we'll compare those. So the traditional way is
+[00:20:36] to use what's known as a jump instruction. And a jump instruction, normally instructions
+[00:20:41] execute in a particular order, just like when you're writing a program and you write a series of statements,
+[00:20:48] they execute one after the next. A jump instruction is a way you can go from wherever you
+[00:20:54] to someplace else and either skip over some instructions or jump back to some other previous position or wherever.
+[00:21:03] And there's two kinds of jumps, ones that are unconditional, well, there's several kinds, but an unconditional jump means when I say jump, you jump,
+[00:21:13] but there's other conditional jumps that will actually only do that jumping if the condition codes are set appropriately.
+[00:21:20] And you'll see that the names of these jump instructions are the same as the sentence
+[00:21:24] with the same conditions. So there's a variety of different reasons that the program may be given to either jump or not jump.
+[00:21:33] So I'm going to use this one example to show you several different versions of it.
+[00:21:43] And like everything, you'll see here, these particular programs aren't that useful, but they illustrate ideas.
+[00:21:52] So imagine I wanted to compute the difference of two values and
+[00:21:59] and then take their absolute value.
+[00:22:02] So there's various ways you can imagine doing it.
+[00:22:04] By the way I'm going to do it is decide to either subtract Y from X or X from Y,
+[00:22:09] or X from Y, depending on the relative values of those two.
+[00:22:13] And, of course, the astute observer will notice that this has problems if you have a T-min somewhere,
+[00:22:21] if the result, because there's no absolute value, but we're not going to worry about that.
+[00:22:29] So,
+[00:22:30] In other words, I just want to say if X is greater than Y,
+[00:22:33] then I want to subtract Y from X.
+[00:22:35] If X is less than or equal to Y, I want to subtract X from Y.
+[00:22:40] And here's the code for it, where the blue and the red are color-coding the different parts of it.
+[00:22:46] So here you see the compare instruction, and again, I've written them out in the reverse order to help me keep track of what the comparison is.
+[00:22:59] And it says, I'm going to compare X and Y.
+[00:23:01] and if X is less than or equal to y, I want to jump to a location specified by this label L4.
+[00:23:09] And so in general, in assembly code, if you give a name and then a colon, what's to the left of that is called a label.
+[00:23:17] And it's just a tag that that's only visible in the assembly code.
+[00:23:22] It's not actually in the object code that will later be used to compute an address for determining
+[00:23:31] that will encode where this jump will actually land.
+[00:23:35] When you're looking at assembly code, one of the features it provides
+[00:23:39] is a little bit easier way to understand it than to look at addresses.
+[00:23:44] And so it just tells you to be looking at that the jump would occur to this position.
+[00:23:51] And what you'll see here is, in these two branches, the blue code versus the red, what you're doing is in one case
+[00:23:58] subtracting Y from X, here you move X into R.A.X and you subtract Y from it. And you subtract
+[00:24:07] y from it. And here you do the opposite. You're subtracting X from Y. And in this case, so in the first case, you'll make the jump if X is less than or equal to Y. You'll subtract Y from X, and you'll do a return. And you'll do a return. And you remember that I don't have to do a
+[00:24:30] special to return a value back from a function. All I have to do is stick it and
+[00:24:35] register IAX. And the calling function will know that's where to find the return value. So
+[00:24:41] here it does a rep. And here it does the subtraction and it simply does a return directly from that part
+[00:24:47] of it. So it's a pretty straightforward piece of code, but you can see it's using this
+[00:24:55] jumping to create two different parts of code that get executed.
+[00:25:01] under different conditions.
+[00:25:03] Question.
+[00:25:07] What's that?
+[00:25:08] I'm sorry I didn't hear you.
+[00:25:14] Oh, well, there's a couple things.
+[00:25:16] One is you want the result to end up in R.A.X.
+[00:25:19] Right?
+[00:25:20] And remember, the subtract and all those arithmetic instructions
+[00:25:24] are just two argument instructions.
+[00:25:27] There, um, that you take two values and then you,
+[00:25:31] the one, the second argument, the destination argument,
+[00:25:35] you overwrite what was there with the new result.
+[00:25:38] So this is a pretty typical pattern you'll see.
+[00:25:42] You move some value into a register and then you, into R.A.X is very common.
+[00:25:48] And then you do some arithmetic operation with that register as a destination to kind of update it.
+[00:25:55] It's like if you were writing in C, if all the time you had to write sort of
+[00:26:01] x plus equals something, x minus equals, and that all your arithmetic had to be expressed in those terms.
+[00:26:08] terms.
+[00:26:13] Okay.
+[00:26:15] So it's fun to look at assembly code for about five minutes, and then you get sick of it.
+[00:26:22] So one thing that sort of present these same ideas, but give it in a little bit more abstract form,
+[00:26:29] is to write it in C, but in a form of C, that looks a lot like assembly code.
+[00:26:35] And in particular, one of the features of C that is not generally advertised is there's a
+[00:26:42] statement called go to. And you can put labels in your code.
+[00:26:47] And you can tell the program that if something happens, then you want to jump to that
+[00:26:57] part of the program. So it looks a lot like that assembly code, right?
+[00:27:02] That you saw jump J-L-E instead of what this says.
+[00:27:07] It's like I'm doing a test, and then if the test is, which in the test is, which in the
+[00:27:13] In this case, I call it N test because it's the opposite of the test that's in the original program.
+[00:27:18] And if that end test condition holds, I want to jump to another part of the program I'm calling else.
+[00:27:25] And you notice I uppercase that because it's not the actual else of an if then else.
+[00:27:33] And similarly, if this one is, well, actually to be most accurate, I should have simply said return result from this point.
+[00:27:42] This code's a little bit out of date.
+[00:27:45] out of date. So I should have said return result. But another version would be to have
+[00:27:51] done a go-to down to here and return the result from there. And you'll see different compilers
+[00:27:56] generate in different forms. So I'm going to typically use this way of presenting code just
+[00:28:03] so that you can look at and understand what these control structures look like without having
+[00:28:09] to sort of scrutinize the low-level assembly code instructions. So we can sort of take this question
+[00:28:19] Yeah. I think there's a homework or a practice problem of exactly that sort. So in general, you could do it in either way. And why the compiler picks one versus the other is, I think it's a completely arbitrary decision. But consistently, I found GCC does it this way.
+[00:28:46] Okay. So let's sort of talk, sort of imagine you're writing a compiler. How would you take this special case I just showed and generalize it into a rule for a compiler?
+[00:28:59] if-then-else expressions.
+[00:29:02] And I'm going to use the version of and see the question mark-coran version where you kind of
+[00:29:08] encapsulate that whole conditional as a single expression rather than the statement.
+[00:29:14] But you can understand that these rules would be the same in either case.
+[00:29:18] So imagine in general you had a C code where there's a test controlling whether to return the result of one expression or another.
+[00:29:28] or another.
+[00:29:31] And this is what my ABS diff code would look like
+[00:29:35] if I wrote it in that form.
+[00:29:37] And so in general, what we can say is
+[00:29:40] what we'll do is,
+[00:29:43] we'll take the test and invert it and say,
+[00:29:47] if that test is not true,
+[00:29:50] then we will,
+[00:29:52] so if N test is true,
+[00:29:59] then we will jump to some part of the code where
+[00:30:02] we've compiled the code for the else expression.
+[00:30:06] And if that test fails here, so that the original test condition holds,
+[00:30:11] then we'll stick in whatever code it takes to compute the then expression,
+[00:30:18] and then we'll merge back together.
+[00:30:21] In the case you saw where it's just a single little function,
+[00:30:24] we can just call a rep here and get out of the thing.
+[00:30:27] But if this is one line of code and then there's a whole bunch of lines after that,
+[00:30:32] typically you want to merge back together again and continue from there.
+[00:30:36] And so that's what this shows.
+[00:30:38] I'll finish by going to whatever it comes afterwards.
+[00:30:42] So this is a way I like to, you know,
+[00:30:46] although we're not writing compilers in this course,
+[00:30:49] I think it helps to think in terms of general rules
+[00:30:53] of how a compiler would translate C code into assembly code
+[00:30:57] so that when you see that assembly code,
+[00:31:00] you'll recognize these patterns and know what they mean.
+[00:31:02] what they mean.
+[00:31:03] Question.
+[00:31:04] After it goes to the else clause, does it like fall through to the done?
+[00:31:07] Yes.
+[00:31:08] Yes.
+[00:31:09] So just as we saw, yes, in general, like here, it would fall through to the done.
+[00:31:18] Good question.
+[00:31:24] Okay, so that's one version of conditional and that's the most general way and the way it used to always be done.
+[00:31:31] But there's another approach that you'll see fairly common in code.
+[00:31:35] it's sort of an optimization called conditional move.
+[00:31:39] And it's bit non-intuitive from a software developer's perspective of why you'd ever want to do this.
+[00:31:45] The basic idea is I'm going to compute both the then and the else the values they'd produce,
+[00:31:51] and only after that I'd choose which one I use.
+[00:31:55] So it seems wasteful, but it actually turns out to be more efficient
+[00:32:00] if they're fairly simple computations.
+[00:32:03] And the reason of that is,
+[00:32:05] and we'll see a little bit more when we talk about performance optimization.
+[00:32:09] A modern processor is a little like an oil tanker sailing in the sea,
+[00:32:15] meaning that it plows along in a certain direction, and it really is hard to get it to stop or to turn.
+[00:32:25] So that's, you say, what are you talking about?
+[00:32:28] Think of an instruction sequence as, you know, the ocean of code that you're cruising through.
+[00:32:35] And these.
+[00:32:36] can just fly through a straight sequence of code
+[00:32:39] because they are, they do what they call pipelining,
+[00:32:43] meaning they start bringing in parts of one instruction
+[00:32:46] before they're done with the next
+[00:32:48] and actually go up to depths of 20 or more instructions deep
+[00:32:52] of how far ahead they're working,
+[00:32:54] sort of fetching forward and future instructions
+[00:32:57] while finishing up the ones that still remain.
+[00:33:00] So that's my ocean line or my tanker analogy.
+[00:33:04] But all of a sudden you come, and then
+[00:33:06] And then what happens when they hit a branch,
+[00:33:09] they'll try to guess, it's called branch prediction,
+[00:33:12] and guess, where is this branch going to go,
+[00:33:15] where, you know, will the conditional branch be taken,
+[00:33:18] or is it going to fall through?
+[00:33:20] And they're pretty good at that.
+[00:33:21] They're good at it 98% of the time.
+[00:33:25] So they can even anticipate sort of curves in the road,
+[00:33:30] my analogy is breaking down,
+[00:33:33] and start going in that direction.
+[00:33:35] going in that direction and as long as they get it right, it's very efficient.
+[00:33:40] But if they get it wrong, it's as if you have to stop the thing, back it up, turn the other way, start again,
+[00:33:48] and that can take 40 instructions, 40 clock cycles, say, to do in bad situations.
+[00:33:55] So, and this is pretty common.
+[00:33:57] If you think of like an absolute value, can you predict whether a value is going to be positive or negative?
+[00:34:03] Not usually.
+[00:34:04] So about half the time, whatever you guess, you're going to guess wrong.
+[00:34:09] So these conditional move instructions, it turns out it's much easier to just plow through,
+[00:34:15] compute both, and then at the last minute, all you have to do is move a value into a register or not.
+[00:34:23] And that doesn't require stopping the whole processor and making this turn.
+[00:34:28] So that's my long explanation for, and if you don't want to understand that, I'll just say,
+[00:34:34] that I'll just say, well, just trust me.
+[00:34:36] It's a good idea sometimes.
+[00:34:40] So the general pattern then, if I use the same idea,
+[00:34:45] is I want to compute both results, and I'll call the result
+[00:34:49] and this is an E-VAL, this is E-VAL, the ELTS value.
+[00:34:53] I'll compute both of them.
+[00:34:55] I'll do my test, and then this red thing,
+[00:34:58] imagine that's all done with a single instruction that says,
+[00:35:02] I'll copy the value of E-VAL to result,
+[00:35:05] result, but only if a condition holds.
+[00:35:09] So that's why it's called a conditional move.
+[00:35:13] And we'll see this is the code.
+[00:35:15] By the way, you saw in my original version, sorry to have to jump back,
+[00:35:20] I had to explicitly tell the GCC don't put use conditional moves because it really wants to very badly.
+[00:35:30] And so you have to force it not to, and I did that here.
+[00:35:38] So here's the actual code then.
+[00:35:39] And again, you'll see the color coding.
+[00:35:42] That it's doing both subtractions.
+[00:35:45] It's actually doing the move and subtract.
+[00:35:48] Move and subtract.
+[00:35:49] So it's doing both the branches you saw before the then and the else branch.
+[00:35:54] It's doing a comparison.
+[00:35:58] And then here's the conditional move instruction.
+[00:36:01] C move.
+[00:36:02] In this case, the L here is not a word size.
+[00:36:05] It's the less than or equal to direction.
+[00:36:09] So.
+[00:36:10] In the case that I need the red value, basically.
+[00:36:15] You saw the red value was stored in register RDX.
+[00:36:19] In that case, I will copy it into the result register.
+[00:36:23] So again, it's like this idea of just go ahead and do everything and then pick at the last end.
+[00:36:32] And the point is that this one instruction, it looks just as far as for this processor execution,
+[00:36:39] it's sort of like a move instruction.
+[00:36:40] like a move instruction that it's fairly straightforward to do.
+[00:36:43] Okay, so why doesn't it do that all the time?
+[00:36:50] Well, there's a couple reasons.
+[00:36:52] One is that might be a really, really bad idea to do both computations.
+[00:36:57] If you have to, like, crack a password in one and, you know, find the nth prime number in another,
+[00:37:04] you probably don't want to do both of those.
+[00:37:07] So in general, in that case, and so the, and you'll notice,
+[00:37:13] GCC will only do this if both branches are fairly straightforward computations that they're trying to do.
+[00:37:21] And there's sometimes when you just plain can't do it.
+[00:37:24] So, for example, if you're using a conditional to guard whether a pointer can be dereferenced
+[00:37:31] or not because it's a null pointer, potentially a null pointer,
+[00:37:34] then you really don't want to try that null pointer dereference just as a way to save some time.
+[00:37:44] some time.
+[00:37:45] And similarly, if you could have a side effect, if the result of executing either branch could be to change
+[00:37:53] some other part of the program state, then you don't really want to do that either.
+[00:37:58] And so the conditional move only gets used then in this somewhat special case that you have two computations,
+[00:38:06] relatively easy to do, safe to do, no side effects.
+[00:38:10] But that happens just often enough that this is actually a worthwhile thing.
+[00:38:13] while thing.
+[00:38:14] Okay.
+[00:38:17] So that gets us conditionals.
+[00:38:19] And now let's look at loops.
+[00:38:21] That's the sort of next step up in control structures.
+[00:38:26] And C actually has three different kinds of loops.
+[00:38:31] It has a while loop, which you're familiar with,
+[00:38:34] and a four loop, which you're familiar with.
+[00:38:37] And it has a third one which in my whole life of writing,
+[00:38:40] and I've written a lot of C code in my life,
+[00:38:42] I've used this like about six times.
+[00:38:45] So.
+[00:38:46] But it turns out.
+[00:38:47] It's the simplest one to implement, so we'll go ahead and do it.
+[00:38:50] So it's called the do while loop.
+[00:38:53] And so the key word is do, and then there's some stuff you do, that's the body of the do.
+[00:39:00] And then there's a test at the end that tells you whether to keep repeating this loop.
+[00:39:06] So it sort of flips a normal while loop.
+[00:39:08] You have the conditional test at the front, and here you have it at the end.
+[00:39:12] And so it turns out if we think in terms of go-to, that's a pretty
+[00:39:18] straightforward thing to replace this with a code that will do a test.
+[00:39:25] And if the test holds, it will jump back and say, okay, re-execute that part of the program I was just in.
+[00:39:33] So it sets up a loop where you can think of it's literally a loop of control flow going round and round.
+[00:39:44] And by the way, this is actually a semi-useful function. It's called pop count.
+[00:39:51] sometimes.
+[00:39:52] How many ones are there in a word of data?
+[00:39:56] In this case, it's 64-bit word.
+[00:39:58] There's been some generations of data where you're
+[00:40:02] required to write this function using all your favorite operations
+[00:40:06] and with a fairly small limit on operations.
+[00:40:12] But we're not doing that today.
+[00:40:17] So here, my point is you see that there's a fairly straightforward way of
+[00:40:25] taking this particular loop and turning it into just a combination of conditional
+[00:40:30] that where you do is you jump back to where you were before.
+[00:40:34] And here's the actual code for it.
+[00:40:38] I won't go through all of it, but you can believe from these annotations
+[00:40:42] that it very closely follows the code here.
+[00:40:45] And the main thing to see is this jump, if not equal,
+[00:40:51] to label L2, and that takes you back to here.
+[00:40:57] And so the general form of it then,
+[00:40:59] is you take a do and then this part of it's called the body of the loop and
+[00:41:05] this is the test.
+[00:41:06] And so now you set up some code where you can execute the body,
+[00:41:10] perform the test, and if the test holds, you go back to the loop.
+[00:41:14] So a while loop is really just like a do loop,
+[00:41:20] a do while loop, except that you move the test to the beginning.
+[00:41:24] And the only difference, therefore, is with a do loop,
+[00:41:27] you don't do the test the first time through.
+[00:41:31] You're guaranteed.
+[00:41:32] to do it the first time no matter what.
+[00:41:35] While a while loop will explicitly test even at the very beginning
+[00:41:41] and skip over the loop if the condition doesn't hold.
+[00:41:45] So there's two ways to generate a code.
+[00:41:48] Well, there's more than two ways to generate code for a while loop.
+[00:41:51] But you'll find GCC actually uses two different ways.
+[00:41:54] One is what we'll find when we use this optimization setting I talked about
+[00:42:00] last time called minus capital O, which stands
+[00:42:03] for optimize G, which means debug, of course,
+[00:42:08] as you've already know.
+[00:42:10] There's some history to what the minus G flags means.
+[00:42:14] So, and as I mentioned last time,
+[00:42:17] this turns out to be the perfect level of optimization for
+[00:42:20] this course, where you want to be able to look at machine code
+[00:42:23] and understand it and how it relates to the C code.
+[00:42:27] Because it does some sort of simple optimizations,
+[00:42:30] but it doesn't try to rewrite your whole program to make it run
+[00:42:33] better. Whereas even with minus 01, which is the next level in the optimization,
+[00:42:39] you'll find sometimes it will do some pretty quirky stuff.
+[00:42:43] But when you actually, as a program developer, as a software developer out there,
+[00:42:50] or you talk to companies and you ask what optimization level do you use,
+[00:42:54] they'll probably say minus 02. That's sort of the common one.
+[00:42:59] So usually there's higher levels of optimization, and we're purposely backing off
+[00:43:05] that to make this code easier to understand.
+[00:43:08] So anyways, with this default optimization
+[00:43:12] we're using for this course, it does a transformation I call the
+[00:43:16] jump-to-middle translation.
+[00:43:18] These are, by the way, my own names.
+[00:43:20] You won't find them in any other document.
+[00:43:23] But the idea of it is, imagine again, I have a while-loop
+[00:43:29] of this form where there's a test and a body to execute.
+[00:43:34] Well, what I'll, the problem.
+[00:43:35] I have to do compared to before is somehow I have to execute the test
+[00:43:39] before I start the first iteration of the loop.
+[00:43:42] So the way I'll do it here is I'll just jump to the middle
+[00:43:45] of the what was the old loop code
+[00:43:49] to the test portion of that loop.
+[00:43:52] And then let that test determine whether I actually
+[00:43:55] enter the loop itself.
+[00:44:00] And so this is an example of a go-to code
+[00:44:06] a code version of my pop count function.
+[00:44:10] So I've written the pop count function using a while loop this time.
+[00:44:15] It turns out whether you use a do or a while loop, you'll get the same result in this particular function.
+[00:44:21] And you'll see the way it looks is it jumps to the test portion of the code,
+[00:44:31] and then if that holds it then actually starts in the first execution of the loop.
+[00:44:36] And then from there on it looks the same.
+[00:44:37] it looks the same as a do-while loop. It just does the what was in the
+[00:44:42] loop, does the test, jumps back to the beginning. And then there's a second method which
+[00:44:51] is in some ways more traditional. And you'll find that if you use optimization 1, which
+[00:44:57] is a fairly useful thing to do in practice. So just to show you that instead of deciding
+[00:45:04] which one I was going to show you, I decided to show you both. And the idea of that, and the idea
+[00:45:10] of that is to do a, essentially to take a while loop and turn it into a due
+[00:45:15] while loop, but introducing a conditional beforehand that would essentially guard your entrance
+[00:45:22] to the loop. So you do an initial test, and if that's false, then you skip over the loop altogether,
+[00:45:30] otherwise it's performed like a do while loop. And so that has a fairly straightforward
+[00:45:37] translation into code. And that, again, it looks a little different from before.
+[00:45:42] that it has an initial test, but then it looks like a do-while loop.
+[00:45:52] So I won't show you the assembly versions of those, but if you, if you looked at it, actually,
+[00:45:57] the code is all in directories that are linked to your, the class directory, the class directory,
+[00:46:05] so you can actually look at the code. And you'll see that it follows exactly the way I'm
+[00:46:10] describing it. And then a third kind of loop is the four loop.
+[00:46:17] which in C is actually a very powerful,
+[00:46:22] very general type of thing, and so it's very commonly used.
+[00:46:25] But you can see that the four loop has four components to it.
+[00:46:30] It has an initialization, it has a test, has a rule for doing an update
+[00:46:36] in case as a way to continue the loop, and then it has the body of the loop.
+[00:46:41] And so here's a version of my pop count function, where I'm just going through all
+[00:46:48] the bits in the word, extracting them out, and adding them, accumulating them to be the result.
+[00:46:57] So, ripping apart this four, you'll see that these four blocks of the loop correspond to the initialization
+[00:47:06] is to set I equal to zero. The test is to compare I to the word size, which I've set here to be eight times.
+[00:47:16] So however many bytes there are in an int, multiply that by 8 to get the word size.
+[00:47:23] And then the update is i++, and then the body is this stuff that's within the brackets here.
+[00:47:31] So I can think of that in general, one general way to think about a four loop in C is by this rule that will turn a four loop into a while loop.
+[00:47:47] And so what it says is I first,
+[00:47:51] do the initialization and then I do a loop where I guard it with this test.
+[00:47:58] And then what I keep doing is executing the body and then performing whatever update there is,
+[00:48:06] and then continuing with the test.
+[00:48:09] So that's sort of the semantics, the definition of the behavior of a for loop in C. So I can take
+[00:48:19] my different pieces of my for loop and say, well, okay, I'll take that rule and use
+[00:48:26] it to pack them in to form a while loop.
+[00:48:30] And of course, you know that you can sort of go between those two, and it's somewhat a matter of taste,
+[00:48:36] whether a given loop should be written using a for loop or a while loop.
+[00:48:44] So one reason why it's actually useful to do this minus 01 optimist.
+[00:48:52] I talk to you about is it's fairly common for the initial test to be trivially
+[00:48:58] trivially true. So for example, in here if i equals zero and I'm comparing it to the
+[00:49:05] word size, which would typically be 32, well, that test is true, that's a certain thing. And so
+[00:49:12] what you'll see is that the compiler can figure that out and just throw away this
+[00:49:18] guarding code that would have to be there otherwise.
+[00:49:23] So that, I believe, is the main reason why this is the transformation that gets used with the 01 optimization level is that oftentimes it doesn't need this initial test.
+[00:49:41] Okay, so now I'm going to finish up with what's in, to me at least, the loop stuff is sort of what you'd expect.
+[00:49:50] If you were to have to, you know, you know, turn C code into something very low level.
+[00:49:58] where all you could do is jumps and tests.
+[00:50:01] Well, maybe that's obvious, but maybe not.
+[00:50:04] The switch statement, on the other hand, is a totally different beast.
+[00:50:08] And I want to show you that because it has no counterpart in normal C-code
+[00:50:13] of how you'd even think about it.
+[00:50:16] And it's fairly a little bit harder to decipher, and you're going to have to do it in the bomb lab.
+[00:50:25] So here's an example of a switch statement that is of nothing.
+[00:50:30] Nothing about this is useful except to demonstrate some principles of how to turn a switch statement into assembly code.
+[00:50:38] So the point of it is, as you know and see, you switch on a particular value, some type of integer value.
+[00:50:46] And then it will match different cases where each of these cases has to be some constant numeric value.
+[00:50:54] Constant integer value. And one of the weirdest features of the weirdest features of
+[00:51:01] is, if you don't, at the end of a case, if you don't explicitly say break,
+[00:51:07] it'll do what's known as falling through.
+[00:51:10] So in this example here, it will divide Y by Z, and then it will just glide right into this statement
+[00:51:19] that adds Z to W.
+[00:51:22] This is, by the way, like one of the worst design decisions in the history of programming languages.
+[00:51:28] And it's been the cause of more and more.
+[00:51:31] you know, heartbreak and bugs that nobody could understand than any other single part of the language.
+[00:51:37] And for some bizarre reason, they've kept it alive, even into Java and all these other languages,
+[00:51:44] that fixed a lot of the worst parts, you know, the most dangerous parts of C, but somehow they kept this feature.
+[00:51:52] And so just as a advice, as a programmer, if you ever, ever use this where you purposely want it to go from one case to other,
+[00:52:01] you should have to put a comment in there to say,
+[00:52:05] trust me, I really did want it to fall through.
+[00:52:08] I know you almost never want to do this, but I do here.
+[00:52:12] So that's a fairly common convention.
+[00:52:15] And I don't know how many times I've had bugs that were because I forgot to put breaks in.
+[00:52:22] Anyways, enough of my editorializing.
+[00:52:26] The other feature you see and see is you can sort of bunch up.
+[00:52:32] multiple cases, if you think of it, that's just a special case of the fall through, right?
+[00:52:37] The case five has nothing to do but to fall through to six.
+[00:52:41] But, so that's the same general way.
+[00:52:44] And there's nothing, that's not, that's not bad, and it doesn't require a comment.
+[00:52:49] And the other one is that there's a default.
+[00:52:52] So if none of these cases match, either because X was zero or smaller, or X was a really
+[00:52:57] big number, or in this case, if X were four, there's no matching case.
+[00:53:04] And of course, you also know that these cases don't have to be in any particular order either.
+[00:53:09] So that's all the sort of features of a case statement, a switch statement, sorry.
+[00:53:18] So normally, if you write this in sort of, if you were told,
+[00:53:24] thou shall not use switch statements anymore, what you'd probably do is write this big long chain of if else, if else, if else, else, right?
+[00:53:34] And you'd expect that to be the way.
+[00:53:36] the machine code, but it's not.
+[00:53:38] And so let me show you what the machine code does.
+[00:53:43] And it's kind of a long story.
+[00:53:45] So think of the general form of it as being some blocks of code, the entry points of which are labeled
+[00:53:55] by these case values.
+[00:53:57] And then the blocks, you know, string together in various different ways and do various things.
+[00:54:02] What I'm going to do is compile a code for all of those blocks and store them away and
+[00:54:08] store them away in some part of memory, load up memory to contain these code blocks.
+[00:54:15] And then I'm going to build a table. And each entry of this table describes the starting location of one of these code blocks.
+[00:54:25] And I'll put them in order of my case labels. If I have, you know, I want to span a scope from, well, let's assume zero, but typically that's not the case
+[00:54:37] 0 up to n minus 1, I'll have this table will have that many entries of addresses
+[00:54:44] to tell me where these code blocks are located.
+[00:54:52] And then I'm going to use this really cool instruction,
+[00:54:57] which is sort of like, it's as if you, it's like, it's like array indexing.
+[00:55:04] So if you think of array indexing.
+[00:55:06] It means you think of array indexing, it means you can grab a value
+[00:55:09] out of the middle of some, you know, array,
+[00:55:13] some set of values without having to step through them one by one.
+[00:55:19] And it's the same idea here that I will take my value and use that to figure out directly where I should
+[00:55:29] jump to a block of code without having to step through a bunch of other conditions.
+[00:55:36] So, and you can see the efficiency you gain from that.
+[00:55:39] It's the difference between.
+[00:55:40] sort of in one step, knowing exactly where you want to be,
+[00:55:44] versus stepping through, you know, on average, and over two conditions to get to where I want to go.
+[00:55:54] So let's look at this at the assembly code level.
+[00:55:57] And it's a little bit of a long thing because we have to build some machinery around this.
+[00:56:06] So here's my example. I've got three arguments.
+[00:56:10] So just remember I told you RDI and RSI and RSI.
+[00:56:15] for the first two arguments.
+[00:56:17] The third argument is in RDX.
+[00:56:21] And here's the beginning of the switch code.
+[00:56:26] It's just making a copy of argument Z here for some reason.
+[00:56:31] And then it's looking at comparing x to 6.
+[00:56:36] And why is 6 is 6 an important number?
+[00:56:40] Because you see 6 was the largest value of any of my cases.
+[00:56:44] And now it's using a jump instruction
+[00:56:51] to go to L8, what we'll find is that tells you what the default behavior should be.
+[00:56:58] So it's sort of flushing away the default cases, the default cases, the cases that are either X is too small or X is too large.
+[00:57:07] And I should mention there's a clever trick there.
+[00:57:09] If you look at JA, it means jump above, that's the unsigned comparison.
+[00:57:17] And what it's making use of is our
+[00:57:20] our result that you remember that if a number is negative,
+[00:57:25] if you think of it as an unsigned value, it becomes very large positive value.
+[00:57:30] So by doing the JA, instead of a JG,
+[00:57:35] right, jump greater than, I'm doing jump above,
+[00:57:39] it's saying, I want to jump to jump to the default if either
+[00:57:44] X is greater than 6,
+[00:57:51] than 6, but also it will cause it to jump if x is less than 0.
+[00:57:57] Got it?
+[00:57:58] So it's a clever trick of unsigned versus sign numbers that's taking advantage of.
+[00:58:05] And then the final part is this is the real heart of the work. This is my very special go-to instruction
+[00:58:13] that lets me index into a table and extract out of that an address and then jump to that address.
+[00:58:22] So that's what lets me go directly to some block of code based on whether my values we'll see will be in the range between 0 and 6.
+[00:58:38] So there'll be seven entries in that table.
+[00:58:45] One thing just to keep track of for later, you'll see that for some reason the GCC said, you know, if I look at all the code, I actually don't use W as a value.
+[00:58:56] W as initialized very much, so I won't bother doing it until somewhere within
+[00:59:02] the code blocks. So just, we'll have to keep track of that here. Okay, so this is the magic
+[00:59:10] construction. And now if we look, and this is all assembly code, you'll see this is the actual
+[00:59:18] jump table. And it's constructed, it's specified in assembly code, and it's the job of
+[00:59:24] the assembler to actually fill in the contents of this table. Excuse me. But what
+[00:59:32] the assembly code is telling the assembler is, I need a quad as just a declaration
+[00:59:39] to say, I need an 8 byte value here, and that value should match whatever address you decide,
+[00:59:47] you later determine is the address of where I'm going to stick label 8 and all these other ones.
+[00:59:55] And these are in the order, as I mentioned, from x equals 0 through 6. And we can already
+[01:00:01] see a few cases that are interesting here. Let me see if I've got a picture
+[01:00:07] on this. Yeah. So we can actually already see some of the logic of this switch statement built
+[01:00:23] into the ordering of entries in this table. So in particular, there is no case zero here, so
+[01:00:30] case zero should be the default. There is no case four here, so case four should be the default.
+[01:00:37] And it turns out, and we already saw before the JA instruction going to L8.
+[01:00:42] So L8 is actually where the code block is going to be for the default case.
+[01:00:47] So you see, basically, you can think of this is sometimes having holes in your switch statement,
+[01:00:54] and we're going to just fill in those holes by saying those should go to the default case.
+[01:01:04] And here, you'll notice that they're not put in any particularly logical order.
+[01:01:09] one thing you'll see, again, is L7 is repeated twice here
+[01:01:20] because it covers both cases five and six.
+[01:01:24] So again, you'll see this sort of doubling up is handled automatically
+[01:01:28] by the jump table will give you the same address for multiple different cases.
+[01:01:38] Okay, and now the rest of it is to look at the various code box.
+[01:01:42] And this, by the way, I'm showing you I took a five.
+[01:01:45] and I'm, you know, extracted little bits of it.
+[01:01:48] But normally you're looking at this whole listing in one big order.
+[01:01:52] So now we can look at the individual code box and see what's going on.
+[01:01:57] And you'll see, for example, case one told me to multiply two numbers.
+[01:02:02] And you'll see that the break, in the general, it's just going to be turned into return instructions here.
+[01:02:08] Because my function, let's go, sorry to jump in code.
+[01:02:14] You see, this function didn't.
+[01:02:16] a switch statement and then whatever it gets computed within the switch statement
+[01:02:22] gets returned as a result of this.
+[01:02:26] So the compiler doesn't actually come to a single point and say, okay, everyone return at this point.
+[01:02:32] It just sticks returns directly in wherever these breaks occur.
+[01:02:43] So here it does a multiply and a return.
+[01:02:47] Here's actually a curious, by the way, I'm always somewhat surprised by the way, I'm always somewhat surprised by
+[01:02:53] what the compiler does. It is never exactly what you'd expect. So in particular,
+[01:03:00] it patched together this fall-through case by two blocks of code, and it had to do these separately,
+[01:03:13] because remember, W was not set before I entered these code blocks. It deferred setting that.
+[01:03:23] And here I hit case three, and all of a sudden,
+[01:03:26] need whatever W was, which was one.
+[01:03:30] And so I guess the complier said, well, gosh, I guess a better set W to 1 here before we
+[01:03:36] continue.
+[01:03:37] So as a result, it sort of creates two code blocks, but it jumps from the second one, this
+[01:03:44] block, into partway through this other block.
+[01:03:50] Here's some actual, yeah, so here's the actual code.
+[01:03:56] This is the block that does the
+[01:03:59] division. It's very quirky how you have to write division. It's covered in the book. I won't go through it here.
+[01:04:05] And then this jump L6 is what I say go-to merge. And the merge is where you're bringing these two cases
+[01:04:12] together. Here is where it's setting L to one. Again, it's making use of this feature and that the upper
+[01:04:21] 32 bits get set to zero, so I can use a move L instruction here. Yes, question. Did not have the code for
+[01:04:35] what?
+[01:04:37] The jump table is sort of embedded. Let me just show you real quick.
+[01:04:42] Hmm. No, probably bad idea.
+[01:04:46] The jump, if you look at the dot s file, the assembly code file, all this stuff I'm showing you,
+[01:04:55] I've extracted out of that. But it's all in there. And so the compiler generated these tables,
+[01:05:02] at least the sort of framework for these tables, the details of which get filled in by the assembler.
+[01:05:08] So it is generated.
+[01:05:09] So it is generated by the compiler.
+[01:05:11] Okay.
+[01:05:18] So that just shows you this one example of handling
+[01:05:21] a particular way to handle the fall through case.
+[01:05:24] And then the remaining ones, again, you'll see,
+[01:05:29] here I got, if I get to this case, I need the fact that
+[01:05:32] W is initialized to 1, so we'll do so here.
+[01:05:36] In the default case, it just assigns 2 to W,
+[01:05:39] and so that's all it does.
+[01:05:41] So anyways, I've actually shown you all the code blocks, but I've shown you
+[01:05:44] but I've shown you one by one, but they're just all kind of strong in the file and in no particular order.
+[01:05:50] It doesn't matter what order they are.
+[01:05:53] Yes.
+[01:06:02] Yes, so that was the reason for that jump above at the beginning.
+[01:06:06] So this jump above L8 was the way that if X was either less than 0 or greater than 6,
+[01:06:17] it would go to the default case.
+[01:06:21] And it will only do this indexing trick
+[01:06:24] if the, if X is between 0 and 6.
+[01:06:32] And that's typically the way this works.
+[01:06:34] You'll see that whatever range of values you give,
+[01:06:38] it has to figure out the smallest and the largest one,
+[01:06:41] set up so it goes to the default case if it's out of that range,
+[01:06:45] and then set up a table for the values within that range.
+[01:06:49] Question?
+[01:06:50] If the range of values is like some negative number to something else,
+[01:06:54] does it try to, like, does it index into it with that X somehow?
+[01:06:58] So the question, I realize I should be repeating questions.
+[01:07:02] The question is, what if it's a negative number for your case, which is perfectly legal?
+[01:07:08] It will typically add a bias to it effectively, so that whatever your lowest value was
+[01:07:14] becomes zero.
+[01:07:16] Or it'll do something like that to avoid having to do negative.
+[01:07:19] having to do negative indexing.
+[01:07:21] Another question, can I see?
+[01:07:23] Yes.
+[01:07:25] For cases, you can put another numbers you want.
+[01:07:29] Yeah, so you can go from zero to a million.
+[01:07:31] Yeah, and they could be, you could go zero and a million and nothing in between, right?
+[01:07:36] Yeah.
+[01:07:37] So you could have two cases.
+[01:07:38] You really don't want a million entry table
+[01:07:40] for just two cases.
+[01:07:42] So it will turn it into if else code.
+[01:07:44] But the clever thing it will do, if you know binary search,
+[01:07:49] it relies on the fact that it knows and advance
+[01:07:51] in advance all the values and it will actually set up a tree of if-else-else-es.
+[01:07:56] So really, it will do it, if you want to think algorithmically, it does it with a logarithmic number
+[01:08:02] of tests rather than a linear number of tests.
+[01:08:07] Question?
+[01:08:08] The case, the case is not zero-one-frey question.
+[01:08:17] Oh, yes.
+[01:08:18] Yeah, so, so there's two answers that, one is if, which I've actually answered both now.
+[01:08:26] If one is, if, if, what if?
+[01:08:27] there's some negative values or what if the lowest number is 5,700, right? Well,
+[01:08:33] what it will typically do is put some bias, you know, add or subtract some value so that the first case
+[01:08:40] is at value zero. So that's the way it handles, you know, ones that are just completely out of range.
+[01:08:45] And the other is, what if it's a really big spread of values and relatively sparse, how much
+[01:08:52] you're using it? And there it will revert to if-else code. And the compiler is, it's
+[01:08:57] own rules about how it does these things. You can sort of run experiments and try and reverse
+[01:09:02] engineer. Those are all valid questions, by the way. I appreciate them. Okay. So we're going to
+[01:09:14] get through this. So anyways, and like I said, I think in my own experience, you know, understanding the
+[01:09:28] the conditionals, you can kind of figure that out. It's intuitive. It sort of feels like what
+[01:09:35] you'd expect a program to do. Whereas the switch statement is maybe unexpected. It's a way
+[01:09:42] to do something that is not totally obvious, but then when you think about it and appreciate it, it's
+[01:09:51] actually gives you a good performance boost. You know, again, algorithmically, this jump table
+[01:09:57] makes it so it's a constant time, constant number of steps to get to where you need to in the switch
+[01:10:06] statement. If you just did it linearly one after the other, then that would be linear time
+[01:10:12] and you'd expect on, you know, if everything's uniform and average, about, it'd be about halfway through
+[01:10:19] on average. If you're, if it's sparse, you'll see it will set up a tree of conditionals so it can do
+[01:10:26] in logarithmic time. So no matter what, it will be better than just what you'd get in the obvious
+[01:10:32] form of if else. I saw a question over here.
+[01:10:36] Well, the good news is I don't set up the jump tree.
+[01:10:42] The compiler sets up the jump tree, right?
+[01:10:46] But if you're asking if I were a compiler, how would I set up the jump tree, right?
+[01:10:50] Which is a good question.
+[01:10:52] If you know binary search, right, that you've got a range of values and you pick, you compare it to the
+[01:10:57] middle value and it's either less or it's greater or equal.
+[01:11:02] And if it's less than you sort of recursively handle the one set and if it's greater
+[01:11:07] at the other hat.
+[01:11:08] That's exactly what these trees look like.
+[01:11:10] So they're balanced binary trees, and they're taking advantage of the fact that in C, which is not true in all languages, that all the case conditions you're looking at, are constants.
+[01:11:23] They're determined when the compiler is doing the compilation, those are constant values.
+[01:11:28] So it can sort them, figure out how many there are, what range of values there are, decide which version to do the thing and generate the code.
+[01:11:37] Other questions?
+[01:11:41] So these are all good.
+[01:11:42] And these are very good questions, though.
+[01:11:45] And you're starting to think about, you know, which is the way that computer scientists should think,
+[01:11:50] is how do you take some idea I've seen one case of, well, how do I handle condition X and condition Y?
+[01:11:56] And, you know, what happens if this.
+[01:11:58] That's exactly what we do.
+[01:12:01] We sort of, we're never happy with a simple explanation.
+[01:12:04] We want to understand how we could actually implement it as a program if we ever had to do so.
+[01:12:09] So, and just in general, the main thing you see is that there's a fairly limited bag of tricks for which the program implements conditional constructs.
+[01:12:28] You've seen basically three.
+[01:12:31] One is to use conditional jumps, go to different parts of the code.
+[01:12:38] Another to use conditional moves.
+[01:12:42] And the third is to use this jump table idea.
+[01:12:44] idea and those are really that plus a little bit to do of procedures is sort of all there is.
+[01:12:53] And all the other stuff you see in a program that sort of changes the flow of execution or what gets
+[01:13:01] executed are all built out of those basic primitives.
+[01:13:06] And that's generally true that what we see is, you know, when you go from C code to machine code,
+[01:13:13] you often have to kind of piece together various low-level instructions to implement some higher level construct.
+[01:13:22] And so we've seen these all in different forms now.
+[01:13:27] And next time then we'll talk about procedures, and that's, as you can imagine, a fairly major topic because it is worth one entire procedure.
+[01:13:37] Okay, very good. Thank you.

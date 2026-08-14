@@ -1,0 +1,809 @@
+[00:00:00] Okay, so continuing on with the saga of machine level programming, we're in number four of our series of this, and I think that the total will be five, so we're almost through, and I realize that this is a lot of material for the course. It's essentially a third of the course, if you think about, well, no, not that much, but it's a lot of the course, and part that we consider very central to it.
+[00:00:30] So a lot of this involves, since we're talking about a particular machine, the Intel X86-64 machines,
+[00:00:39] a lot of it's kind of low-level nitty-gritty stuff, but part of what we hope you also are understanding is some of the general principles involved, too.
+[00:00:48] And you'll find if you move from this machine to another machine, sort of learning your first assembly language is your hardest one.
+[00:00:57] Learning successive ones is a lot easier.
+[00:00:59] So today we're going to talk about data representations.
+[00:01:05] So far, all the programs we've looked at have been either just manipulating integers or long integers and pointers.
+[00:01:14] So that's all what we'd call scalar data, data that's not in any aggregated form.
+[00:01:19] Today we'll look at places where data gets collected into, you put together multiple data elements.
+[00:01:27] And in C, there's really two ways to do that. One is with array.
+[00:01:30] with arrays where you can create many copies or many copies of an identical
+[00:01:37] data type. You can have an array of an array of ints, an array of pointers.
+[00:01:41] A second is where you have structs. So you create a small collection of values that can be of different
+[00:01:50] data types, and each one you access by its name or a tag.
+[00:01:55] And it turns out those definitions can be recursive.
+[00:01:59] recursive so you can have arrays of structs and structs with arrays and nest it to an arbitrary degree.
+[00:02:06] And what we'll see is both how it's represented in the machine memory and also then what the code looks
+[00:02:13] like that will manipulate these different data structures.
+[00:02:17] And the main thing to see is that there's no, at the machine code level, there's no notion
+[00:02:25] There's no notion of an array that you'd have at a high level except to think of it as a collection of bytes that you can are in contiguous part of storage.
+[00:02:37] And same with a struct is just allocated as a collection of bytes.
+[00:02:42] And it's the job of the C compiler then to generate the appropriate code to allocate that memory to allocate that memory to get the right value when you refer to some element of a struct or an array.
+[00:02:55] But the good news is this is such a commonplace type of requirement for a programming language that the machine gives you sort of instructions that the machine gives you sort of instructions that you'll see now they make perfect sense.
+[00:03:10] They're exactly designed for this particular class of applications.
+[00:03:16] So we'll talk about a structs and then structures or structs.
+[00:03:21] And I'll also mention we'll do a little bit, well, I'll give you a glimpse of floating point today today too, because it's
+[00:03:27] it's worth knowing how floating point arithmetic is implemented as well on a machine.
+[00:03:32] So the basic idea of array allocation is fairly straightforward.
+[00:03:37] If you have an array with n elements, then that's represented by enough bytes in memory all in one span
+[00:03:47] to hold that much data. So if the underlying data type, say it's an int,
+[00:03:53] or a care is a single byte data type, so to have an array of 12 cares takes 12 bytes.
+[00:04:03] An int takes 4 bytes, so to have an array of 5 ints takes 20 bytes.
+[00:04:09] You get the idea. You just multiply the size of the underlying data type by the number of elements,
+[00:04:14] and that's how big the array has to be in terms of bytes.
+[00:04:18] And we've already seen that, and the care is one byte, and it is 4.
+[00:04:24] A double or a long would be 8 bytes and so would be a pointer.
+[00:04:28] So those are all different amounts of storage.
+[00:04:33] And you see in this diagram, we use the X denotes the starting address of the beginning of this region of memory.
+[00:04:41] And so we can use address computation to compute offsets
+[00:04:48] by adding numbers to x to get the address to x to get the address of particular element.
+[00:04:53] of particular elements of this array.
+[00:04:55] And that's exactly what the code does.
+[00:04:57] So in general, then, if you imagine an array A
+[00:05:03] has some underlying type T, what the elements of the
+[00:05:07] elements of the array are, and some number of elements in that array
+[00:05:10] in the declaration L, then we will,
+[00:05:15] that declaration actually does two things.
+[00:05:20] One is it allocates enough bytes of storage to hold the entire array.
+[00:05:25] And the second, from a programming language perspective,
+[00:05:29] the identifier of the array A, can in some ways be treated like a
+[00:05:34] pointer, that you can do pointer arithmetic off of it.
+[00:05:37] And that's one of the features of C that is, was fairly unique to
+[00:05:42] see when it was created and is still unique to this day,
+[00:05:46] this idea of the sort of interchangeability of pointers and arrays,
+[00:05:52] array identifiers.
+[00:05:54] So, for example,
+[00:05:55] I can use an array notation to say val of four is element four of this array, and it's a five-element array,
+[00:06:02] array, so that would just be this final element.
+[00:06:05] But I can also just refer to Val, and its underlying data type is as an int star, it's a pointer to ints.
+[00:06:17] And its value would be x.
+[00:06:19] It's just a pointer.
+[00:06:21] A pointer is, remember, an address, and it's just the address of the address of the beginning of the array.
+[00:06:25] the array. And I can do pointer arithmetic on Val, which as you know in C, and this is a little
+[00:06:34] confusing, we'll have to, we'll go back and forth because in C when you do pointer arithmetic,
+[00:06:40] like you say, you know, P plus plus for a pointer.
+[00:06:45] Let me just give you an example.
+[00:06:47] So if you had something like care star p as a declaration, and you said p is equal to some string s,
+[00:06:56] string S and then you say P plus plus. So you're incrementing that pointer.
+[00:07:05] In this case, you're incrementing it by one because the underlying data type is a care.
+[00:07:16] But if you said something like int star, I'll call it IP, and I have a different pen, and I
+[00:07:37] said, you know, IP plus, plus, then IP would get IP plus what? Does anyone know?
+[00:07:49] Four, yes. So it's a confusion. And C, this remember, is the same as saying IP plus equals 1.
+[00:08:01] But what you're actually doing is incrementing that the number of the value of P by
+[00:08:07] four, because you want a pointer when you jump from
+[00:08:12] one place to another, you want it to increment by enough bytes to point to the next
+[00:08:18] integer in this case for IP.
+[00:08:26] And so similarly, VAL plus 1 denotes this value, X plus 4, because it's the address of the next integer in
+[00:08:38] the array.
+[00:08:41] the way, the one thing different between an array and a pointer is I can't say val plus plus, right?
+[00:08:48] I can't change the value of val. It's fixed by the declaration. Whereas a pointer, I can increment it,
+[00:08:55] I can change it in various ways. And similarly, ampersand val of 2 says, give me the address of the
+[00:09:06] second element of the array. So that would be at x plus 8. And this is
+[00:09:12] So again, one of the fundamental properties of C that basically in C, if you take a pointer,
+[00:09:39] that's weird, this is an I and not very well written, these are equivalent statements, right?
+[00:09:52] They're just two notations for the same thing.
+[00:09:54] So on the upper part, it says IP plus 2, meaning actually add 8 to IP to IP, and then de-reference
+[00:10:04] that it's the same as finding the second element of array, an imaginary array, where IP
+[00:10:12] indicates the beginning of the array.
+[00:10:15] So that's a very fundamental principle of C that, again, this whole idea of point of arithmetic
+[00:10:21] is fairly unique to C. Question?
+[00:10:23] Pardon?
+[00:10:26] Yes.
+[00:10:27] The compiler will happily let you use negative values for array indices.
+[00:10:35] And it will give you a potentially undefined value, but there's nothing in C that prevents you from giving out of bounds either numbers that are too big for an array or too small for an array. There's no bounds. Yes. So the question is becoming, what about negative indices? And the answer is very simple. Because in other words, in general,
+[00:11:08] general, something like IP plus x, maybe a, can you see this?
+[00:11:18] Should I turn on, kind of bright, is really equivalent to i p plus 4x. So this. So this is the notation, it's really hard to read, isn't it? And the right-hand side is the computation. So you, in C, you write it's really hard to read it's a computation. And the right hand side is the computation, so it's the
+[00:11:47] computation. So you in C, you write it using, you don't have to give scaling factors
+[00:11:54] for your data types, otherwise it would drive you out of your mind. But you, secretly underneath, when the
+[00:12:02] compiler generates the code, and we'll see examples of this, it's scaling everything. So now
+[00:12:08] the question that is being asked is, what if X is a negative number? Well, the rule still applies.
+[00:12:14] It's just that the final result will be less than IP instead of greater
+[00:12:17] than IP. But it's totally valid C. And there's actually times you will use it in
+[00:12:24] this term, I can promise you. Yes, question.
+[00:12:26] Is it a 2 plus IP? And if that is the case, then how does it take...
+[00:12:32] No, you can't write 2 plus IP. Try it. I'm pretty sure you can't do that with point of arithmetic.
+[00:12:42] Try, try, if somebody wants to type in some code and do it. I don't think you can do that.
+[00:12:46] But if you did, it would have to figure it out that, you know, the parser knows the
+[00:12:51] data types of its two arguments. So yeah, you could probably do it. I've never seen this.
+[00:12:56] You could do it, but the compiler would know that one of the arguments is a pointer and therefore
+[00:13:00] scale the other. What you can't do is add two pointers. You can take the difference of two
+[00:13:06] pointers. This is obscure. I'm not even going to tell you about this. Look it up in K&R. But you can do
+[00:13:14] arithmetic, but you can only, for addition, it can only be one pointer and one, and then the other
+[00:13:19] has to be a regular integer value.
+[00:13:21] and it will scale it appropriately.
+[00:13:23] So I believe you can do it.
+[00:13:25] It's just somebody will smack you on the back of the hand if you actually write code that way.
+[00:13:30] But not the compiler.
+[00:13:33] So in particular, you know, you can, if you go beyond the bounds of an array,
+[00:13:41] you'll get whatever is beyond the bounds of that array,
+[00:13:46] and it might be an invalid or it might not even be a valid address and you get a segmentation fault,
+[00:13:51] but more typically you'll get some.
+[00:13:53] some whatever happens to be there.
+[00:13:57] And that's not so bad when you read it, but you can also potentially write it,
+[00:14:00] as we can also potentially write it, as we saw before,
+[00:14:03] and corrupt data that's already in memory.
+[00:14:07] So here's again the same statement I was making before
+[00:14:10] that IP val plus i just get scaled.
+[00:14:15] The value computed would be the starting address plus four times whatever i is.
+[00:14:25] So let's look at, so that's sort of, that's all C.
+[00:14:28] That's all C. Everything I said before is just basic C stuff.
+[00:14:33] Now let's start looking at the actual machine code involved.
+[00:14:37] And so I made up this example here where I declare three arrays each with five ints.
+[00:14:46] And I go through what is considered sort of good form when you're building up data
+[00:14:52] that instead of having arbitrary constant sprinkled through your program,
+[00:14:57] often called magic numbers,
+[00:14:59] that you instead use a pound define,
+[00:15:02] and you give it some meaningful name and some documentation,
+[00:15:05] usually at the top of a file or in a .
+[00:15:09] And then the type def is a very handy way
+[00:15:12] if you're going to create complex data structures,
+[00:15:15] I highly recommend you sort of break that into type defts
+[00:15:18] because the declaration, notation,
+[00:15:22] and C gets fairly obscure fairly quickly.
+[00:15:25] But all this is saying is saying is,
+[00:15:27] The data type I'm going to call a zipdage is defined to be five, an array of five ints.
+[00:15:36] And now whenever I say zipdage something, I'm just popping down, I'm saying this is an array of five inch.
+[00:15:43] And so I created three of them with the appropriate zip codes for the schools represented here.
+[00:15:52] And now I'm just making up for sake of presentation, actual addresses for the
+[00:15:59] In general, you don't have any control over that.
+[00:16:03] And I made it up so that they all happen to be in contiguous part of memory.
+[00:16:07] And again, there's no fundamental reason that should be true.
+[00:16:11] So you can never trust what particular address anything's ever going to be allocated at.
+[00:16:16] But you are certain that each of these blocks will be a contiguous collection of 20 bytes.
+[00:16:24] So here's some example code then to say, I want to retrieve for one of these,
+[00:16:31] I want to retrieve
+[00:16:33] an element
+[00:16:35] whose index is digit.
+[00:16:37] And this gets turned into the following code.
+[00:16:40] So remember,
+[00:16:41] the first argument, which will be a pointer now,
+[00:16:44] will be passed in register RDI.
+[00:16:47] And the second will be an int
+[00:16:50] will be passed in register RSI.
+[00:16:52] And what I want to get out of this is an
+[00:16:56] int. And so you see that it
+[00:16:58] here's where that scaled addressing, this is
+[00:17:01] this is exactly what it was designed for and why they went to the trouble of adding this sort of fancy address modes to x86 because this is such a common thing.
+[00:17:13] So remember what this says is take RDI and add to it what you get by multiplying RSI by 4.
+[00:17:21] So you scale that.
+[00:17:23] And of course that's exactly the computation we want to do.
+[00:17:26] If we compare it to, you know, this is what we're trying to get computer.
+[00:17:31] it's exactly this computation here.
+[00:17:40] And that gives us an address.
+[00:17:45] And then we're reading from that address.
+[00:17:47] And we're going to copy it in E-A-X.
+[00:17:51] Remember this is an int.
+[00:17:52] So it will be in the E-version,
+[00:17:54] the lower 4 bytes of register R-A-X.
+[00:17:57] And that's all the code it takes
+[00:17:59] to implement this particular operation.
+[00:18:01] Yes.
+[00:18:02] So RDI is the base address of the array.
+[00:18:05] Yes.
+[00:18:08] Yes.
+[00:18:09] Yeah.
+[00:18:10] This is a typo.
+[00:18:11] Thank you.
+[00:18:12] Thanks for pointing that out.
+[00:18:14] I'll make a note of that.
+[00:18:15] Right.
+[00:18:16] So this slide is incorrect.
+[00:18:18] And I'll fix that.
+[00:18:19] So this slide is incorrect.
+[00:18:20] And I'll fix that.
+[00:18:23] So this should be RDI plus 4 RSI.
+[00:18:26] Right.
+[00:18:27] Thanks for noting that.
+[00:18:30] Let me make it back here.
+[00:18:38] Okay.
+[00:18:42] And so now let's just look at another,
+[00:18:48] just some code.
+[00:18:50] In particular, what if I wanted to go
+[00:18:53] one of these arrays, and for every element of the array, add one to it.
+[00:18:58] So increment every single element by one.
+[00:19:01] Well, first of all, you can see that we're setting up a loop, and it uses the jump to middle business
+[00:19:08] where the initial part is to jump to the test.
+[00:19:12] And all the testing involves, we're using RAXs for I here, and we're incrementing it and
+[00:19:20] it and comparing it at various places.
+[00:19:26] But here's the line of code that does all the real work.
+[00:19:33] Again, it's taking the ith element, which I is in RAX,
+[00:19:40] scale it by 4, adding it to the base of the array,
+[00:19:46] and that gives us an address.
+[00:19:48] And now, remember, you can have an arithmetic instruction where the second operand
+[00:19:54] The destination is a memory reference.
+[00:19:57] And what this actually requires is to first read the original value from the memory,
+[00:20:04] do the addition, and then store the result back in memory.
+[00:20:08] So this one instruction is exactly doing this plus plus operation on this stored data in the array.
+[00:20:18] By the way, I should mention the whole idea of pointer arithmetic and C was
+[00:20:31] C was really people who had programmed an assembly code for most of their lives thinking about,
+[00:20:38] how could I make this look like a high-level language,
+[00:20:41] but keep all the flexibility, all the tricks I learned to play at assembly code in a programming language.
+[00:20:48] Because it was designed, it was originally designed to implement an operating system,
+[00:20:52] the UNIX operating system.
+[00:20:54] And historically operating systems were written directly in assembly code.
+[00:20:58] And these people,
+[00:21:00] again and Dennis Richie and realize that the way to do this is to sort of build
+[00:21:07] a point arithmetic into a programming language. So anyways, the reason I'm saying this is you see a pretty
+[00:21:17] close correspondence here between instructions in machine code and constructs in a
+[00:21:25] program in the C programming language. And that whole plus plus operator and plus equals
+[00:21:30] is sort of something you see variations of in assembly code.
+[00:21:34] Okay, so that's a sort of single-dimension array.
+[00:21:39] And I'd like to just change things up a little bit by having us look at what the real difference is between arrays and pointers in a programming language in C.
+[00:21:59] And so I have a couple of these examples that I'll be a problem.
+[00:22:04] bring out one by one.
+[00:22:07] But the idea of this is, you see the declaration on the left.
+[00:22:11] There's something called A1 and something called A2, so call those A sub n.
+[00:22:18] And now what I want to know for each of these is, does it compile?
+[00:22:26] Is this a valid statement in C?
+[00:22:28] Second, would this potentially give me a null pointer reference?
+[00:22:32] Because I'm referencing a pointer reference for which
+[00:22:36] the I haven't actually allocated space for that that that pointer is indicating.
+[00:22:43] I haven't initialized the pointer to a valid memory reference. And then finally, if I were to use the
+[00:22:51] size of operator on that particular value with that, including for the case where there's
+[00:23:02] a star in front of it. And part of this is to understand the difference then between
+[00:23:15] an array and a pointer.
+[00:23:17] And the main reason this, the main factor is an array,
+[00:23:20] when you declare an array and see,
+[00:23:23] you're both, you're actually allocating space.
+[00:23:27] Space is being allocated somewhere for it.
+[00:23:30] And you're creating using allowed to now use
+[00:23:34] use the array name in pointer arithmetic.
+[00:23:38] Whereas when you just declare an array, a pointer,
+[00:23:41] a pointer, all you're allocating is the space for the
+[00:23:44] the pointer itself and not for anything that it's, uh, you're pointing to.
+[00:23:51] So, um, just to, you've probably figured out that these both compile, let me get my cheap sheet,
+[00:24:02] Andy.
+[00:24:04] Uh, but what would be the size of A1 here if I ran the size of operator on it?
+[00:24:15] Let's do the easier one.
+[00:24:26] What's the size of A2?
+[00:24:27] Hmm?
+[00:24:30] Eight.
+[00:24:32] Because it's a pointer.
+[00:24:34] What's the size of A1?
+[00:24:37] A1 is an array of three ints.
+[00:24:42] 12, right?
+[00:24:49] And those aren't null.
+[00:24:51] Oops.
+[00:24:53] And now if I said star A1 or star A2,
+[00:25:02] those would both compile.
+[00:25:06] Could either of them possibly give you a null
+[00:25:15] de-reference?
+[00:25:17] Yeah.
+[00:25:26] Oh yes, the pointer itself is null, but that
+[00:25:29] I haven't de-referenced it yet.
+[00:25:32] de-referenced it yet. It's a null pointer, but I haven't, it's not a bad, potentially bad reference.
+[00:25:39] Right? It's not a runtime, I won't create a runtime error if I just say A2 in my code, okay?
+[00:25:46] So you're a step ahead of me, basically. So you kind of answered the second question, though.
+[00:25:52] This one could give you a null pointer error if you try to dereference a pointer that hasn't been
+[00:25:57] initialized. It doesn't point to anything. Whereas this one is fine.
+[00:26:01] fine.
+[00:26:02] And now what's the size of A1 of star A1?
+[00:26:07] 4.
+[00:26:09] And what about star A2?
+[00:26:11] 4. Yeah.
+[00:26:15] Because they're both pointers to ints.
+[00:26:17] So one way to think about that is as a picture.
+[00:26:21] A1 is like we've been showing here.
+[00:26:30] It's an array of 4 ints.
+[00:26:34] And when I declare A1, I'm allocating also the program
+[00:26:38] the program is allocating 12 bytes of storage that's able to hold that.
+[00:26:45] A2, on the other hand, is just a pointer, which I'll show there.
+[00:26:54] And so it's 8 bytes long, but it doesn't point to anything.
+[00:26:59] So that's what I meant that if you tried to say star A2,
+[00:27:03] you'd potentially have a null pointer de-reference there.
+[00:27:08] And so that's why this is 8 and this is 12.
+[00:27:12] So those were the warm-up ones.
+[00:27:14] Let's make it a little more interesting.
+[00:27:16] These aren't in the slides you'll notice, but I'm going to, I'll update the slides to include these later.
+[00:27:33] But I think the point that if you find this confusing,
+[00:27:40] it's a sign that you really, really, really, really need to understand what a pointer is
+[00:27:48] and what an array is and how they're the same and how they're different,
+[00:27:52] different because it's a it's a core part of programming and C that will lead to
+[00:27:59] endless hours of confusion if you don't really have this wired down pretty strongly.
+[00:28:06] So let me just give you a preview of what's so interesting about this is I'm going to give you
+[00:28:13] some numbers and then we're going to have to explain how those numbers come around.
+[00:28:18] So let's try and understand what's happening here. And you see that all of you
+[00:28:41] of these declarations involve some combination of pointer and array.
+[00:28:45] And the question is, is it a pointer to an array? Is it an array? Is it an array of pointers? And
+[00:28:50] it an array of pointers? And the answer to those will depend on the particular syntax.
+[00:28:57] So, of course, the first one is one you've already seen before.
+[00:29:01] And so you know that compiles, and it's not null. And you can dereference it,
+[00:29:07] and it's not null. But if you try to say star star a1,
+[00:29:12] that's not valid. It won't even compile because you're trying to here take the data type of star A.N is int. And then you're trying to take a D-reference and int. So that won't compile and therefore you can't even test it.
+[00:29:32] Okay. The question is for these other three, you can see that somehow one is a, well, let's look at the bottom two first.
+[00:29:44] So the one on the bottom says that, and this is part of, and there's actually a really great section in
+[00:29:54] Kurnagena and Richie that I highly encourage you, which is how to read pointers, how to read declarations, and C.
+[00:30:00] And the basic rule is you start from the inside and you work your way outward. So that declaration of A3 says that, um, with that parentheses,
+[00:30:17] it says A3 is a, what is a 3? A3 is a pointer, that two parentheses around it.
+[00:30:39] What does it point to? It points to an array of three ints. Okay? So we can diagram A3 then to be something like this. A3 is a pointer. Like I said, read it from the inside out.
+[00:31:17] A3 is a pointer.
+[00:31:21] And what does it point to?
+[00:31:23] It points to an array of three elements.
+[00:31:26] And what type of elements are they?
+[00:31:27] They're ints.
+[00:31:29] So you're sort of reading outward and picking up pieces
+[00:31:34] from the right end from the left as you do this.
+[00:31:38] And so when you know that, this all makes sense that these numbers,
+[00:31:43] the size of A3 itself is eight.
+[00:31:46] But since it points to an array of three ints, the size of
+[00:31:50] star A3 is 12. And then star star star A3 would indicate this particular element of the array, and so it sizes four.
+[00:32:05] So these all compile, but which of them could cause a null pointer de-references? Which are the last two?
+[00:32:17] Yes? You can flip the coins? Yes. Well, I'm only looking at it. I'm trying to fill in A3 right now.
+[00:32:31] So A3 is fine.
+[00:32:32] But if I said star A3, could that have a null pointer problem?
+[00:32:39] Yes.
+[00:32:40] Why?
+[00:32:43] Because when I declare A3 here, all I'm declaring is this particular, I'm only allocating enough storage for that pointer.
+[00:32:52] I haven't initialized, I haven't allocated the space for an array.
+[00:32:55] I haven't initialized A3 to actually point to an array.
+[00:32:59] So it could be a null pointer.
+[00:33:00] It could be an arbitrary junk, but the chances of it actually pointing to an array of three
+[00:33:05] is highly unlikely. So this would be potentially bad and therefore double star is
+[00:33:11] doubly bad, right? Okay, so now let's look at A4. So A4, to understand that, you actually
+[00:33:25] have to look at the charts in C, the precedent chart, which if you're like me, your book falls
+[00:33:35] open to that precedence chart, the different operators and what levels they are.
+[00:33:41] And one thing you'll see is that level one of precedents, the highest precedents,
+[00:33:47] the highest precedents include square brackets, and level two includes star.
+[00:33:53] In other words, bracket is higher precedence than star.
+[00:33:59] So this particular statement here, the binding is actually like this.
+[00:34:07] It says that A4 is an array of three elements.
+[00:34:18] and those elements are pointers and they point to ints.
+[00:34:29] All right?
+[00:34:30] So A4 is an array.
+[00:34:36] Can you see this?
+[00:34:41] But each of those elements is pointing to an int somewhere, hopefully.
+[00:34:50] And so let's see if that matches the numbers we got.
+[00:34:58] So the size of A4 is 24 because it's 8 times 3.
+[00:35:02] If I were to de-reference
+[00:35:06] a4,
+[00:35:08] would just indicate this particular pointer.
+[00:35:13] A4 is an array of pointers. So when I get an element out of that array,
+[00:35:20] what I'll get is a pointer.
+[00:35:23] And so A4 is a pointer, and so it's also 8.
+[00:35:29] But if I now do a second D-reference, then I'll get an int,
+[00:35:35] and its size is 4.
+[00:35:38] Okay?
+[00:35:39] These all compile.
+[00:35:44] So could I have a, could star A4 then cause problems as far as a null pointer or a bad pointer?
+[00:36:00] No.
+[00:36:03] That's right.
+[00:36:06] No is the correct answer.
+[00:36:08] No is yes.
+[00:36:10] Because you've A4, this, your, A4 is an array.
+[00:36:15] You've defined an array and arrays get allocated by their declaration.
+[00:36:21] declaration as a three element array. On the other hand, this could give you a no pointer
+[00:36:28] because I haven't initialized the array to anything. So, for example, if it were initialized to all zeros,
+[00:36:36] it would just be three null pointers in that array. So this is sort of the stuff, the nitty gritties of C.
+[00:36:46] Question, yes.
+[00:36:47] How does it know that the size of C12? Like I thought in C, they didn't really know.
+[00:36:54] know how many things are in an array?
+[00:36:57] The question is, how the compiler, what I'm, I'll answer your question by saying, remember, the compiler knows a lot.
+[00:37:07] In particular, I've declared this to be an array of three pointers. I'm compiling for a machine
+[00:37:15] where pointers are 8 bytes, and so the compiler knows it has to be 24 bytes. In general, when you're
+[00:37:22] when you're referencing in C, there's no.
+[00:37:24] There's no, you know, the machine doesn't have built into it any bounds and doesn't do bounds checking for you.
+[00:37:31] But that's in the runtime execution.
+[00:37:34] But in C if I, when I declare something, it's known, it has to be known at that point when the declaration occurs.
+[00:37:45] Question.
+[00:37:57] The empty bracket is just another name for a pointer.
+[00:38:02] It's usually it's just given his arguments.
+[00:38:05] There's some restrictions on it.
+[00:38:07] But when you use the empty bracket notation in C,
+[00:38:10] it's equivalent to doing a pointer declaration.
+[00:38:12] You're not allocating any space for it.
+[00:38:14] By saying A1, bracket 3,
+[00:38:18] we actually mean allocated an array on the stack.
+[00:38:22] Yes.
+[00:38:22] Right here, it really means when you declare an array and you give a number,
+[00:38:28] number the size of that array, it really allocates that memories.
+[00:38:32] Question?
+[00:38:33] Yes. Oh, yes. And that's the final one. You'll notice that the
+[00:38:39] numbers for A2 and A4 are the same, and the reason is it's the same thing.
+[00:38:43] And that, again, goes by the precedence rules of C.
+[00:38:47] That A2 first binds this way and then this way.
+[00:38:55] And so A2 and A4 are synonymous just with less parentheses.
+[00:39:00] Okay.
+[00:39:04] So that was a bit of an aside. But as you can see, I think this is the kind of thing that will really probe your understanding.
+[00:39:12] And now, you know, as a beginning C programmer where you don't have a very good sense of the underlying representation of a program,
+[00:39:20] it's really hard to figure these things out.
+[00:39:22] But now that you know what it means to compile code, and you can actually look at compiled code,
+[00:39:28] that'll sort of clear up a lot of the what's really going on in a program.
+[00:39:33] going on in a program.
+[00:39:39] So let's now generalize from one dimension to two just to make life a little more interesting.
+[00:39:45] And again, it's an important principle to understand that when you want to declare a multidimensional array
+[00:39:53] in C, you do it by a sequence of brackets with the bounds for each one.
+[00:40:00] And the reason for that is actually there, it will see that it has to do with this notation that we just
+[00:40:13] went through.
+[00:40:14] So if I say int, it turns out that I can read it like this,
+[00:40:36] that A is an array of three elements.
+[00:40:42] And each of those elements is in itself an array of five elements
+[00:40:49] of type int.
+[00:40:52] And we'll get back to that, but that kind of explains
+[00:40:56] everything I'm about to tell you in this picture.
+[00:41:00] So in particular, if I declare an array with our,
+[00:41:06] rows and C columns, and you think of it mathematically as sort of a matrix, two-dimensional
+[00:41:13] matrix.
+[00:41:14] What it really does is it says, well, see as on the, yeah, I'm sorry,
+[00:41:26] C actually ends up being the inner element.
+[00:41:30] It says, first of all, I want, row 0 will be an array of
+[00:41:35] c inns, c being the number of columns.
+[00:41:39] being the number of columns, I'll put, so all the elements of row zero will come first,
+[00:41:45] all the elements of row one come next, and so forth, up to the end of it all.
+[00:41:50] And so the total allocation will be four times, the data size times the number of rows, times
+[00:41:56] the number of columns bytes.
+[00:41:59] But the reason why they're in that order, which is called row major order, because if we thought
+[00:42:04] of it in these terms, we go through the first row and then the second row and the third row,
+[00:42:09] precisely because of this notation.
+[00:42:19] Let me write it down like this.
+[00:42:22] Int of A, of, well, let me just use the one I've said.
+[00:42:30] We can write this out as A is an array, a three-element array.
+[00:42:37] It's over half, it's two-thirds.
+[00:42:52] I'll just put it over here.
+[00:42:59] Okay, so A is a three-element array, or general
+[00:43:05] to this picture, A is an array of R elements.
+[00:43:10] This is the first element, this is the second element, and this is the second element, and this is the
+[00:43:14] the earth element.
+[00:43:16] But what kind of elements are those?
+[00:43:21] Each is an array of five inns.
+[00:43:30] So within array A here, each subpart of A then,
+[00:43:42] then, is an array of C-inths.
+[00:43:47] And so,
+[00:43:48] That's why logically the way these are organized actually comes from this declaration notation directly.
+[00:43:56] And we'll see examples of that.
+[00:44:00] So, for example, if I wanted to extend my zip-dage idea and introduce an array of four of these,
+[00:44:13] I could declare it this way.
+[00:44:16] And again, with, remember, I used a type-deaf to declare-def to declare zip-dif to
+[00:44:21] require zipdage. But if I were to expand this out, it would be as if I was declaring this array
+[00:44:28] PGH to be four rows and five columns. But what it really is, is an array of four elements,
+[00:44:35] one, two, three, four, each of which is an array of five inch. Okay?
+[00:44:42] So think of that nesting. When you read declarations, you start from the name of the element and you work your way out
+[00:44:51] through these brackets and stars in some order.
+[00:45:02] And so in particular, if I want to reference a particular element of an array, the general rule is wrong here.
+[00:45:13] Oh.
+[00:45:17] The general rule is this one.
+[00:45:19] If I want to reference, I don't really, oh, I'm building up to it.
+[00:45:27] building up to it. So, yes, this shows that A of I, I can actually just do the reference
+[00:45:40] A of I. I don't have to give A of I of I of don't have to give A of I of J in C. And what that
+[00:45:45] denotes is one of these are rows of the array, and each of which is an array of C elements of type
+[00:45:54] int. And so imagine that in general we have K bytes for data type T, the underlying data type, and
+[00:46:02] this case, t is an int, and k equals 4.
+[00:46:06] But in general, the starting address then of row i would be gotten by multiplying the number
+[00:46:13] of columns by k and then multiplying that by the row number.
+[00:46:24] And now if within the array, I wanted to reference array element A sub iJ, then it comes out
+[00:46:32] to this computation, you take the starting address, you scale, you scale,
+[00:46:36] the row number by the number of columns, add to it which column you want, and then multiply
+[00:46:42] that all by k. So the way to see that is, here, I can get to row number I by just scaling I by the number
+[00:46:55] of columns times the size of the elements are four. And now I want to get to the jth element
+[00:47:02] of this subarray here, and I can do that by scaling
+[00:47:06] by 4 and adding it to the beginning of this subarray.
+[00:47:12] And now I can just collect the fours together and that's what, and pull it outside here, and that's what,
+[00:47:16] and pull it outside here, and that's what gives you this formula.
+[00:47:21] So, again, the point of this is that this all kind of is a natural outcome of the declaration,
+[00:47:29] and it's easy to think of it in terms of this storage model here of how the actual array is
+[00:47:37] allocated. Okay, now a different style of declaration is imagine I create three of these arrays, and now I want to create an array
+[00:47:53] and now I want to create an array that contains, uh, that points to these. So, this is a different data structure you'll observe from before. What univ now is an array of three pointers, and each of
+[00:48:12] those pointers points to one of these arrays of five ints.
+[00:48:18] And their underlying data type, by the way, of these elements are ints, right?
+[00:48:30] And C does not differentiate, and C does not differentiate when you want to declare an array like this,
+[00:48:36] you just say it's an int star. You don't say how many elements are the underlying array is.
+[00:48:43] So you'll see by these picture that these are different data structures.
+[00:48:48] So now let's see by this picture.
+[00:48:50] Let's go through what the assembly code looks like to reference these two data structures.
+[00:48:56] We didn't, did we do the, I'm sorry, I would have thought I'd have assembly code, I think there might be a missing slide here.
+[00:49:14] So we'll, we'll see. So imagine I wanted to reference, I'm sorry, I'm confused why there's no, there should have been, I'm sorry, I'm sorry, this is, I'm pausing here, because I'm sorry.
+[00:49:51] because I think I meant to have a slide that would show what the code looks like, and I don't.
+[00:50:01] Okay, well, we're going to have to wing it.
+[00:50:05] So if you wanted to, an assembly code then, reference an element of an array,
+[00:50:16] like this a multidimensional array, what you'll see is that the code kind of builds up a computation like this.
+[00:50:23] up a computation like this.
+[00:50:27] And typically in the compiled code, the value of k is kind of a constant value, and if it's an array that's
+[00:50:36] a ray that's been declared with a constant bounds, then the value of C will also be a constant.
+[00:50:43] And so a piece of code for this, and that slide got omitted by accident, we'll basically take
+[00:50:50] this value and use some combination of the memory referencing and shifting and LEA instructions
+[00:50:57] and so forth to implement this computation and then do a de-reference.
+[00:51:04] So let's look at this second example and there is code for this and it's actually a little
+[00:51:08] bit more complex because this is going through two levels of interaction. So you'll see
+[00:51:15] that to get the digit, a particular digit from a particular digit from a particular
+[00:51:24] one of these universities then, it has to, first of all, figure out, do this
+[00:51:34] de-reference, is get the a pointer to the beginning of the array, and that's what this
+[00:51:40] reference is doing here.
+[00:51:49] Okay.
+[00:51:50] First of all, what it's doing is shifting RSA I left by 2, which is equivalent to scaling RSA, I left by 2,
+[00:51:55] which is equivalent to scaling the digit by four, because it's getting ready to take that digit parameter and scale it appropriately.
+[00:52:06] And then it takes that number and it adds to it the value I get by reading from the array Univ, but using the
+[00:52:24] array univ, but using the index, scaling it by 8, to actually do a memory reference.
+[00:52:33] So remember this instruction then, and it looks a little weird, is actually doing a memory reference
+[00:52:38] here of this three-element array of called Univ.
+[00:52:43] So it's reading from memory and doing an array index directly here by scaling, and now getting
+[00:52:50] from that a pointer, adding to that the
+[00:52:54] scaled value of the digit.
+[00:52:59] And so that gives me a pointer now, as this notation shows, to the particular element I want, and
+[00:53:10] now it does a dereference.
+[00:53:13] So that's a pretty tough example to get as one of your first array ones.
+[00:53:19] And as I said, I apologize for missing the reference to a particular element of this array
+[00:53:30] this array is done entirely by computing scaling indices in appropriate ways.
+[00:53:36] You want to take the array and scale the first index by 20 because each row is 20 elements,
+[00:53:47] it's 5 times 4.
+[00:53:49] And you want to scale the digit by 4 to select the particular element within that array.
+[00:53:55] And so all this address computation takes place.
+[00:54:00] takes place and then there's a single memory reference.
+[00:54:03] Whereas in this data structure, you have to go through two memory references.
+[00:54:07] First of all, you have to index and get the appropriate element here, but that's just a pointer now.
+[00:54:13] And then we add an offset to that pointer to get the appropriate element in this array here,
+[00:54:19] and then we read from that.
+[00:54:21] So that's what this notation means is that I'm doing two memory references here and just one there.
+[00:54:27] And it's a little bit curious because if you look at the C code,
+[00:54:30] it looks the same, but the underlying data types are different, and so the references are different.
+[00:54:41] Okay, so let's look at some other variations on this code, and these all will sort of fall out from these general principles I've described.
+[00:54:51] So first of all, let's introduce an array, a 2 by 2, I'm sorry, a 16 by 16 array of ints, and it used to be in c, and it used to be in c,
+[00:55:03] see if you wanted to do multidimensional arrays where the size of the array was not fixed at
+[00:55:09] compile time, you basically had to implement your own version of that computation I showed before,
+[00:55:15] of scaling the row number by the number of columns and adding to it J. So this is sort of classic C.
+[00:55:27] I've written it as a macro here, but you can see it's just doing the row major scaling.
+[00:55:33] directly here is address arithmetic.
+[00:55:37] Now since a more recent generation of the C compiler, what they call C99, it was introduced in 1999,
+[00:55:44] it was introduced in 1999, you can actually pass as a parameter and array where the number of elements
+[00:55:57] in the array is also a parameter that's being passed to the function, uh, the function, is also a parameter that's being passed
+[00:56:02] to the function.
+[00:56:04] And similarly, you can declare an array to be of n elements,
+[00:56:08] as long as n has been computed before it hits that array declaration.
+[00:56:12] And the compiler will do the right thing.
+[00:56:14] It will allocate the proper number of elements.
+[00:56:17] Um, so let's just look at some of this code examples, and again, what we'll see
+[00:56:35] here, and this will show you an example of the two direct, the kind of address computation
+[00:56:40] that takes place.
+[00:56:41] with a two-dimensional array.
+[00:56:43] In this case, I know C is 16 and K is 4.
+[00:56:47] So if I want to get element I subj, IJ, out of this array,
+[00:56:53] then first of all, I'll scale I by 64,
+[00:57:00] because that's, and I'll add that to the base, and then I'll scale RDX by 4, that's, and then I'll
+[00:57:07] scale RDX by 4, that's j, and then I'll scale RDX by the base, and then I'll scale RDX by the
+[00:57:12] this array and so and then do a memory reference there.
+[00:57:16] So in the end, I'm doing, you see these two instructions have done the appropriate, the three
+[00:57:24] instructions, have done the appropriate scaling of I and J, added them to the beginning address
+[00:57:30] of A and done the computation.
+[00:57:36] On the other hand, if it's a, one, the third example I showed where N is a parameter that's passed to the function,
+[00:57:45] So it's not known at compile time how big a scaling factor to use.
+[00:57:51] You'll see that it has to use a multiply instruction to do that, which is a relatively expensive instruction
+[00:57:58] in terms of performance.
+[00:58:01] And then once it has that, that's just n times i.
+[00:58:04] And then it uses various combinations of LEAs and the scaling notation from before to
+[00:58:11] compute an appropriate offset into the array to do the reference.
+[00:58:15] So here I could do it with a shift.
+[00:58:19] And here I had to introduce a multiply because I don't know in advance how big it is.
+[00:58:27] If you want to torture yourself, here's an example I was going to go over,
+[00:58:45] of triply nested possibilities and dereferencing of the same idea.
+[00:58:55] But let's move on to pointers, to structs.
+[00:59:06] So the idea of a struct is actually quite simple.
+[00:59:09] Well, the base idea is simple and it gets more complicated.
+[00:59:15] The idea of it is I want to, I declare a struct to have some number of fields, each of which can be an int, or it could be, in this case, a pointer, or it could be an array itself.
+[00:59:29] But the rule is basically what I'll do is allocate enough space, if I introduce one of these structs, for all the different array elements.
+[00:59:38] elements, fields in that are struct, and then I'll basically keep track, the compiler,
+[00:59:45] we'll keep track of where each of these fields starts and generate the appropriate code to offset from the beginning.
+[00:59:54] So the structure itself, the reference to it will be the beginning address of the struct,
+[00:59:59] then I'll use appropriate offsets to get to the different fields.
+[01:00:03] So here's an example of some
+[01:00:10] imagine I have a struct, a pointer to one of these structures, and I have an index,
+[01:00:21] and what I want to do is get to the, that appropriate part of array A within this struct.
+[01:00:31] Well, array A is right at the beginning of the structure.
+[01:00:34] So I can treat this just like I would any array reference, scaling IDX by 4 and adding it to the base
+[01:00:42] to get the appropriate element.
+[01:00:43] So I don't really have to do anything special for this one.
+[01:00:48] Let's go get some other code that you'll typically see.
+[01:00:53] Actually, this example is pretty involved.
+[01:00:57] So I'm actually doing a whole bunch of stuff here with this one struct.
+[01:01:02] First of all, I'm trying to retrieve element I from the structure.
+[01:01:07] Then I'm using that to index into array A and
+[01:01:15] insert a value into there.
+[01:01:17] And then I'm updating this pointer to point to point to the next
+[01:01:23] I'm, if this were a linked list, what I want to do is step to the next element of the list.
+[01:01:33] So I need to retrieve the next field from here.
+[01:01:38] And so these, so I'm actually making three references to this structure in this one rather small function.
+[01:01:45] So let's try and figure it all out.
+[01:01:46] and figure it all out.
+[01:01:50] So first of all, I have to retrieve element I from it.
+[01:01:53] And here you see that we know that element I is at offset 16.
+[01:01:58] And so if, and here's where you see that displacement field being used in the memory reference,
+[01:02:04] uh, exactly for this purpose.
+[01:02:06] I want to take R, but add 16 to it to get a memory address that I can use for, um, for
+[01:02:16] for I.
+[01:02:20] And it, you see it actually uses move S and
+[01:02:22] because I itself is an int, but I'm going to use it as an array index, in which case I have to scale it.
+[01:02:31] I have to do address arithmetic using 8 byte quantities.
+[01:02:37] So this actually retrieves the 4 byte value and does a sign extension on it.
+[01:02:44] And now what I want to do is store at a val at element I.
+[01:02:53] And so here you'll see that
+[01:02:55] And it's using R-A-X is the value I've just computed for I, scaling it by 4,
+[01:03:06] and using the starting address of the R, which happens to be the starting address of A as well,
+[01:03:13] and doing a store.
+[01:03:14] So that's sort of an array operation there.
+[01:03:18] And then the next part is I'm going to offset 24, which is the
+[01:03:27] position of next, read from that location, and store that in RDI, which is R.
+[01:03:35] So this is the operation R gets R arrow next. And then the loop is I'm testing until R is null.
+[01:03:43] So that's going on here. So you see that those three references to the struct were implemented
+[01:03:51] using three instructions here. So it's a very direct mapping between the code here and the
+[01:03:57] in the x86 instructions. And part of the x86 instructions, because this kind
+[01:04:03] of stuff is so commonplace in programs, they kind of made the instructions map very directly toward these
+[01:04:09] operations. And now you should probably see why all the bells and whistles are there for these address references.
+[01:04:19] Question. What if I was three in this case? What if I was three? I'm sorry. I'm sorry.
+[01:04:28] Because A is three elements.
+[01:04:32] Oh, uh, A had, A has three elements. Yes. It will access, um, actually I think that's a typo.
+[01:04:44] A is supposed to be four.
+[01:04:47] Uh, regardless, regardless.
+[01:04:49] So if I is four, it would access itself, yeah, and it would mess things up. Question.
+[01:04:54] Um, this is a typo, by the way, that should be A of 4.
+[01:04:58] So now point out there's a value of a value of zero in the register.
+[01:05:03] Yes, a no pointer, a no is a zero.
+[01:05:07] Um, so that's sort of the easy version of structs.
+[01:05:16] Now let's make them a little harder.
+[01:05:18] One is, uh, for reasons that are a bit obscure, uh,
+[01:05:23] the machine generally prefers that if you have a data type,
+[01:05:28] an underlying data type of k bytes,
+[01:05:31] that the address that that starts at be a multiple of k.
+[01:05:35] And so, uh, that that introduces a property
+[01:05:40] we call alignment, which will actually, when a structure gets allocated, will, the compiler will actually
+[01:05:49] insert some blank, unused bytes in the data structure in its allocation, just so that it can maintain
+[01:05:56] this alignment.
+[01:05:58] So for example, here, I is an int, and I want its address to be a multiple of four, and I'll give
+[01:06:07] you a minute, why that's true.
+[01:06:10] just so trust me for a minute.
+[01:06:13] And so it will actually pad three unused bytes here
+[01:06:17] because the first byte is being used by C.
+[01:06:20] And in general, we'll see in the allocation,
+[01:06:22] we're going to make sure that the pointer to this data structure
+[01:06:25] is itself a multiple of eight.
+[01:06:28] And the reason for that is because there's a double here,
+[01:06:31] and it should reside on a boundary
+[01:06:34] that its starting address should be a multiple of eight.
+[01:06:38] And you'll see as long as this is eight,
+[01:06:40] a multiple of eight, and this offset here is a multiple of eight, then this address
+[01:06:46] will be a multiple of eight.
+[01:06:48] So that's the idea of alignment.
+[01:06:52] And so why is that true?
+[01:06:54] Well, it's really a hardware issue, that the memory system is sort of, the actual hardware memory memory
+[01:07:01] memory does not reference one byte at a time.
+[01:07:04] It references, actually, in most machines nowadays, about 64 bytes at a time,
+[01:07:11] depending on.
+[01:07:12] various widths within the hardware.
+[01:07:15] And in general, if a particular piece of data crosses
+[01:07:19] the boundaries between two blocks that are because of a misaligned address, that will take extra
+[01:07:27] steps by the hardware and potentially even the operating system to deal with.
+[01:07:31] So just for efficiency reason, they say, do this alignment, trust me.
+[01:07:36] In x86 machines, if you have unaligned data, it will execute just fine.
+[01:07:42] it just might run a little bit more slowly.
+[01:07:44] On some other machines, if you try to do an unaligned access,
+[01:07:48] it will actually cause a memory fault.
+[01:07:51] Question.
+[01:07:52] If by default generates aligned data?
+[01:07:56] Yes.
+[01:08:02] The question was, how could you force it to generate unaligned data?
+[01:08:07] I don't know if you could.
+[01:08:09] And we'll talk about ways you can sort of be more clever in how you do your allocation
+[01:08:17] to avoid wasting space.
+[01:08:21] So in general then, we have, we're mostly looking here at data types that are either one, two, or four,
+[01:08:29] eight bytes long.
+[01:08:31] There are some 16-byte data types, but we won't be looking at those.
+[01:08:36] And in general, with the address, then, you can tell the alignment of an address by how many zeros,
+[01:08:43] if it's a power of two alignment, how many zeros are at the end of a bit-level representation?
+[01:08:48] of that address.
+[01:08:51] And so as we showed, in general, the C compiler,
+[01:08:54] when it's creating the layout for a structure, a struct,
+[01:08:58] a struct, will put in padding bytes in there to make the alignment work.
+[01:09:06] The other thing it will do is, if it need be, it will add bytes to the end to make
+[01:09:12] sure that the overall size of the data structure meets whatever underlying alignment
+[01:09:17] requirement there is.
+[01:09:18] And this one, because it contains a dot.
+[01:09:20] the overall data structure has to be aligned on an 8 byte boundary.
+[01:09:27] And the reasoning for that is, imagine I had an array of structs, of these structs in particular,
+[01:09:37] then if I can assume that, if I can ensure that this array address is a multiple of 8,
+[01:09:45] then you can see that each successive element of this array, each of these structs is a multiple
+[01:09:51] of 8. And then within that struct, I've ensured that each field that requires an alignment
+[01:09:56] by 8 is positioned with an offset that's a multiple of 8, and so it all works out. But if you tried to tinker
+[01:10:05] with this by making this too short, then you start getting misaligned references. And so one thing
+[01:10:21] you'll see is for every struct, the actual alignment requirement, depends on what's the sort of
+[01:10:27] worst case alignment, the maximum alignment of any element. So this particular
+[01:10:32] structure, for example, contains a float V, which has a size of 4. And so this would
+[01:10:40] be an alignment of 4. And you'll see in the code, in general, when it has to, this,
+[01:10:50] all this address arithmetic we've seen gets used in various different ways to scale values, compute
+[01:10:57] offsets and so forth to get the appropriate elements.
+[01:11:02] So your question before is, could I tell the compiler not to do alignment?
+[01:11:08] And the better way is to declare your fields in a way that minimizes the amount of wasted space.
+[01:11:17] So, for example, here, I wasted 3 bytes here and 3 bytes here to meet the alignment requirements.
+[01:11:26] But if I just put I at the beginning and then C and D,
+[01:11:29] I would have only wasted 2 bytes total. And in general, because all the alignment requirements are powers of 2, the sort of greedy algorithm works. It says, if I just take, put the biggest stuff at the beginning and then successfully smaller elements, I will be able to minimize any wasted space.
+[01:11:49] And that's a general property. But this is a case where you as the writer of C code have that effect.
+[01:12:00] The compiler will not do this for you automatically.
+[01:12:03] Question.
+[01:12:03] Why is that a part of the case of having an array?
+[01:12:09] What's that?
+[01:12:10] Oh, but remember, an array, I don't care about the array.
+[01:12:13] I care about the array. I care about the elements of the array.
+[01:12:16] Because this is only down at the lowest level where I'm accessing either a single int, a single double, or a pointer,
+[01:12:23] and not all the rest of the stuff, remember.
+[01:12:26] I never read an entire array from memory.
+[01:12:29] So alignment only.
+[01:12:31] It refers down to the primitive types, not the aggregate types.
+[01:12:38] If this is confusing, the book covers this fairly carefully.
+[01:12:41] So let me just finish up with a little glimpse of floating point.
+[01:12:47] Floating point is a complicated history in x86.
+[01:12:53] Back in the really ancient days, there was a chip that went with the 8086 processor called the 8087.
+[01:13:03] And at the time it was a masterpiece of engineering.
+[01:13:06] piece of engineering to be able to put all the hardware necessary to implement full
+[01:13:11] I-Triple-E floating point on a single chip.
+[01:13:14] And it was the first one of its type. In fact, it was sort of co-developed with the I-Triple-E
+[01:13:22] floating point standard itself. But the programming model for it is horrendously awful and
+[01:13:28] ugly. I used to, in older editions of the book, there were, it was in the first
+[01:13:34] edition. It was in a web aside in the second edition. And now it's
+[01:13:38] been expunged completely because it's so awful. But more recently, in the world of x86, they realized
+[01:13:48] that to support things like video and all the stuff people actually do with their machines,
+[01:13:54] they needed some more horsepower in numeric processing. And they implemented a class of
+[01:14:02] instructions called SSE, which stands for SIMD, something SIMD
+[01:14:12] execution. Anyways, and I'll show you in a minute what that means. And that's now, in the more
+[01:14:19] recent versions of x86, this has been juiced up to something called AVX, which,
+[01:14:26] but the shark machines support this, a version of what's called SSE. So let me just
+[01:14:32] give you a feeling for that. And in particular, the shark machine support
+[01:14:36] what's called SSE version 3. And what it is is that there's 16 special registers, distinct
+[01:14:43] from the other registers we've talked about before, each of which has 16 bytes. And
+[01:14:48] then there's operations that can operate on those and treat them in different ways. So
+[01:14:53] So one is to treat this such a register as an array as an array of 16 cares, or as eight
+[01:15:01] shorts or four ints or and also to support a double floating point arithmetic.
+[01:15:12] So this stuff was sort of going on and somebody had the observation that said, well, I could just
+[01:15:18] then sort of subset all this and implement the floating point operations directly using
+[01:15:24] this SSE stuff and skip the old x-87 stuff. And so that's the way floating point
+[01:15:31] voting point is now generated on, say, the shark machines and most recent machines.
+[01:15:37] This is a, this is again an example of where the world is more complicated than it should have to be.
+[01:15:44] So, for example, there is an instruction that says, add SS, so add a single scalar, is what that
+[01:15:51] notation, add a single precision scalar, add a scalar, add a scalar single precision scalar, add a scalar,
+[01:16:01] and it looks a little like. And it looks a little like the, uh, and it looks a scalar
+[01:16:04] instructions, the ad Q instructions you've seen, that it increments, it adds the source to the
+[01:16:11] destination. There's ways I can do four ads in a, all at the same time, using this is what they call
+[01:16:20] CIMD execution, which stands for a single instruction, multiple data. One instruction, the add PS, P stands for P stands for pact, we'll do, we'll do, we'll perform
+[01:16:35] that one instruction will do add with four different numbers.
+[01:16:40] And similarly, you can do it with double precision.
+[01:16:44] You can do one of them, you can do a PAP.
+[01:16:47] And so actually, the underlying, and we'll see this when we'll look at code optimization,
+[01:16:52] if you write code to make use of these instructions, you can really boost the performance of the computer.
+[01:16:59] But this just gives you a flavor for what floating point code looks like.
+[01:17:03] And the rules are pretty simple, that just as we saw before,
+[01:17:06] that arguments get passed in registers.
+[01:17:10] Well, floating point arguments get passed in these xMMM registers.
+[01:17:15] XMMM.
+[01:17:16] You don't have to memorize RDI, RSI, RSI, RDS.
+[01:17:20] They're in XMMMMM, 0, 2.
+[01:17:23] It's all very logical.
+[01:17:24] And the return value is in XMMMMMM0, and all the registers are caller save.
+[01:17:29] There's no call-y-save.
+[01:17:31] So something like adding two floating point numbers
+[01:17:34] will just look like,
+[01:17:36] a single floating point addition instruction.
+[01:17:41] Same with double.
+[01:17:44] And if you mix together code that has a pointer and a floating point operator,
+[01:17:50] the pointer will be passed in a regular register, RDI,
+[01:17:54] and this double will be passed in XMMMM0.
+[01:17:57] So it sort of, as it goes through the argument list,
+[01:18:01] you sort of, in the particular order, if it's an integer or a pointer,
+[01:18:06] it's in one of the R registers.
+[01:18:09] And if it's a floating point value,
+[01:18:11] it's in one of the XMM registers,
+[01:18:14] and potentially interleaved.
+[01:18:18] Almost done.
+[01:18:20] And so this is a code that does this particular operation,
+[01:18:24] and it's interesting because it's returning a,
+[01:18:27] it's doing memory referencing,
+[01:18:29] so again, there's instructions
+[01:18:31] that will read from memory and copy into an XM register.
+[01:18:35] You can add registers.
+[01:18:38] you can make a copy from one XM register to another, and you can store results.
+[01:18:45] So this code looks a lot like what you do in integer arithmetic, except it's using XMMM
+[01:18:52] and special floating point instructions rather than the ones you've seen before.
+[01:18:57] So the basic idea of it is fairly simple.
+[01:19:00] It gets way more complicated because there are lots of instructions.
+[01:19:05] Double, float, on and up.
+[01:19:07] On and on and on, there's a special instruction to do square root and all this stuff.
+[01:19:12] And the comparison stuff is really nasty and messy and hard to understand.
+[01:19:17] And then you'll see various tricks to use constant values too.
+[01:19:22] So it's covered in the book.
+[01:19:24] We're not going to really talk about it much in this course.
+[01:19:27] But the underlying, the basic principles of it are fairly straightforward.
+[01:19:31] Okay, that'll do us for today.

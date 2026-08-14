@@ -1,0 +1,821 @@
+[00:00:00] So today's the second lecture about network programming.
+[00:00:05] We got started last time.
+[00:00:07] And as you probably saw last time, the APIs for this are really big and hairy and messy.
+[00:00:14] And it takes just a lot of time, in my own personal experience, of rereading, looking at code, looking at examples, rereading documentation, going back and forth over that a dozen or so times before it all really sinks in.
+[00:00:30] And it's one where it really helps a lot to look at example code.
+[00:00:35] And there's example code in the book in that CSAPP.C file that you've seen versions of in various forms.
+[00:00:45] So I can lecture for days and weeks, but this really won't all settle in until you've spent time studying yourself.
+[00:00:55] Anyways, I want to repeat and go back over a little bit of ground before.
+[00:01:00] But last time we talked about the idea of translating from a domain name, which is something
+[00:01:07] like www.cm.edu, to an IP address, which for IP version 4 is a 32-bit address, it's usually written
+[00:01:19] in dotted decimal form. And I showed you a program last time called host info that you could,
+[00:01:28] that we'll look actually at the code for.
+[00:01:30] And I just wanted to show you today. I just did one very small tweak to that program,
+[00:01:39] and I'll describe it today.
+[00:01:41] And the interesting thing is it lets you look at both IPV4 and IPV6.
+[00:01:49] And it's one of the interesting features of the code in the book, and it's new to the third edition,
+[00:01:54] is it uses a new API that lets you pretty easily write code that will work under either of these two versions of the Internet Protocol.
+[00:02:03] So, for example, with this slightly modified program, if I now look up the IP address for Facebook,
+[00:02:17] you'll see it comes back with two different ones.
+[00:02:21] And the first one is the familiar dotted decimal form, where each, recall that each of these digits,
+[00:02:31] it's a decimal representation of a single byte, so it's a number between zero and 255.
+[00:02:38] This is a IPV6 address, which as I told you, is 128 bits long.
+[00:02:46] So that's to the seventh, take away three, to the fifth, to the 5th, 32 bytes, right?
+[00:02:54] And it's usually written in this hex format with colons after every pair of bytes.
+[00:03:03] And I think the colon colon colon, colon just means that's a zero there.
+[00:03:06] One of the cute things Facebook did was embed F-A-C-E as a hex code inside of their IPV-6 address.
+[00:03:24] And it's really different. I get very different results running this at home than I do here.
+[00:03:33] And as I mentioned, you'll get different results running a DNS server, depending on the country, if you repeat the same thing over and over again, you'll get different results.
+[00:03:44] And that's because these very large companies are providing servers that are stationed all over the world.
+[00:03:51] And as a way to sort of balance out the load of the traffic, they also have multiple server addresses that then they kind of rotate through to give you so that different people will get served by different machines.
+[00:04:04] So you see, for example, Twitter or Google just gave me two addresses, an IPV4 and an IPV6 address.
+[00:04:12] Twitter gave me four different IPV4 addresses.
+[00:04:18] So let's look then at the code.
+[00:04:22] I'll go back through some of what we talked about last time.
+[00:04:25] I, quite honestly, I spent a fair amount of time looking at it so I can really understand it better
+[00:04:31] because it's pretty, it's not simple stuff.
+[00:04:35] But as I mentioned, as we went over last time, this is sort of this giant block diagram that shows
+[00:04:42] all the activity involved in setting up and running both a server and a client.
+[00:04:48] And just to repeat, the idea is you need to, the server needs to fire up, you can't contact a server
+[00:04:57] until that server exists. So it's, the server is the thing that has to exist first.
+[00:05:02] And all these steps are what are required for a server to begin on a machine and then to
+[00:05:10] to accept a connection request from a client.
+[00:05:12] Similarly, once the server is set, then the client can begin.
+[00:05:19] And it's like placing a call to the server.
+[00:05:22] And it makes a connection request, and that's accepted by the server.
+[00:05:27] And then what's called a session begins,
+[00:05:29] meaning an ability for these two machines to talk back and forth over an internet connection.
+[00:05:37] And they'll do it, this example I'll show is done by reading and writing
+[00:05:42] as if they were a file.
+[00:05:46] Each end looks like it's reading and writing a file.
+[00:05:49] And then once the client is done with whatever it's trying to get,
+[00:05:58] it will disconnect since we hang up its phone.
+[00:06:03] And then the listening, the server will detect this
+[00:06:09] by receiving an end of file when it attempts to read from the client.
+[00:06:14] And then it will close that connection.
+[00:06:16] But, and this I didn't have stated quite properly last time,
+[00:06:21] it's not going to actually shut down at that point.
+[00:06:23] It's just going to return back and accept a new connection request.
+[00:06:28] And this is what's known as an iterative server.
+[00:06:30] It can only handle a single client at a time.
+[00:06:33] Later in the course, we'll talk about how to do a multi-threaded server
+[00:06:36] that can handle multiple connections at one time.
+[00:06:41] So this is a pretty basic version.
+[00:06:43] So,
+[00:06:45] So the first step on either the client or the server side is this very hairy, messy,
+[00:06:52] relatively new API called Get Adder Info.
+[00:06:57] And the idea of Get Adder Info is it's a sort of kitchen sink,
+[00:07:01] or Swiss Army knife, if you know all those expressions.
+[00:07:06] It has a zillion features that sort of subsume a lot of other sort of individual protocols.
+[00:07:13] So for example, it's pretty much the same.
+[00:07:14] It's pretty much the same, whether it's IPV4, IPV6.
+[00:07:18] It lets you sort of go forward from a domain name to an IP address.
+[00:07:28] It lets you go backward from an IP address back to a domain name.
+[00:07:32] It supports all of those things.
+[00:07:34] It will let you look up what is the port number associated with an HTTP server.
+[00:07:39] So it will let you do all kinds of different things.
+[00:07:43] And as a result, it's a big.
+[00:07:44] it's a big and messy API with a zillion features and parameters and so forth.
+[00:07:55] So you recall from last time that the data structures we use to refer to a
+[00:08:02] connection, whether it's an IPV4 or an IPV6, a connection is called a sock adder.
+[00:08:11] And as I mentioned, this is sort of the C version of subtyping, if you know a language with a .
+[00:08:16] language with type inheritance.
+[00:08:19] This is how it's done in C. It's done by casting.
+[00:08:22] And so in particular, the sort of generic socket address,
+[00:08:26] all it needs to know is a 2 byte field at the front that specifies what kind of socket is this.
+[00:08:32] And then in particular, we'll be looking at what's called a socket or in,
+[00:08:39] which is an IPV4 version of a socket.
+[00:08:43] And so what it needs to know is a port number, which is a
+[00:08:47] 2 byte integer and an IP address, which is a 4 byte address for IPV4.
+[00:08:57] Both of those are actually stored in this structure, as I mentioned, in big Indian order, even if you're running it on a little Indian machine.
+[00:09:07] And one of the interesting features of that, this API, this get adder info, is it's largely removed the need for you as a programmer to worry about
+[00:09:17] bite ordering, and that's a nice feature. So in general, for example,
+[00:09:22] and get adder info, if I want to pass in a port number, I'll pass it as a character string,
+[00:09:28] a string representation of a decimal number, in other words.
+[00:09:33] And then the code here within this API will automatically turn that into a 16-bit integer and put it in the proper byte order.
+[00:09:43] And same with how it takes use of this 32-by order.
+[00:09:46] of this 32-bit IP address and you want to get it into dotted decimal form.
+[00:09:52] It will do that for you without you having to worry about byte order. So it's kind of a nice thing.
+[00:10:04] So get adder info has a whole bunch of arguments and some of them are essentially outputs.
+[00:10:13] Some of them are inputs, things you're passing into the function, and others are really more like outputs, how it gets information back to you.
+[00:10:21] So in particular,
+[00:10:23] The first one is just the name of the host, and that can be either a domain name or a dotted decimal name or one of those funky looking things with the colons that you saw for IPV6.
+[00:10:38] The service is usually if you're looking up, so if we're using this to look up, that'll actually be a null pointer.
+[00:10:47] And basically what typically you'll have is one of those two will be a string and the other one of those two will be a string and the other one
+[00:10:54] will be a null pointer.
+[00:10:55] And the reason for that is the same function can be used either to look up a service like what
+[00:11:01] is the port number associated with HTTP, or it can be what is the IP address of www.cmU.
+[00:11:10] .
+[00:11:12] The hints is something that you're passing in, and it's basically as you fill in a small amount of fairly large body of information about what specifically are you looking for, you fill in a small amount of a small amount of a fairly large body of information about what
+[00:11:23] specifically are you looking for in this request? Are you looking for an IPV6 information? Are you looking for IPV4 and so forth?
+[00:11:33] And then what it returns back, and that's why you pass a star star star, is it will return back a linked list that it's generated of results.
+[00:11:48] And the reason for that, as I mentioned, as I mentioned, is that IP addresses are
+[00:11:54] are sort of many-to-many mapping potentially.
+[00:11:57] As you saw, it's possible for a single domain name to have multiple IP addresses.
+[00:12:02] It's possible for a single IP address to have multiple domain names.
+[00:12:06] And so this is how they handle that sort of fact that they return a whole list of results.
+[00:12:12] And associated with that, once that result gets used, once you're done with it,
+[00:12:17] you're supposed to call a function called free adder info that will basically dispose of all the elements of that link list.
+[00:12:23] link list. You don't have to do it yourself with free. And then there's
+[00:12:27] another helper function called GAR-stir error that you use if there's an error code to help you
+[00:12:34] interpret that error. And it returns an error code. So as I mentioned, it returns a linked list
+[00:12:45] that result is a linked list of these get of adder structs, adder infostructs. And the
+[00:12:53] adder infostructs. And the adder infostruct has a zillion fields.
+[00:12:57] some of which you'll use and some of which you won't.
+[00:13:02] This is, for example, when you're passing in hints,
+[00:13:06] hints is sort of what you're passing in, the information,
+[00:13:10] you know, some conditions about what you're looking for in this request.
+[00:13:14] And then what it, some of these you pass in and some of it returns.
+[00:13:22] And so some of these fields are ones that then you can use
+[00:13:25] when you're making calls to other socket functions in the socket library,
+[00:13:31] it'll fill in instead of you having to worry about what's the structure,
+[00:13:35] the format of a socket or in, and how do I convert into network order and stuff.
+[00:13:41] It will do all that for you.
+[00:13:43] So it's a little confusing to use, though, because sometimes the stuff you're providing
+[00:13:51] is stuff you're giving it, and sometimes it's stuff that it's returning back to you.
+[00:13:59] And then there's an inverse function.
+[00:14:00] inverse function that so get adder info is given a it's
+[00:14:09] actually give me the address information about some name and get name info is I
+[00:14:18] give you an an address and you give me back some documentation about it including
+[00:14:24] potentially a domain name so there you pass in as a the first argument is a sock adder
+[00:14:30] struck.
+[00:14:31] Remember for this lecture, and I think in the book,
+[00:14:34] in a few places we've sort of created a type-deaf to alias, so we don't have to say
+[00:14:41] struct-sockadder all over the place, but that's what the essay is.
+[00:14:45] And it will provide back information about that address.
+[00:14:54] So if you're passing in a 32-bit IP address, you can get it to return either a dotted decimal
+[00:15:01] version of that or to do the DNS lookup and have it come back with the domain
+[00:15:07] name for that.
+[00:15:11] So this is that program that I just demoed to you, this one called Host Info.
+[00:15:18] So all it's really going to do is use these features to all on the command line give a domain name,
+[00:15:24] say, and it will just come back with a list of IP addresses.
+[00:15:28] So, and this is pretty much the way you write code for this, get,
+[00:15:35] adder info API that you typically, so hints is the information I'm passing
+[00:15:43] about what it is I'm looking for here. And so you start typically by zeroing out that
+[00:15:51] entire field and then setting the particular things you want. So in particular, in this
+[00:16:01] code that's in the slides and the one I demoed to you last time, I'm only going to be looking
+[00:16:07] for IPV4 connections.
+[00:16:09] And so I use the constant called AFINet, which is defined in the sockets interface.
+[00:16:15] And also I'll say that I want a TCP connection, what's called a socket stream, which if you recall
+[00:16:21] is the sort of protocol that 99% of the IP traffic in the world is carrying is on TCP,
+[00:16:29] meaning it provides a somewhat higher level abstraction of what's going on of sending packets back and forth.
+[00:16:37] So that's as much hint as I'm giving it here.
+[00:16:41] And now I'm making a call to get adder info, and this argument is the name, which is I'm getting
+[00:16:47] it right off of the command line here, so in my demo it was always a domain name.
+[00:16:56] I'm passing a null for the service.
+[00:16:58] As I mentioned, this call you typically have one of the two are is null but not both.
+[00:17:06] is what I'm passing in is this is the kind of information I want.
+[00:17:10] And list P is a, will now become a pointer to the results that get returned by get adder info.
+[00:17:18] So that's the call in all of its query.
+[00:17:27] Okay. And now I want to go back, so I got one of those linked lists, and that will have a whole bunch of IP address,
+[00:17:35] potentially multiple IP addresses in it. Maybe just one, maybe none. But some number
+[00:17:41] of them in a linked list, and I want to walk through that list and get back the dotted
+[00:17:46] decimal version of all those names, or the colonized version of those IPV6 addresses. I don't
+[00:17:52] know how you refer to those, by the way. I know relatively little about IV6, I have to confess.
+[00:18:00] So then there's a function called get name info, which usually you use to take a socket
+[00:18:06] IP address, an IP address, and go backward and get a domain name. But if I tell it
+[00:18:12] by a flag, one of the final argument to it is a flag argument, and say,
+[00:18:18] what I want back from this is not a domain name.
+[00:18:20] I want it in this numeric format, either dotted decimal or the colons between hex digits.
+[00:18:29] So by passing that to get name info, what it's going to return,
+[00:18:33] and I'm passing in a buffer, meaning a CAR star, and some size of that buffer.
+[00:18:40] And it's going to fill that in with the string
+[00:18:42] representation of it. So you see, this is a way I'm going from the, if you look at this
+[00:18:48] is the actual sock adder of each of the list elements. I'm giving it, it's going from that
+[00:18:58] sock adder, which embedded within it, as you know, is the 4-byte IP address. And what
+[00:19:05] it's doing is it's taking that, flipping the bytes, well, and converting it to the
+[00:19:10] dot a decimal form. So this function can do a lot of different things and I'm using it for
+[00:19:16] that particular feature here. Question.
+[00:19:18] So with regard is that when P is
+[00:19:20] If P is null, then I won't go very far.
+[00:19:24] Hmm?
+[00:19:26] Yes.
+[00:19:28] Because, you know, it's a null terminated list. So.
+[00:19:31] Other questions? Good questions.
+[00:19:34] But that's exactly the code you saw running.
+[00:19:37] And all I did to generalize it to include IPV6 addresses,
+[00:19:42] was I commented out this line, say, I don't demand that it be a,
+[00:19:49] AFIN net is a shorthand for IPV4. So by commenting that out,
+[00:19:55] it said, okay, I'll get whatever TCP connections this domain will support,
+[00:20:02] and that will include IPV6 addresses.
+[00:20:05] So I thought it's pretty neat.
+[00:20:09] I mean, you have to be pretty nerdy, but I am pretty nerdy,
+[00:20:13] to think this kind of thing is neat, but that you can think this kind of thing is neat.
+[00:20:14] neat, but that you could write code in this way that whether you're doing, you know,
+[00:20:19] different versions of the Internet protocol, it's all one common body of code.
+[00:20:25] So we've seen demo with this.
+[00:20:29] Okay, so now let's jump into, that shows you sort of a little bit of this
+[00:20:34] get adder info API. Now let's jump into the the full-blown web server part.
+[00:20:42] And as I mentioned, in chronological order, you actually
+[00:20:46] want to set up the server first, but it's easiest to understand the code for the client,
+[00:20:52] because as you see, it has a couple fewer calls to make.
+[00:20:56] So let's go through the client and just imagine that somewhere out there there
+[00:21:00] there's a server that's waiting for us to connect to.
+[00:21:03] So this now doesn't perhaps, when you break it down, maybe this picture looks a little less daunting.
+[00:21:13] We already saw a get adder info is the way I'm going to get an
+[00:21:19] an IP address out of whatever I'm, where my server is. Socket, I mentioned this yesterday, or last time, it's just a local call that's used to allocate some data structures for this particular connection.
+[00:21:34] And then connect is like placing a call. It's an API, it's actually sending over the internet to the server some information saying, hey, I'd like to connect to you.
+[00:21:46] And then once the server,
+[00:21:49] once that connection is accepted, then I can begin my session.
+[00:21:55] So let's look at that.
+[00:21:56] So first of all, I have to go through all this rigum roll with get adder info,
+[00:22:03] but it will look pretty similar to what you've seen before.
+[00:22:07] Except I'm going to give a little more information because I want this to be,
+[00:22:11] I'm filling in a few more details here because I want to specify more features of this connection.
+[00:22:22] So I'm saying that it's a few more details here because I'm filling in a few more details here because I want to specify more features of this connection.
+[00:22:23] it's a TCP connection that's a SOX stream.
+[00:22:27] I'm saying that I'm going to give it a port number in a numeric form.
+[00:22:31] You could also say, as I mentioned, there's certain ports have standard names,
+[00:22:37] HTTP, SSH, and so forth, and you can actually pass in the string representation of those.
+[00:22:44] But I'm using this in a sort of idiosyncratic way here.
+[00:22:50] And then this feature, get adder,
+[00:22:54] is a parameter that's described in the book and they say it's a good idea to use it.
+[00:23:00] And then I'm making a call to my friend get adder info with these hints and it's going to return
+[00:23:06] back this linked list of representing the results of this request.
+[00:23:14] So basically a linked list of IP addresses.
+[00:23:18] And now just like you saw before, I'm going to walk that list with a, except now what I'm going to
+[00:23:25] and do is for each of those say, well, here's a number, let me give that a try.
+[00:23:30] And if that fails, here's another address, let me give that a try. So I'm going to just sequentially
+[00:23:34] try all the different addresses. You saw, for example, four potential addresses for Twitter.
+[00:23:41] I'll walk through all of those. And on each one, I'm going to call for a socket. And the socket
+[00:23:49] is the one that, as I said, it allocates some data structures. I talked about this
+[00:23:57] last time. That's why I'm rushing through it's pretty fast. But you'll notice that the fields
+[00:24:02] that you're filling in are actually all been generated for us by the get adder info call. So
+[00:24:11] whereas you used to have to remember, oh, this is a number, and it should be a short network order and
+[00:24:17] yada-da-da. Pretty much nowadays, you can just say, here, I'm just going to pass you this information
+[00:24:24] that this was returned by a function call.
+[00:24:36] And then, as I mentioned also last time, I know I went through it pretty fast last time, socket
+[00:24:42] actually returns back to you a file descriptor. And you recall a file descriptor is just a small integer.
+[00:24:49] It starts with zero, one, and two, and then it goes up from there. And so I'm going to interface
+[00:24:57] with this network code as if I'm talking through files. But it doesn't,
+[00:25:03] socket doesn't actually do anything as far as the internet goes. There's nothing going, there's not
+[00:25:08] even the, you know, serious effort within the operating system. Nothing goes over the network
+[00:25:14] here. So the real work here is, but it also allocates some, some local data
+[00:25:22] structures. And then what I'll do is I'll attempt to connect to the server. And again, you'll
+[00:25:29] see the various arguments I have to pass to the connect command, I get provided for me out of this call I made to get adder info.
+[00:25:38] And that's either going to work or it's not going to work. Similarly, the socket call is either going to work or not work.
+[00:25:45] It would be very unusual for a call to socket to socket to fail. But connect, for example, will fail if the server is not available or doesn't like you for some reason.
+[00:25:56] And so if that succeeds, I'm going to break out of this loop.
+[00:26:02] I'm going to then free this data structure and return the client, the file descriptor.
+[00:26:12] For the, this particular function, its job is to open a connection to a client and return a file descriptor for it.
+[00:26:20] And this is just what happens if you fall out of the loop, not having made any connections.
+[00:26:31] Okay.
+[00:26:32] So I know this is, I'm marching this fast, and as I said, I know from my own personal experience, I can attest that this stuff just takes time to understand because there's so many different features here.
+[00:26:46] Okay.
+[00:26:47] But that's the idea is we're going to, now on the server side, which as I mentioned, is actually what you do beforehand, because you can't really have a client connect to a server that doesn't exist.
+[00:27:01] It's just a little bit trickier to understand what's going on.
+[00:27:04] But you'll see the first two steps are the same. I need a socket.
+[00:27:09] But then remember, what I want to do is essentially set up a server that's listening on a particular port for clients to request on it.
+[00:27:19] And that's the function of the bind and the listen functions.
+[00:27:23] And then the accept is when I'm saying, okay, the server is ready, I'm ready to accept requests, and it will fire there.
+[00:27:31] fire that up. In particular, the accept will just stop and hang up and wait
+[00:27:39] indefinitely until some connection request comes in. So if the server has no customers,
+[00:27:46] if there are no clients, it will just be waiting potentially forever with the call to accept.
+[00:27:54] Okay. Everything else goes through boom, boom, boom, boom. But that one is where the actual waiting
+[00:28:00] occurs for client connections.
+[00:28:07] Similarly, I should mention the connect
+[00:28:10] will also hang up and wait until the connection is formed,
+[00:28:14] but typically it's built in with a timeout so that it will fail if it takes too long.
+[00:28:19] And there's, you can adjust the parameters on both of these,
+[00:28:22] how long you wait for, whether you wait or not.
+[00:28:24] But I'm talking the typical case.
+[00:28:29] So anyways, again, we'll look a little at those functions then.
+[00:28:35] Okay.
+[00:28:38] So this again, we have to make a call to get adder info.
+[00:28:41] And this time, it's not because I need any IP addresses.
+[00:28:44] I already have an IP address.
+[00:28:46] I'm a local server.
+[00:28:47] I don't actually need to know the IP addresses of my,
+[00:28:51] of the clients.
+[00:28:53] I usually won't know them.
+[00:28:55] But I need to fill in all those nasty little data structures.
+[00:28:59] And so that's what I'm going to use get adder info here for here.
+[00:29:03] So I'm going to say this time, again, I want a TCP connection,
+[00:29:07] a SOX stream.
+[00:29:08] I want it to be a listening for any IP address connection coming in.
+[00:29:21] So it's passive, meaning it's not actively reaching out, it's passively waiting for connection requests.
+[00:29:28] I'll say that I'm going to tell you a port number that I'm going to actually use as my server's port number.
+[00:29:37] And then I'm going to actually use as my server's port number.
+[00:29:40] make a call and this time you see that I'm not giving any information about the host
+[00:29:46] because I am the host, but I'm giving the information of the port number that I'm using for this server.
+[00:29:53] And the other hints that I've just filled in, and then it will return a list P.
+[00:29:59] Yes.
+[00:30:00] Memset is the standard way that you set all the bytes in some number of bytes to a fixed file.
+[00:30:10] to a fixed value.
+[00:30:12] It's the same as if you've used B0 before,
+[00:30:15] or B, it is the way you often would zero out a bunch of bytes.
+[00:30:20] And if you look at the web page and I don't know why,
+[00:30:24] they say, use MEMSET, don't use B0 anymore.
+[00:30:27] So calicoat, so zero it out.
+[00:30:33] But I'm not actually alicking anything.
+[00:30:36] See, the hints is a struct here.
+[00:30:39] And remember, a struct is just a bunch of bite.
+[00:30:44] And so if I make that particular called a mem set, it will set every byte in that structure to zero.
+[00:30:50] And this is sort of the official standard way you're supposed to do that kind of thing.
+[00:30:54] Those are good questions, though.
+[00:30:56] Question.
+[00:30:58] Julie, what are AI passive and AI-Adder config doing?
+[00:31:01] AI passive is that it's a listening connection.
+[00:31:07] It's going to be a listening connection.
+[00:31:09] And AI Adder Config was some other argument.
+[00:31:16] And quite honestly, I don't remember, but you saw I gave it before with the get host name.
+[00:31:23] So I don't remember. It's a somewhat obscure parameter that's not even a required parameter.
+[00:31:32] It's in the book. I'm sorry. Or you could Google it right now.
+[00:31:36] One interesting thing is I didn't say that on this code on either side that it's AFINet.
+[00:31:46] I didn't force this to be IPV4 code. This will work for IPV4 or 6. The exact
+[00:31:52] same code.
+[00:31:53] Okay.
+[00:31:55] So again, list P comes back with a list of stuff.
+[00:31:59] Typically, that list will be of length 1.
+[00:32:02] In fact, I don't know why it would be anything else.
+[00:32:07] But it has the same general look to it.
+[00:32:11] So again, I'm going to make a call to socket
+[00:32:15] to create a file descriptor that I'm going to use.
+[00:32:18] This will be the one that it's list, the server and listens on for connection requests.
+[00:32:23] And then there's another kind of obscure thing you have to do of setting some options on that socket that will get it to free it to free it up more quickly if there's a failure.
+[00:32:41] This is gone, this one I do know, and it's kind of obscure, and it's in the book, so I won't spend a lot of time talking about it.
+[00:32:48] Okay, but now what, here's the real work, is the bind call, is the one that is the one that
+[00:32:54] says, I want this file descriptor to be associated with this information, which in
+[00:33:06] particular specifies the port number. So that's where the binding occurs for this machine. Remember,
+[00:33:12] port numbers are a resource that all the different applications on a single machine are sort of
+[00:33:19] sharing or competing for. And so this is requesting, I want to use the different applications on a single machine are sort of sharing or competing for.
+[00:33:22] And so this is requesting, I want to use this particular port number
+[00:33:27] in setting up a server. And that may fail if the port's already in use, or if you're trying
+[00:33:34] to set up a service on a port that you're not allowed to do. Like you're not allowed to set up
+[00:33:39] a service on port 80 unless you have route access.
+[00:33:50] So, and then again, it passes in the information that was filled in by the information.
+[00:33:56] the call to get adder info. So we're not quite done yet. But we've,
+[00:34:09] if this succeeds then, what we've done is we've bound a port number and a file descriptor
+[00:34:14] together and a socket. But it all that's done is that's again just within the
+[00:34:27] the machine saying, okay, I agree, you, you particular, this particular process gets to be
+[00:34:35] listening on a particular port. But it's not actually
+[00:34:38] listening yet. And I don't know why they split this into two, but they do.
+[00:34:42] And now I actually have to explicitly make a call to listen saying, okay, now I really am ready to receive
+[00:34:49] connection requests. And you can give, as a parameter, a number that says, how many
+[00:34:59] request, connection requests, are you allowed to queue up before they start getting refused?
+[00:35:07] And this is a performance parameter.
+[00:35:09] that if you set it too low, then, unless you have a really fast server,
+[00:35:14] people will get failures in their connection requests.
+[00:35:18] But if it's too big, then you can, you're vulnerable to certain types of sort of denial of service attacks.
+[00:35:28] So, again, a little bit of an obscure feature.
+[00:35:31] But the result of this is, now, I'm returning out of this a file descriptor that the server can use
+[00:35:38] to pick up connection requests.
+[00:35:44] Okay, so let's do a little example of how we might actually do something.
+[00:35:49] And I'm going to use as an example, a rather mundane application,
+[00:35:55] which is an echo server.
+[00:36:00] An echo server is just one that responds back whatever it just received.
+[00:36:06] And the code for it's in the book, on the slides, we're studying.
+[00:36:13] So let me set up this amazing demonstration.
+[00:36:32] So it's called the Echo Server I, I meaning iterative.
+[00:36:36] It can only do one connection request at a time.
+[00:36:39] And I'm going to set it up on my laptop here.
+[00:36:44] And I'll connect to that.
+[00:37:00] So you'll see that I told the server, use port 15 to 13,
+[00:37:04] which is just a random number I picked out as the port number.
+[00:37:08] In general, if you want to do your own stuff,
+[00:37:12] you pick port numbers that are 1,000 or greater,
+[00:37:14] and they're limited to be unsigned 16-bit-inths,
+[00:37:19] so 64, or 65,000 something's the maximum.
+[00:37:24] And as long as, and by the way, if you live in a corporate world,
+[00:37:29] your ports will all be locked down and they will not let you do this,
+[00:37:32] but in the CMU environment has a pretty permissive policy.
+[00:37:37] And actually, I'm just doing this on low
+[00:37:39] host, but you're allowed to, at CMU, open up ports like you want.
+[00:37:47] So anyways, I'm going to run this client and you'll see that the server just said,
+[00:37:56] I've received a connection from the local host, not very exciting, and I've received it from port 55457.
+[00:38:06] So this is the part that got assigned to the client in making the connection.
+[00:38:11] connection. The server is using port 15213. And you recall we talked about last time that a link is defined by the host and port names on either end.
+[00:38:22] And that the client side is usually assigned what they call it ephemeral ports, meaning it's just assigned for this particular session that I'm going to run.
+[00:38:32] And now here's the amazing feature of an echo server is that you can type in stuff and it will come back to you.
+[00:38:40] Because
+[00:38:44] So what's happening is I'm sending those meaningful messages to the server.
+[00:38:51] It's reading them and it's just sending them right back again, and then the client's reading that and printing it on the screen.
+[00:38:58] So that's not, it's sort of the minimum functionality you could imagine.
+[00:39:03] But you can see that the server is telling you, oh, by the way, I just received so many bytes, so many bytes, so many bytes.
+[00:39:10] So you can see that it's actually doing something.
+[00:39:12] And then if I send it.
+[00:39:15] if I send it into file, which is just to control D, the client will exit and the server will
+[00:39:22] drop that connection but it doesn't show you any thing.
+[00:39:29] And if I wanted to, I could start it again.
+[00:39:32] And you see this time it assigned a different ephemeral port to the client.
+[00:39:40] But I can only do one at a time.
+[00:39:42] If I tried to now do another connection, I would try and do it.
+[00:39:48] If I tried to do it, I wouldn't, it would just hang up.
+[00:39:53] The client would hang up.
+[00:39:54] It would not be able to get a connection because the server is only able to handle one client at a time.
+[00:40:01] Okay.
+[00:40:03] So that's the, what the application does, and now let's see how it's implemented.
+[00:40:10] It's pretty simple.
+[00:40:15] The nastiness was those functions we've already seen.
+[00:40:18] So here's the client side of it.
+[00:40:21] It calls that function I went through.
+[00:40:23] called Open the client file descriptor where you gave the name of the host
+[00:40:28] and the name of the port that the server is operating on.
+[00:40:32] So I said here, local host 15213.
+[00:40:36] And I'm going to initialize a buffer that will be used for communication back and forth
+[00:40:43] for this network communication.
+[00:40:46] So now echoing means I, from a client perspective, it will just read in what I've typed.
+[00:40:53] So using GETS or F-GETS to read in what's been typed on the standard input.
+[00:41:00] And as long as that's not null, meaning I don't have an end of file,
+[00:41:06] then I will write it to the client file descriptors.
+[00:41:09] So that's how I actually send it over the network,
+[00:41:11] because I do a write to that socket that file descriptor represents.
+[00:41:19] And then to get something back from the server, its response, I'll do a write to that socket that file descriptor represents.
+[00:41:23] I'll do a read.
+[00:41:27] And Rio, as you call, has embedded within it, what file descriptor that read is using.
+[00:41:39] So I'll say read from that particular file descriptor, fill the results back into this buffer.
+[00:41:46] So I'm using buff both as a sending buffer and a receiving buffer.
+[00:41:51] And then just print that out onto the terminal.
+[00:41:56] And this is, by the way, the new lines.
+[00:41:58] being included in this, not just the, in all of this.
+[00:42:03] And that's how it's working. So that's all that happened. So the main point you see here is
+[00:42:07] that I'm using this socket like a file to both send and receive.
+[00:42:17] The server code is just a shade more nasty than that to support some of those amazing features
+[00:42:23] it has. So in particular, there's a weird struct called a socketer storage that is just a
+[00:42:32] Just, again, part of this generic API that gives you a buffer of some kind that's big enough to store a name of a host is what I'm going to use it for here.
+[00:42:49] And so I'm going to accept a connection.
+[00:42:56] So accept, you recall, you recall is the way it's the way it says, okay, I'm going to wait here.
+[00:43:05] going to wait here until a client contacts this server. So that you make a call
+[00:43:12] to accept and it will just hang until that contact occurs. And then what it will return from you is a new
+[00:43:20] file descriptor that we call the connection file descriptor here, which is different from the listening file
+[00:43:26] descriptor. And the reason is doesn't really show up in this code where I'm doing iteratively.
+[00:43:31] But you can imagine if I had a server and I wanted to be able to maintain a
+[00:43:35] there will be one of those file descriptors that I pick up new requests on.
+[00:43:41] And then all the other ones are the various other clients that I'm communicating with right now.
+[00:43:46] And then what except fills in here into this information,
+[00:43:52] it's a sock adder, struct, is about information about the client,
+[00:43:58] the IP address of the client.
+[00:44:05] And I'll use this call called get name info, which is again at one of these kitchen,
+[00:44:11] features that I'll pass in this client address and it will come back with
+[00:44:22] the domain name of the client.
+[00:44:26] And that's what you saw how it printed out when the connection was formed,
+[00:44:30] where that connection was coming from.
+[00:44:34] So this, all this business here is used to support that feature of being able to
+[00:44:39] print out what's the host number name and what port am I used
+[00:44:44] using. And this thing, by the way, client port is,
+[00:44:50] a client host name and client port are both buffers.
+[00:44:59] Let's see. Yes. Host name and port are both buffers.
+[00:45:06] And I'm passing a pointer to those buffers, and I'm passing their length, max line.
+[00:45:12] And then the call to get name info is filling those in with a string representation
+[00:45:17] representations of the host name and the port.
+[00:45:23] And now it just makes a call to the echo function, which I'll show you momentarily, and then
+[00:45:28] it closes that connection.
+[00:45:32] And then this continues, you see the while one.
+[00:45:35] This is in a loop forever, and you actually have to control C on this program to get it
+[00:45:40] to quit.
+[00:45:42] Okay?
+[00:45:43] So let me just look one more.
+[00:45:45] So this now is the echo function that the server uses,
+[00:45:49] and it's pretty straightforward.
+[00:45:50] In fact, it looks kind of like what you just saw, except it flips around the reading and the writing.
+[00:45:57] It will read some number of bytes over the connection file descriptor, and if that's a non-zero number,
+[00:46:12] then it will echo that back by writing it.
+[00:46:15] If it's a zero, that means it's detected an end of file, and it will just exit from that
+[00:46:21] from that little loop, but remember, echo is within a bigger loop of accepting new connection requests.
+[00:46:27] Okay, but again, just see that it reads as a way of accepting information from the client,
+[00:46:33] and then it writes to send information back to the client.
+[00:46:36] Good?
+[00:46:41] So one interesting feature is if you want to test some programs, you can use a program called Telnet,
+[00:46:48] which it used to be the old-fashioned way you used before SSH.
+[00:46:52] This is how you communicated with other.
+[00:46:53] with other machines, and it's absolutely completely insecure.
+[00:46:58] So don't ever use it to actually, and most places, you can't even make a connection to another machine using telnet.
+[00:47:07] It's amazing how simple life used to be.
+[00:47:12] But for example, if I telnet to myself on that port, it will begin a session and it will in fact look a lot like an echo.
+[00:47:33] like an echo client because because tell net just sends information to the server
+[00:47:40] and the server is designed to echo it back and so it will print the response.
+[00:47:45] And so effectively telnet is behaving like an echo client for me.
+[00:47:50] And I'll demo that because it's useful.
+[00:47:52] I mean, this is a pretty trivial program, but there's actually times you can use telnet.
+[00:47:57] If there's a server somewhere out there and you want to give it a poke to see what's going on as a tool,
+[00:48:02] as a tool you can use telnet.
+[00:48:05] Let's see, you have to escape with a control right bracket quit.
+[00:48:09] Okay.
+[00:48:11] So now let's move on to HTTP.
+[00:48:17] I'll try to get rid of all the animations in this.
+[00:48:25] Okay.
+[00:48:27] So that's sort of the basics of the low level socket programming
+[00:48:31] that you need to create client server applications.
+[00:48:36] So the best example out there of a client server application is the World Wide Web.
+[00:48:40] is the world wide web.
+[00:48:42] And you know the idea. Web servers and your browser is a client.
+[00:48:47] So, but all of that sits on top of, the protocols for that sit on top of the other Internet protocols.
+[00:48:56] So we talked about TCP is sort of sits on top of the lowest level, the packet protocol.
+[00:49:02] And then HTTP sits sits on top of that and uses TCP connections to send up up of that and that and
+[00:49:07] TCP connections to send and receive data over the World Wide Web.
+[00:49:15] And that's all, according to a protocol that was developed starting in the early 90s,
+[00:49:22] and that's what Tim Berners-Lee did initially.
+[00:49:28] And it's gone through a couple of revisions, but the latest one is still dates back to
+[00:49:34] back to 1999, HTTP version, excuse me, 1.1.
+[00:49:40] So just as some terminology, and you've sort of heard this at various different ways,
+[00:49:48] is you can, one of the clever things about HTTP is it lets you sort of set,
+[00:49:54] handles different formats.
+[00:49:56] You can send a JPEG image, you can send a text, and so forth.
+[00:50:03] And those are all encoded in a format called mime, which is actually just a way to take a text and so forth.
+[00:50:08] which is actually just a way to take binary values and convert them into hex formatted strings.
+[00:50:17] And then sort of a standard for how you encoded at one end and how you decode it at one end and how you decode it the other.
+[00:50:28] And so you get to specify when you're sending stuff you specify what type of information it is.
+[00:50:43] And then the other thing you've probably
+[00:50:46] And now we're talking a little bit ancient history, and I'll update it momentarily.
+[00:50:52] But classically, you either use static content, meaning a fixed web page that was written in HTML format
+[00:51:00] and was designed to just give you information that was the same every time you looked at it.
+[00:51:06] Or dynamic content where you will change.
+[00:51:12] So, for example, a server application that's giving you the same,
+[00:51:17] the weather, it's not the same page every time.
+[00:51:20] And so it will format it in dynamic content if you make a request.
+[00:51:25] Nowadays, it's gotten a lot more complicated because of JavaScript and all these other sort
+[00:51:30] of client-side programming languages that actually executes code on your client and
+[00:51:36] communicates back and forth to get results.
+[00:51:39] So I'm a little bit dated here talking about this sort of old-style way of working.
+[00:51:45] But in all cases, what actually is actually
+[00:51:47] comes across the wires are some type of a file.
+[00:51:55] And then you've heard the term URL, meaning universal resource locator,
+[00:52:00] is a combination of a couple things.
+[00:52:02] One is it tells you where is that information,
+[00:52:06] in terms of a domain name, and potentially with a port number.
+[00:52:10] And then also, on that particular host,
+[00:52:14] where within the host is that information to be found, and there's
+[00:52:21] like if you don't give anything at defaults to index.
+[00:52:25] For example, but URL in principle gives you
+[00:52:30] where to locate something on a remote machine.
+[00:52:34] And now we've seen examples of the tricks that DNS plays
+[00:52:39] so that even though you're giving a host name, a domain name,
+[00:52:43] it could be any of a number of different servers,
+[00:52:46] but the concept's still the same.
+[00:52:48] So when I make a request then,
+[00:52:56] when I'm running my browser and I want to see a web page,
+[00:53:00] what it does is it sends an HTTP request out to the server to do something and to return back a web page.
+[00:53:09] And there's a couple of different standard services.
+[00:53:12] The most common, the one that's used 90 some percent of the time is get.
+[00:53:18] Get me a page.
+[00:53:20] And there's other stuff too.
+[00:53:22] And then it will respond back with,
+[00:53:33] what's called the response line.
+[00:53:34] And embedded within that response will be the thing you're asking for,
+[00:53:39] but in front of it all is a header that contains other stuff that is of some range of interest of whether you really care or not.
+[00:53:49] It can also come back with a response that says there's an error code, as you know, the infamous 404 error code.
+[00:54:02] So let me give you a demo of this.
+[00:54:06] just so we're talking a little less abstract.
+[00:54:14] And this is a little tricky to make it work.
+[00:54:17] And I'll use telnet as a way to probe a web server.
+[00:54:29] So I'll make a telnet connection to the computer science department's web server.
+[00:54:36] And now I need to make a get request.
+[00:54:39] This, remember, all it is is is now I'm basically providing the exact bytes
+[00:54:46] that will be seen by the web server.
+[00:54:48] So if I say get slash tilda Bryant test.
+[00:54:56] See if this really works.
+[00:54:59] I'm always surprised when things actually work.
+[00:55:19] So anyways, let's just look at what happened.
+[00:55:24] So at the top is what I typed in.
+[00:55:28] It's getting, and this I'm giving some,
+[00:55:32] the name of a particular web page that I made up just for this purpose.
+[00:55:36] purpose, a fairly simple web page.
+[00:55:40] And I'm telling it I want the response in the HTTP 1.1 format.
+[00:55:46] And then I have to also give a host name explicitly.
+[00:55:50] And the reason for this is a given machine can actually be served multiple hosts.
+[00:55:58] Like if, you know, I want to pay for hosting of some domain name, say to go daddy.
+[00:56:06] dot com.
+[00:56:08] It's serving hundreds or thousands of different domain names.
+[00:56:11] And so it actually used that host information to figure out, oh, which particular web, you know,
+[00:56:17] customer am I supporting here.
+[00:56:19] Okay.
+[00:56:20] And now it came back with its response.
+[00:56:22] And it said that code 200 means that was accepted, which it tells you okay.
+[00:56:28] And now it comes back with this is the header information.
+[00:56:31] It says, here's the date.
+[00:56:33] Here's the server.
+[00:56:35] Here's the data.
+[00:56:36] cookie information, the overall content is exactly 479 bytes, and it's a text
+[00:56:45] text HTML format. And then it will return back the raw HTML that
+[00:56:50] the raw HTML that this web page had, which is what I actually,
+[00:56:58] you know, I typed that I did this by hand, but you can imagine
+[00:57:02] imagine other types of things.
+[00:57:05] And then it's
+[00:57:06] just close the connection.
+[00:57:08] So you can see that this return both the header information
+[00:57:12] and the actual content information as well.
+[00:57:16] And so that's a general idea of what an HTTP transaction looks like.
+[00:57:22] And the slides go through a different version of it,
+[00:57:25] but it's the same general idea.
+[00:57:33] So the text has a really interesting code that I highly
+[00:57:37] recommend you read and study called Tiny,
+[00:57:40] which is the world's smallest functioning web server.
+[00:57:46] And it's really only only a couple of pages of code.
+[00:57:51] It serves, it says some very basic handling of static and dynamic content.
+[00:57:56] It's something you can sit down and read and study.
+[00:58:00] 239 lines of code.
+[00:58:03] Now, it lacks a lot of features.
+[00:58:05] It does a very bad job of handling errors.
+[00:58:08] It doesn't have a lot of things.
+[00:58:09] It doesn't have a lot.
+[00:58:10] of the functionality you'd come to expect in a server.
+[00:58:13] So it's been stripped down to the sort of barest bones
+[00:58:16] to demonstrate the concepts.
+[00:58:19] But it's pretty cool that it works.
+[00:58:21] And I can say this because I didn't write it.
+[00:58:23] So the overall idea then is,
+[00:58:28] it's a server.
+[00:58:29] So it's receiving requests from clients,
+[00:58:32] from browsers, saying,
+[00:58:34] I want this web page,
+[00:58:35] or I want to execute this particular
+[00:58:39] dynamic program.
+[00:58:40] program to get dynamic content. So it comes in with a request, a get request, like you just saw, and it splits that, it picks out the what's called the URI, the argument to the get request.
+[00:58:55] A URI is a universal resource indicator, which is not a complete, potentially a URIs are a superset of URLs.
+[00:59:07] URL has to include the host name and all the information to get the source name.
+[00:59:10] to get from anywhere to anywhere.
+[00:59:13] But a URI can just be a portion of that information.
+[00:59:17] And then it will determine, is this a request for static or dynamic content?
+[00:59:23] I'll show you both of them, hopefully.
+[00:59:26] And if it's a static content, all it has to do is retrieve a file on its own machine,
+[00:59:33] send that back in that format that I just showed you.
+[00:59:36] So let's take a look.
+[00:59:38] So this is sort of the guts of the static
+[00:59:40] server. So what it's done is it's received a request. This is, you know,
+[00:59:48] a helper function of this code, so I'm kind of buried down in the middle. But what it's picked out is
+[00:59:54] the server has received a request for a particular file name from the URI.
+[01:00:03] And it's also done a lookup through an OS call to figure out how big is that file. How many
+[01:00:11] bytes as long as that file.
+[01:00:13] And it's also given the file descriptor that is the
+[01:00:17] the file descriptor for this particular connection.
+[01:00:21] So all it's doing here, you'll notice is it's doing
+[01:00:24] a bunch of sprinters into a buffer.
+[01:00:26] And what it's doing there is it's formatting
+[01:00:29] the header information as a byte
+[01:00:33] just a big long string, including the returns in it.
+[01:00:38] And one of the features which don't ask
+[01:00:41] me why the great wisdom of Tim Berners-Lee did or whoever figured this out.
+[01:00:48] But every line has to finish with both a carriage return and a new line instead of the usual Linux thing of just new lines.
+[01:00:57] So that's what the backslash-r-backslash-and means.
+[01:01:01] But you'll see it's going to respond back to with an okay and some of this kind of information that's not very exciting.
+[01:01:10] But the ones that really
+[01:01:11] matter are the length in bytes that has to be given and the type.
+[01:01:20] Where is he getting the file type? Oh, there's another function. Oh, there's another function. Oh, I remember why.
+[01:01:28] There's another helper function here that, because this supports not just text, but also GIF and JPEG images.
+[01:01:38] So get file type is another function is another function somewhere else that's telling
+[01:01:44] which mime type is this particular file.
+[01:01:50] And so it's putting that together and it's putting that together and it's, and now it writes that out,
+[01:01:58] so it writes the header information out to the client.
+[01:02:08] So it's sending back to the client.
+[01:02:12] And then it's going through a few gyrations here to the file,
+[01:02:18] open it up and then there's a function called M-MAP.
+[01:02:21] Have you guys covered M-Map yet?
+[01:02:24] Yeah.
+[01:02:25] Which is just a tricky way to avoid having to actually read the file into the machine.
+[01:02:29] But basically be able to pass off a pointer directly to
+[01:02:34] or into the, read it through explicit read commands into yet another buffer.
+[01:02:44] It just avoids one step of buffering.
+[01:02:46] So all it does is map then
+[01:02:49] then from the operating system where this particular file is located and then writes that.
+[01:02:57] So now it's sending it off to the client. And so this could be done with a regular read and a
+[01:03:05] a, but this is a little bit more elegant way to handle it.
+[01:03:10] And you'll notice, by the way, that the content length here is the length of the file,
+[01:03:17] and does not include the number of bytes.
+[01:03:19] the number of bytes in the header.
+[01:03:21] So the header comes first.
+[01:03:23] There's no length associated with it that's sent back.
+[01:03:27] But now the only way that the client knows exactly
+[01:03:32] how many bytes that response is going to be
+[01:03:36] is by picking out this number in the header
+[01:03:41] and reading that many bytes from it.
+[01:03:44] We'll see that in a minute.
+[01:03:45] But anyways, this is the way of a file gets sent.
+[01:03:48] So now let's just real quick.
+[01:03:51] quickly look at dynamic content. So the idea of dynamic content is it lets you
+[01:03:55] pass in parameters to a program that then gets executed
+[01:04:01] and the purpose of that, what that program then has to do is compose the web page
+[01:04:06] and send that web page back to you.
+[01:04:09] So I'm going to demo this with a feature built into here.
+[01:04:16] So in particular, you probably can't, you can barely see, I don't have a good way
+[01:04:38] to blow up the thing.
+[01:04:41] But the, you can also see what kind of things I look at.
+[01:04:45] But anyways, if I just say local host, colon 15213, that means
+[01:04:51] port number 15213 on my local machine, which is currently running the tiny web server.
+[01:04:58] And the only web page available for it is this rather stunning figure here.
+[01:05:05] But it shows that it can handle both gift content
+[01:05:08] and text, HTML.
+[01:05:12] But it also supports another interesting feature, which is a program that can add two numbers, called ad.com.
+[01:05:27] It's our idea for a startup company that didn't quite make it.
+[01:05:33] So in particular, the idea of this is it's a CGI program.
+[01:05:40] It's a dynamic content.
+[01:05:42] So I passing two numbers, embedded within the URL, my request, and it comes back with a web page that is beautifully formatted like this one.
+[01:05:54] So you can't see very well maybe, but if you look up there the teeny tiny print at the top,
+[01:06:00] you'll see local host colon 15213, that's the web server, and slash CGI dash bin.
+[01:06:10] That's what this particular server and what this particular server and what most servers do for in
+[01:06:14] interpreting dynamic content.
+[01:06:16] And then a program, it's an executable file called adder.
+[01:06:20] And then the argument string that you embed in this kind of curious way, the question mark,
+[01:06:26] and then use ampersands to separate out the different fields.
+[01:06:30] So that's all pretty standard way of handling dynamic content.
+[01:06:35] And as I said, nowadays, there's a lot fancier ways of doing it, but that's sort of the basic way.
+[01:06:41] And you'll see it still getting used today.
+[01:06:43] So imagine that this time it's a get request, but instead of the adder function,
+[01:06:53] it's some other pearl program that is sitting on the server somewhere called ENV.
+[01:06:59] And we won't worry about what that program does.
+[01:07:01] We'll just show you the idea behind it.
+[01:07:03] So in particular, there's a get request comes in, and it says CGI bin,
+[01:07:08] and then the next argument is interpreted as the name of a file.
+[01:07:15] And what will happen.
+[01:07:16] then is that the server will spawn off a process using our friends fork and
+[01:07:34] exec, which you know so well now from doing the Shell Lab. So, and that program will execute,
+[01:07:45] will execute. And it will, its job then, is to generate a file in HTML format.
+[01:07:57] And then the server will send the result back to the client.
+[01:08:05] So there's a few details we've got to figure out to make this work.
+[01:08:10] One is how will I actually pass arguments?
+[01:08:14] How will ENV.PL know what's being passed to it as arguments?
+[01:08:18] How will ENV.PL get whatever page HTML it creates
+[01:08:24] back to the server so that the server can send it to the client?
+[01:08:28] Those are all the sort of details of the CGI
+[01:08:32] specification.
+[01:08:34] CGI stands for common gateway interface.
+[01:08:45] So you just saw a demo of ed.com.
+[01:08:48] And so let's just look at how this works.
+[01:08:54] So as I mentioned, the way things get passed
+[01:09:00] is within the URL you include the program name
+[01:09:04] and then the question mark is what is like the terminator
+[01:09:08] for the program name.
+[01:09:10] And then all the other arguments with ampersands between them.
+[01:09:14] And you can't have any blanks in here.
+[01:09:16] So they put percent 20s and
+[01:09:18] as you've probably seen various other, those are called escape codes.
+[01:09:23] When you can't use a particular character, how do you encode it in some other way?
+[01:09:27] So the first thing is how does the server then pass the argument to the program that gets executed?
+[01:09:43] Well, it's really weird.
+[01:09:44] The way it does it is by creating an environment variable for your machine.
+[01:09:48] for your machine that's called query string.
+[01:09:53] And so the server defines that environment variable.
+[01:09:58] And then the Java on the CGI side of the script is to then
+[01:10:07] retrieve that environment variable as a way of getting the string.
+[01:10:12] You can already see, hey, wait a minute, what if you were running multiple servers at once?
+[01:10:17] You can see you've got a problem here.
+[01:10:19] But actually, no, environments are specific to particular processes.
+[01:10:23] So this will work.
+[01:10:25] So it's creating for the application program that we'll be able to sort of retrieve from the operating system, essentially, what arguments were passed to the, are being passed to it.
+[01:10:46] And so this is what the code looks like for the dynamic server.
+[01:10:50] Again, it's going to write back some, um, um, um, um, um, um, um, um, um, um, um, and so this is what the code looks like for the dynamic server.
+[01:11:01] information back to the the client.
+[01:11:07] And let's look at this.
+[01:11:13] And now it's going to set up this
+[01:11:16] this CGI query string environment variable
+[01:11:20] and then use our friends dupe and exec
+[01:11:24] basically to redirect the standard output
+[01:11:27] to its client.
+[01:11:33] Oh, I'm sorry.
+[01:11:40] File descriptor is the
+[01:11:43] the client's file descriptor.
+[01:11:45] So it will tell, it's going to,
+[01:11:48] oh, and we're in a fork, I'm sorry.
+[01:11:52] So now we're in the child process.
+[01:11:54] Okay, let me read all the code.
+[01:11:56] And within the child process, it's going to rename
+[01:11:59] its standard output so that it's writing directly to the client
+[01:12:04] and then call exec,
+[01:12:08] which, as you know, is the way you take this program,
+[01:12:12] which is just given by a file name,
+[01:12:14] and fire it up and get it going with that defined environment value.
+[01:12:21] And then this is the parent, we'll just wait until the child completes.
+[01:12:25] Okay. So now we're almost done.
+[01:12:31] So the, now this is what the actual program, the adder program does,
+[01:12:40] the one that the CGI program, the one that's been forked off and exempt.
+[01:12:47] So it creates then the HTML that you want to
+[01:12:54] to send back and here it's pretty mundane.
+[01:12:59] The only actual HTML in here are the P's, meaning paragraph markers.
+[01:13:05] So this is literally generating HTTP,
+[01:13:08] uh, HTML content, and storing them all in a, as a string called content.
+[01:13:17] And now it wants to send that content back.
+[01:13:22] And you saw before that the search
+[01:13:25] I already filled in the top level stuff, but I have to tell what is the type and how many bytes it is.
+[01:13:33] So I'll use Sterland to figure out how many bytes I'm sending back and the content type.
+[01:13:39] And then I will, and I'm print Fing this, which as you recall, I've remapped standard output now as talking directly to the client.
+[01:13:51] And just to be sure it all goes out, I'll flush that out of there at the end.
+[01:13:55] of there at the end. So what's happening here then is that it's the job of the
+[01:14:01] the CGI program to write the HTML and to send it back to the the client.
+[01:14:08] So again, let's just do a real quick demo here. I've got just enough time.
+[01:14:24] So I've got the tiny web server running down at the bottom, and I'm using Telnet to reach it.
+[01:14:53] And so now I want to say, gee, sorry, slash CGB.
+[01:15:08] slash CGI dash bin slash adder.
+[01:15:12] Quest, what numbers do you want to add?
+[01:15:14] 17 and 13?
+[01:15:18] Sorry, you don't get many shots at it, so I like to double check what I'm doing.
+[01:15:28] It worked. Always amazed.
+[01:15:48] So it shouldn't surprise you what comes back because you just saw the code that did it.
+[01:15:53] But what you see then is that this first three lines got generated by the server code that
+[01:16:02] comes back with the okay, information about the server.
+[01:16:06] And then the content length was generated by the CGI program, Adder, and the content type.
+[01:16:13] And then this is the HTML that you saw being generated.
+[01:16:18] So it's actually what people say about this early World Wide Web, and it's gotten a lot more complicated,
+[01:16:27] is the best thing Tim Berners-Lee was to figure out how simple it could be.
+[01:16:31] how simple it could be.
+[01:16:32] Because other people were working on much more exotic ways
+[01:16:36] to get different agents to talk to each other over the Internet.
+[01:16:44] And what Berners Lee figured out is we can just kind of cobble together standard ideas of
+[01:16:49] Sockets interface, have some protocol, pretty straightforward protocol,
+[01:16:55] handle different content type, set up these dynamic things by
+[01:17:01] forking off a process every time, which is extraordinarily inefficient way to do it.
+[01:17:07] Like to add two numbers by forking off a whole process and doing it is totally absurd. But then so is ad.com.
+[01:17:15] But, you know, it's not, in some ways, he took a bunch of ideas that existed and figured out how to put it together.
+[01:17:24] And I'll recognize that the value people would obtain from that. And it took the internet from being something that. And it took the internet from being something that was
+[01:17:31] certainly used by nerdy people to talk to each other and opened it up to all the things that we know of today.
+[01:17:38] So it was a huge step forward.
+[01:17:40] Now, I give them full credit, even if from a technical point of view, it's actually fairly straightforward.
+[01:17:45] Okay, so that will do us for today.

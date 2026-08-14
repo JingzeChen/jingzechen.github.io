@@ -1,0 +1,720 @@
+[00:00:00] All right. Good afternoon, everybody. Welcome. Good to see you. So today we're going to look at an idea called exceptional control flow. That's a very important part of making modern systems. And it exists at all levels of the system, from the lowest level hardware all the way up to software. So the idea is when you turn on a computer, from the very, from the very
+[00:00:36] first time you turn it on, it just does, executes one instruction after another until that you turn it off.
+[00:00:44] Okay? And if each core, if you have multiple cores, then each of those cores are executing instructions one after the other.
+[00:00:51] Now, the, the sequence of instructions is called the control flow. Okay. And the, the actual sequence of instructions that the hardware is executing is called the physical control flow. Now, normally, normally this
+[00:01:08] control flow that executes just one instruction after another just sequentially in memory.
+[00:01:15] And we've, so far, we've seen two, two mechanisms for altering the control flow so that it's not, so that we're not
+[00:01:23] so that we're not executing just the next instruction. So that's branches and jumps and
+[00:01:28] and procedure call and return. Okay. Now, now, branches, jumps, branches, jumps,
+[00:01:37] call and return, those are reacting to changes in program state. So when you do
+[00:01:42] a branch, you check the control, condition codes, and then based on some, the results of that comparison,
+[00:01:49] then you then you do the branch. Okay. But a real system needs to be able to adapt to changes
+[00:01:56] in the system state. So, for example, data arrives from a disk from a disk or a disk, or a network, you
+[00:02:09] user types control C.
+[00:02:12] The program executes an illegal instruction.
+[00:02:14] Okay, all of these represent some change, some kind of change in the system state, and we need
+[00:02:22] some way to react to that.
+[00:02:25] So this, so what we need is we call this exceptional control flow because it's sort of outside
+[00:02:31] of the normal control flow that we see in our programs.
+[00:02:36] Now exceptional control flow, or ECF, exists that all of the normal control flow that we see in our programs.
+[00:02:39] at all levels in the system.
+[00:02:43] From the very lowest level hardware, at the very lowest level, we have what are called
+[00:02:51] exceptions.
+[00:02:52] And these are changes in the control flow in response to some low level system event.
+[00:02:59] So this is, and by event, we mean a change in the state.
+[00:03:05] Now, exceptions are implemented using a combination of hardware and OS software, which we'll
+[00:03:10] see in a minute.
+[00:03:11] But these exceptional control flow exists at higher levels, too.
+[00:03:18] So in the, a process context switch is an example of exceptional control flow.
+[00:03:23] That's also, it's implemented by hardware and the operating system kernel.
+[00:03:29] And so a process context switch, as we'll see later, later today, you're executing, you're executing your code in your current in your current process.
+[00:03:41] And then all of a sudden, the system is executing code from another process.
+[00:03:48] Right? And so your process gets like suspended.
+[00:03:51] And so there's a, so that's a form of exceptional control flow where you're executing statements, instructions within one process.
+[00:04:02] And then all of a sudden you're executing statements, instructions in another process.
+[00:04:06] At a higher level, totally in software, we have the idea of a software,
+[00:04:12] We have the idea of a signal.
+[00:04:14] And this is implemented by operating system software.
+[00:04:17] And we'll learn all about signals next lecture.
+[00:04:20] And then even higher, at an even higher level, you have non-local jumps in C,
+[00:04:25] which are just implemented by the C runtime library.
+[00:04:28] So this allows you, non-local jumps allow you to break the normal call and return patterns.
+[00:04:33] So from one, from within a function,
+[00:04:36] normally you can only return to the function that calls,
+[00:04:40] called you, non-local jumps allow you to, within a function, break that, and
+[00:04:46] return to some other function or some other part of the code. So we'll look at signals in non-local
+[00:04:53] jumps next lecture. Today we're going to look at exceptions and processes. So an exception
+[00:05:02] is a transfer of control to the operating systems kernel, where the kernel is the kernel
+[00:05:09] is the memory resident part of the operating system.
+[00:05:13] So an operating system provides all kinds of programs like to list files, to change directories, to list
+[00:05:23] the current processes. So all of that stuff constitutes the operating system. The kernel
+[00:05:28] is the part of the operating system that's always resident in memory. So an exception
+[00:05:36] is this really low-level transfer of control to the operating system because something
+[00:05:41] happened in the system. So you're executing your code, user code, and then something
+[00:05:49] happens, some event. So by event, we mean there's some change in the system state. In response to that,
+[00:05:57] the exception transfers control from from your user code to code in the kernel, which
+[00:06:05] which is called an exception handler, and then the kernel responds to that change in some way.
+[00:06:10] This is called the exception processing.
+[00:06:16] And then there's three, there's three things that can happen after the kernel handles the exception.
+[00:06:23] It can return and re-execute the current instruction.
+[00:06:28] Okay, and we'll see, this is useful for things like page faults, allows us to implement virtual memory.
+[00:06:35] It could return to the next instruction, which I've shown here, or it could abort.
+[00:06:43] Now, exceptions are implemented by hardware and software.
+[00:06:50] So the actual transfer of control, you know, the change in the program counter or IP, is done by the hardware.
+[00:07:01] But the code that executes as a result of that exception is set up and determined by the operating
+[00:07:09] system kernel.
+[00:07:10] So every type of event has a unique exception number, which serves as a unique exception number, which
+[00:07:16] serves as an index into a jump table called an exception table.
+[00:07:21] And so when when event K happens, then the hardware uses K as an index into this table and
+[00:07:31] gets the address of the exception handler for that, for that, for that exception.
+[00:07:38] Okay. And so every time that event K happens, that handler K is invoked is invoked. Now, there's
+[00:07:47] different kinds of exceptions. We distinguish them as being asynchronous or synchronous.
+[00:07:53] Or asynchronous.
+[00:07:54] Asynchronous exceptions happen as a result of changes in a state that are occurred outside the outside of the processor.
+[00:08:04] So these are called interrupts. And those changes in state are, the processor is notified
+[00:08:12] about those changes in state by setting a pin on the processor.
+[00:08:17] pin called the interrupt pin.
+[00:08:21] So this is the kind of when, say, a disk controller finishes doing a direct memory access and copying data from
+[00:08:30] the disk into memory, it notifies the processor that it's finished that copy by setting the interrupt
+[00:08:38] pin high.
+[00:08:40] Okay.
+[00:08:43] And so after an interrupt happens, the handler returns to the handler returns to the next instruction.
+[00:08:48] So an interrupt, an interrupt,
+[00:08:49] Typically, it's as though you're running your program, you're running your program, and then there's like this little, there's like this little pause while the interrupt handler runs, and then your program just continues to run.
+[00:09:02] Okay, so it's usually sort of done behind the scenes and doesn't, doesn't affect your execution of your program.
+[00:09:12] Now, the most common, a common example of a, or a common example of a interrupt is the timer interrupt is the timer interrupt.
+[00:09:19] So all systems have a built-in timer that goes off every few milliseconds.
+[00:09:25] And when it, when the timer goes off, it sets the interrupt in high, and there's a special exception number for, for timer interrupts.
+[00:09:34] And this is, we need this, in order for the, this allows, we need this to allow the kernel to get control of the system again.
+[00:09:43] Otherwise, a user program could just run forever in an infinite loop and no one, the, the,
+[00:09:49] There'd be no way for the operating system to get control.
+[00:09:52] So every few milliseconds, this timer goes off.
+[00:09:56] That causes an exception into the kernel.
+[00:10:01] And then the kernel can, as we see, the kernel can decide what to do.
+[00:10:06] Maybe schedule a new process or let the current process run.
+[00:10:13] And then an I.O.
+[00:10:14] interrupt from an external device is also a common example.
+[00:10:18] Now the other class of exceptions are synchronous exceptions.
+[00:10:21] And there are three classes of those.
+[00:10:24] One is a one class is called a trap.
+[00:10:29] A trap is a intentional exception. So this is an exception that's caused intentionally by the program.
+[00:10:36] And the most common form of a trap is a system call.
+[00:10:40] So, you know, the operating system kernel provides all kinds of services to a program.
+[00:10:46] But your program doesn't have direct access. Your program can't call functions in the kernel.
+[00:10:52] they can't access data directly in the kernel because that memory is protected and unavailable to user programs.
+[00:10:59] So what the kernel does is it provides an interface that allows programs to make requests to effectively call functions within the kernel and to make requests for various services.
+[00:11:13] And this, this interface is called a system call.
+[00:11:16] Okay, so a program makes a system call.
+[00:11:20] and requests various functions from the kernel.
+[00:11:26] The kernel provides those sort of reacts to that request and then returns control back to the function and then returns control back to the function.
+[00:11:33] They're the calling program.
+[00:11:35] So you can think of a system call as kind of it's a, it looks like a function call, but it's really transferring control into the kernel.
+[00:11:44] Okay, then there's, so traps are intentional.
+[00:11:51] Faults are unintentional, but it's a,
+[00:11:52] but but maybe recoverable.
+[00:11:54] Okay.
+[00:11:55] So things like page faults, which,
+[00:11:59] we'll learn more about these when we'll learn more about these
+[00:12:03] when we study virtual memory, but something like a page fault,
+[00:12:07] it's actually recoverable.
+[00:12:09] It's just the kernel has to, it means that the data,
+[00:12:12] the portion of the address space that your program referenced
+[00:12:15] isn't actually in memory.
+[00:12:17] It needs to be copied from disk where it's stored into memory.
+[00:12:21] and then the instruction that caused the fault is just restarted and then it works that the memory is there and then the instruction is there and then the instruction works properly.
+[00:12:33] But other faults are unintention, unrecoverable, like protection faults.
+[00:12:38] So if you try to access a portion of memory that's not allocated or floating point exceptions,
+[00:12:47] oftentimes those those can be recoverable.
+[00:12:52] So if you can be recoverable.
+[00:12:53] In either case, when there's a fault, it either re-executes the current instruction
+[00:12:58] or abortes.
+[00:13:01] And then there's unintentional and unrecoverable exceptions, which are called aborts.
+[00:13:06] And those always abort.
+[00:13:08] So if you execute an illegal instruction, if there's a problem with your memory and it's corrupted,
+[00:13:14] or if there's some problem with the machine,
+[00:13:18] those create aborts that always, that are unrecoverable.
+[00:13:23] unrecoverable and never returned back to the program. Now, system calls, there's many
+[00:13:32] different kinds of system calls and they all have their own unique number, which is assigned by Linux.
+[00:13:38] So in a, for example, to read a file, there's a system call called read, which is number zero, opening a
+[00:13:49] file, a system call number two, and so on. And so on. And there's a, uh, there's a, uh,
+[00:14:00] There's an instruction called syscall, which actually performs the system call.
+[00:14:07] Now, you usually don't use the system call instruct, the syscall instruction directly in your program.
+[00:14:12] The Linux wraps those in system-level functions, which actually called it for you.
+[00:14:19] But it, it's interesting to see how it actually works.
+[00:14:22] So suppose you want to open a file, you call the system-level function called open,
+[00:14:28] uh, with a file name and some options.
+[00:14:30] say read only, write only.
+[00:14:36] And so the syscall instruction takes the first,
+[00:14:41] the syscall number is in R-A-X, and then other arguments are in RDI, RSI, R-DX, R-D-D-X, R-D-X, R-D-X, R-10,
+[00:14:50] R-10, R8, and R-9.
+[00:14:51] So you can see if we look in the open function, calls the underscore-un-un-Score-LON function,
+[00:14:57] which actually invokes the sys-call.
+[00:14:59] So if you look at that code, you see it moves the 2,
+[00:15:02] which is the syscall number for read into E-A-X, and then it does the syscall.
+[00:15:10] And then the syscall returns its status in R-A-X.
+[00:15:16] If it's a negative number, then that means something, some error occurred.
+[00:15:21] Okay, if it's a positive number, then that means something that no error occurred.
+[00:15:26] So in this case, in the open, it's returning a file descriptor, a small integer called a file descriptor,
+[00:15:32] which then you can use in subsequent calls to read and write.
+[00:15:37] And then you can see the code is checking for this negative return value, and there's a whole series of these compares.
+[00:15:43] So let's look at an example of a fault. So here, suppose we have this program that we're writing into a valid region of memory, but it's not actually stored on, it's not actually in the memory. It needs to be loaded from disk into,
+[00:16:07] to memory. So this is a so called page fault. So this, this instruction, this
+[00:16:14] move L, because this, because the memory at this address isn't available, triggers a page fault.
+[00:16:24] So that creates an exception, a transfer of control, into the page fault handler and the kernel,
+[00:16:31] which copies that page from disk to memory, and then it returns. And when it returns, it returns, it re-executes
+[00:16:40] the move L instruction.
+[00:16:41] So that's kind of cool.
+[00:16:42] So now the memory is available, and now that the move L, this move L instruction when it's re-executed completes.
+[00:16:52] And then we continue.
+[00:16:55] Now another type of fault is an invalid memory reference.
+[00:16:59] So here we have a, we're accessing an element of A, which doesn't exist.
+[00:17:05] And it's an illegal, it's an invalid reference.
+[00:17:08] So in this case, the move L.
+[00:17:10] instruction. It looks like a, it looks like a page fault, but the kernel detects
+[00:17:18] that it's an invalid address, that there isn't anything that can be loaded from disk. This is
+[00:17:22] an invalid region of the virtual address space. So it sends a signal to the, to the process,
+[00:17:32] and then never returns. So the signal that sends is the infamous segmentation, the signal that
+[00:17:41] causes the infamous segmentation fault message to print out.
+[00:17:47] And we'll see, next lecture, we'll see, we'll see, we'll see, we'll see how these signals actually, actually work.
+[00:17:52] Okay, so at the, we've seen, exceptions are very low-level transfers of control
+[00:18:02] that are implemented by both hardware and the operating system software, because the higher level is,
+[00:18:10] another form of exceptional control flow called, and we see,
+[00:18:14] and we see it in the context of a process context switch.
+[00:18:19] So let's look at, and let's look at what a process is.
+[00:18:25] So a process, the idea of a process is one of the most fundamental and important ideas in computer science.
+[00:18:32] And this classical definition is that a process is an instance of a running program.
+[00:18:41] Okay, it's different from a program.
+[00:18:44] A program exists, can exist in many different places.
+[00:18:47] A program exists as text in a C file. It can exist as the dot text
+[00:18:54] section of a binary. It can exist as bytes that have been loaded into memory.
+[00:19:02] A process is an instance of a program that's running, that's in execution. And a process provides two key abstractions.
+[00:19:18] Okay, it's the first abstraction is that it gives, it gives you the illusion that you have exclusive access to the CPU and the registers.
+[00:19:30] Okay, so when you're running, when you're running your program in a process, you never have to worry about any other, any other programs modifying your registers, and, and you can't even tell that there's even other processes running on the system.
+[00:19:46] Right?
+[00:19:47] It looks, except for a.
+[00:19:48] occasional delays, like an instruction that just takes a little longer to run.
+[00:19:52] Except for that, it looks like you have unique, exclusive, exclusive use of the processor and its registers.
+[00:20:01] The other abstraction that it provides is the illusion that you have your own address space.
+[00:20:07] Okay, so you have, and this is provided by a mechanism called virtual memory.
+[00:20:14] So each, each running program has its own code, data, heap,
+[00:20:19] heap, stack, and you never see the code, and you never see the memory that's being used by other processes.
+[00:20:27] Okay, so it looks, for all intents and purposes, a process gives you this illusion that you have access to the,
+[00:20:35] exclusive access to all the, the memory, and the processor.
+[00:20:40] Now, the system runs many of these processes simultaneously, even on a system with a single core,
+[00:20:53] Many of these multiple processes are actually running at the same time, concurrently.
+[00:20:59] And you can see this, if you look at this, here I ran top on my Mac, and you can see it's running
+[00:21:06] a hundred and twenty-three, hundred and twenty-three total processes, five of which are actually running.
+[00:21:14] And each one of these processes has its own unique process ID, this is integer.
+[00:21:24] Now the way, so it looks, it looks like you have unique access.
+[00:21:27] or exclusive access to the system.
+[00:21:31] But in reality, on a, suppose we have a single core, you're actually sharing the system and the operating, the operating system is sort of managing that sharing.
+[00:21:44] So what it does is that we have a process that's running, and it has its own, it has its own address space, and it has its own address space, and it has its own address space.
+[00:21:59] And it has its own registers.
+[00:22:03] And now at some point, either because, at some point, because, at some point an exception occurs, either because
+[00:22:10] because of a timer interrupt or a fault of some kind or a trap, or a fault of some kind, or a trap.
+[00:22:15] At some point, the operating system gets control of the system. And, and in this case,
+[00:22:21] let's say, it decides that it wants to run another process.
+[00:22:24] So it copies the registers, the current, the current register
+[00:22:30] values into memory and saves them.
+[00:22:34] And then it schedules the next process for execution.
+[00:22:38] And it loads the registers that were saved from the last time that
+[00:22:44] process was running.
+[00:22:46] It loads those into the CPU registers.
+[00:22:49] And then it switches the address space to the address
+[00:22:52] space for this process.
+[00:22:55] So this, the address space and the register values are the
+[00:23:00] context.
+[00:23:02] And so the context.
+[00:23:02] switch is what is the change in the address space and the registers.
+[00:23:09] Okay. So then at that point, the process is running. Now, in reality, on modern systems with multiple
+[00:23:18] cores, the operating system will schedule processes on those multiple cores. And then
+[00:23:27] If there's not, if there's not enough cores to handle the processes, then it'll do the context
+[00:23:31] switching just like we showed before.
+[00:23:34] Now, each process represents what we call logical control flow.
+[00:23:43] So if you were to, you know, there's a physical control flow, which, if we just looked at all the PC values,
+[00:23:50] we'd be executing instructions from one process and then all of a sudden we'd be executing from
+[00:23:56] another process.
+[00:23:57] But within a single process, there's a logical control flow, which are all the instructions for that process.
+[00:24:04] Now, we say that two processes run concurrently if they're flow.
+[00:24:08] flows to overlap in time, otherwise they're sequential. So let's look at, let's look
+[00:24:14] at, let's look an example. We have three processes. Process A runs for a while, and then it's
+[00:24:20] interrupted by process B and process B and then it's interrupted by process B and then it
+[00:24:26] then it terminates. Process B interrupts process A and then it runs for a while and then it
+[00:24:32] terminates. Process C, once when process B finishes, when process B finishes, then process C gets to run
+[00:24:39] for a while, then process A runs for a while, and then process C terminates.
+[00:24:44] Okay, so given this definition of concurrency, which of these processes are running concurrently?
+[00:24:55] What about A and B? Yes? Yes? So A and B's flow, B's flow overlaps with A's flow,
+[00:25:11] with A's flow, right? So B finishes, starts and finish, some portion, this portion
+[00:25:29] of B's flow overlaps with A's flow, right? Because B is still running, hasn't finished. Okay,
+[00:25:35] so A and B are concurrent. As, and similarly, C and A overlap, so they're concurrent. But B and C and C are not concurrent, right?
+[00:25:46] B finishes before C starts.
+[00:25:53] Now, this idea of concurrency, it doesn't, this definition of concurrency holds regardless of the
+[00:26:01] number of cores, right?
+[00:26:03] Even if you have one core, this example that I showed you was on one core, but even if you
+[00:26:09] you have multiple cores, as long as the flows overlap in time, they're concurrent.
+[00:26:15] But we can think of these, no matter what, we can think of these as running in parallel
+[00:26:20] with each other, at least from the point of view of these individual processes.
+[00:26:31] Now this notion of a context switch is it's managed by the kernel, and it's important to realize that
+[00:26:41] the kernel's not like a separate process that's running. It always runs in the context of some
+[00:26:45] existing process. And it's just code that's in the upper portion of the address space that gets
+[00:26:55] executed as a result of an exception.
+[00:26:59] So what happens, the way to think about this is that you have this process A that runs
+[00:27:04] and then an exception occurs which transfers control to the kernel.
+[00:27:09] The kernel invokes its scheduler, which decides whether to let A continue to run or to do a
+[00:27:16] context switch and run a new process, another process.
+[00:27:20] So in this example, the schedulers decided to run process B, so it executes code and then sort
+[00:27:29] of changes sort of once it repoints the address space, then it's running in the context
+[00:27:36] of process B and it finishes loading the registers for process B, general purpose registers, and
+[00:27:44] then transfers control to B, and B picks up where it left off.
+[00:27:52] Okay. And then at some point another exception occurs and the kernel decides to transfer control back
+[00:27:58] to process A, which picks up where it left off right here.
+[00:28:01] So whatever instruction, it finishes executing, whatever instruction it was executing at the time of the exception,
+[00:28:10] executes the next instruction here.
+[00:28:17] Now, Linux provides a number of functions that you can, you can call from a user program to manipulate processes.
+[00:28:25] And this, this process, this act of manipulating processes we refer to as process control.
+[00:28:32] Now, all of these functions, most of these functions, or I should say, most of
+[00:28:36] functions call, invoke system, make system calls, but they're, they're
+[00:28:42] wrapped in higher levels, what we call system level functions that are the things you actually call
+[00:28:47] from your user program.
+[00:28:50] Now system level, in Linux system level functions will typically return a minus one if there's
+[00:28:57] an error, and then they'll set a global variable called error no to indicate the reason.
+[00:29:04] So there's a hard and fast rule when you're doing, uh, you're doing, you're
+[00:29:08] when you're invoking system level functions.
+[00:29:12] You must check the return values from those functions.
+[00:29:16] You should, and this, you never, you'll get into, you'll get into huge trouble if you, if you
+[00:29:22] you neglect to check the return values.
+[00:29:24] Okay, so you should never make a system, a system level function call without checking the
+[00:29:30] return value.
+[00:29:31] Um, the, and the only exception, there's some functions of that return void, uh, such
+[00:29:38] which is exit or free. Don't return anything. So the way, the typical way you would
+[00:29:45] do this is, like the fork call, which we use to create processes, returns the process idea
+[00:29:51] of the process idea of the process that it created, which is always positive. If there's an error,
+[00:29:56] it returns minus one. So we check for the return value to be less than zero, and then
+[00:30:01] we, we, we deal with that error somehow. Okay. In this case, we're just printing
+[00:30:07] a message and exiting. Now this gets, although it's essential to do this,
+[00:30:13] it gets sort of from, from my point of view where I'm trying to present code to you, it gets really messy.
+[00:30:23] It takes up a lot of space. Yes. I'm checking that it's less than zero. Oh, yeah,
+[00:30:38] that probably, that should be, normally the convention is to return non-zero. So you're
+[00:30:43] right. That's, it's not a hard and fast rule, but that's, that's a hard and fast rule.
+[00:30:48] typically the convention. So yes, it should be exit one. So what we'll do to simplify this
+[00:30:57] in the code that we present to you and in the code that we present to you and the code that we present to you in the book, we'll define error reporting functions.
+[00:31:04] So Unix style errors where the function returns minus one and then sets error no.
+[00:31:10] We'll, if we get that kind of, if we get that kind of error, we'll print the, we'll print a message and we'll report what that error was.
+[00:31:21] error was before we exit and so then in the code we can replace that the body of that if
+[00:31:29] statement with just a single line okay so that that that makes the code a little tighter
+[00:31:34] but we'll go even further than that and we'll define these wrappers which were pioneered by
+[00:31:41] a great technical writer named W. Richards Stevens and what we do here is we replace each function
+[00:31:50] with an wrapper that has the identical interface as the function, the original function,
+[00:31:58] and it has the first letter uppercase. And then what this wrapper does is it calls, it calls the original
+[00:32:06] function, checks for the errors, and then if there's no error returns what the original function
+[00:32:14] would have returned. So the behavior of this wrapper is identical to the wrapped function.
+[00:32:21] if there's not an error, okay?
+[00:32:23] And if there is an error, then it deals with it somehow and prints a message.
+[00:32:27] And so then this allows us to make our code really compact without violating this
+[00:32:33] hard and fast rule that we have to check for errors.
+[00:32:36] Okay, the simplest function, process control functions, are functions that allow
+[00:32:46] you to get the PID for the current process, which is get Pid, or the processor idea
+[00:32:52] of the parent process that created the current process that created the current
+[00:32:54] process.
+[00:32:55] Okay, so these take no arguments and they return an integer, which is a process ID.
+[00:33:01] Now, Linux provides ways to create and terminate processes, and from a programmer's perspective,
+[00:33:12] we can think of a process as being in one of three states, running.
+[00:33:18] So in this case, the process is actually running and execute instructions, or it can be scheduled.
+[00:33:26] Maybe it's not running, but it can be scheduled.
+[00:33:27] it can be scheduled at a later time.
+[00:33:31] And it's waiting is waiting to be scheduled.
+[00:33:34] It can be stopped, which means that execution is suspended and won't be scheduled until further notice.
+[00:33:43] So we'll see how this works when we study signals in the next lecture.
+[00:33:46] But usually a process is stopped because it receives a certain kind of signal, and then
+[00:33:52] And the process becomes stopped and it won't be executed.
+[00:33:57] It won't be scheduled until you explicitly tell it to be scheduled.
+[00:34:03] Or a process can be terminated, which means it's stopped permanently.
+[00:34:07] Okay, so it'll never be scheduled again. It's done.
+[00:34:12] Now a process can be terminated for one of three reasons.
+[00:34:16] So one, it receives a signal whose default action is to terminate it, or your program returns from the
+[00:34:24] the main routine. If you know the definition for main is int, C main
+[00:34:30] routines always return an int. So you can return from main and that will terminate your
+[00:34:35] eventually, it will terminate the process or you can explicitly call the exit function. The exit
+[00:34:43] function exits the program with an exit status of the argument. So as, so
+[00:34:51] as you pointed out that the convention is, for normal return is to return is to
+[00:34:55] zero and then non-zero.
+[00:34:59] Or you can, another way to do this is just return an integer value from the main routine and
+[00:35:04] that will set the exit status.
+[00:35:08] Now exit is kind of unusual and you'll see this is typical of all these process
+[00:35:13] control functions that they normally functions, you call them once, and then they
+[00:35:18] return once.
+[00:35:20] Okay, but exit, you call once and then it never returns.
+[00:35:23] Okay, so that's so that's a little unusual.
+[00:35:27] Now, a parent process can create a child process by calling the fork function.
+[00:35:36] So fork takes no arguments, and it returns an integer, and it creates a new child process,
+[00:35:49] and then it returns in both the parent and the child.
+[00:35:55] So this is a little hard to wrap your head around at first.
+[00:35:58] It's called once by the parent, but then it returns in both, it creates a new
+[00:36:05] process and then it returns in both the parent and the child.
+[00:36:10] And to the child, it returns zero.
+[00:36:13] To the parent, it returns the child's process ID.
+[00:36:22] The child gets an identical copy of the parent's virtual address space, but separate, right?
+[00:36:28] They're distinct, but immediately after the fork returns, the address space is identical.
+[00:36:38] So that means that all the variables, all the global
+[00:36:41] variables, the stack, the code, everything is identical in the child. It has exact same values
+[00:36:49] as it does in the parent. The child gets identical copies of the parent's open file descriptors.
+[00:36:57] So the child has access to any open files, including like standard in and standard out
+[00:37:03] that the parent had. And the only difference is that the child gets a different process
+[00:37:08] ID than the parent. So Fork is, fork is really.
+[00:37:12] strange because it's called once, but it returns twice, once in the parent
+[00:37:18] and once in the child.
+[00:37:22] So here's an example of this.
+[00:37:26] Here's a, this is an example program that has a, it has a local variable called X on the stack,
+[00:37:33] initialized to one.
+[00:37:37] And then it calls fork, and fork creates the child and returns the, uh, it returns the
+[00:37:46] returns the value to the, uh, it returns a value to the, it returns a value to the parent and the parent and the
+[00:37:48] The only way we can distinguish whether we're executing in the parent or the child is to check that return value.
+[00:37:57] Okay, so here, if the process ID, if PID is zero, then we're executing in the child.
+[00:38:03] And remember the child got exactly the same, has exactly the same memory and code as the parent.
+[00:38:15] So X in the child is, is one.
+[00:38:18] So when we print, we print this message from the child, we increase the child, we increase the
+[00:38:22] X and then print this this message.
+[00:38:26] So the child will print 1 plus 1, 2, and then exit.
+[00:38:31] In the parent, when we check that this process ID, it's going to be non-zero because
+[00:38:38] it's the process ID of the, of the child. So in this case, so the parent won't
+[00:38:44] execute this, the body of this conditional. So the parent will execute this
+[00:38:49] print F, and in the parent we decrement X before we print it, so the parent will decrement
+[00:38:53] So the parent prints out 1 minus 1 is 0.
+[00:38:59] Now, there's no guarantee.
+[00:39:02] We have no guarantee whether the child or the parent execute first.
+[00:39:05] It could, when the fork, when the fork returns,
+[00:39:10] the kernel may decide to schedule the child first, okay,
+[00:39:14] in which case this code in the body of the conditional would run.
+[00:39:19] Or it may, it may decide to run the parent first, okay.
+[00:39:23] And there's no way to predict, and you, it's, it's,
+[00:39:25] is wrong, it's an error to make any assumption like that about what's going to run first,
+[00:39:30] the parent or the child.
+[00:39:33] And you can see that they share the same open files because both the parent and the child print to
+[00:39:39] standard out and it prints on the terminal.
+[00:39:42] Okay.
+[00:39:43] Yes.
+[00:39:44] What if you call fork?
+[00:39:47] What if the question is, what if you call fork multiple times?
+[00:39:49] I'll show you some examples of those.
+[00:39:53] It gets a little hairy.
+[00:39:54] We'll have a, we'll use a model called a process graph to sort of, sort of, uh,
+[00:39:59] understand what happens.
+[00:40:05] Okay, so just like you said, forks are kind of,
+[00:40:09] can be kind of complex to understand, especially if they're nested
+[00:40:13] or you call them multiple times.
+[00:40:15] So we use a tool called the process graph to capture sort of what,
+[00:40:22] what could happen when we call forks, right?
+[00:40:25] We can't, we can't make any assumption about the ordering of different
+[00:40:29] processes, but we can capture the partial ordering of a
+[00:40:33] using this this tool called a process graph.
+[00:40:37] So what we'll do is we'll let each vertex correspond to the execution of a statement,
+[00:40:41] and then an edge is the happens before relation, so A happens before B.
+[00:40:46] And then we'll label edges with current values of variables.
+[00:40:50] If we have a printf vertices, a printf, a vertex that corresponds to a printf, we can label that
+[00:40:56] corresponds to a printf, we can label that with the output.
+[00:40:58] And then every graph starts with a vertex with no in edges.
+[00:41:02] So.
+[00:41:04] So given this graph, then, any topological sort of the graph represents some feasible total ordering of events.
+[00:41:12] And by topological sort, we mean a total ordering of the vertices where all the edges go from left to right.
+[00:41:22] Okay, so let's look at how this would work for our example program.
+[00:41:27] Here we have the parent, initially, x is equal to one.
+[00:41:32] And then the parent calls fork. The fork returns in both the parent,
+[00:41:37] the parent and the child, the child prints, and both the parent and the child print the value
+[00:41:46] of X after incrementing or decrementing, and then they both exit.
+[00:41:51] Okay, so you can think of these as happening. So these happen concurrently, right, which means they can
+[00:41:59] be interleaved in any way. So the topological sort of this graph will tell us a feasible
+[00:42:08] what are feasible interleavings.
+[00:42:12] Okay.
+[00:42:14] So we can, so if we re-label the graph, just to keep it simple, so if we relabel the graph, just to keep it simple.
+[00:42:19] So if we relabel these edges with just single letters, then this total ordering, A, B, E, C, F, D represents, represents, it's a topological sort, and thus a feasible total ordering.
+[00:42:37] So here we have A executing, executing, then B, then E,
+[00:42:42] in the child and then at this point the kernel decides to swap out
+[00:42:50] the, swap out the child and now let the parent run.
+[00:42:56] So the parent picks up and executes C, and then it gets rescheduled, then the child gets
+[00:43:04] scheduled and then the child gets scheduled and executes F, and then the parent runs and finally finishes.
+[00:43:10] Right?
+[00:43:11] So this is, this is very unlikely that it, you'd only
+[00:43:14] one instruction and then have a contact switch, but it's feasible, right?
+[00:43:21] Because it represents, because the total ordering is a topological ordering.
+[00:43:29] On the other hand, this is infeasible because F, here in this total ordering, we're executing F before E,
+[00:43:40] and you can see that this, that just can't happen, right? So the edges on these, the logical
+[00:43:46] flow represented by this child have to occur in this order, first E and
+[00:43:51] then F, right? By the, just because F follows E in the code, right? The compiler's not
+[00:44:00] going to, it's not going to alter those. Okay, so what happens if now, if we have two
+[00:44:09] consecutive forks? Well, let's draw that the process graph will help us understand
+[00:44:17] this. So in the parent, we print L0, and then fork, and that creates a child, and
+[00:44:26] And both, and so the fork returns to this print F in both the parent and the child,
+[00:44:31] both the parent and the child print, L1, and then both parent and child execute a fork.
+[00:44:41] So that creates, that creates another child, that creates two more, now two children.
+[00:44:49] And then, and so that returns to the print F, which says by.
+[00:44:54] So the result of this, of calling fork twice like this, is that it creates four processes.
+[00:44:59] these.
+[00:45:00] Okay.
+[00:45:01] And you can, and if it's confusing, you can always work it out with the process graph like this.
+[00:45:06] Okay, so we can, we can, we can see feasible and infeasible orderings.
+[00:45:12] So this one's feasible, take my word for it.
+[00:45:14] This one is infeasible, and let's see why.
+[00:45:18] So it L0, and there's no way to print by before the first fork, right?
+[00:45:28] So that's infeasible.
+[00:45:30] If we, if we drew out this.
+[00:45:31] process graph we'd have a backward edge.
+[00:45:35] Okay, now what happens if we nest forks in the parent?
+[00:45:42] Okay, I'm not sure why you'd want to do this except maybe to torture 213 students.
+[00:45:47] But, so we can just work this out by drawing the process graph.
+[00:45:54] So here we have the parent, it prints L0, and then it does a fork, so that creates a child.
+[00:46:01] So the child, if fork is not equal to zero, the child, the
+[00:46:11] then we're in the parent, right?
+[00:46:12] So this code executes in the parent.
+[00:46:15] If fork is zero, then we're executing the child,
+[00:46:19] and the child just prints by and then terminate,
+[00:46:24] it eventually terminates.
+[00:46:26] I didn't show it here, but calls exit.
+[00:46:30] The function that called this function calls exit.
+[00:46:34] So the parent, so fork not equal to zero,
+[00:46:39] indicates that this is the parent.
+[00:46:42] So the parent prints L1.
+[00:46:44] And then it does another fork.
+[00:46:47] That fork creates a child.
+[00:46:52] So if fork is not equal to zero, then we're in the parent.
+[00:46:57] So the parent prints L2 and then exits this conditional and prints by.
+[00:47:04] If a fork returns zero, then that means we're executing the child.
+[00:47:09] So we don't execute this code.
+[00:47:11] We jump out of this conditional and then the child just prints by.
+[00:47:16] Okay?
+[00:47:19] And we can, so this, this represents an infeasible output from this program.
+[00:47:30] L0, four, we, so L0 followed by by, that's feasible.
+[00:47:37] And then followed by L1, that's okay.
+[00:47:43] And then the next buy is okay.
+[00:47:44] But it's, it's, it's, it's, we can't have this, we can't have this buy preceding this L2, right?
+[00:47:53] Because L2 will, uh, this print- this print-execute will execute, because,
+[00:47:57] for this printf.
+[00:48:01] And I'll let you work out this one as an exercise.
+[00:48:09] All right.
+[00:48:10] Now when a process terminates, for whatever reason,
+[00:48:15] the system actually keeps it around until it's reaped.
+[00:48:19] And the reason, until it's reaped by its parent.
+[00:48:23] And the reason it does this is that the parent may want to know
+[00:48:26] about the exit status of a child.
+[00:48:28] So if a parent creates a child,
+[00:48:31] it may want to wait for that child to finish and check its exit status.
+[00:48:37] So when any process terminates, the system leaves it, it doesn't remove it entirely from the system.
+[00:48:44] It keeps it a little bit of state associated with that child in the form of the exit status of the child
+[00:48:51] and some other tables, some other OS tables.
+[00:48:57] So because this child, it's terminated, but it's not gone, it's not gone.
+[00:49:01] They're called zombies.
+[00:49:02] So they're sort of half, half living, half dead.
+[00:49:08] And so a process, a zombie remains a zombie until it's, it's reaped by its parent, using a function
+[00:49:17] called weight or weight pit.
+[00:49:20] And as a result of, as a result of doing weight or weight pit, the parent is given the exit status
+[00:49:25] information, and then the kernel deletes the zombie process.
+[00:49:32] Now what if the parent doesn't reap its one of its child zombies?
+[00:49:37] So if any parent, if the parent terminates, then the system arranges for the very first process that existed in the system, called the init process, which has a process idea of one, it arranges for the init process to reap that child.
+[00:49:57] So there's, so orphan, orphan children will always be reaped by the init process.
+[00:50:04] So we only really have to worry about, about reapings.
+[00:50:09] zombies in the case where we have long-running parents like shells or servers.
+[00:50:17] Right? Because in that case, a server may create millions of child processes. Each one of those, each one of those child processes when they terminate becomes zombies and they have state, which takes up room in the kernel.
+[00:50:34] So you can get this, it's a form of memory leak. If you don't, if you don't reap these
+[00:50:40] zombie children that can eventually fill up the memory space and crash the kernel.
+[00:50:49] So for cases where you have long-running programs, then we have to use weight or weight-pid to reap the children.
+[00:50:57] So let's look at an example. First, let's look an example of this zombie phenomenon.
+[00:51:06] So here we have a function, we call fork, and then within the child, we print a message, the process idea of that child, and then we
+[00:51:16] exit the child. Within the parent, we print a message, and then we go into
+[00:51:22] an infinite loop. Okay, so this is a parent that's, that never, never reaps the child that it created.
+[00:51:29] So if we run this program, um, called forks, you can see it prints these two messages.
+[00:51:39] The parent prints a message and the child prints a message. And then, um, and we're running it in the
+[00:51:47] background with this ampersand, okay, because we're going to, otherwise it would,
+[00:51:51] it's, it's, it's still running and we wouldn't be able to inspect it.
+[00:51:57] So after we run this program in the background, then we use PS to print the current processes.
+[00:52:03] And we can see that there's two, we can see here at the parent,
+[00:52:06] which is process ID 6639, and then the child, which is 6640, and then the child,
+[00:52:12] and the, um, the defunct indicates that it's a zombie.
+[00:52:17] Okay.
+[00:52:19] Now if we kill 6639, that's the parent, and then do another PS, you see that the
+[00:52:28] zombies, the child is gone, the child is gone because it's been reaped by the Inuit Process 1.
+[00:52:37] Now what happens if the child doesn't terminate?
+[00:52:39] You might wonder, like, if a parent creates a child, and then the parent, the child never
+[00:52:50] terminates, and the parent terminates, then what would happen?
+[00:52:54] So let's just, let's look an example of this and see.
+[00:52:59] So here we're calling for, we're creating a child.
+[00:53:04] Within the child, we print a message, and then we, the child goes into an infinite loop,
+[00:53:10] and the parent prints a message, and then exits.
+[00:53:16] So if we run this program, you can see that the two messages from parent and child,
+[00:53:24] and then if we look at the, if we look at the processes, we can see
+[00:53:30] we can see that the child is still running.
+[00:53:32] Okay, so the child process is still running, even though the parent has terminated.
+[00:53:44] And now if we kill this child, 6676, and then if we kill it, then we can see that it's gone and it's no longer in the system.
+[00:53:58] Okay, so that child, when we killed it, that terminated it, it had no parents, so the init process reaped it, and it's no longer a zombie.
+[00:54:12] So the function that we used to, um,
+[00:54:16] to synchronize with children and reap them.
+[00:54:20] The simplest one is called wait.
+[00:54:23] And wait, it takes an optional status where you can get the exit status of the,
+[00:54:29] inspect the exit status of the, uh, inspect the exit status of the child.
+[00:54:33] Basically, weight suspends the execution of the process that calls it
+[00:54:39] until one of its children terminates.
+[00:54:42] Okay, and it doesn't specify which one.
+[00:54:44] It just waits until one of the children that it created terminates.
+[00:54:47] that it created terminates.
+[00:54:50] And then if this child status is non-null, then the integer that it returns,
+[00:54:56] or the integer that it points to, this is a pointer, the integer that it points to,
+[00:55:00] will be set to some value that indicated the reason the child terminated and its exit status.
+[00:55:05] And you can, you can check that using these macros, which your textbook describes in more detail.
+[00:55:12] And I'll let you...
+[00:55:14] So let's look at how this works in a simple example.
+[00:55:19] So here.
+[00:55:20] Here we're calling fork and creating a child which prints a message and then exits.
+[00:55:28] The parent prints a message and then it waits for the child to terminate and when the child terminates,
+[00:55:36] it prints a message and indicating that the child terminated and then prints by.
+[00:55:42] So if we were to look at the process graph for this, you would see that we would have the fork creates
+[00:55:49] the parent and the child, both the parent and the child do their printoffs,
+[00:55:56] and then the parent waits, it suspends, until the child terminates, in this case by calling exit.
+[00:56:08] Okay, so what that means is it's infeasible. So you can say hello from the parent.
+[00:56:18] It's infeasible, though, for this child terminated message, CT, CT, to occur before the by,
+[00:56:28] Because the child hasn't yet terminated.
+[00:56:37] So these two messages will never be printed until the child is terminated by calling exit.
+[00:56:45] So is that clear?
+[00:56:50] Yes.
+[00:56:56] So the question is, can you have an output HP?
+[00:56:59] H.P. H.C.
+[00:57:06] C.T.B. Yes. Yes.
+[00:57:10] Yes. Because the parent X prints HP.
+[00:57:14] There's a context switch.
+[00:57:17] switch, the child prints H.C. and then exits. And now the parent will, the weight,
+[00:57:23] will return, and then it prints CT by. Okay, here's, this is a, this is a little more, a little
+[00:57:40] more involved example. So here what we want to do, we're going to create a bunch of children,
+[00:57:44] and then we're going to wait for them all to terminate. And we're going to wait, but
+[00:57:49] we won't be able to wait in any specific order.
+[00:57:52] So here we have a loop 0 through n, and in each loop we're going to, we're going to fork a child and exit with a return status that's going to tell us which child it was.
+[00:58:09] In the parent, so we do this a n times, and then afterward the parent, the parent, inside a similar loop 0 to n times, and then afterward the parent, inside a similar loop, inside a similar loop 0 to n,
+[00:58:27] for a child to terminate. So it'll it'll wait for end children to terminate.
+[00:58:35] Wait returns a, weight returns the process ID, and then a status, and then a status, which is in this child status variable.
+[00:58:52] And so we take that variable now, and we can use this W if exited macro to determine if it terminated
+[00:58:58] terminated normally with an exit by calling exit.
+[00:59:00] And if so, then we can check its exit status using the W exit status macro.
+[00:59:07] Otherwise, if it, if W, if exit, is false, then that means something, something the child terminated for some other reason, not because it called exit.
+[00:59:21] Okay, there's a, we can actually use weight pit, which is similar to wait, but it allows us to wait for a specific process, a specific child, a specific
+[00:59:34] process a specific child with a specific process ID to terminate. And I'll, I'll let
+[00:59:40] you, you, you can, weight pit is really involved, and it's described in detail in your textbook, and so you'll
+[00:59:49] need to look, you'll need to look there for the details of how that works.
+[00:59:55] Now another important, so we've learned how to create new processes. The, but we haven't
+[01:00:03] learned how to, when we call fork, we just create an exact copy of the, the, but we've learned how to create
+[01:00:06] an exact copy of the, the child is just an exact copy of the parent, running the same
+[01:00:12] code, same program, same variables. Okay, to run a different program inside of a process, we use
+[01:00:18] a function called EXEC VE.E. And EXC loads and runs, within the current process, it loads and
+[01:00:30] runs the executable file name, which is its first argument, and file name can be either a binary,
+[01:00:38] or it can be a script, it can be a text file, a so-called script file,
+[01:00:47] that starts whose first line starts with a pound bang and then the path of some interpreter.
+[01:00:57] So for example, if you want to write a shell script, the first line of your shell script is pound
+[01:01:05] bang and then the path name of the bass shell shell.
+[01:01:09] And then that will execute BASH.
+[01:01:12] And then BASH will read in the lines following and interpret them just as though you'd type them in at the command line.
+[01:01:21] So in either case, it executes either an interpreter or it executes a binary with the argument list, ARGV, and a list of environment variables in ENVP.
+[01:01:36] Okay, now by default, by default, the first argument, the first argument,
+[01:01:42] in ARGV is the name of the file that's being executed.
+[01:01:46] So it's this file name.
+[01:01:51] So what that allows you to do is in your code, you can check ARGV zero.
+[01:01:55] If you want to print out the name of the file, the name of the program that's executing,
+[01:01:59] you just print out ARGV zero.
+[01:02:06] Okay, now at EXX overwrites all of the code and the data and the stack.
+[01:02:12] It overwrites the, completely overwrites the virtual address space.
+[01:02:18] So once you call EXC within a process,
+[01:02:23] it blows away the current program.
+[01:02:25] That's it.
+[01:02:26] Okay.
+[01:02:27] However, it retains that it's still the same process.
+[01:02:30] It's just running now a different program.
+[01:02:35] And so it retains the process ID and any open files
+[01:02:39] that you have.
+[01:02:43] So EXEC is really is really mind-blowing
+[01:02:46] because it's called once, but it never returns,
+[01:02:53] except if there's an error.
+[01:02:54] So if this file doesn't exist, for example, then
+[01:02:58] will return minus 1. But otherwise, in normal operation, it never returns.
+[01:03:06] All right, so let's look at the structure of the stack when this new program starts.
+[01:03:10] So after, after the exec VE finishes its work, it creates a new stack,
+[01:03:17] it loads in new code and data, creates a new empty heap, okay, everything's new.
+[01:03:26] And the stack that it creates has the following form.
+[01:03:31] form.
+[01:03:32] Okay, at the bottom, here's the bottom of the stack, and our stack is growing this way.
+[01:03:41] So the first function that executes is a function called LibC underscore start underscore main.
+[01:03:48] So that has a, that has a stack frame.
+[01:03:54] So let's look, this is what I'm showing here is the situation right before the startup code calls
+[01:03:58] main.
+[01:04:01] So there's, there's, there's, the future stack frame for main will be here at the top of this file.
+[01:04:08] following the top of the stack.
+[01:04:10] There's some padding, and then the argument list in ARGV is contained on the stack.
+[01:04:19] So the ARGV is a list of pointers terminated by the null pointer,
+[01:04:24] and each one of these pointers points up into a string that corresponds to an argument.
+[01:04:32] Okay, so when you run a program, you specify the program name, and then arguments separate
+[01:04:40] by spaces.
+[01:04:43] And so these arguments, this ARV,
+[01:04:46] is a list of pointers to those argument strings.
+[01:04:50] And it's pointed to, right, right as Maine is called,
+[01:04:56] it's the second argument to Maine,
+[01:04:59] so it's contained in RSI,
+[01:05:02] the address of this argument list.
+[01:05:05] The number of arguments is contained,
+[01:05:08] is the first argument, ARC, and that's contained
+[01:05:11] contained in ARC.
+[01:05:12] RDI by the X8664 parameter passing convention.
+[01:05:18] Now the environment list is also contained on the stack, and it too consists of a list of a list of pointers,
+[01:05:25] each of which points into an environment string, which is a set of key equal value pairs.
+[01:05:34] And it's pointed to by the global environment variable envirin, and if it's passed in, it's
+[01:05:42] pointed at an EMVP which is contained in RDX which is the always holds
+[01:05:48] the third argument okay so let's look now how how we would use this so we want to
+[01:05:58] within our current program we want to execute the LS command with two arguments dash
+[01:06:04] LT and slash user slash include so what this is saying is list list the files in
+[01:06:12] slash user include show the long form of the listing and
+[01:06:17] sort them in time order from most recently used to least recently used.
+[01:06:23] So the way we do this, if we just called exec VE, it'd blow away our program.
+[01:06:31] So assuming we want to continue to do work after we execute LS, the standard way to do this is to create a child using fork, and then exec, exact, within the child, have the child do the work, and then the child terminates and the parent
+[01:06:51] maybe we'll wait for the child, maybe not, just usually we'll wait for the child.
+[01:06:56] So within the parent, we, we fork a child, we, we, we fork a child, check that it's zero.
+[01:07:06] And so if it's zero, then we're executing, then we're executing, this code executes within the child.
+[01:07:11] So the child does the exec, it, it passes the name of the function, since the name of the function that we want to, the
+[01:07:21] the program that we want to execute is always contained in the first
+[01:07:24] element of ARGV. We call EXC with a parameter of my ARGV zero, and we've set up the
+[01:07:36] argument list in my ARGV, and we've set up the argument list in my ARGV, and we pass the global
+[01:07:41] environment variable environment variable environment. We're just going to use the current list of
+[01:07:46] environment variables that we have in the parent. Okay, and these environment
+[01:07:53] variables are things of the form, user equal dro, current working directory.
+[01:08:02] And so the, the, the, if there's, if this program in my ARGV zero doesn't exist, then
+[01:08:11] exec will return minus one. So we, we check for that, that condition, and then exit. Otherwise, it
+[01:08:19] it never returns, right? It executes LS. LS, the code for LS, this is the name of a binary. This is
+[01:08:28] Slash bin slash LS is a binary file.
+[01:08:31] That binary file gets loaded into memory.
+[01:08:35] That code gets executed and it terminates.
+[01:08:38] Okay, so the child, at this point, after the ex-exec, the child is running
+[01:08:46] the LS code and it's no longer running any of this code.
+[01:08:52] Now this seems, the first time you see this, this combination of fork and
+[01:08:56] exec, it seems a little odd, doesn't it?
+[01:09:00] Why not just have one command that creates a new process and runs and runs a program in that process?
+[01:09:09] Why separate, why separate, why have these two separate fork and execsac?
+[01:09:19] I mean, in fact, Windows does this. Windows has, like, one command that creates a process and
+[01:09:24] executes it.
+[01:09:25] But it turns out that having having a separate function like fork just to create processes is
+[01:09:35] It's actually really useful.
+[01:09:37] I mean, sometimes you just want to create replicas of your current process.
+[01:09:40] For example, let's say you have a server and you want to create a concurrent server.
+[01:09:45] You want to create multiple copies of that server, then you just fork a bunch.
+[01:09:49] You have the main, the parent server can fork a bunch of children.
+[01:09:54] So that's useful, and they're just all running the same code.
+[01:09:57] But what this also allows you to do is that it allows you to execute code in the child before you
+[01:10:05] call exec. So you may want to set some, you may want to set some, you may want to set some,
+[01:10:12] like some signal, this is especially useful when you're dealing with things like signals,
+[01:10:17] if you want to block certain signals or unblock certain signals.
+[01:10:22] You can do it right here in this, this gap between the fork and the exec.
+[01:10:33] Okay, so that's it. So just to summarize what we've talked about today,
+[01:10:39] Exceptions are in response to events that require some kind of non-standard or exceptional,
+[01:10:48] we call exceptional control flow.
+[01:10:51] They can be generated internally in the form of interrupts or internally in the form of traps and faults.
+[01:10:57] So at any point in time, a process has multiple, a system has multiple processes,
+[01:11:03] only one of which can execute on a single core.
+[01:11:06] So the process execution is a single core.
+[01:11:09] process execution is interleaved by the kernel, and each process thinks that it has sort of total control of the processor and its address space.
+[01:11:19] There's only one mechanism to spawn processes, that's fork, and it's called once and returns twice.
+[01:11:28] We can terminate our process by calling exit, which is called once and never returns.
+[01:11:36] We reap and wait for processes using weight or weight pit, and we load and run programs using
+[01:11:42] or one of its one of its variants.
+[01:11:46] And this one is called once and normally never returns.
+[01:11:49] Okay, so that's, that's it for today, and we'll see you.
+[01:11:54] Have a good weekend and we'll see you on Tuesday.

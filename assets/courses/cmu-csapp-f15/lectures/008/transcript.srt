@@ -1,0 +1,3236 @@
+1
+00:00:00,000 --> 00:00:29,720
+Okay, so continuing on with the saga of machine level programming, we're in number four of our series of this, and I think that the total will be five, so we're almost through, and I realize that this is a lot of material for the course. It's essentially a third of the course, if you think about, well, no, not that much, but it's a lot of the course, and part that we consider very central to it.
+
+2
+00:00:29,720 --> 00:00:38,420
+So a lot of this involves, since we're talking about a particular machine, the Intel X86-64 machines,
+
+3
+00:00:38,960 --> 00:00:47,740
+a lot of it's kind of low-level nitty-gritty stuff, but part of what we hope you also are understanding is some of the general principles involved, too.
+
+4
+00:00:48,280 --> 00:00:56,530
+And you'll find if you move from this machine to another machine, sort of learning your first assembly language is your hardest one.
+
+5
+00:00:56,530 --> 00:00:58,670
+Learning successive ones is a lot easier.
+
+6
+00:00:58,670 --> 00:01:04,650
+So today we're going to talk about data representations.
+
+7
+00:01:04,650 --> 00:01:14,200
+So far, all the programs we've looked at have been either just manipulating integers or long integers and pointers.
+
+8
+00:01:14,200 --> 00:01:19,200
+So that's all what we'd call scalar data, data that's not in any aggregated form.
+
+9
+00:01:19,200 --> 00:01:27,200
+Today we'll look at places where data gets collected into, you put together multiple data elements.
+
+10
+00:01:27,200 --> 00:01:30,200
+And in C, there's really two ways to do that. One is with array.
+
+11
+00:01:30,200 --> 00:01:37,200
+with arrays where you can create many copies or many copies of an identical
+
+12
+00:01:37,200 --> 00:01:41,200
+data type. You can have an array of an array of ints, an array of pointers.
+
+13
+00:01:41,200 --> 00:01:50,200
+A second is where you have structs. So you create a small collection of values that can be of different
+
+14
+00:01:50,200 --> 00:01:55,200
+data types, and each one you access by its name or a tag.
+
+15
+00:01:55,200 --> 00:01:59,200
+And it turns out those definitions can be recursive.
+
+16
+00:01:59,200 --> 00:02:06,200
+recursive so you can have arrays of structs and structs with arrays and nest it to an arbitrary degree.
+
+17
+00:02:06,200 --> 00:02:13,200
+And what we'll see is both how it's represented in the machine memory and also then what the code looks
+
+18
+00:02:13,200 --> 00:02:17,200
+like that will manipulate these different data structures.
+
+19
+00:02:17,200 --> 00:02:24,770
+And the main thing to see is that there's no, at the machine code level, there's no notion
+
+20
+00:02:24,770 --> 00:02:36,970
+There's no notion of an array that you'd have at a high level except to think of it as a collection of bytes that you can are in contiguous part of storage.
+
+21
+00:02:36,970 --> 00:02:41,570
+And same with a struct is just allocated as a collection of bytes.
+
+22
+00:02:42,070 --> 00:02:54,430
+And it's the job of the C compiler then to generate the appropriate code to allocate that memory to allocate that memory to get the right value when you refer to some element of a struct or an array.
+
+23
+00:02:54,770 --> 00:03:10,380
+But the good news is this is such a commonplace type of requirement for a programming language that the machine gives you sort of instructions that the machine gives you sort of instructions that you'll see now they make perfect sense.
+
+24
+00:03:10,380 --> 00:03:16,330
+They're exactly designed for this particular class of applications.
+
+25
+00:03:16,330 --> 00:03:21,330
+So we'll talk about a structs and then structures or structs.
+
+26
+00:03:21,330 --> 00:03:26,970
+And I'll also mention we'll do a little bit, well, I'll give you a glimpse of floating point today today too, because it's
+
+27
+00:03:26,970 --> 00:03:31,410
+it's worth knowing how floating point arithmetic is implemented as well on a machine.
+
+28
+00:03:32,380 --> 00:03:35,940
+So the basic idea of array allocation is fairly straightforward.
+
+29
+00:03:36,620 --> 00:03:47,050
+If you have an array with n elements, then that's represented by enough bytes in memory all in one span
+
+30
+00:03:47,050 --> 00:03:53,270
+to hold that much data. So if the underlying data type, say it's an int,
+
+31
+00:03:53,270 --> 00:04:01,990
+or a care is a single byte data type, so to have an array of 12 cares takes 12 bytes.
+
+32
+00:04:02,790 --> 00:04:08,090
+An int takes 4 bytes, so to have an array of 5 ints takes 20 bytes.
+
+33
+00:04:08,750 --> 00:04:13,930
+You get the idea. You just multiply the size of the underlying data type by the number of elements,
+
+34
+00:04:13,930 --> 00:04:16,770
+and that's how big the array has to be in terms of bytes.
+
+35
+00:04:17,870 --> 00:04:23,030
+And we've already seen that, and the care is one byte, and it is 4.
+
+36
+00:04:23,690 --> 00:04:27,690
+A double or a long would be 8 bytes and so would be a pointer.
+
+37
+00:04:27,690 --> 00:04:32,750
+So those are all different amounts of storage.
+
+38
+00:04:32,750 --> 00:04:41,040
+And you see in this diagram, we use the X denotes the starting address of the beginning of this region of memory.
+
+39
+00:04:41,040 --> 00:04:48,070
+And so we can use address computation to compute offsets
+
+40
+00:04:48,070 --> 00:04:53,170
+by adding numbers to x to get the address to x to get the address of particular element.
+
+41
+00:04:53,170 --> 00:04:55,170
+of particular elements of this array.
+
+42
+00:04:55,170 --> 00:04:57,170
+And that's exactly what the code does.
+
+43
+00:04:57,170 --> 00:05:02,670
+So in general, then, if you imagine an array A
+
+44
+00:05:02,670 --> 00:05:06,670
+has some underlying type T, what the elements of the
+
+45
+00:05:06,670 --> 00:05:09,670
+elements of the array are, and some number of elements in that array
+
+46
+00:05:09,670 --> 00:05:15,090
+in the declaration L, then we will,
+
+47
+00:05:15,090 --> 00:05:19,570
+that declaration actually does two things.
+
+48
+00:05:19,570 --> 00:05:24,920
+One is it allocates enough bytes of storage to hold the entire array.
+
+49
+00:05:24,920 --> 00:05:28,920
+And the second, from a programming language perspective,
+
+50
+00:05:28,920 --> 00:05:33,920
+the identifier of the array A, can in some ways be treated like a
+
+51
+00:05:33,920 --> 00:05:36,920
+pointer, that you can do pointer arithmetic off of it.
+
+52
+00:05:36,920 --> 00:05:41,920
+And that's one of the features of C that is, was fairly unique to
+
+53
+00:05:41,920 --> 00:05:45,920
+see when it was created and is still unique to this day,
+
+54
+00:05:45,920 --> 00:05:51,920
+this idea of the sort of interchangeability of pointers and arrays,
+
+55
+00:05:51,920 --> 00:05:53,920
+array identifiers.
+
+56
+00:05:53,920 --> 00:05:54,920
+So, for example,
+
+57
+00:05:54,920 --> 00:06:01,920
+I can use an array notation to say val of four is element four of this array, and it's a five-element array,
+
+58
+00:06:01,920 --> 00:06:04,920
+array, so that would just be this final element.
+
+59
+00:06:04,920 --> 00:06:16,590
+But I can also just refer to Val, and its underlying data type is as an int star, it's a pointer to ints.
+
+60
+00:06:16,590 --> 00:06:18,590
+And its value would be x.
+
+61
+00:06:18,590 --> 00:06:20,590
+It's just a pointer.
+
+62
+00:06:20,590 --> 00:06:24,590
+A pointer is, remember, an address, and it's just the address of the address of the beginning of the array.
+
+63
+00:06:24,590 --> 00:06:33,690
+the array. And I can do pointer arithmetic on Val, which as you know in C, and this is a little
+
+64
+00:06:33,690 --> 00:06:39,690
+confusing, we'll have to, we'll go back and forth because in C when you do pointer arithmetic,
+
+65
+00:06:39,690 --> 00:06:44,690
+like you say, you know, P plus plus for a pointer.
+
+66
+00:06:44,690 --> 00:06:46,690
+Let me just give you an example.
+
+67
+00:06:46,690 --> 00:06:55,700
+So if you had something like care star p as a declaration, and you said p is equal to some string s,
+
+68
+00:06:55,700 --> 00:07:04,620
+string S and then you say P plus plus. So you're incrementing that pointer.
+
+69
+00:07:04,620 --> 00:07:16,300
+In this case, you're incrementing it by one because the underlying data type is a care.
+
+70
+00:07:16,300 --> 00:07:36,820
+But if you said something like int star, I'll call it IP, and I have a different pen, and I
+
+71
+00:07:36,820 --> 00:07:47,190
+said, you know, IP plus, plus, then IP would get IP plus what? Does anyone know?
+
+72
+00:07:49,210 --> 00:07:59,480
+Four, yes. So it's a confusion. And C, this remember, is the same as saying IP plus equals 1.
+
+73
+00:08:01,300 --> 00:08:06,620
+But what you're actually doing is incrementing that the number of the value of P by
+
+74
+00:08:06,620 --> 00:08:12,470
+four, because you want a pointer when you jump from
+
+75
+00:08:12,490 --> 00:08:18,470
+one place to another, you want it to increment by enough bytes to point to the next
+
+76
+00:08:18,470 --> 00:08:26,200
+integer in this case for IP.
+
+77
+00:08:26,200 --> 00:08:38,280
+And so similarly, VAL plus 1 denotes this value, X plus 4, because it's the address of the next integer in
+
+78
+00:08:38,280 --> 00:08:40,900
+the array.
+
+79
+00:08:40,900 --> 00:08:47,900
+the way, the one thing different between an array and a pointer is I can't say val plus plus, right?
+
+80
+00:08:47,900 --> 00:08:55,240
+I can't change the value of val. It's fixed by the declaration. Whereas a pointer, I can increment it,
+
+81
+00:08:55,240 --> 00:09:05,520
+I can change it in various ways. And similarly, ampersand val of 2 says, give me the address of the
+
+82
+00:09:05,520 --> 00:09:12,190
+second element of the array. So that would be at x plus 8. And this is
+
+83
+00:09:12,210 --> 00:09:27,440
+So again, one of the fundamental properties of C that basically in C, if you take a pointer,
+
+84
+00:09:38,620 --> 00:09:51,770
+that's weird, this is an I and not very well written, these are equivalent statements, right?
+
+85
+00:09:51,830 --> 00:09:54,090
+They're just two notations for the same thing.
+
+86
+00:09:54,090 --> 00:10:04,470
+So on the upper part, it says IP plus 2, meaning actually add 8 to IP to IP, and then de-reference
+
+87
+00:10:04,470 --> 00:10:11,750
+that it's the same as finding the second element of array, an imaginary array, where IP
+
+88
+00:10:11,750 --> 00:10:15,210
+indicates the beginning of the array.
+
+89
+00:10:15,210 --> 00:10:20,550
+So that's a very fundamental principle of C that, again, this whole idea of point of arithmetic
+
+90
+00:10:20,550 --> 00:10:22,790
+is fairly unique to C. Question?
+
+91
+00:10:22,790 --> 00:10:26,080
+Pardon?
+
+92
+00:10:26,080 --> 00:10:26,840
+Yes.
+
+93
+00:10:26,840 --> 00:10:35,080
+The compiler will happily let you use negative values for array indices.
+
+94
+00:10:35,080 --> 00:11:08,130
+And it will give you a potentially undefined value, but there's nothing in C that prevents you from giving out of bounds either numbers that are too big for an array or too small for an array. There's no bounds. Yes. So the question is becoming, what about negative indices? And the answer is very simple. Because in other words, in general,
+
+95
+00:11:08,150 --> 00:11:18,160
+general, something like IP plus x, maybe a, can you see this?
+
+96
+00:11:18,160 --> 00:11:47,120
+Should I turn on, kind of bright, is really equivalent to i p plus 4x. So this. So this is the notation, it's really hard to read, isn't it? And the right-hand side is the computation. So you, in C, you write it's really hard to read it's a computation. And the right hand side is the computation, so it's the
+
+97
+00:11:47,120 --> 00:11:54,400
+computation. So you in C, you write it using, you don't have to give scaling factors
+
+98
+00:11:54,400 --> 00:12:02,330
+for your data types, otherwise it would drive you out of your mind. But you, secretly underneath, when the
+
+99
+00:12:02,330 --> 00:12:08,020
+compiler generates the code, and we'll see examples of this, it's scaling everything. So now
+
+100
+00:12:08,020 --> 00:12:13,570
+the question that is being asked is, what if X is a negative number? Well, the rule still applies.
+
+101
+00:12:13,570 --> 00:12:17,390
+It's just that the final result will be less than IP instead of greater
+
+102
+00:12:17,410 --> 00:12:23,620
+than IP. But it's totally valid C. And there's actually times you will use it in
+
+103
+00:12:23,620 --> 00:12:26,200
+this term, I can promise you. Yes, question.
+
+104
+00:12:26,200 --> 00:12:32,200
+Is it a 2 plus IP? And if that is the case, then how does it take...
+
+105
+00:12:32,200 --> 00:12:40,680
+No, you can't write 2 plus IP. Try it. I'm pretty sure you can't do that with point of arithmetic.
+
+106
+00:12:41,920 --> 00:12:45,620
+Try, try, if somebody wants to type in some code and do it. I don't think you can do that.
+
+107
+00:12:46,360 --> 00:12:50,580
+But if you did, it would have to figure it out that, you know, the parser knows the
+
+108
+00:12:50,580 --> 00:12:55,510
+data types of its two arguments. So yeah, you could probably do it. I've never seen this.
+
+109
+00:12:55,930 --> 00:13:00,030
+You could do it, but the compiler would know that one of the arguments is a pointer and therefore
+
+110
+00:13:00,030 --> 00:13:06,400
+scale the other. What you can't do is add two pointers. You can take the difference of two
+
+111
+00:13:06,400 --> 00:13:13,800
+pointers. This is obscure. I'm not even going to tell you about this. Look it up in K&R. But you can do
+
+112
+00:13:13,800 --> 00:13:19,320
+arithmetic, but you can only, for addition, it can only be one pointer and one, and then the other
+
+113
+00:13:19,320 --> 00:13:21,260
+has to be a regular integer value.
+
+114
+00:13:21,380 --> 00:13:23,380
+and it will scale it appropriately.
+
+115
+00:13:23,380 --> 00:13:25,380
+So I believe you can do it.
+
+116
+00:13:25,380 --> 00:13:30,380
+It's just somebody will smack you on the back of the hand if you actually write code that way.
+
+117
+00:13:30,380 --> 00:13:32,890
+But not the compiler.
+
+118
+00:13:32,890 --> 00:13:40,850
+So in particular, you know, you can, if you go beyond the bounds of an array,
+
+119
+00:13:40,850 --> 00:13:45,850
+you'll get whatever is beyond the bounds of that array,
+
+120
+00:13:45,850 --> 00:13:50,850
+and it might be an invalid or it might not even be a valid address and you get a segmentation fault,
+
+121
+00:13:50,850 --> 00:13:52,850
+but more typically you'll get some.
+
+122
+00:13:52,850 --> 00:13:57,300
+some whatever happens to be there.
+
+123
+00:13:57,300 --> 00:14:00,300
+And that's not so bad when you read it, but you can also potentially write it,
+
+124
+00:14:00,300 --> 00:14:03,300
+as we can also potentially write it, as we saw before,
+
+125
+00:14:03,300 --> 00:14:06,620
+and corrupt data that's already in memory.
+
+126
+00:14:06,620 --> 00:14:09,620
+So here's again the same statement I was making before
+
+127
+00:14:09,620 --> 00:14:14,620
+that IP val plus i just get scaled.
+
+128
+00:14:14,620 --> 00:14:24,540
+The value computed would be the starting address plus four times whatever i is.
+
+129
+00:14:24,540 --> 00:14:27,540
+So let's look at, so that's sort of, that's all C.
+
+130
+00:14:27,540 --> 00:14:32,540
+That's all C. Everything I said before is just basic C stuff.
+
+131
+00:14:32,540 --> 00:14:36,540
+Now let's start looking at the actual machine code involved.
+
+132
+00:14:36,540 --> 00:14:46,020
+And so I made up this example here where I declare three arrays each with five ints.
+
+133
+00:14:46,020 --> 00:14:52,020
+And I go through what is considered sort of good form when you're building up data
+
+134
+00:14:52,020 --> 00:14:57,020
+that instead of having arbitrary constant sprinkled through your program,
+
+135
+00:14:57,020 --> 00:14:59,020
+often called magic numbers,
+
+136
+00:14:59,020 --> 00:15:02,020
+that you instead use a pound define,
+
+137
+00:15:02,020 --> 00:15:05,020
+and you give it some meaningful name and some documentation,
+
+138
+00:15:05,020 --> 00:15:09,020
+usually at the top of a file or in a .
+
+139
+00:15:09,020 --> 00:15:12,060
+And then the type def is a very handy way
+
+140
+00:15:12,060 --> 00:15:15,060
+if you're going to create complex data structures,
+
+141
+00:15:15,060 --> 00:15:18,060
+I highly recommend you sort of break that into type defts
+
+142
+00:15:18,060 --> 00:15:22,060
+because the declaration, notation,
+
+143
+00:15:22,060 --> 00:15:25,060
+and C gets fairly obscure fairly quickly.
+
+144
+00:15:25,060 --> 00:15:27,060
+But all this is saying is saying is,
+
+145
+00:15:27,060 --> 00:15:36,060
+The data type I'm going to call a zipdage is defined to be five, an array of five ints.
+
+146
+00:15:36,060 --> 00:15:43,060
+And now whenever I say zipdage something, I'm just popping down, I'm saying this is an array of five inch.
+
+147
+00:15:43,060 --> 00:15:52,260
+And so I created three of them with the appropriate zip codes for the schools represented here.
+
+148
+00:15:52,260 --> 00:15:59,240
+And now I'm just making up for sake of presentation, actual addresses for the
+
+149
+00:15:59,260 --> 00:16:02,160
+In general, you don't have any control over that.
+
+150
+00:16:02,800 --> 00:16:07,020
+And I made it up so that they all happen to be in contiguous part of memory.
+
+151
+00:16:07,320 --> 00:16:10,480
+And again, there's no fundamental reason that should be true.
+
+152
+00:16:10,640 --> 00:16:15,520
+So you can never trust what particular address anything's ever going to be allocated at.
+
+153
+00:16:15,840 --> 00:16:20,940
+But you are certain that each of these blocks will be a contiguous collection of 20 bytes.
+
+154
+00:16:23,500 --> 00:16:30,870
+So here's some example code then to say, I want to retrieve for one of these,
+
+155
+00:16:30,870 --> 00:16:32,870
+I want to retrieve
+
+156
+00:16:32,870 --> 00:16:34,870
+an element
+
+157
+00:16:34,870 --> 00:16:36,900
+whose index is digit.
+
+158
+00:16:36,900 --> 00:16:40,160
+And this gets turned into the following code.
+
+159
+00:16:40,160 --> 00:16:41,160
+So remember,
+
+160
+00:16:41,160 --> 00:16:44,160
+the first argument, which will be a pointer now,
+
+161
+00:16:44,160 --> 00:16:47,250
+will be passed in register RDI.
+
+162
+00:16:47,250 --> 00:16:50,250
+And the second will be an int
+
+163
+00:16:50,250 --> 00:16:52,250
+will be passed in register RSI.
+
+164
+00:16:52,250 --> 00:16:55,600
+And what I want to get out of this is an
+
+165
+00:16:55,600 --> 00:16:58,150
+int. And so you see that it
+
+166
+00:16:58,150 --> 00:17:01,150
+here's where that scaled addressing, this is
+
+167
+00:17:01,150 --> 00:17:13,180
+this is exactly what it was designed for and why they went to the trouble of adding this sort of fancy address modes to x86 because this is such a common thing.
+
+168
+00:17:13,180 --> 00:17:21,180
+So remember what this says is take RDI and add to it what you get by multiplying RSI by 4.
+
+169
+00:17:21,180 --> 00:17:23,240
+So you scale that.
+
+170
+00:17:23,240 --> 00:17:26,240
+And of course that's exactly the computation we want to do.
+
+171
+00:17:26,240 --> 00:17:31,220
+If we compare it to, you know, this is what we're trying to get computer.
+
+172
+00:17:31,240 --> 00:17:40,040
+it's exactly this computation here.
+
+173
+00:17:40,040 --> 00:17:45,200
+And that gives us an address.
+
+174
+00:17:45,200 --> 00:17:47,200
+And then we're reading from that address.
+
+175
+00:17:47,200 --> 00:17:50,680
+And we're going to copy it in E-A-X.
+
+176
+00:17:50,680 --> 00:17:51,680
+Remember this is an int.
+
+177
+00:17:51,680 --> 00:17:53,680
+So it will be in the E-version,
+
+178
+00:17:53,680 --> 00:17:56,680
+the lower 4 bytes of register R-A-X.
+
+179
+00:17:56,680 --> 00:17:58,680
+And that's all the code it takes
+
+180
+00:17:58,680 --> 00:18:00,680
+to implement this particular operation.
+
+181
+00:18:00,680 --> 00:18:01,680
+Yes.
+
+182
+00:18:01,680 --> 00:18:04,680
+So RDI is the base address of the array.
+
+183
+00:18:04,680 --> 00:18:07,860
+Yes.
+
+184
+00:18:07,860 --> 00:18:08,860
+Yes.
+
+185
+00:18:08,860 --> 00:18:10,370
+Yeah.
+
+186
+00:18:10,370 --> 00:18:11,370
+This is a typo.
+
+187
+00:18:11,370 --> 00:18:12,370
+Thank you.
+
+188
+00:18:12,370 --> 00:18:13,600
+Thanks for pointing that out.
+
+189
+00:18:13,600 --> 00:18:14,600
+I'll make a note of that.
+
+190
+00:18:14,600 --> 00:18:15,600
+Right.
+
+191
+00:18:15,600 --> 00:18:18,420
+So this slide is incorrect.
+
+192
+00:18:18,420 --> 00:18:19,420
+And I'll fix that.
+
+193
+00:18:19,420 --> 00:18:20,420
+So this slide is incorrect.
+
+194
+00:18:20,420 --> 00:18:22,740
+And I'll fix that.
+
+195
+00:18:22,740 --> 00:18:25,740
+So this should be RDI plus 4 RSI.
+
+196
+00:18:25,740 --> 00:18:26,900
+Right.
+
+197
+00:18:26,900 --> 00:18:30,050
+Thanks for noting that.
+
+198
+00:18:30,050 --> 00:18:37,520
+Let me make it back here.
+
+199
+00:18:37,520 --> 00:18:41,720
+Okay.
+
+200
+00:18:41,720 --> 00:18:47,560
+And so now let's just look at another,
+
+201
+00:18:47,560 --> 00:18:49,970
+just some code.
+
+202
+00:18:49,970 --> 00:18:52,970
+In particular, what if I wanted to go
+
+203
+00:18:52,970 --> 00:18:57,970
+one of these arrays, and for every element of the array, add one to it.
+
+204
+00:18:57,970 --> 00:19:01,000
+So increment every single element by one.
+
+205
+00:19:01,000 --> 00:19:08,000
+Well, first of all, you can see that we're setting up a loop, and it uses the jump to middle business
+
+206
+00:19:08,000 --> 00:19:12,230
+where the initial part is to jump to the test.
+
+207
+00:19:12,230 --> 00:19:20,230
+And all the testing involves, we're using RAXs for I here, and we're incrementing it and
+
+208
+00:19:20,230 --> 00:19:26,340
+it and comparing it at various places.
+
+209
+00:19:26,340 --> 00:19:32,880
+But here's the line of code that does all the real work.
+
+210
+00:19:32,880 --> 00:19:40,070
+Again, it's taking the ith element, which I is in RAX,
+
+211
+00:19:40,070 --> 00:19:46,070
+scale it by 4, adding it to the base of the array,
+
+212
+00:19:46,070 --> 00:19:48,070
+and that gives us an address.
+
+213
+00:19:48,070 --> 00:19:54,070
+And now, remember, you can have an arithmetic instruction where the second operand
+
+214
+00:19:54,070 --> 00:19:57,070
+The destination is a memory reference.
+
+215
+00:19:57,070 --> 00:20:03,770
+And what this actually requires is to first read the original value from the memory,
+
+216
+00:20:03,770 --> 00:20:08,350
+do the addition, and then store the result back in memory.
+
+217
+00:20:08,350 --> 00:20:17,600
+So this one instruction is exactly doing this plus plus operation on this stored data in the array.
+
+218
+00:20:17,600 --> 00:20:30,980
+By the way, I should mention the whole idea of pointer arithmetic and C was
+
+219
+00:20:30,980 --> 00:20:37,980
+C was really people who had programmed an assembly code for most of their lives thinking about,
+
+220
+00:20:37,980 --> 00:20:40,980
+how could I make this look like a high-level language,
+
+221
+00:20:40,980 --> 00:20:47,980
+but keep all the flexibility, all the tricks I learned to play at assembly code in a programming language.
+
+222
+00:20:47,980 --> 00:20:51,980
+Because it was designed, it was originally designed to implement an operating system,
+
+223
+00:20:51,980 --> 00:20:53,980
+the UNIX operating system.
+
+224
+00:20:53,980 --> 00:20:57,980
+And historically operating systems were written directly in assembly code.
+
+225
+00:20:57,980 --> 00:20:59,980
+And these people,
+
+226
+00:20:59,980 --> 00:21:07,330
+again and Dennis Richie and realize that the way to do this is to sort of build
+
+227
+00:21:07,330 --> 00:21:17,240
+a point arithmetic into a programming language. So anyways, the reason I'm saying this is you see a pretty
+
+228
+00:21:17,240 --> 00:21:24,800
+close correspondence here between instructions in machine code and constructs in a
+
+229
+00:21:24,800 --> 00:21:30,160
+program in the C programming language. And that whole plus plus operator and plus equals
+
+230
+00:21:30,160 --> 00:21:33,960
+is sort of something you see variations of in assembly code.
+
+231
+00:21:33,960 --> 00:21:38,560
+Okay, so that's a sort of single-dimension array.
+
+232
+00:21:38,560 --> 00:21:59,040
+And I'd like to just change things up a little bit by having us look at what the real difference is between arrays and pointers in a programming language in C.
+
+233
+00:21:59,040 --> 00:22:04,270
+And so I have a couple of these examples that I'll be a problem.
+
+234
+00:22:04,290 --> 00:22:07,040
+bring out one by one.
+
+235
+00:22:07,040 --> 00:22:11,320
+But the idea of this is, you see the declaration on the left.
+
+236
+00:22:11,320 --> 00:22:18,150
+There's something called A1 and something called A2, so call those A sub n.
+
+237
+00:22:18,150 --> 00:22:25,520
+And now what I want to know for each of these is, does it compile?
+
+238
+00:22:25,520 --> 00:22:28,260
+Is this a valid statement in C?
+
+239
+00:22:28,260 --> 00:22:31,700
+Second, would this potentially give me a null pointer reference?
+
+240
+00:22:31,700 --> 00:22:35,780
+Because I'm referencing a pointer reference for which
+
+241
+00:22:35,800 --> 00:22:42,890
+the I haven't actually allocated space for that that that pointer is indicating.
+
+242
+00:22:42,890 --> 00:22:50,750
+I haven't initialized the pointer to a valid memory reference. And then finally, if I were to use the
+
+243
+00:22:50,750 --> 00:23:01,630
+size of operator on that particular value with that, including for the case where there's
+
+244
+00:23:01,630 --> 00:23:14,700
+a star in front of it. And part of this is to understand the difference then between
+
+245
+00:23:14,720 --> 00:23:16,720
+an array and a pointer.
+
+246
+00:23:16,720 --> 00:23:19,720
+And the main reason this, the main factor is an array,
+
+247
+00:23:19,720 --> 00:23:22,820
+when you declare an array and see,
+
+248
+00:23:22,820 --> 00:23:26,850
+you're both, you're actually allocating space.
+
+249
+00:23:26,850 --> 00:23:30,010
+Space is being allocated somewhere for it.
+
+250
+00:23:30,010 --> 00:23:34,010
+And you're creating using allowed to now use
+
+251
+00:23:34,010 --> 00:23:38,010
+use the array name in pointer arithmetic.
+
+252
+00:23:38,010 --> 00:23:41,040
+Whereas when you just declare an array, a pointer,
+
+253
+00:23:41,040 --> 00:23:44,040
+a pointer, all you're allocating is the space for the
+
+254
+00:23:44,040 --> 00:23:50,760
+the pointer itself and not for anything that it's, uh, you're pointing to.
+
+255
+00:23:50,760 --> 00:24:02,380
+So, um, just to, you've probably figured out that these both compile, let me get my cheap sheet,
+
+256
+00:24:02,380 --> 00:24:03,790
+Andy.
+
+257
+00:24:03,790 --> 00:24:14,510
+Uh, but what would be the size of A1 here if I ran the size of operator on it?
+
+258
+00:24:14,510 --> 00:24:25,590
+Let's do the easier one.
+
+259
+00:24:25,590 --> 00:24:26,790
+What's the size of A2?
+
+260
+00:24:26,790 --> 00:24:29,660
+Hmm?
+
+261
+00:24:29,660 --> 00:24:32,200
+Eight.
+
+262
+00:24:32,200 --> 00:24:34,180
+Because it's a pointer.
+
+263
+00:24:34,180 --> 00:24:37,380
+What's the size of A1?
+
+264
+00:24:37,380 --> 00:24:41,800
+A1 is an array of three ints.
+
+265
+00:24:41,800 --> 00:24:48,540
+12, right?
+
+266
+00:24:48,540 --> 00:24:51,180
+And those aren't null.
+
+267
+00:24:51,180 --> 00:24:53,390
+Oops.
+
+268
+00:24:53,390 --> 00:25:02,040
+And now if I said star A1 or star A2,
+
+269
+00:25:02,040 --> 00:25:06,000
+those would both compile.
+
+270
+00:25:06,000 --> 00:25:15,060
+Could either of them possibly give you a null
+
+271
+00:25:15,060 --> 00:25:17,060
+de-reference?
+
+272
+00:25:17,060 --> 00:25:25,580
+Yeah.
+
+273
+00:25:25,580 --> 00:25:28,670
+Oh yes, the pointer itself is null, but that
+
+274
+00:25:28,670 --> 00:25:31,660
+I haven't de-referenced it yet.
+
+275
+00:25:31,660 --> 00:25:38,660
+de-referenced it yet. It's a null pointer, but I haven't, it's not a bad, potentially bad reference.
+
+276
+00:25:38,660 --> 00:25:45,660
+Right? It's not a runtime, I won't create a runtime error if I just say A2 in my code, okay?
+
+277
+00:25:45,660 --> 00:25:51,660
+So you're a step ahead of me, basically. So you kind of answered the second question, though.
+
+278
+00:25:51,660 --> 00:25:56,660
+This one could give you a null pointer error if you try to dereference a pointer that hasn't been
+
+279
+00:25:56,660 --> 00:26:00,660
+initialized. It doesn't point to anything. Whereas this one is fine.
+
+280
+00:26:00,660 --> 00:26:02,400
+fine.
+
+281
+00:26:02,400 --> 00:26:07,400
+And now what's the size of A1 of star A1?
+
+282
+00:26:07,400 --> 00:26:09,200
+4.
+
+283
+00:26:09,200 --> 00:26:11,200
+And what about star A2?
+
+284
+00:26:11,200 --> 00:26:14,700
+4. Yeah.
+
+285
+00:26:14,700 --> 00:26:17,410
+Because they're both pointers to ints.
+
+286
+00:26:17,410 --> 00:26:21,410
+So one way to think about that is as a picture.
+
+287
+00:26:21,410 --> 00:26:30,110
+A1 is like we've been showing here.
+
+288
+00:26:30,110 --> 00:26:34,500
+It's an array of 4 ints.
+
+289
+00:26:34,500 --> 00:26:38,500
+And when I declare A1, I'm allocating also the program
+
+290
+00:26:38,500 --> 00:26:44,820
+the program is allocating 12 bytes of storage that's able to hold that.
+
+291
+00:26:44,820 --> 00:26:54,210
+A2, on the other hand, is just a pointer, which I'll show there.
+
+292
+00:26:54,210 --> 00:26:59,210
+And so it's 8 bytes long, but it doesn't point to anything.
+
+293
+00:26:59,210 --> 00:27:03,210
+So that's what I meant that if you tried to say star A2,
+
+294
+00:27:03,210 --> 00:27:08,210
+you'd potentially have a null pointer de-reference there.
+
+295
+00:27:08,210 --> 00:27:11,500
+And so that's why this is 8 and this is 12.
+
+296
+00:27:11,500 --> 00:27:14,230
+So those were the warm-up ones.
+
+297
+00:27:14,230 --> 00:27:16,230
+Let's make it a little more interesting.
+
+298
+00:27:16,230 --> 00:27:32,980
+These aren't in the slides you'll notice, but I'm going to, I'll update the slides to include these later.
+
+299
+00:27:32,980 --> 00:27:39,840
+But I think the point that if you find this confusing,
+
+300
+00:27:39,840 --> 00:27:47,840
+it's a sign that you really, really, really, really need to understand what a pointer is
+
+301
+00:27:47,840 --> 00:27:51,840
+and what an array is and how they're the same and how they're different,
+
+302
+00:27:51,840 --> 00:27:58,940
+different because it's a it's a core part of programming and C that will lead to
+
+303
+00:27:58,940 --> 00:28:06,220
+endless hours of confusion if you don't really have this wired down pretty strongly.
+
+304
+00:28:06,220 --> 00:28:13,380
+So let me just give you a preview of what's so interesting about this is I'm going to give you
+
+305
+00:28:13,380 --> 00:28:18,500
+some numbers and then we're going to have to explain how those numbers come around.
+
+306
+00:28:18,500 --> 00:28:40,890
+So let's try and understand what's happening here. And you see that all of you
+
+307
+00:28:40,910 --> 00:28:44,910
+of these declarations involve some combination of pointer and array.
+
+308
+00:28:44,910 --> 00:28:49,910
+And the question is, is it a pointer to an array? Is it an array? Is it an array of pointers? And
+
+309
+00:28:49,910 --> 00:28:57,360
+it an array of pointers? And the answer to those will depend on the particular syntax.
+
+310
+00:28:57,360 --> 00:29:01,360
+So, of course, the first one is one you've already seen before.
+
+311
+00:29:01,360 --> 00:29:07,450
+And so you know that compiles, and it's not null. And you can dereference it,
+
+312
+00:29:07,450 --> 00:29:12,430
+and it's not null. But if you try to say star star a1,
+
+313
+00:29:12,450 --> 00:29:31,640
+that's not valid. It won't even compile because you're trying to here take the data type of star A.N is int. And then you're trying to take a D-reference and int. So that won't compile and therefore you can't even test it.
+
+314
+00:29:31,640 --> 00:29:43,820
+Okay. The question is for these other three, you can see that somehow one is a, well, let's look at the bottom two first.
+
+315
+00:29:43,820 --> 00:29:54,070
+So the one on the bottom says that, and this is part of, and there's actually a really great section in
+
+316
+00:29:54,070 --> 00:30:00,490
+Kurnagena and Richie that I highly encourage you, which is how to read pointers, how to read declarations, and C.
+
+317
+00:30:00,490 --> 00:30:16,960
+And the basic rule is you start from the inside and you work your way outward. So that declaration of A3 says that, um, with that parentheses,
+
+318
+00:30:16,960 --> 00:30:37,640
+it says A3 is a, what is a 3? A3 is a pointer, that two parentheses around it.
+
+319
+00:30:38,520 --> 00:31:17,050
+What does it point to? It points to an array of three ints. Okay? So we can diagram A3 then to be something like this. A3 is a pointer. Like I said, read it from the inside out.
+
+320
+00:31:17,050 --> 00:31:21,430
+A3 is a pointer.
+
+321
+00:31:21,430 --> 00:31:22,710
+And what does it point to?
+
+322
+00:31:22,710 --> 00:31:25,510
+It points to an array of three elements.
+
+323
+00:31:25,510 --> 00:31:27,150
+And what type of elements are they?
+
+324
+00:31:27,150 --> 00:31:28,510
+They're ints.
+
+325
+00:31:28,510 --> 00:31:33,960
+So you're sort of reading outward and picking up pieces
+
+326
+00:31:33,960 --> 00:31:37,540
+from the right end from the left as you do this.
+
+327
+00:31:37,540 --> 00:31:42,560
+And so when you know that, this all makes sense that these numbers,
+
+328
+00:31:42,560 --> 00:31:46,150
+the size of A3 itself is eight.
+
+329
+00:31:46,150 --> 00:31:49,590
+But since it points to an array of three ints, the size of
+
+330
+00:31:49,610 --> 00:32:02,820
+star A3 is 12. And then star star star A3 would indicate this particular element of the array, and so it sizes four.
+
+331
+00:32:04,610 --> 00:32:11,570
+So these all compile, but which of them could cause a null pointer de-references? Which are the last two?
+
+332
+00:32:17,380 --> 00:32:29,840
+Yes? You can flip the coins? Yes. Well, I'm only looking at it. I'm trying to fill in A3 right now.
+
+333
+00:32:30,640 --> 00:32:31,880
+So A3 is fine.
+
+334
+00:32:32,060 --> 00:32:38,570
+But if I said star A3, could that have a null pointer problem?
+
+335
+00:32:38,570 --> 00:32:39,570
+Yes.
+
+336
+00:32:39,570 --> 00:32:42,520
+Why?
+
+337
+00:32:42,520 --> 00:32:51,810
+Because when I declare A3 here, all I'm declaring is this particular, I'm only allocating enough storage for that pointer.
+
+338
+00:32:51,810 --> 00:32:55,310
+I haven't initialized, I haven't allocated the space for an array.
+
+339
+00:32:55,310 --> 00:32:58,810
+I haven't initialized A3 to actually point to an array.
+
+340
+00:32:58,810 --> 00:32:59,810
+So it could be a null pointer.
+
+341
+00:32:59,810 --> 00:33:04,790
+It could be an arbitrary junk, but the chances of it actually pointing to an array of three
+
+342
+00:33:04,810 --> 00:33:11,370
+is highly unlikely. So this would be potentially bad and therefore double star is
+
+343
+00:33:11,370 --> 00:33:24,550
+doubly bad, right? Okay, so now let's look at A4. So A4, to understand that, you actually
+
+344
+00:33:24,550 --> 00:33:35,380
+have to look at the charts in C, the precedent chart, which if you're like me, your book falls
+
+345
+00:33:35,380 --> 00:33:40,280
+open to that precedence chart, the different operators and what levels they are.
+
+346
+00:33:40,830 --> 00:33:46,830
+And one thing you'll see is that level one of precedents, the highest precedents,
+
+347
+00:33:46,830 --> 00:33:52,760
+the highest precedents include square brackets, and level two includes star.
+
+348
+00:33:52,760 --> 00:33:58,650
+In other words, bracket is higher precedence than star.
+
+349
+00:33:58,650 --> 00:34:06,900
+So this particular statement here, the binding is actually like this.
+
+350
+00:34:06,900 --> 00:34:18,210
+It says that A4 is an array of three elements.
+
+351
+00:34:18,210 --> 00:34:28,880
+and those elements are pointers and they point to ints.
+
+352
+00:34:28,880 --> 00:34:30,240
+All right?
+
+353
+00:34:30,240 --> 00:34:36,240
+So A4 is an array.
+
+354
+00:34:36,240 --> 00:34:41,410
+Can you see this?
+
+355
+00:34:41,410 --> 00:34:50,410
+But each of those elements is pointing to an int somewhere, hopefully.
+
+356
+00:34:50,410 --> 00:34:58,190
+And so let's see if that matches the numbers we got.
+
+357
+00:34:58,190 --> 00:35:02,190
+So the size of A4 is 24 because it's 8 times 3.
+
+358
+00:35:02,190 --> 00:35:05,640
+If I were to de-reference
+
+359
+00:35:05,640 --> 00:35:06,640
+a4,
+
+360
+00:35:07,640 --> 00:35:13,050
+would just indicate this particular pointer.
+
+361
+00:35:13,050 --> 00:35:19,530
+A4 is an array of pointers. So when I get an element out of that array,
+
+362
+00:35:19,530 --> 00:35:22,530
+what I'll get is a pointer.
+
+363
+00:35:22,530 --> 00:35:28,720
+And so A4 is a pointer, and so it's also 8.
+
+364
+00:35:28,720 --> 00:35:35,040
+But if I now do a second D-reference, then I'll get an int,
+
+365
+00:35:35,040 --> 00:35:38,030
+and its size is 4.
+
+366
+00:35:38,030 --> 00:35:39,030
+Okay?
+
+367
+00:35:39,030 --> 00:35:44,380
+These all compile.
+
+368
+00:35:44,380 --> 00:35:59,510
+So could I have a, could star A4 then cause problems as far as a null pointer or a bad pointer?
+
+369
+00:35:59,510 --> 00:36:03,070
+No.
+
+370
+00:36:03,070 --> 00:36:05,800
+That's right.
+
+371
+00:36:05,800 --> 00:36:07,800
+No is the correct answer.
+
+372
+00:36:07,800 --> 00:36:09,800
+No is yes.
+
+373
+00:36:09,800 --> 00:36:14,900
+Because you've A4, this, your, A4 is an array.
+
+374
+00:36:14,900 --> 00:36:20,900
+You've defined an array and arrays get allocated by their declaration.
+
+375
+00:36:20,900 --> 00:36:27,900
+declaration as a three element array. On the other hand, this could give you a no pointer
+
+376
+00:36:27,900 --> 00:36:35,900
+because I haven't initialized the array to anything. So, for example, if it were initialized to all zeros,
+
+377
+00:36:35,900 --> 00:36:46,150
+it would just be three null pointers in that array. So this is sort of the stuff, the nitty gritties of C.
+
+378
+00:36:46,150 --> 00:36:47,150
+Question, yes.
+
+379
+00:36:47,150 --> 00:36:53,960
+How does it know that the size of C12? Like I thought in C, they didn't really know.
+
+380
+00:36:53,960 --> 00:36:56,960
+know how many things are in an array?
+
+381
+00:36:56,960 --> 00:37:07,380
+The question is, how the compiler, what I'm, I'll answer your question by saying, remember, the compiler knows a lot.
+
+382
+00:37:07,380 --> 00:37:14,570
+In particular, I've declared this to be an array of three pointers. I'm compiling for a machine
+
+383
+00:37:14,570 --> 00:37:22,150
+where pointers are 8 bytes, and so the compiler knows it has to be 24 bytes. In general, when you're
+
+384
+00:37:22,150 --> 00:37:24,150
+when you're referencing in C, there's no.
+
+385
+00:37:24,150 --> 00:37:31,150
+There's no, you know, the machine doesn't have built into it any bounds and doesn't do bounds checking for you.
+
+386
+00:37:31,150 --> 00:37:34,150
+But that's in the runtime execution.
+
+387
+00:37:34,150 --> 00:37:44,520
+But in C if I, when I declare something, it's known, it has to be known at that point when the declaration occurs.
+
+388
+00:37:44,520 --> 00:37:46,580
+Question.
+
+389
+00:37:57,060 --> 00:38:02,410
+The empty bracket is just another name for a pointer.
+
+390
+00:38:02,410 --> 00:38:05,410
+It's usually it's just given his arguments.
+
+391
+00:38:05,410 --> 00:38:07,410
+There's some restrictions on it.
+
+392
+00:38:07,410 --> 00:38:10,410
+But when you use the empty bracket notation in C,
+
+393
+00:38:10,410 --> 00:38:12,410
+it's equivalent to doing a pointer declaration.
+
+394
+00:38:12,410 --> 00:38:14,410
+You're not allocating any space for it.
+
+395
+00:38:14,410 --> 00:38:18,500
+By saying A1, bracket 3,
+
+396
+00:38:18,500 --> 00:38:21,500
+we actually mean allocated an array on the stack.
+
+397
+00:38:21,500 --> 00:38:22,500
+Yes.
+
+398
+00:38:22,500 --> 00:38:27,500
+Right here, it really means when you declare an array and you give a number,
+
+399
+00:38:27,500 --> 00:38:31,630
+number the size of that array, it really allocates that memories.
+
+400
+00:38:31,630 --> 00:38:32,630
+Question?
+
+401
+00:38:32,630 --> 00:38:39,120
+Yes. Oh, yes. And that's the final one. You'll notice that the
+
+402
+00:38:39,120 --> 00:38:43,120
+numbers for A2 and A4 are the same, and the reason is it's the same thing.
+
+403
+00:38:43,120 --> 00:38:47,120
+And that, again, goes by the precedence rules of C.
+
+404
+00:38:47,120 --> 00:38:54,670
+That A2 first binds this way and then this way.
+
+405
+00:38:54,670 --> 00:38:59,860
+And so A2 and A4 are synonymous just with less parentheses.
+
+406
+00:38:59,860 --> 00:39:03,800
+Okay.
+
+407
+00:39:03,800 --> 00:39:11,800
+So that was a bit of an aside. But as you can see, I think this is the kind of thing that will really probe your understanding.
+
+408
+00:39:11,800 --> 00:39:19,800
+And now, you know, as a beginning C programmer where you don't have a very good sense of the underlying representation of a program,
+
+409
+00:39:19,800 --> 00:39:21,800
+it's really hard to figure these things out.
+
+410
+00:39:21,800 --> 00:39:27,840
+But now that you know what it means to compile code, and you can actually look at compiled code,
+
+411
+00:39:27,840 --> 00:39:33,120
+that'll sort of clear up a lot of the what's really going on in a program.
+
+412
+00:39:33,120 --> 00:39:39,160
+going on in a program.
+
+413
+00:39:39,160 --> 00:39:45,350
+So let's now generalize from one dimension to two just to make life a little more interesting.
+
+414
+00:39:45,350 --> 00:39:53,350
+And again, it's an important principle to understand that when you want to declare a multidimensional array
+
+415
+00:39:53,350 --> 00:39:59,510
+in C, you do it by a sequence of brackets with the bounds for each one.
+
+416
+00:39:59,510 --> 00:40:13,120
+And the reason for that is actually there, it will see that it has to do with this notation that we just
+
+417
+00:40:13,140 --> 00:40:14,140
+went through.
+
+418
+00:40:14,140 --> 00:40:36,070
+So if I say int, it turns out that I can read it like this,
+
+419
+00:40:36,070 --> 00:40:42,150
+that A is an array of three elements.
+
+420
+00:40:42,150 --> 00:40:48,650
+And each of those elements is in itself an array of five elements
+
+421
+00:40:48,650 --> 00:40:52,090
+of type int.
+
+422
+00:40:52,090 --> 00:40:56,090
+And we'll get back to that, but that kind of explains
+
+423
+00:40:56,090 --> 00:41:00,320
+everything I'm about to tell you in this picture.
+
+424
+00:41:00,320 --> 00:41:05,640
+So in particular, if I declare an array with our,
+
+425
+00:41:05,640 --> 00:41:12,670
+rows and C columns, and you think of it mathematically as sort of a matrix, two-dimensional
+
+426
+00:41:12,670 --> 00:41:13,670
+matrix.
+
+427
+00:41:13,670 --> 00:41:26,210
+What it really does is it says, well, see as on the, yeah, I'm sorry,
+
+428
+00:41:26,210 --> 00:41:30,210
+C actually ends up being the inner element.
+
+429
+00:41:30,210 --> 00:41:35,210
+It says, first of all, I want, row 0 will be an array of
+
+430
+00:41:35,210 --> 00:41:39,370
+c inns, c being the number of columns.
+
+431
+00:41:39,370 --> 00:41:44,530
+being the number of columns, I'll put, so all the elements of row zero will come first,
+
+432
+00:41:44,530 --> 00:41:49,890
+all the elements of row one come next, and so forth, up to the end of it all.
+
+433
+00:41:49,890 --> 00:41:56,090
+And so the total allocation will be four times, the data size times the number of rows, times
+
+434
+00:41:56,090 --> 00:41:59,170
+the number of columns bytes.
+
+435
+00:41:59,170 --> 00:42:04,070
+But the reason why they're in that order, which is called row major order, because if we thought
+
+436
+00:42:04,070 --> 00:42:09,490
+of it in these terms, we go through the first row and then the second row and the third row,
+
+437
+00:42:09,490 --> 00:42:19,290
+precisely because of this notation.
+
+438
+00:42:19,290 --> 00:42:22,450
+Let me write it down like this.
+
+439
+00:42:22,450 --> 00:42:30,430
+Int of A, of, well, let me just use the one I've said.
+
+440
+00:42:30,430 --> 00:42:37,420
+We can write this out as A is an array, a three-element array.
+
+441
+00:42:37,420 --> 00:42:52,370
+It's over half, it's two-thirds.
+
+442
+00:42:52,370 --> 00:42:59,420
+I'll just put it over here.
+
+443
+00:42:59,420 --> 00:43:04,490
+Okay, so A is a three-element array, or general
+
+444
+00:43:04,510 --> 00:43:10,280
+to this picture, A is an array of R elements.
+
+445
+00:43:10,280 --> 00:43:14,280
+This is the first element, this is the second element, and this is the second element, and this is the
+
+446
+00:43:14,280 --> 00:43:16,500
+the earth element.
+
+447
+00:43:16,500 --> 00:43:20,980
+But what kind of elements are those?
+
+448
+00:43:20,980 --> 00:43:30,420
+Each is an array of five inns.
+
+449
+00:43:30,420 --> 00:43:41,950
+So within array A here, each subpart of A then,
+
+450
+00:43:41,950 --> 00:43:47,020
+then, is an array of C-inths.
+
+451
+00:43:47,020 --> 00:43:48,020
+And so,
+
+452
+00:43:48,020 --> 00:43:56,020
+That's why logically the way these are organized actually comes from this declaration notation directly.
+
+453
+00:43:56,020 --> 00:43:59,900
+And we'll see examples of that.
+
+454
+00:43:59,900 --> 00:44:12,730
+So, for example, if I wanted to extend my zip-dage idea and introduce an array of four of these,
+
+455
+00:44:12,730 --> 00:44:15,860
+I could declare it this way.
+
+456
+00:44:15,860 --> 00:44:20,860
+And again, with, remember, I used a type-deaf to declare-def to declare zip-dif to
+
+457
+00:44:20,860 --> 00:44:27,950
+require zipdage. But if I were to expand this out, it would be as if I was declaring this array
+
+458
+00:44:27,950 --> 00:44:34,950
+PGH to be four rows and five columns. But what it really is, is an array of four elements,
+
+459
+00:44:34,950 --> 00:44:42,080
+one, two, three, four, each of which is an array of five inch. Okay?
+
+460
+00:44:42,080 --> 00:44:51,220
+So think of that nesting. When you read declarations, you start from the name of the element and you work your way out
+
+461
+00:44:51,240 --> 00:45:01,840
+through these brackets and stars in some order.
+
+462
+00:45:01,840 --> 00:45:13,340
+And so in particular, if I want to reference a particular element of an array, the general rule is wrong here.
+
+463
+00:45:13,340 --> 00:45:16,970
+Oh.
+
+464
+00:45:16,970 --> 00:45:18,970
+The general rule is this one.
+
+465
+00:45:18,970 --> 00:45:27,080
+If I want to reference, I don't really, oh, I'm building up to it.
+
+466
+00:45:27,080 --> 00:45:40,030
+building up to it. So, yes, this shows that A of I, I can actually just do the reference
+
+467
+00:45:40,030 --> 00:45:45,130
+A of I. I don't have to give A of I of I of don't have to give A of I of J in C. And what that
+
+468
+00:45:45,130 --> 00:45:53,840
+denotes is one of these are rows of the array, and each of which is an array of C elements of type
+
+469
+00:45:53,840 --> 00:46:02,020
+int. And so imagine that in general we have K bytes for data type T, the underlying data type, and
+
+470
+00:46:02,020 --> 00:46:06,020
+this case, t is an int, and k equals 4.
+
+471
+00:46:06,020 --> 00:46:13,220
+But in general, the starting address then of row i would be gotten by multiplying the number
+
+472
+00:46:13,220 --> 00:46:23,880
+of columns by k and then multiplying that by the row number.
+
+473
+00:46:23,880 --> 00:46:31,500
+And now if within the array, I wanted to reference array element A sub iJ, then it comes out
+
+474
+00:46:31,500 --> 00:46:36,060
+to this computation, you take the starting address, you scale, you scale,
+
+475
+00:46:36,080 --> 00:46:41,940
+the row number by the number of columns, add to it which column you want, and then multiply
+
+476
+00:46:41,940 --> 00:46:54,680
+that all by k. So the way to see that is, here, I can get to row number I by just scaling I by the number
+
+477
+00:46:54,680 --> 00:47:02,310
+of columns times the size of the elements are four. And now I want to get to the jth element
+
+478
+00:47:02,310 --> 00:47:06,290
+of this subarray here, and I can do that by scaling
+
+479
+00:47:06,310 --> 00:47:12,110
+by 4 and adding it to the beginning of this subarray.
+
+480
+00:47:12,110 --> 00:47:16,410
+And now I can just collect the fours together and that's what, and pull it outside here, and that's what,
+
+481
+00:47:16,410 --> 00:47:21,040
+and pull it outside here, and that's what gives you this formula.
+
+482
+00:47:21,040 --> 00:47:29,200
+So, again, the point of this is that this all kind of is a natural outcome of the declaration,
+
+483
+00:47:29,200 --> 00:47:37,410
+and it's easy to think of it in terms of this storage model here of how the actual array is
+
+484
+00:47:37,430 --> 00:47:53,290
+allocated. Okay, now a different style of declaration is imagine I create three of these arrays, and now I want to create an array
+
+485
+00:47:53,290 --> 00:48:12,330
+and now I want to create an array that contains, uh, that points to these. So, this is a different data structure you'll observe from before. What univ now is an array of three pointers, and each of
+
+486
+00:48:12,330 --> 00:48:18,330
+those pointers points to one of these arrays of five ints.
+
+487
+00:48:18,330 --> 00:48:30,180
+And their underlying data type, by the way, of these elements are ints, right?
+
+488
+00:48:30,180 --> 00:48:36,370
+And C does not differentiate, and C does not differentiate when you want to declare an array like this,
+
+489
+00:48:36,370 --> 00:48:43,370
+you just say it's an int star. You don't say how many elements are the underlying array is.
+
+490
+00:48:43,370 --> 00:48:48,430
+So you'll see by these picture that these are different data structures.
+
+491
+00:48:48,430 --> 00:48:49,600
+So now let's see by this picture.
+
+492
+00:48:49,620 --> 00:48:55,690
+Let's go through what the assembly code looks like to reference these two data structures.
+
+493
+00:48:55,690 --> 00:49:13,780
+We didn't, did we do the, I'm sorry, I would have thought I'd have assembly code, I think there might be a missing slide here.
+
+494
+00:49:13,780 --> 00:49:50,620
+So we'll, we'll see. So imagine I wanted to reference, I'm sorry, I'm confused why there's no, there should have been, I'm sorry, I'm sorry, this is, I'm pausing here, because I'm sorry.
+
+495
+00:49:50,620 --> 00:50:00,930
+because I think I meant to have a slide that would show what the code looks like, and I don't.
+
+496
+00:50:00,930 --> 00:50:05,080
+Okay, well, we're going to have to wing it.
+
+497
+00:50:05,080 --> 00:50:16,010
+So if you wanted to, an assembly code then, reference an element of an array,
+
+498
+00:50:16,010 --> 00:50:22,550
+like this a multidimensional array, what you'll see is that the code kind of builds up a computation like this.
+
+499
+00:50:22,550 --> 00:50:26,810
+up a computation like this.
+
+500
+00:50:26,810 --> 00:50:36,250
+And typically in the compiled code, the value of k is kind of a constant value, and if it's an array that's
+
+501
+00:50:36,250 --> 00:50:42,870
+a ray that's been declared with a constant bounds, then the value of C will also be a constant.
+
+502
+00:50:42,870 --> 00:50:49,990
+And so a piece of code for this, and that slide got omitted by accident, we'll basically take
+
+503
+00:50:49,990 --> 00:50:56,990
+this value and use some combination of the memory referencing and shifting and LEA instructions
+
+504
+00:50:56,990 --> 00:51:03,920
+and so forth to implement this computation and then do a de-reference.
+
+505
+00:51:03,920 --> 00:51:08,360
+So let's look at this second example and there is code for this and it's actually a little
+
+506
+00:51:08,360 --> 00:51:14,570
+bit more complex because this is going through two levels of interaction. So you'll see
+
+507
+00:51:14,570 --> 00:51:23,490
+that to get the digit, a particular digit from a particular digit from a particular
+
+508
+00:51:23,510 --> 00:51:33,680
+one of these universities then, it has to, first of all, figure out, do this
+
+509
+00:51:33,680 --> 00:51:40,180
+de-reference, is get the a pointer to the beginning of the array, and that's what this
+
+510
+00:51:40,180 --> 00:51:41,500
+reference is doing here.
+
+511
+00:51:48,890 --> 00:51:49,390
+Okay.
+
+512
+00:51:50,110 --> 00:51:55,170
+First of all, what it's doing is shifting RSA I left by 2, which is equivalent to scaling RSA, I left by 2,
+
+513
+00:51:55,170 --> 00:52:06,370
+which is equivalent to scaling the digit by four, because it's getting ready to take that digit parameter and scale it appropriately.
+
+514
+00:52:06,370 --> 00:52:23,590
+And then it takes that number and it adds to it the value I get by reading from the array Univ, but using the
+
+515
+00:52:23,590 --> 00:52:33,310
+array univ, but using the index, scaling it by 8, to actually do a memory reference.
+
+516
+00:52:33,310 --> 00:52:38,290
+So remember this instruction then, and it looks a little weird, is actually doing a memory reference
+
+517
+00:52:38,290 --> 00:52:43,420
+here of this three-element array of called Univ.
+
+518
+00:52:43,420 --> 00:52:49,620
+So it's reading from memory and doing an array index directly here by scaling, and now getting
+
+519
+00:52:49,620 --> 00:52:54,210
+from that a pointer, adding to that the
+
+520
+00:52:54,230 --> 00:52:58,570
+scaled value of the digit.
+
+521
+00:52:58,570 --> 00:53:10,270
+And so that gives me a pointer now, as this notation shows, to the particular element I want, and
+
+522
+00:53:10,270 --> 00:53:12,830
+now it does a dereference.
+
+523
+00:53:12,830 --> 00:53:18,560
+So that's a pretty tough example to get as one of your first array ones.
+
+524
+00:53:18,560 --> 00:53:29,660
+And as I said, I apologize for missing the reference to a particular element of this array
+
+525
+00:53:29,660 --> 00:53:35,960
+this array is done entirely by computing scaling indices in appropriate ways.
+
+526
+00:53:35,960 --> 00:53:46,590
+You want to take the array and scale the first index by 20 because each row is 20 elements,
+
+527
+00:53:46,590 --> 00:53:48,590
+it's 5 times 4.
+
+528
+00:53:48,590 --> 00:53:55,040
+And you want to scale the digit by 4 to select the particular element within that array.
+
+529
+00:53:55,040 --> 00:53:59,640
+And so all this address computation takes place.
+
+530
+00:53:59,640 --> 00:54:03,020
+takes place and then there's a single memory reference.
+
+531
+00:54:03,020 --> 00:54:06,520
+Whereas in this data structure, you have to go through two memory references.
+
+532
+00:54:06,520 --> 00:54:12,880
+First of all, you have to index and get the appropriate element here, but that's just a pointer now.
+
+533
+00:54:12,880 --> 00:54:19,460
+And then we add an offset to that pointer to get the appropriate element in this array here,
+
+534
+00:54:19,460 --> 00:54:21,240
+and then we read from that.
+
+535
+00:54:21,240 --> 00:54:26,880
+So that's what this notation means is that I'm doing two memory references here and just one there.
+
+536
+00:54:26,880 --> 00:54:29,620
+And it's a little bit curious because if you look at the C code,
+
+537
+00:54:29,640 --> 00:54:40,610
+it looks the same, but the underlying data types are different, and so the references are different.
+
+538
+00:54:40,610 --> 00:54:50,610
+Okay, so let's look at some other variations on this code, and these all will sort of fall out from these general principles I've described.
+
+539
+00:54:50,610 --> 00:55:03,160
+So first of all, let's introduce an array, a 2 by 2, I'm sorry, a 16 by 16 array of ints, and it used to be in c, and it used to be in c,
+
+540
+00:55:03,160 --> 00:55:08,860
+see if you wanted to do multidimensional arrays where the size of the array was not fixed at
+
+541
+00:55:08,860 --> 00:55:15,160
+compile time, you basically had to implement your own version of that computation I showed before,
+
+542
+00:55:15,160 --> 00:55:27,480
+of scaling the row number by the number of columns and adding to it J. So this is sort of classic C.
+
+543
+00:55:27,480 --> 00:55:33,460
+I've written it as a macro here, but you can see it's just doing the row major scaling.
+
+544
+00:55:33,480 --> 00:55:36,520
+directly here is address arithmetic.
+
+545
+00:55:36,520 --> 00:55:44,240
+Now since a more recent generation of the C compiler, what they call C99, it was introduced in 1999,
+
+546
+00:55:44,240 --> 00:55:57,210
+it was introduced in 1999, you can actually pass as a parameter and array where the number of elements
+
+547
+00:55:57,210 --> 00:56:01,530
+in the array is also a parameter that's being passed to the function, uh, the function, is also a parameter that's being passed
+
+548
+00:56:01,530 --> 00:56:04,330
+to the function.
+
+549
+00:56:04,330 --> 00:56:07,890
+And similarly, you can declare an array to be of n elements,
+
+550
+00:56:07,890 --> 00:56:12,430
+as long as n has been computed before it hits that array declaration.
+
+551
+00:56:12,430 --> 00:56:14,070
+And the compiler will do the right thing.
+
+552
+00:56:14,070 --> 00:56:16,710
+It will allocate the proper number of elements.
+
+553
+00:56:16,710 --> 00:56:34,910
+Um, so let's just look at some of this code examples, and again, what we'll see
+
+554
+00:56:34,910 --> 00:56:39,990
+here, and this will show you an example of the two direct, the kind of address computation
+
+555
+00:56:39,990 --> 00:56:40,730
+that takes place.
+
+556
+00:56:40,750 --> 00:56:41,950
+with a two-dimensional array.
+
+557
+00:56:43,280 --> 00:56:46,160
+In this case, I know C is 16 and K is 4.
+
+558
+00:56:46,560 --> 00:56:51,960
+So if I want to get element I subj, IJ, out of this array,
+
+559
+00:56:52,980 --> 00:56:58,080
+then first of all, I'll scale I by 64,
+
+560
+00:56:59,880 --> 00:57:06,780
+because that's, and I'll add that to the base, and then I'll scale RDX by 4, that's, and then I'll
+
+561
+00:57:06,780 --> 00:57:12,170
+scale RDX by 4, that's j, and then I'll scale RDX by the base, and then I'll scale RDX by the
+
+562
+00:57:12,190 --> 00:57:16,030
+this array and so and then do a memory reference there.
+
+563
+00:57:16,030 --> 00:57:23,770
+So in the end, I'm doing, you see these two instructions have done the appropriate, the three
+
+564
+00:57:23,770 --> 00:57:29,610
+instructions, have done the appropriate scaling of I and J, added them to the beginning address
+
+565
+00:57:29,610 --> 00:57:35,840
+of A and done the computation.
+
+566
+00:57:35,840 --> 00:57:45,290
+On the other hand, if it's a, one, the third example I showed where N is a parameter that's passed to the function,
+
+567
+00:57:45,290 --> 00:57:50,790
+So it's not known at compile time how big a scaling factor to use.
+
+568
+00:57:50,790 --> 00:57:57,950
+You'll see that it has to use a multiply instruction to do that, which is a relatively expensive instruction
+
+569
+00:57:57,950 --> 00:58:00,650
+in terms of performance.
+
+570
+00:58:00,650 --> 00:58:04,170
+And then once it has that, that's just n times i.
+
+571
+00:58:04,170 --> 00:58:11,350
+And then it uses various combinations of LEAs and the scaling notation from before to
+
+572
+00:58:11,350 --> 00:58:15,270
+compute an appropriate offset into the array to do the reference.
+
+573
+00:58:15,290 --> 00:58:19,220
+So here I could do it with a shift.
+
+574
+00:58:19,220 --> 00:58:27,270
+And here I had to introduce a multiply because I don't know in advance how big it is.
+
+575
+00:58:27,270 --> 00:58:44,670
+If you want to torture yourself, here's an example I was going to go over,
+
+576
+00:58:44,670 --> 00:58:55,210
+of triply nested possibilities and dereferencing of the same idea.
+
+577
+00:58:55,210 --> 00:59:05,680
+But let's move on to pointers, to structs.
+
+578
+00:59:05,680 --> 00:59:08,680
+So the idea of a struct is actually quite simple.
+
+579
+00:59:08,680 --> 00:59:14,840
+Well, the base idea is simple and it gets more complicated.
+
+580
+00:59:14,840 --> 00:59:28,840
+The idea of it is I want to, I declare a struct to have some number of fields, each of which can be an int, or it could be, in this case, a pointer, or it could be an array itself.
+
+581
+00:59:28,840 --> 00:59:38,190
+But the rule is basically what I'll do is allocate enough space, if I introduce one of these structs, for all the different array elements.
+
+582
+00:59:38,190 --> 00:59:45,190
+elements, fields in that are struct, and then I'll basically keep track, the compiler,
+
+583
+00:59:45,190 --> 00:59:54,190
+we'll keep track of where each of these fields starts and generate the appropriate code to offset from the beginning.
+
+584
+00:59:54,190 --> 00:59:59,190
+So the structure itself, the reference to it will be the beginning address of the struct,
+
+585
+00:59:59,190 --> 01:00:03,190
+then I'll use appropriate offsets to get to the different fields.
+
+586
+01:00:03,190 --> 01:00:10,470
+So here's an example of some
+
+587
+01:00:10,490 --> 01:00:20,830
+imagine I have a struct, a pointer to one of these structures, and I have an index,
+
+588
+01:00:20,830 --> 01:00:30,860
+and what I want to do is get to the, that appropriate part of array A within this struct.
+
+589
+01:00:30,860 --> 01:00:33,860
+Well, array A is right at the beginning of the structure.
+
+590
+01:00:33,860 --> 01:00:41,860
+So I can treat this just like I would any array reference, scaling IDX by 4 and adding it to the base
+
+591
+01:00:41,860 --> 01:00:43,360
+to get the appropriate element.
+
+592
+01:00:43,360 --> 01:00:48,060
+So I don't really have to do anything special for this one.
+
+593
+01:00:48,060 --> 01:00:52,560
+Let's go get some other code that you'll typically see.
+
+594
+01:00:52,560 --> 01:00:57,130
+Actually, this example is pretty involved.
+
+595
+01:00:57,130 --> 01:01:01,630
+So I'm actually doing a whole bunch of stuff here with this one struct.
+
+596
+01:01:01,630 --> 01:01:07,320
+First of all, I'm trying to retrieve element I from the structure.
+
+597
+01:01:07,320 --> 01:01:14,910
+Then I'm using that to index into array A and
+
+598
+01:01:14,930 --> 01:01:16,930
+insert a value into there.
+
+599
+01:01:16,930 --> 01:01:22,600
+And then I'm updating this pointer to point to point to the next
+
+600
+01:01:22,600 --> 01:01:32,980
+I'm, if this were a linked list, what I want to do is step to the next element of the list.
+
+601
+01:01:32,980 --> 01:01:37,980
+So I need to retrieve the next field from here.
+
+602
+01:01:37,980 --> 01:01:44,980
+And so these, so I'm actually making three references to this structure in this one rather small function.
+
+603
+01:01:44,980 --> 01:01:45,980
+So let's try and figure it all out.
+
+604
+01:01:45,980 --> 01:01:50,320
+and figure it all out.
+
+605
+01:01:50,320 --> 01:01:53,240
+So first of all, I have to retrieve element I from it.
+
+606
+01:01:53,240 --> 01:01:58,260
+And here you see that we know that element I is at offset 16.
+
+607
+01:01:58,260 --> 01:02:03,880
+And so if, and here's where you see that displacement field being used in the memory reference,
+
+608
+01:02:03,880 --> 01:02:05,860
+uh, exactly for this purpose.
+
+609
+01:02:05,860 --> 01:02:15,510
+I want to take R, but add 16 to it to get a memory address that I can use for, um, for
+
+610
+01:02:15,510 --> 01:02:19,650
+for I.
+
+611
+01:02:19,650 --> 01:02:22,070
+And it, you see it actually uses move S and
+
+612
+01:02:22,090 --> 01:02:31,050
+because I itself is an int, but I'm going to use it as an array index, in which case I have to scale it.
+
+613
+01:02:31,050 --> 01:02:37,050
+I have to do address arithmetic using 8 byte quantities.
+
+614
+01:02:37,050 --> 01:02:44,360
+So this actually retrieves the 4 byte value and does a sign extension on it.
+
+615
+01:02:44,360 --> 01:02:53,130
+And now what I want to do is store at a val at element I.
+
+616
+01:02:53,130 --> 01:02:55,110
+And so here you'll see that
+
+617
+01:02:55,130 --> 01:03:05,940
+And it's using R-A-X is the value I've just computed for I, scaling it by 4,
+
+618
+01:03:05,940 --> 01:03:12,680
+and using the starting address of the R, which happens to be the starting address of A as well,
+
+619
+01:03:12,680 --> 01:03:13,680
+and doing a store.
+
+620
+01:03:13,680 --> 01:03:18,070
+So that's sort of an array operation there.
+
+621
+01:03:18,070 --> 01:03:27,010
+And then the next part is I'm going to offset 24, which is the
+
+622
+01:03:27,010 --> 01:03:35,010
+position of next, read from that location, and store that in RDI, which is R.
+
+623
+01:03:35,010 --> 01:03:43,010
+So this is the operation R gets R arrow next. And then the loop is I'm testing until R is null.
+
+624
+01:03:43,010 --> 01:03:50,930
+So that's going on here. So you see that those three references to the struct were implemented
+
+625
+01:03:50,930 --> 01:03:56,890
+using three instructions here. So it's a very direct mapping between the code here and the
+
+626
+01:03:56,890 --> 01:04:02,730
+in the x86 instructions. And part of the x86 instructions, because this kind
+
+627
+01:04:02,730 --> 01:04:09,330
+of stuff is so commonplace in programs, they kind of made the instructions map very directly toward these
+
+628
+01:04:09,330 --> 01:04:18,790
+operations. And now you should probably see why all the bells and whistles are there for these address references.
+
+629
+01:04:18,790 --> 01:04:28,120
+Question. What if I was three in this case? What if I was three? I'm sorry. I'm sorry.
+
+630
+01:04:28,120 --> 01:04:31,850
+Because A is three elements.
+
+631
+01:04:31,850 --> 01:04:43,660
+Oh, uh, A had, A has three elements. Yes. It will access, um, actually I think that's a typo.
+
+632
+01:04:43,660 --> 01:04:46,890
+A is supposed to be four.
+
+633
+01:04:46,890 --> 01:04:49,080
+Uh, regardless, regardless.
+
+634
+01:04:49,080 --> 01:04:54,210
+So if I is four, it would access itself, yeah, and it would mess things up. Question.
+
+635
+01:04:54,210 --> 01:04:58,210
+Um, this is a typo, by the way, that should be A of 4.
+
+636
+01:04:58,210 --> 01:05:03,270
+So now point out there's a value of a value of zero in the register.
+
+637
+01:05:03,270 --> 01:05:07,270
+Yes, a no pointer, a no is a zero.
+
+638
+01:05:07,270 --> 01:05:16,330
+Um, so that's sort of the easy version of structs.
+
+639
+01:05:16,330 --> 01:05:18,330
+Now let's make them a little harder.
+
+640
+01:05:18,330 --> 01:05:22,550
+One is, uh, for reasons that are a bit obscure, uh,
+
+641
+01:05:22,550 --> 01:05:27,550
+the machine generally prefers that if you have a data type,
+
+642
+01:05:27,550 --> 01:05:30,550
+an underlying data type of k bytes,
+
+643
+01:05:30,550 --> 01:05:34,550
+that the address that that starts at be a multiple of k.
+
+644
+01:05:34,550 --> 01:05:39,610
+And so, uh, that that introduces a property
+
+645
+01:05:39,610 --> 01:05:48,570
+we call alignment, which will actually, when a structure gets allocated, will, the compiler will actually
+
+646
+01:05:48,570 --> 01:05:56,360
+insert some blank, unused bytes in the data structure in its allocation, just so that it can maintain
+
+647
+01:05:56,360 --> 01:05:57,760
+this alignment.
+
+648
+01:05:57,760 --> 01:06:07,220
+So for example, here, I is an int, and I want its address to be a multiple of four, and I'll give
+
+649
+01:06:07,220 --> 01:06:09,680
+you a minute, why that's true.
+
+650
+01:06:09,700 --> 01:06:12,490
+just so trust me for a minute.
+
+651
+01:06:12,910 --> 01:06:16,510
+And so it will actually pad three unused bytes here
+
+652
+01:06:16,510 --> 01:06:19,490
+because the first byte is being used by C.
+
+653
+01:06:20,210 --> 01:06:22,210
+And in general, we'll see in the allocation,
+
+654
+01:06:22,370 --> 01:06:25,210
+we're going to make sure that the pointer to this data structure
+
+655
+01:06:25,210 --> 01:06:26,850
+is itself a multiple of eight.
+
+656
+01:06:27,510 --> 01:06:30,370
+And the reason for that is because there's a double here,
+
+657
+01:06:31,030 --> 01:06:34,490
+and it should reside on a boundary
+
+658
+01:06:34,490 --> 01:06:37,230
+that its starting address should be a multiple of eight.
+
+659
+01:06:38,080 --> 01:06:40,160
+And you'll see as long as this is eight,
+
+660
+01:06:40,180 --> 01:06:45,560
+a multiple of eight, and this offset here is a multiple of eight, then this address
+
+661
+01:06:45,560 --> 01:06:46,700
+will be a multiple of eight.
+
+662
+01:06:47,530 --> 01:06:49,350
+So that's the idea of alignment.
+
+663
+01:06:51,790 --> 01:06:53,570
+And so why is that true?
+
+664
+01:06:53,670 --> 01:07:01,380
+Well, it's really a hardware issue, that the memory system is sort of, the actual hardware memory memory
+
+665
+01:07:01,380 --> 01:07:03,960
+memory does not reference one byte at a time.
+
+666
+01:07:04,040 --> 01:07:10,100
+It references, actually, in most machines nowadays, about 64 bytes at a time,
+
+667
+01:07:10,700 --> 01:07:11,580
+depending on.
+
+668
+01:07:11,820 --> 01:07:14,720
+various widths within the hardware.
+
+669
+01:07:14,720 --> 01:07:19,140
+And in general, if a particular piece of data crosses
+
+670
+01:07:19,140 --> 01:07:26,540
+the boundaries between two blocks that are because of a misaligned address, that will take extra
+
+671
+01:07:26,540 --> 01:07:31,060
+steps by the hardware and potentially even the operating system to deal with.
+
+672
+01:07:31,060 --> 01:07:36,500
+So just for efficiency reason, they say, do this alignment, trust me.
+
+673
+01:07:36,500 --> 01:07:41,800
+In x86 machines, if you have unaligned data, it will execute just fine.
+
+674
+01:07:41,820 --> 01:07:43,740
+it just might run a little bit more slowly.
+
+675
+01:07:44,280 --> 01:07:47,760
+On some other machines, if you try to do an unaligned access,
+
+676
+01:07:47,880 --> 01:07:50,600
+it will actually cause a memory fault.
+
+677
+01:07:51,420 --> 01:07:51,880
+Question.
+
+678
+01:07:52,380 --> 01:07:55,260
+If by default generates aligned data?
+
+679
+01:07:55,820 --> 01:07:56,120
+Yes.
+
+680
+01:08:02,480 --> 01:08:05,700
+The question was, how could you force it to generate unaligned data?
+
+681
+01:08:06,600 --> 01:08:08,740
+I don't know if you could.
+
+682
+01:08:08,740 --> 01:08:16,620
+And we'll talk about ways you can sort of be more clever in how you do your allocation
+
+683
+01:08:16,620 --> 01:08:19,040
+to avoid wasting space.
+
+684
+01:08:21,240 --> 01:08:28,900
+So in general then, we have, we're mostly looking here at data types that are either one, two, or four,
+
+685
+01:08:29,060 --> 01:08:30,000
+eight bytes long.
+
+686
+01:08:30,600 --> 01:08:35,820
+There are some 16-byte data types, but we won't be looking at those.
+
+687
+01:08:36,400 --> 01:08:42,360
+And in general, with the address, then, you can tell the alignment of an address by how many zeros,
+
+688
+01:08:43,000 --> 01:08:47,940
+if it's a power of two alignment, how many zeros are at the end of a bit-level representation?
+
+689
+01:08:47,960 --> 01:08:48,760
+of that address.
+
+690
+01:08:50,850 --> 01:08:53,490
+And so as we showed, in general, the C compiler,
+
+691
+01:08:53,690 --> 01:08:58,010
+when it's creating the layout for a structure, a struct,
+
+692
+01:08:58,010 --> 01:09:03,700
+a struct, will put in padding bytes in there to make the alignment work.
+
+693
+01:09:05,770 --> 01:09:11,770
+The other thing it will do is, if it need be, it will add bytes to the end to make
+
+694
+01:09:11,770 --> 01:09:16,690
+sure that the overall size of the data structure meets whatever underlying alignment
+
+695
+01:09:16,690 --> 01:09:17,810
+requirement there is.
+
+696
+01:09:17,810 --> 01:09:19,570
+And this one, because it contains a dot.
+
+697
+01:09:19,590 --> 01:09:26,940
+the overall data structure has to be aligned on an 8 byte boundary.
+
+698
+01:09:26,940 --> 01:09:36,730
+And the reasoning for that is, imagine I had an array of structs, of these structs in particular,
+
+699
+01:09:36,730 --> 01:09:44,610
+then if I can assume that, if I can ensure that this array address is a multiple of 8,
+
+700
+01:09:44,610 --> 01:09:50,730
+then you can see that each successive element of this array, each of these structs is a multiple
+
+701
+01:09:50,730 --> 01:09:56,430
+of 8. And then within that struct, I've ensured that each field that requires an alignment
+
+702
+01:09:56,430 --> 01:10:04,930
+by 8 is positioned with an offset that's a multiple of 8, and so it all works out. But if you tried to tinker
+
+703
+01:10:04,930 --> 01:10:21,150
+with this by making this too short, then you start getting misaligned references. And so one thing
+
+704
+01:10:21,150 --> 01:10:26,990
+you'll see is for every struct, the actual alignment requirement, depends on what's the sort of
+
+705
+01:10:26,990 --> 01:10:32,230
+worst case alignment, the maximum alignment of any element. So this particular
+
+706
+01:10:32,230 --> 01:10:40,430
+structure, for example, contains a float V, which has a size of 4. And so this would
+
+707
+01:10:40,430 --> 01:10:50,090
+be an alignment of 4. And you'll see in the code, in general, when it has to, this,
+
+708
+01:10:50,090 --> 01:10:57,190
+all this address arithmetic we've seen gets used in various different ways to scale values, compute
+
+709
+01:10:57,190 --> 01:11:02,110
+offsets and so forth to get the appropriate elements.
+
+710
+01:11:02,110 --> 01:11:07,810
+So your question before is, could I tell the compiler not to do alignment?
+
+711
+01:11:07,810 --> 01:11:17,160
+And the better way is to declare your fields in a way that minimizes the amount of wasted space.
+
+712
+01:11:17,160 --> 01:11:25,560
+So, for example, here, I wasted 3 bytes here and 3 bytes here to meet the alignment requirements.
+
+713
+01:11:25,560 --> 01:11:28,740
+But if I just put I at the beginning and then C and D,
+
+714
+01:11:28,760 --> 01:11:48,940
+I would have only wasted 2 bytes total. And in general, because all the alignment requirements are powers of 2, the sort of greedy algorithm works. It says, if I just take, put the biggest stuff at the beginning and then successfully smaller elements, I will be able to minimize any wasted space.
+
+715
+01:11:48,940 --> 01:11:59,500
+And that's a general property. But this is a case where you as the writer of C code have that effect.
+
+716
+01:11:59,500 --> 01:12:02,360
+The compiler will not do this for you automatically.
+
+717
+01:12:02,600 --> 01:12:02,900
+Question.
+
+718
+01:12:02,900 --> 01:12:07,950
+Why is that a part of the case of having an array?
+
+719
+01:12:08,590 --> 01:12:09,030
+What's that?
+
+720
+01:12:10,130 --> 01:12:13,270
+Oh, but remember, an array, I don't care about the array.
+
+721
+01:12:13,390 --> 01:12:15,190
+I care about the array. I care about the elements of the array.
+
+722
+01:12:15,770 --> 01:12:22,590
+Because this is only down at the lowest level where I'm accessing either a single int, a single double, or a pointer,
+
+723
+01:12:23,390 --> 01:12:25,550
+and not all the rest of the stuff, remember.
+
+724
+01:12:25,610 --> 01:12:28,330
+I never read an entire array from memory.
+
+725
+01:12:28,830 --> 01:12:30,650
+So alignment only.
+
+726
+01:12:30,810 --> 01:12:38,400
+It refers down to the primitive types, not the aggregate types.
+
+727
+01:12:38,400 --> 01:12:41,400
+If this is confusing, the book covers this fairly carefully.
+
+728
+01:12:41,400 --> 01:12:47,160
+So let me just finish up with a little glimpse of floating point.
+
+729
+01:12:47,160 --> 01:12:53,340
+Floating point is a complicated history in x86.
+
+730
+01:12:53,340 --> 01:13:02,540
+Back in the really ancient days, there was a chip that went with the 8086 processor called the 8087.
+
+731
+01:13:02,540 --> 01:13:05,540
+And at the time it was a masterpiece of engineering.
+
+732
+01:13:05,540 --> 01:13:11,300
+piece of engineering to be able to put all the hardware necessary to implement full
+
+733
+01:13:11,300 --> 01:13:13,820
+I-Triple-E floating point on a single chip.
+
+734
+01:13:13,820 --> 01:13:22,100
+And it was the first one of its type. In fact, it was sort of co-developed with the I-Triple-E
+
+735
+01:13:22,100 --> 01:13:28,310
+floating point standard itself. But the programming model for it is horrendously awful and
+
+736
+01:13:28,310 --> 01:13:34,110
+ugly. I used to, in older editions of the book, there were, it was in the first
+
+737
+01:13:34,110 --> 01:13:38,350
+edition. It was in a web aside in the second edition. And now it's
+
+738
+01:13:38,350 --> 01:13:48,060
+been expunged completely because it's so awful. But more recently, in the world of x86, they realized
+
+739
+01:13:48,060 --> 01:13:54,200
+that to support things like video and all the stuff people actually do with their machines,
+
+740
+01:13:54,200 --> 01:14:01,660
+they needed some more horsepower in numeric processing. And they implemented a class of
+
+741
+01:14:01,660 --> 01:14:12,320
+instructions called SSE, which stands for SIMD, something SIMD
+
+742
+01:14:12,320 --> 01:14:18,800
+execution. Anyways, and I'll show you in a minute what that means. And that's now, in the more
+
+743
+01:14:18,800 --> 01:14:25,850
+recent versions of x86, this has been juiced up to something called AVX, which,
+
+744
+01:14:25,850 --> 01:14:31,890
+but the shark machines support this, a version of what's called SSE. So let me just
+
+745
+01:14:31,890 --> 01:14:35,850
+give you a feeling for that. And in particular, the shark machine support
+
+746
+01:14:35,850 --> 01:14:42,750
+what's called SSE version 3. And what it is is that there's 16 special registers, distinct
+
+747
+01:14:42,750 --> 01:14:48,490
+from the other registers we've talked about before, each of which has 16 bytes. And
+
+748
+01:14:48,490 --> 01:14:53,310
+then there's operations that can operate on those and treat them in different ways. So
+
+749
+01:14:53,310 --> 01:15:00,680
+So one is to treat this such a register as an array as an array of 16 cares, or as eight
+
+750
+01:15:00,680 --> 01:15:11,600
+shorts or four ints or and also to support a double floating point arithmetic.
+
+751
+01:15:11,600 --> 01:15:17,960
+So this stuff was sort of going on and somebody had the observation that said, well, I could just
+
+752
+01:15:17,960 --> 01:15:23,780
+then sort of subset all this and implement the floating point operations directly using
+
+753
+01:15:23,780 --> 01:15:30,810
+this SSE stuff and skip the old x-87 stuff. And so that's the way floating point
+
+754
+01:15:30,810 --> 01:15:35,310
+voting point is now generated on, say, the shark machines and most recent machines.
+
+755
+01:15:36,620 --> 01:15:43,460
+This is a, this is again an example of where the world is more complicated than it should have to be.
+
+756
+01:15:44,000 --> 01:15:51,440
+So, for example, there is an instruction that says, add SS, so add a single scalar, is what that
+
+757
+01:15:51,440 --> 01:16:00,560
+notation, add a single precision scalar, add a scalar, add a scalar single precision scalar, add a scalar,
+
+758
+01:16:01,140 --> 01:16:04,180
+and it looks a little like. And it looks a little like the, uh, and it looks a scalar
+
+759
+01:16:04,180 --> 01:16:11,180
+instructions, the ad Q instructions you've seen, that it increments, it adds the source to the
+
+760
+01:16:11,180 --> 01:16:20,030
+destination. There's ways I can do four ads in a, all at the same time, using this is what they call
+
+761
+01:16:20,030 --> 01:16:34,470
+CIMD execution, which stands for a single instruction, multiple data. One instruction, the add PS, P stands for P stands for pact, we'll do, we'll do, we'll perform
+
+762
+01:16:34,630 --> 01:16:37,970
+that one instruction will do add with four different numbers.
+
+763
+01:16:39,580 --> 01:16:43,540
+And similarly, you can do it with double precision.
+
+764
+01:16:43,740 --> 01:16:45,640
+You can do one of them, you can do a PAP.
+
+765
+01:16:46,760 --> 01:16:51,320
+And so actually, the underlying, and we'll see this when we'll look at code optimization,
+
+766
+01:16:52,220 --> 01:16:57,520
+if you write code to make use of these instructions, you can really boost the performance of the computer.
+
+767
+01:16:58,850 --> 01:17:02,790
+But this just gives you a flavor for what floating point code looks like.
+
+768
+01:17:03,070 --> 01:17:05,630
+And the rules are pretty simple, that just as we saw before,
+
+769
+01:17:05,810 --> 01:17:09,810
+that arguments get passed in registers.
+
+770
+01:17:09,810 --> 01:17:14,810
+Well, floating point arguments get passed in these xMMM registers.
+
+771
+01:17:14,810 --> 01:17:15,810
+XMMM.
+
+772
+01:17:15,810 --> 01:17:19,810
+You don't have to memorize RDI, RSI, RSI, RDS.
+
+773
+01:17:19,810 --> 01:17:22,810
+They're in XMMMMM, 0, 2.
+
+774
+01:17:22,810 --> 01:17:23,810
+It's all very logical.
+
+775
+01:17:23,810 --> 01:17:28,810
+And the return value is in XMMMMMM0, and all the registers are caller save.
+
+776
+01:17:28,810 --> 01:17:30,810
+There's no call-y-save.
+
+777
+01:17:30,810 --> 01:17:33,810
+So something like adding two floating point numbers
+
+778
+01:17:33,810 --> 01:17:35,810
+will just look like,
+
+779
+01:17:35,810 --> 01:17:40,970
+a single floating point addition instruction.
+
+780
+01:17:40,970 --> 01:17:43,610
+Same with double.
+
+781
+01:17:43,610 --> 01:17:49,770
+And if you mix together code that has a pointer and a floating point operator,
+
+782
+01:17:49,770 --> 01:17:53,770
+the pointer will be passed in a regular register, RDI,
+
+783
+01:17:53,770 --> 01:17:56,770
+and this double will be passed in XMMMM0.
+
+784
+01:17:56,770 --> 01:18:00,770
+So it sort of, as it goes through the argument list,
+
+785
+01:18:00,770 --> 01:18:05,770
+you sort of, in the particular order, if it's an integer or a pointer,
+
+786
+01:18:05,770 --> 01:18:08,770
+it's in one of the R registers.
+
+787
+01:18:08,770 --> 01:18:10,770
+And if it's a floating point value,
+
+788
+01:18:10,770 --> 01:18:13,770
+it's in one of the XMM registers,
+
+789
+01:18:13,770 --> 01:18:18,200
+and potentially interleaved.
+
+790
+01:18:18,200 --> 01:18:20,460
+Almost done.
+
+791
+01:18:20,460 --> 01:18:24,460
+And so this is a code that does this particular operation,
+
+792
+01:18:24,460 --> 01:18:27,460
+and it's interesting because it's returning a,
+
+793
+01:18:27,460 --> 01:18:29,460
+it's doing memory referencing,
+
+794
+01:18:29,460 --> 01:18:31,460
+so again, there's instructions
+
+795
+01:18:31,460 --> 01:18:35,460
+that will read from memory and copy into an XM register.
+
+796
+01:18:35,460 --> 01:18:37,750
+You can add registers.
+
+797
+01:18:37,750 --> 01:18:44,750
+you can make a copy from one XM register to another, and you can store results.
+
+798
+01:18:44,750 --> 01:18:51,750
+So this code looks a lot like what you do in integer arithmetic, except it's using XMMM
+
+799
+01:18:51,750 --> 01:18:56,750
+and special floating point instructions rather than the ones you've seen before.
+
+800
+01:18:56,750 --> 01:18:59,750
+So the basic idea of it is fairly simple.
+
+801
+01:18:59,750 --> 01:19:04,750
+It gets way more complicated because there are lots of instructions.
+
+802
+01:19:04,750 --> 01:19:06,750
+Double, float, on and up.
+
+803
+01:19:06,750 --> 01:19:11,880
+On and on and on, there's a special instruction to do square root and all this stuff.
+
+804
+01:19:11,880 --> 01:19:16,880
+And the comparison stuff is really nasty and messy and hard to understand.
+
+805
+01:19:16,880 --> 01:19:21,910
+And then you'll see various tricks to use constant values too.
+
+806
+01:19:21,910 --> 01:19:23,910
+So it's covered in the book.
+
+807
+01:19:23,910 --> 01:19:26,910
+We're not going to really talk about it much in this course.
+
+808
+01:19:26,910 --> 01:19:30,910
+But the underlying, the basic principles of it are fairly straightforward.
+
+809
+01:19:30,910 --> 01:19:33,040
+Okay, that'll do us for today.
+

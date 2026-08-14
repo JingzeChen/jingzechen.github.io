@@ -66,6 +66,7 @@ main() {
     -d "$SITE_DIR$_baseurl" -c "$_config"
 
   bundle exec ruby tools/validate-garden.rb "$SITE_DIR$_baseurl"
+  bundle exec ruby tools/validate-courses.rb "$SITE_DIR$_baseurl"
   bundle exec ruby tools/content-quality.rb --check
 
   # test

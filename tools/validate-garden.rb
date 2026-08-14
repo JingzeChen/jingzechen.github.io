@@ -39,6 +39,11 @@ end
 
 reading_posts = posts.select { |_, data| data["type"] == "reading" }
 podcast_posts = posts.select { |_, data| data["type"] == "podcast" }
+course_documents = Dir.glob(File.join(source_dir, "_courses", "**", "*.md")).map do |path|
+  front_matter = File.read(path, encoding: "UTF-8").split(/^---\s*$/, 3)[1]
+  data = YAML.safe_load(front_matter, permitted_classes: [Date, Time], aliases: true) || {}
+  [path, data]
+end
 status_by_uid = posts.to_h { |_, data| [data["uid"], data["status"]] }
 series_registry = YAML.safe_load_file(File.join(source_dir, "_data", "series.yml"), aliases: true)
 podcast_show_registry = YAML.safe_load_file(File.join(source_dir, "_data", "podcast_shows.yml"), aliases: true)
@@ -71,10 +76,10 @@ assert.call(
   "reading.json statuses must match source posts"
 )
 assert.call(reading_data.none? { |item| item["seriesOrder"].nil? }, "reading.json requires seriesOrder")
-assert.call(search_data.size == posts.size, "search.json count must match source posts")
+assert.call(search_data.size == posts.size + course_documents.size, "search.json count must match posts and courses")
 assert.call(search_data.all? { |item| !item["contentLang"].to_s.empty? }, "search.json language mismatch")
 assert.call(
-  search_data.all? { |item| status_by_uid[item["uid"]] == item["status"] },
+  search_data.reject { |item| item["type"] == "course" }.all? { |item| status_by_uid[item["uid"]] == item["status"] },
   "search.json statuses must match source posts"
 )
 status_by_url = search_data.to_h { |item| [item["url"], item["status"]] }
@@ -97,12 +102,13 @@ type_labels = {
   "essay" => "Essays",
   "journal" => "Journal",
   "reading" => "Reading",
+  "course" => "Courses",
   "podcast" => "Listening",
   "project" => "Projects",
   "idea" => "Ideas"
 }
 expected_sidebar = ["Garden"] + type_labels.filter_map do |type, label|
-  label if posts.any? { |_, data| data["type"] == type }
+  label if type == "course" ? course_documents.any? : posts.any? { |_, data| data["type"] == type }
 end + ["About"]
 assert.call(sidebar_labels == expected_sidebar, "sidebar routes do not match published content types")
 assert.call(home.css(".garden-topic-map > a[href^='/topics/']").size == topic_registry.size, "homepage must link all mapped topics")

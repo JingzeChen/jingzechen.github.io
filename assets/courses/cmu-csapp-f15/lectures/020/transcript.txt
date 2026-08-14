@@ -1,0 +1,910 @@
+[00:00:00] Well, good afternoon, everybody.
+[00:00:02] Welcome, good to see you, and welcome to all those who are watching on videotape as well.
+[00:00:08] I want to clear up, I realized after the last lecture that I didn't explain the idea of peak memory utilization very well to you.
+[00:00:17] So I want to just explain that. It's an important idea, and I want to make sure that we have it clear.
+[00:00:24] So if you recall, you recall from, we have, we're executing a series, a sequence of a sequence of a series,
+[00:00:33] requests, R0, R1, R2, RK, up to RN minus 1, and at any point in time after
+[00:00:50] K plus 1 requests, we have HK, which is the heap size after K plus 1 requests, we have HK, which is the heap
+[00:01:01] size after K plus 1 requests, and then we have PK, which is the PK, which is the
+[00:01:28] sum of all of the payloads after K plus 1 requests.
+[00:01:38] Okay, so what we're trying to do with this PK measure, this aggregate payload, is at any point
+[00:01:44] in time, so as we execute requests one after the other, the sum of all the payloads in the
+[00:01:51] heap is going to either increase or decrease, right?
+[00:01:54] So if we execute an allocate, then the size of the payloads will increase.
+[00:02:01] If we execute a free, the size of the payloads will increase.
+[00:02:03] of all those allocated payloads will decrease.
+[00:02:06] So as we're executing this sequence of requests, these, the aggregate, the sum of all the payloads
+[00:02:12] is going to be increasing and decreasing.
+[00:02:17] And so what we're capturing with the sum of all these payloads is like a perfect allocator
+[00:02:22] that has no overheads and even more so, one that we can, where we're allowed to compact blocks.
+[00:02:30] So the sum of all of the payloads is the minimum power.
+[00:02:33] So it's the minimum possible number of bytes required by those allocated blocks.
+[00:02:43] Okay, so it's very, very aggressive and it's impossible to achieve.
+[00:02:47] But we're going to use that as sort of our best case. Okay.
+[00:02:50] And so to measure peak memory utilization after K plus 1 requests, which will denote U of K of K,
+[00:03:14] That's going to be equal to the max for all I less than or equal to K of our aggregate
+[00:03:34] payloads divided by the size of the heap after after K plus 1 requests.
+[00:03:42] Okay, so what what we're doing with this max is we're remembering the high water mark, you know,
+[00:03:50] you know, as our as our aggregate payloads increase and decrease,
+[00:03:54] and decrease, we're remembering the high water mark.
+[00:03:56] So that was sort of the worst, that was like the biggest set of payloads that we had.
+[00:04:02] And then, so the max is remembering, is remembering, is remembering that high water mark.
+[00:04:08] And then we're dividing by the total size of the heap in order to get an efficiency measure.
+[00:04:13] Okay, so, so this max, p.K is kind of, this is the best we could have done, divided by the total heap
+[00:04:23] size.
+[00:04:24] Okay.
+[00:04:25] So yes.
+[00:04:30] Well, the allocator keeps track of how big the heap is.
+[00:04:34] So that's pretty easy, right?
+[00:04:36] So as every time it, every time it does, every time it calls Esprey, it just, that adds to the size
+[00:04:43] of the heap.
+[00:04:44] And remember, we're assuming that the heap, in this case, is always increasing.
+[00:04:50] Okay, so.
+[00:04:53] But even if we allowed the heap size to decrease, you could just, if the allocator
+[00:04:58] is controlling the size of the heap by calls to S-break.
+[00:05:03] Okay, so is that clear?
+[00:05:06] So for UK, the higher the better.
+[00:05:08] Okay.
+[00:05:10] And for any sequence of allocates and freeze, this max P-K will be the same.
+[00:05:16] Okay, that's constant, right?
+[00:05:20] But what varies is H of K, and that depends on how efficient
+[00:05:24] your allocator is using the heap storage.
+[00:05:28] Okay.
+[00:05:29] Yes, question?
+[00:05:34] So what we're doing is,
+[00:05:35] at any point in time, after K plus one requests,
+[00:05:41] we're evaluating the utilization of our heap up till that point.
+[00:05:45] So it should be K.
+[00:05:47] The max i is more than...
+[00:05:50] For i, i less than or equal to k.
+[00:05:54] Oh, I'm sorry.
+[00:05:59] Yeah, sorry, good, good catch.
+[00:06:12] So that should be an i, right?
+[00:06:13] We want to look at all the, all the,
+[00:06:15] for all the requests that came before.
+[00:06:19] Okay, any other questions?
+[00:06:24] All right.
+[00:06:36] But last time we looked at some simple, the basics of dynamic storage allocators, and today we're going to look at some more sophisticated techniques
+[00:06:44] using different data structures to store the free list primarily.
+[00:06:50] We'll look at implicit allocators.
+[00:06:55] So we'll get sort of a brief survey of how garbage collectors work.
+[00:06:59] And we'll just look at one, just one very simple kind of garbage collector.
+[00:07:04] But it'll give you an idea of what that means.
+[00:07:07] And then we'll think.
+[00:07:08] We'll finish up by looking at all the ways you can get yourself into trouble by using dynamically
+[00:07:16] allocated storage. So once you, once you use, once you start dynamically allocating storage, things
+[00:07:22] can go really bad really quickly. And so we'll go over some of those, some of those bad things that can happen
+[00:07:29] and try to alert you to those so you don't do them in your programs.
+[00:07:44] Okay, so we looked at how to store a free list.
+[00:07:49] in this sort of implicit form by just walking the entire heap and thereby sort of being
+[00:07:55] able to visit all the free blocks. But we can do better if we actually have a doubley, if we store
+[00:08:01] the free list as using as a doubly linked list. So we call these explicit free lists.
+[00:08:10] So the idea with an explicit free list is that we put pointers, we put the pointers that we put the pointers that
+[00:08:20] implement the double-link list inside the body of the of a free block.
+[00:08:25] So where the old payload used to go. So allocated blocks look exactly the same as they did
+[00:08:31] before, right? There's a header, boundary tag, optional boundary tag footer, and then this
+[00:08:36] the payload and any padding. Free blocks, though, the allocated, and the allocator's not allowed
+[00:08:43] to touch anything in the, inside the payload of an amount.
+[00:08:50] allocated block but free blocks are free, right? Nobody's using them.
+[00:08:54] And so we, the allocator can put the pointers that implement the data structure inside the what
+[00:09:01] was the old payload. So logically, this is just a simple doubly link list that
+[00:09:08] you've all seen before. But actually, these things can be anywhere in memory, right?
+[00:09:16] And so, you know, here we have, we have a block of size six, and
+[00:09:21] and it has a forward pointer that points to some other link, and it has a backwards pointer that points to this block, which happens to be, have a greater memory address than it.
+[00:09:33] Okay.
+[00:09:34] So just the idea is you can't, you know, unless you make, unless you go to great pains to maintain this sort of address ordered structure, these, these blocks can be sort of scattered anywhere in memory.
+[00:09:51] anywhere in memory. Oh, yeah. So this is after several, you know, just sort of
+[00:10:01] indefinite number of malics and frees. And yes? Yes. Oh, yeah, good question. So the question is,
+[00:10:12] what would happen if you freed a block that was in between two free blocks? And so you have to
+[00:10:18] coalesce. It gets a little tricky. And I'll show you in a second. Good. Now allocating, oh, yes,
+[00:10:24] questions. So the question is, what happens with locality?
+[00:10:34] So you still get block locality.
+[00:10:39] You know, these blocks are still contiguous.
+[00:10:41] So if, but if you're scanning sort of a set of allocated blocks, it would be better if you could
+[00:10:51] keep them all contiguous, right?
+[00:10:53] That's really, and so there's a, you know, that's a tradeoff.
+[00:11:00] I don't, it gets difficult if you think, how can you maintain.
+[00:11:06] So you don't really care about the locality of free block.
+[00:11:08] right? You're just walking a link list.
+[00:11:10] Well, no, I shouldn't say that.
+[00:11:14] That's, if you're walking that list, if you hit one, one free block,
+[00:11:18] it would bring in a whole page, so it would be better if you were walking, if the list, you know,
+[00:11:25] if as much of that list was contained within that page.
+[00:11:28] So even that's, so you would benefit, you could benefit with both the allocated blocks
+[00:11:34] because applications would be using them and with free blocks because the allocation
+[00:11:38] because the allocator would be walking that free list?
+[00:11:41] Is it a question?
+[00:11:43] Would it make sense to try to pass, to try to have the programs to pass additional information to pre-predict?
+[00:11:52] So even though, say you only need, even though, say you're only allocating an integer or a couple
+[00:11:58] or a couple of small constructor, if you know in the future you're going to allocate a thousand of them,
+[00:12:01] somehow pass the information to let the allocator learn that you're going to try to,
+[00:12:06] you're going to allocate it a couple, so you're probably going to allocate that plus more?
+[00:12:09] That's a really good question.
+[00:12:10] The question is, could, would it be possible for an application to sort of give hints to the allocator that would increase, that would improve the allocator's performance or memory utilization?
+[00:12:20] The answer, you absolutely could.
+[00:12:24] But it's, if you did, it wouldn't be a general purpose allocator.
+[00:12:29] So, like, like, Malik is a general purpose allocator.
+[00:12:32] So it, and it provides no, there's no option, it doesn't provide any arguments in its interface for passing that information in, but it absolutely
+[00:12:40] if it had some knowledge about the future behavior of a program that could benefit.
+[00:12:46] So especially like consider, you always have this decision when you place an allocated block whether to split that block or not.
+[00:12:52] Well, if you knew that you were going to get a request, you know, for, if you split that block and you knew that you were going to get requests coming in the future for sizes of the original block, then you wouldn't want to split it.
+[00:13:05] because then you would want it, you would just keep it unsplit, and then when you freed it, then you'd have a block that would be the right size for that future request.
+[00:13:16] And so it's, you can absolutely benefit from that.
+[00:13:20] And so although you can't, if general purpose allocators, there's no provision for that kind of hinting, but there's nothing to prevent an allocator from doing predictions based on the previous pattern of requests.
+[00:13:32] You know, so if you're getting a pattern of requests that's alternating,
+[00:13:36] large block, small block, large block, small block, you could exploit that, maybe predict that the next request will be for a, you know, if the previous request was for a large block, the next one might be for a small block. And you could, that's good question.
+[00:13:51] That's good question. Any other questions?
+[00:13:53] Was there? Yes. I don't know. So the question is, are there intelligent allocators that do that kind of prediction? And if there are, I don't know of them, but I wouldn't, I wouldn't say no. Yes.
+[00:14:22] question, what, like, using this sort of method to be decided that you can track of the size and stuff, what would happen if you end up with a free block that's a block, a block, just like, like, in the middle of two allocated blocks? Just like, so, like, like, just a single block. Oh, so the question is, what if you ended up with a free block that's a single block surrounded by two allocated blocks? Well, in fact, I mean, that's one of the invariants that's one of the invariants that a good allocated blocks,
+[00:14:52] has to maintain. You should never have two contiguous free blocks, right? The allocator should always be coalescing as much as it can.
+[00:15:01] And if it does that coalescing, if it, if it, if it always does that coalescing, then, then there will never be two contiguous free blocks.
+[00:15:09] Okay. Yeah, that's a question. Oh, you'll see when we, it, it comes into play when we free a block, because you have to sort of stitch up, when you free a block, you have to sort of stitch up the, you have to sort of stitch up the,
+[00:15:29] the link list.
+[00:15:32] And so you need both, you need both pointers.
+[00:15:35] You can do it with singly linked lists.
+[00:15:36] So in the K&R book, there's an allocator
+[00:15:39] that uses a singly link list.
+[00:15:43] But the disadvantage is that free requires a search.
+[00:15:46] So it requires a search from the beginning of the list
+[00:15:48] to find the previous block.
+[00:15:52] Okay.
+[00:15:52] And there are other questions? These are good. Yes, a question.
+[00:16:06] Okay, so the question is for memory utilization, how
+[00:16:08] how does the header and footer count towards memory utilization?
+[00:16:12] And so those are overhead that decrease memory utilization, okay, because they're not payload.
+[00:16:19] So when we're computing memory utilization, we're doing it by, we're using the payload, the aggregate,
+[00:16:26] the aggregate payload to estimate our utilization or to compute our utilization.
+[00:16:34] So anything that's not payload, sorry, is overhead.
+[00:16:37] Overhead of one word and everything we had when allocated was also one word,
+[00:16:45] then we would have 50%?
+[00:16:47] So if we had, if all of our payloads were one word and our overhead
+[00:16:51] was one word, then there'd be 50%.
+[00:16:55] Yes.
+[00:17:01] The both of this point is basically blocked, do you still need?
+[00:17:09] Yeah, so the question is, do you still need a boundary tag if you have
+[00:17:12] these next and previous pointers?
+[00:17:14] And the answer is yes, absolutely.
+[00:17:17] And you'll see in a second why.
+[00:17:19] Yes.
+[00:17:27] Okay, that's a really good question.
+[00:17:34] So, you know, what do you do if, if you have next and previous pointers, what happens if there's a request for a smaller, a smaller block?
+[00:17:43] So the answer is that all of those things, the header, the footer, the next and previous pointers impose a minimum block size.
+[00:17:51] So if you have a one word header, one word footer, one word preve and one word next, then you're, you're a one word header,
+[00:18:00] your minimum block size is four bytes and that would be with a zero a zero
+[00:18:05] sized payload so you can never allocate a block smaller than your minimum block size so
+[00:18:11] that's it's a very good very good question so it makes a difference right even though
+[00:18:17] though we're you know it looks like we're getting these it looks like we're getting these
+[00:18:23] pointers here for free but we're not really because of this minimum block size requirement yes
+[00:18:29] So going back to the idea of, like, is there a way to force gigantic block and then, force, say you want to allocate a whole of this stuff might, so it's like you're explicitly asking for that one gigantic block and then splitting it off?
+[00:19:09] Yeah, okay, so, um, the question is can you just get a, get one large block and then split it up?
+[00:19:17] And I guess you're assuming that the request would be for equally sized objects, right?
+[00:19:21] So this, and, and that's a really good strategy actually, so if you, um, if you know, or if you know,
+[00:19:29] you think that your workload is going to have, you can't do this in general purpose allocators,
+[00:19:34] but for like a special purpose allocator, if you know that you're going to be asking for objects
+[00:19:38] that are all the same size, like compilers, for example, maintain abstract syntax trees and they're
+[00:19:45] allocating nodes dynamically, and those nodes are the same size.
+[00:19:49] So if you can, you can exploit that by just allocating a large chunk and then allocating all
+[00:19:56] the objects of that size out of that chunk.
+[00:19:59] It's very efficient.
+[00:20:00] You don't even need pointers or anything.
+[00:20:02] All you need is a bit vector to tell you which chunks are allocated and which chunks are free.
+[00:20:07] And then, and you also, as a side effect, you'll get that contiguous, that contiguous access.
+[00:20:12] So if a program access those objects, like to be part of a link list or something that it was going to traverse, you could allocate those in order and contiguously.
+[00:20:27] Now with a general purpose.
+[00:20:29] where you don't really know what's going to be requested.
+[00:20:33] Absolutely.
+[00:20:35] Absolutely, you could do that.
+[00:20:43] You can make general assumptions about the sort of behavior of your programs.
+[00:20:46] And, you know, you could run traces or like in the case of Malik lab, you could look at the traces.
+[00:20:52] But that's, no, that's a really good thing.
+[00:20:55] You know, you can't, you can't just, like, do if statements to say, well,
+[00:21:02] if the size is 42 and then the next size is 24, then I know it's this trace.
+[00:21:07] But you can look at a trace and say, hmm, there's an interesting pattern here.
+[00:21:12] I'm going to account for that pattern.
+[00:21:14] I'm going to optimize for that pattern.
+[00:21:16] And that would just, and that's perfectly valid.
+[00:21:18] That's just like taking advantage of your workload, right?
+[00:21:21] That's what we do in systems all the time.
+[00:21:24] Yes.
+[00:21:24] Large payload that we need to validate, but can we divide it up and at the end of the first part
+[00:21:34] that we just have a pointer to the main part, the payload which is stored in some other?
+[00:21:40] part of the heap?
+[00:21:41] Oh, so the question is, why can't we sort of have separate areas of the heap for the pointers and the payloads?
+[00:21:51] Right?
+[00:21:52] So how about we split up the payload and then join them up with pointers?
+[00:21:58] Like, not have them contiguous?
+[00:22:01] Oh, why not?
+[00:22:02] Okay, so the question is, why can't we split up payloads and link them together with pointers?
+[00:22:08] The answer is that the application is expecting a contiguous block.
+[00:22:12] a contiguous block.
+[00:22:13] You can't, allocate or can't put anything in the payload.
+[00:22:17] All it can do, all it's allowed to do is return a contiguous block of the size that the application requested.
+[00:22:24] And once it does that, it can't touch it.
+[00:22:27] Okay. All right, good, good.
+[00:22:33] All right, so let's look at how we'd allocate and free.
+[00:22:36] Once, if we have this, this explicit list, how we would allocate in free blocks.
+[00:22:42] So allocating is pretty simple.
+[00:22:44] we'll have, so here's our sort of a graphic of our free list.
+[00:22:51] So we have forward pointers and backward pointers and backward pointers.
+[00:22:55] And the idea is we want to allocate out of this middle block.
+[00:23:01] So we allocate the block of the size that we need.
+[00:23:08] And then we just update the forward and back pointers of the previous and next blocks to point
+[00:23:15] to point to this new free block.
+[00:23:19] Okay.
+[00:23:20] just we're updating one, two, three, four, five, six, six pointers.
+[00:23:26] Okay, now it gets, it gets trickier when we have to free because because we require coalescing.
+[00:23:37] So when you free a block that's, that was previously allocated, the question is what do you do
+[00:23:43] with that free block, right? It wasn't in the free list because it was an allocated
+[00:23:47] block. So now that you freed the block, where do you put it? You've got
+[00:23:51] to put it somewhere. So the simplest
+[00:23:54] thing is this LIFO policy. So the simplest thing is just put it at the beginning
+[00:23:59] of the list. So the last block freed is the first block allocated if it fits. So that's so-called
+[00:24:06] lifo. Now this is simple because you're always doing the same thing. You're just putting the block
+[00:24:12] at the beginning of the list. And it's constant time. You're just updating a few pointers.
+[00:24:19] But the studies suggest that the fragmentation can be worse than the alternative
+[00:24:25] technique, which is to keep the blocks ordered by address.
+[00:24:29] Okay, so when a, if you, if you, if you choose this address-ordered policy, when you, when you free
+[00:24:36] an allocated block, you're going to somehow figure out, you're going to somehow place that block in
+[00:24:42] the list so that the previous block begins at a smaller address and the next block begins
+[00:24:48] at a larger address.
+[00:24:49] Right?
+[00:24:50] So this generally involves some kind of search, right?
+[00:24:53] You don't, you're just given this allocated block.
+[00:24:55] block and then somehow you've got and you know its address and so now you've got to
+[00:25:00] somehow search the the free list to find the you know the proper place to insert it. Now
+[00:25:07] I suppose you could do better if you had some kind of, so if you could speed up that search
+[00:25:11] with some kind of balanced tree, that would be one option. But then the problem
+[00:25:18] we always run into with balanced trees and usually one student, at least somebody
+[00:25:23] always tries to implement Malik with some kind of balance tree.
+[00:25:26] red black tree or something.
+[00:25:28] And it seems like a really good idea, but you have to realize that you're competing with other techniques,
+[00:25:37] specifically segregated lists that are very fast, that have very small constant factors.
+[00:25:44] And there's even though, even though ordered lists are, I think, it's usually N-Log-N to updated an ordered tree, a binary-ordered tree, a binary order tree, the constant
+[00:25:54] the constant factors can be quite large.
+[00:25:57] And so usually get nailed up with the constant factors of maintaining the tree.
+[00:26:02] And you don't get help that the search time is log in.
+[00:26:07] But as we'll see, with segregated lists, in the limit as the number of different size classes increases,
+[00:26:18] the search time approaches constant time. And if you, if you have size classes that cover
+[00:26:23] ranges of powers of two, then the search time reduces to log time anyway.
+[00:26:28] Because the size of each class is sort of now logarithmic, the log.
+[00:26:33] So, you know, I would suggest, you know, just doing the simple thing.
+[00:26:41] Usually, whenever you're, you're dealt with sort of large design space like Malik,
+[00:26:46] you're better off doing the simple thing.
+[00:26:48] And then optimizing only when you see that there's a, that you need to optimize.
+[00:26:53] Okay.
+[00:26:54] Okay.
+[00:26:55] So remember last time we talked about.
+[00:26:56] this trick to eliminate the boundary tag footer and allocated blocks, that's an example of an
+[00:27:03] optimization you should defer. And so that wait, you know, wait, you know, wait, get, do the simple thing,
+[00:27:09] and then try to improve incrementally by, by, by, you know, this, this optimization or another optimization.
+[00:27:18] So the, there's this, this phenomenon, a lot of, a lot of programmers make the mistake of what we call premature optimization.
+[00:27:25] So try to think of all the,
+[00:27:27] fancy things they can do, and then they put all those in at the beginning, and before they even know that it needs to be optimized.
+[00:27:34] Okay, so the sort of the way you want to work on this and any sort of complex problem like an allocator is to, you know, first do fairly simple things and then look and see where the slowdowns are,
+[00:27:47] and your inefficiencies are, and then just sort of hit those one after the other and optimize only for the things that are necessary.
+[00:27:53] And this is a good example of that.
+[00:28:00] Okay.
+[00:28:01] Now to get to your question about freeing, freeing is tough because we always have to do this coalescing, right, because of this invariant, that we can never have two free blocks, two adjacent free blocks.
+[00:28:19] So let's go through each of those four cases that we went over last time and see how we would do it now that we have this explicit free list.
+[00:28:30] So here we have the root of our free list pointing to the first block in the free list.
+[00:28:35] the free list. There's a null back pointer and then there's a null preve pointer and then the
+[00:28:41] the next next pointer points to some unspecified block. And so we have this yellow block which
+[00:28:48] is allocated and now the application is called free, free with a pointer that points to the beginning
+[00:28:53] of this block. So what do we do? Well, this case is pretty simple because there's no
+[00:28:59] coalescing because both the predecessor and successor blocks are allocated.
+[00:29:08] So we just, this newly freed block now becomes, we're going to do a LIFO policy, so this becomes the first block in the free list.
+[00:29:17] And so we update the route to point to this, this newly freed block, and we update the forward pointer of that block to point to what used to be the first block in the heap.
+[00:29:30] Now I'm going to be careful, it's a little bit confusing because we've got sort of two notions of like previous and next, right?
+[00:29:40] There's the, you know, given some, given some block, there's the predecessor block in memory, which may or may not be allocated or free, right? It may or may not be in a free list.
+[00:29:54] And there's a successor block. Okay, so we'll use predecessor and successor to distinguish adjacency in memory. Okay. And we'll use pre-even-next to denote adjacency in the free list. Okay. So this this block is
+[00:30:13] the next block for the current block and it has no previous block.
+[00:30:18] Okay. All right now what about case two? Remember case two? The predecessor block is free and the successor block is is allocated and now we want to free this what was an allocated block denoted by yellow and we have that this this successor block is part of the free list, right? So it has it has previous and next
+[00:30:47] that are just part of the free list.
+[00:30:50] So our root points to the first block in the list, and then eventually you get to this free block, which points to this free block, which points to this free block.
+[00:31:02] Okay, so what we have to do then is we have to coalesce these two, these two blocks into one big free block.
+[00:31:11] Okay, and then we have to splice it out and stick it at the beginning of the list.
+[00:31:17] Okay.
+[00:31:18] So what that looks at the list is?
+[00:31:21] like conceptually is we coalesce these two blocks now to form this one free block,
+[00:31:30] and then we splice it out by having what was the, what was its previous block now point to what used
+[00:31:39] to be the next block, okay, of the current block. Okay, so this, the pointer from this block now
+[00:31:50] points to this block, okay? And then the, so we've effectively spliced that current block out
+[00:31:56] of the free list and then the root we have the root point to that block so
+[00:32:01] that's now the new first block in the list okay and then we have to update what used to
+[00:32:10] be the first block in the list so now it points back to the the newly freed coalesced
+[00:32:16] block so is that clear to everybody it yes would the root be a global variable it
+[00:32:26] could be or it could be there's there's two ways to do this right it could just be a global
+[00:32:33] variable or it could be a struck that of like previous and next
+[00:32:40] pointers so sometimes it's easier if you keep the same you know when you do an
+[00:32:44] link list the root if you just make it the same as all the other nodes it can
+[00:32:48] simplify things but yeah it could be a global variable global scalar in in the
+[00:32:52] allocator okay so case oh now one thing one thing that comes to mind there is like
+[00:33:02] there is an optimization that we could do in this case do you see when we
+[00:33:11] When we coales, we could just leave that block right there in the free list, right?
+[00:33:17] We didn't, although we've adopted, so the examples I'm going to show you are assuming a LIFO policy for insertion.
+[00:33:24] We could just leave it there, right, and just don't update anything, just increase, create this newly coalesced block and then we don't require, in this case, we wouldn't require any free list manipulation.
+[00:33:37] Okay, but that would be, that would be one of these optimizations, right?
+[00:33:42] Now, case three, if you recall, is the case where the predecessor block is allocated
+[00:33:52] and the successor block is freed. The successor block is freed. The successor block is free.
+[00:34:04] So in this case, what we have to do is we have to create, we have to coalesce the newly freed block
+[00:34:09] with the successor block, and then we have to splice it out in just the same way we did in case two.
+[00:34:21] So we splice it out of the list.
+[00:34:23] and then put it at the beginning of the list by pointing the root at it, and then updating
+[00:34:31] what used to be the first block in the list, updating its back pointer, its pre-pointer
+[00:34:36] to point to point to this newly coalesce block.
+[00:34:40] Okay, so this is completely symmetric with the case that we looked at before, but now we no longer
+[00:34:47] have, it's a little bit trickier.
+[00:34:49] If we just wanted to leave this block in the free list, we'd have to update all these pointers to point
+[00:34:55] back to the beginning of the newly created block.
+[00:34:59] Okay, so there's, so in this case, there's no performance optimization, right?
+[00:35:06] We're still updating the same number of pointers, whether we put it in the beginning of the list or
+[00:35:11] if we splice, or if we leave it there.
+[00:35:18] And now case four is the, that's the case where both the predecessor and successor blocks are
+[00:35:24] free. So we have to apply the same splicing technique to apply the same splicing technique to
+[00:35:31] both the predecessor block, we have to create this new coalesce block, and then we have to splice
+[00:35:39] block, and then we have to splice, we have to sort of splice it out by updating two different sets
+[00:35:47] sets of previous and successor blocks. Okay. So when we're, when we're finished with
+[00:35:58] that, this newly coalesced block now is the first block now is the, this newly coalesced block now is the first
+[00:36:02] block in the in the heap, in the free list, and we've spliced it, we spliced it out from
+[00:36:10] these two different parts of the free list.
+[00:36:18] Okay, so any questions about, this is, this is where you really, it looks, it looks really
+[00:36:27] simple to do, but I guarantee you this will be some of the hardest, it's only like 200 lines
+[00:36:36] of code, but it's some of the hardest code you'll have to write because you, it's only like, it's only like,
+[00:36:40] you're sort of free of the C's type system. You have to do everything by explicitly casting.
+[00:36:45] These pointers are just in the middle of arbitrary blocks. And so it looks simple with the diagram,
+[00:36:53] but you're going to have to be really careful when you do this. In fact, what I would suggest, the best
+[00:37:01] suggestion I can give you is to start with the implicit list allocator that we describe in the book,
+[00:37:09] which is too slow to get any credit. It's a terrible allocator. But it contains all the
+[00:37:12] basic ideas and then write a function called insert block and write another
+[00:37:20] function called remove block that inserts a block into the free list and removes a block and removes
+[00:37:25] a block from the free list respectively. And if you if you write, if you abstract it like that, if you use
+[00:37:32] that kind of abstraction, it's pretty simple to convert the implicit list allocator to an
+[00:37:37] explicit list allocator to an explicit list allocator. Okay. It'll still be too slow to get so
+[00:37:44] So that'll go from like a F allocator to a B minus allocator.
+[00:37:50] And then to really make a good allocator, like an A allocator, you need to use segregated lists, which
+[00:37:56] we'll look at in a second.
+[00:38:00] Okay, so the explicit list, now the allocation time is linear in the number of free blocks instead
+[00:38:06] of the total size of the, instead of the total size of the heap.
+[00:38:12] So it's, this is much faster when that when you have a lot of allocated blocks.
+[00:38:15] It's a little more complicated because of all this splicing business, and you do need some extra space in your, for these these pointers, which increases the minimum block size and creates additional overhead.
+[00:38:34] Now, the link list, the explicit list allocators aren't really efficient enough to be used for sort of a general purpose, real life allocator, but they are used.
+[00:38:46] useful as part of a segregated list allocator. So you can have multiple free lists, each of which is an explicit list, and it's fine for that application.
+[00:38:58] All right, so let's look at our third method, which is to create, we'll call a segregated free list, which is to have multiple free lists with different size classes.
+[00:39:13] So the idea is that each class of sizes, block sizes, has
+[00:39:20] its own free list. And that class can be singletons, you know, maybe
+[00:39:24] one particular size, or it can be a range of sizes. So you might, you might have a number of
+[00:39:31] different, you know, if your, if your workload consists of a lot of these small blocks, and
+[00:39:37] you know that there's going to be a lot of requests for blocks of one through four, you can
+[00:39:42] have different free lists for those small, for those small block sizes. And then after
+[00:39:48] that, you can go and just do ranges.
+[00:39:50] a power of two. So that's a, that's a common technique. So here we have a size
+[00:39:56] class that covers blocks from size 5 to 8, and then another size class that covers everything else.
+[00:40:07] So the idea with a seg list allocator is that, so given an array, given an array of these free lists,
+[00:40:12] one, each one for some size class, if we want to allocate a block of size N, then we go
+[00:40:20] to the appropriate free list, right? There's only, there's always going to be one,
+[00:40:24] free list for any any N. And then we search that list, just like we did before,
+[00:40:32] for some size, a block size M greater than N. And then if, if we find it, then we place,
+[00:40:40] we place the new block, we place the block in that, in the block that we found, we split it,
+[00:40:49] and we take this, the split block, and we put it into the appropriate size class, right?
+[00:40:53] So that the block that we split off may or may not, may or may not,
+[00:40:56] to the current size class anymore.
+[00:40:59] So we may have to move it and insert it into whatever the appropriate size class is.
+[00:41:07] If there's no block, if we can't find a block, then we have to try the next larger size class.
+[00:41:12] Okay, so it's possible for a given size class, there just, there might not be a block that fits.
+[00:41:20] So, I mean, one, so we just have to, we go to the next size, we try the next larger class,
+[00:41:25] and chances are we'll find a block that fits there.
+[00:41:28] And you keep doing that until you eventually, if you can't find it, you're eventually
+[00:41:34] you're eventually looking in the size class that covers all the rest, the last size class.
+[00:41:40] And if then, you can't find it, then that the allocator has to allocateer has to allocate more memory
+[00:41:47] with, by calling S-break.
+[00:41:54] Okay, to free a block, you coalesce, like before, and then you place it on the appropriate list.
+[00:41:58] So that's, that's straightforward.
+[00:42:00] And again, you have this.
+[00:42:02] option to try to maintain the list address order or just do the simple thing and put it at the
+[00:42:07] beginning of the list. Okay, so SEG list allocators are, um, that by far the best type of
+[00:42:17] allocator because they offer you improvements in both performance, throughput, and memory utilization.
+[00:42:26] So they're faster. They have higher throughputs because the, the individual size classes are smaller
+[00:42:34] than just like the one giant free list.
+[00:42:37] But also you're searching, you know that the list that you're searching is going to be close to
+[00:42:43] the size that you're looking for.
+[00:42:45] So the chances of finding something quickly in that particular size class are higher than they
+[00:42:51] are if you're just searching a, you know, a single free list that holds all different
+[00:42:56] size classes.
+[00:42:57] Okay, so search is faster, so that increases, uh, increases through put, but
+[00:43:04] The big thing about Seg list allocators is that, like we talked about before,
+[00:43:09] they approximate best fit without sacrificing performance.
+[00:43:13] Right before, if we wanted to do best fit on a single, a free list, we had to search the
+[00:43:18] whole free list and then choose the block that fit the best.
+[00:43:23] In this case, we get best fit for free by virtue of having these size classes.
+[00:43:32] And so this is, you know, this is, this is how you can improve your, you know, you know, this is how you can
+[00:43:36] improve your memory utilization.
+[00:43:38] Yes.
+[00:43:39] Oh, yeah, yeah, yeah, good question.
+[00:43:53] So the question is, is break constant time.
+[00:43:57] It is, but it's very expensive.
+[00:43:59] So it's a syscall.
+[00:44:00] So it has to pass from user space into the kernel.
+[00:44:03] That involves changing contacts, changing stacks.
+[00:44:07] So syscalls, generally,
+[00:44:11] you can count on a sys call being like several hundred
+[00:44:15] microseconds.
+[00:44:16] Okay.
+[00:44:17] It's a non-trivial overhead.
+[00:44:20] And so in that case, you wouldn't want, you want to amortize the cost of the break by allocating a somewhat
+[00:44:27] larger chunk.
+[00:44:29] But you have to be careful if you allocate too large of a chunk, then your memory utilization goes down.
+[00:44:34] So it's a trade-off, right?
+[00:44:35] It's another one of these space-time trade-offs.
+[00:44:38] Question?
+[00:44:41] So where do you store this array of free lists?
+[00:44:44] So you store it in the beginning of the heap.
+[00:44:49] Yeah, in fact, for your malloc lab, we require you to do that.
+[00:44:51] We don't know.
+[00:44:53] And the reason is we can't,
+[00:44:55] that array affects, in some small part,
+[00:44:58] depending on how large that array is,
+[00:45:00] it affects your memory utilization.
+[00:45:02] And so it should be at the beginning of the heap.
+[00:45:13] Okay, there's...
+[00:45:14] Allocators have been around forever and the
+[00:45:18] classic references, Cano's
+[00:45:21] 1973 text.
+[00:45:24] And there's also this great paper, which you can get from
+[00:45:28] the book's website.
+[00:45:29] from 1995 that does a survey of, you know,
+[00:45:34] you know, dozens and dozens of techniques.
+[00:45:36] We're just scratching the surface here.
+[00:45:38] So if you're really interested in this stuff,
+[00:45:41] that paper is a fascinating read.
+[00:45:43] And it may give you some ideas for your lab.
+[00:45:46] Okay.
+[00:45:50] Now, so far, we're assuming that the application is responsible
+[00:45:54] for both allocating storage and freeing storage.
+[00:45:59] But there's a form of
+[00:46:01] of memory managers called implicit memory
+[00:46:05] managers that do the freeing for you.
+[00:46:09] So applications allocate space, but they never have to worry about
+[00:46:12] freeing space.
+[00:46:13] The system does that automatically.
+[00:46:16] And so the idea is to identify so-called garbage,
+[00:46:24] so areas of memory that can never be referenced anymore,
+[00:46:28] and then free up those blocks.
+[00:46:33] So what's garbage?
+[00:46:34] Well, here's an example.
+[00:46:35] We have a function foo that mallex's 128 bytes and stores the address in this pointer P.
+[00:46:43] And then at some point, when it returns from Fu, this pointer is lost forever, right?
+[00:46:48] Because P is a local variable on the stack.
+[00:46:51] So once this function returns, the block of memory pointed to by P is garbage.
+[00:46:57] Can never be referenced again.
+[00:46:59] Because there's no way, there's no way for the program to get access to that.
+[00:47:04] to that.
+[00:47:05] And so what an allocator will recognize at some point that this block of memory is garbage, and that it'll free
+[00:47:13] those blocks by calling free. It's the same kind of exactly the same free call as we've discussed,
+[00:47:20] but now it's called by the garbage collector, not by the application. Okay, and so you see this
+[00:47:26] in all different kinds of dynamic languages. And there's, there's also variants available for
+[00:47:34] But because of C's pointer properties that the garbage collectors for
+[00:47:41] C are conservative in the sense that there's some blocks won't be freed, there's some garbage blocks that
+[00:47:46] there's some garbage blocks that that won't be freed because the allocator can't determine that
+[00:47:52] that they are indeed garbage.
+[00:47:54] Right?
+[00:47:55] So it has to be careful whenever there's a doubt, it, it leaves, it leaves, it doesn't reclaim the allocated block.
+[00:48:05] So it gets to this question of like, how does the memory manager know when memory can be freed?
+[00:48:12] And, you know, if we knew, if somehow we knew, we could predict all of the future requests,
+[00:48:20] and then if we knew that there were no future request accessed that block, then we could free it.
+[00:48:25] Okay, but we can't predict that, okay.
+[00:48:28] So we have to, but if there's no pointers, if no pointers exist to a particular block, then we know that it can't be accessed.
+[00:48:36] that it can't be accessed.
+[00:48:38] Okay?
+[00:48:39] And so that we can predict, right?
+[00:48:40] If there's some way we can sort of scan the program,
+[00:48:44] identify, or scan the memory, identify all the pointers in that memory,
+[00:48:49] and see which blocks are pointed to, and if they're not pointed to by any pointer, then
+[00:48:56] then they're garbage by definition.
+[00:48:59] Okay.
+[00:49:00] So to do this, though, it's, it's difficult.
+[00:49:03] So first of all, the memory manager has to be able to be able to
+[00:49:07] distinguish pointers from non-pointers, which we can't do and see, right?
+[00:49:11] They're just these, they're just these integral values, right?
+[00:49:15] We don't know.
+[00:49:16] It could be, we see this large integral value,
+[00:49:20] this large, long, 8-byte value.
+[00:49:23] It could be pointing to a data structure,
+[00:49:26] or it could just be a large integer, right?
+[00:49:28] We don't know.
+[00:49:31] And then we also, all pointers have to point to point
+[00:49:34] to the start of a block, which is not true in C either.
+[00:49:38] Okay.
+[00:49:39] If we have a pointer and we identify that it's a pointer, then we know that it points to some block.
+[00:49:46] If it points inside of a block, how do we find the beginning of that block?
+[00:49:50] You know, how do we know how big that block is?
+[00:49:53] So it has to point to the beginning of the block where the header tells us the size.
+[00:49:58] And there can't be a way to hide pointer.
+[00:50:03] So the property of being a pointer has to be some kind of static thing that doesn't, that can't change.
+[00:50:10] So that's sort of the change.
+[00:50:12] That's sort of the challenges, if you're thinking about how in the world could you implement a garbage collector?
+[00:50:16] So those are some of the challenges that they present. And because of that, this has been a, the history
+[00:50:23] of research in garbage collectors is old, it's ancient and ongoing. It's still ongoing today,
+[00:50:31] particularly in the context of parallel programs and garbage collecting programs that are running
+[00:50:35] multiple threads. So there's a whole bunch of these things that people have looked at going
+[00:50:41] all the way back to 1960, today we'll look at the simplest, one of the simpler variants
+[00:50:49] called mark and sweep, and we won't discuss the rest. But if you're interested in them, there's a pretty
+[00:50:54] good book that describes these things. All right, so how do we build an allocator?
+[00:51:03] So we start by viewing memory as a directed graph where each node in the graph corresponds
+[00:51:11] to a block, a block, a heat block.
+[00:51:17] and an allocated heat block.
+[00:51:22] And each edge is a pointer that's contained somewhere within that block.
+[00:51:29] Okay, a pointer to another block.
+[00:51:31] And then there's a, and then there's special nodes called root nodes that contain pointers into the heap,
+[00:51:40] but they're not part of the heap.
+[00:51:41] So, for example, pointers that are stored on the stack, pointers that are stored in registers,
+[00:51:47] they point to memory locations in the heap.
+[00:51:50] But they're outside of the heap, and we call those root nodes.
+[00:51:57] So nothing points to them, or at least if something does point to them, we don't care about what it is.
+[00:52:02] Okay.
+[00:52:04] We're only concerned about characterizing nodes that correspond to memory in the heap.
+[00:52:11] So we say that a node or a block is reachable if there's some path from a root node, from a root node to that block to that block.
+[00:52:22] So we've done.
+[00:52:23] noted those by green. So all of these green blocks in the heap are reachable,
+[00:52:27] because you can start at a root node and just follow some sequence of pointers to get to that node.
+[00:52:32] Okay.
+[00:52:34] Nodes that aren't reachable are called, are garbage because there's no, there's no way to get to them from the root notes.
+[00:52:45] Okay, so there's no node inside the heap that points to them, and there's no node, there's no root node that points to them.
+[00:52:52] So basically there's just no path from the heap that points to them.
+[00:52:53] So basically there's just no path from.
+[00:52:54] from a root node that'll get you to one of these non-reachable or garbage nodes.
+[00:53:00] And since they're non-reachable, the application will never be able to reference them in the future,
+[00:53:06] so we can predict with certainty that those are garbage and they can be freed.
+[00:53:12] Okay?
+[00:53:14] So basically after we free these, then they're removed from the graph.
+[00:53:23] So now we can build a simple garbage collector on top of the existing Malikin free package.
+[00:53:30] Right?
+[00:53:31] So you implement Malikin free.
+[00:53:32] just like before.
+[00:53:35] And then you, the program calls Malik just like before,
+[00:53:40] and you just, you do Malik exactly the same way until you run out of space
+[00:53:45] by whatever definition you want to use of running out of space.
+[00:53:48] Maybe you have some kind of maximum heap size you're willing to use,
+[00:53:52] or at some point the OS will just stop giving you virtual memory.
+[00:53:57] When you run out of space, you add an extra mark bit into the header.
+[00:54:05] into the header of each block.
+[00:54:07] So this could be, you know, we have like three or four spare bits that we can use in the header.
+[00:54:12] So we can denote one of those as the mark bit.
+[00:54:15] And then we, our garbage collection, our garbage collection phase, when we run out of space,
+[00:54:23] consists of two different sub phases.
+[00:54:26] One is the mark phase, which starts at all the roots, and then, and it just traverses this,
+[00:54:31] from the roots, it traverses the set of nodes that are really.
+[00:54:35] of nodes that are reachable from the root,
+[00:54:37] and it sets the mark bit in each one of those nodes.
+[00:54:40] Okay.
+[00:54:42] And then once, after you finish marking all of the,
+[00:54:45] all of the reachable blocks, then you sweep through the entire heap,
+[00:54:49] starting at the very beginning of the heap, and you look for,
+[00:54:55] you look for all allocated blocks that aren't marked.
+[00:54:58] Okay, because they're not marked, they're not reachable, and they're garbage.
+[00:55:03] So first, so you do this, so you sort of do two, you, you sort of do two, you, you, you,
+[00:55:07] you do a search from the roots and then you do a sweep of the entire heap.
+[00:55:13] So let's say before Mark, we have a, before the Mark's phase, we have a, before the Mark's face,
+[00:55:24] we have a heap that looks like this, we have a single root that points to this block, and what we're
+[00:55:30] going to do here, we're always going to point to the payload, right, of the, of the block.
+[00:55:35] It's just a convention that we use. So we're, we're pointing to the beginning of the block, because we know that it's,
+[00:55:42] We know that the header is one word behind it.
+[00:55:48] And so let's say, and in this case, the edges denote pointers that are contained in the block,
+[00:55:55] so they're not the previous and next pointers that we're maintaining.
+[00:55:58] These are just pointers that the application has put into those blocks.
+[00:56:03] So we have, so here we have the root pointing to this, the central block,
+[00:56:08] and then there's, and there's a pointer that points to this block, and there's a pointer that points to this block, and there's a
+[00:56:13] another pointer that points to this block, and there's a pointer in this block that points to this block.
+[00:56:21] So after we do the mark and we search this, we search these blocks, then all of the reachable blocks have the mark bits set, which is denoted by pink.
+[00:56:32] And so then you see, and then the blocks that aren't marked, then we can free and return to the free list.
+[00:56:43] Okay, so let's look at the assumptions for a simple implementation just to make sure this is clear.
+[00:56:48] clear.
+[00:56:50] So the application calls new to get a pointer to a block with all the values cleared.
+[00:56:55] It calls read BI to read location I of block B, and it uses write B-I-V to write a value V into location
+[00:57:07] I of block B. And then each block will have a header word which will address as B of minus 1.
+[00:57:17] And then the garbage collector has, it has functions that it has functions that it uses to
+[00:57:22] identify whether a pointer, whether its input parameter is indeed a pointer.
+[00:57:28] Okay, so there's some way to distinguish a pointer from a non-pointer. And it can get the length of
+[00:57:33] some block, not including the header, and it can get a set of all of the roots.
+[00:57:38] So given those, given those assumptions, we are pseudocode for the mark step. It takes,
+[00:57:51] so this initially is a pointer, a root pointer. Okay. And this is this is this is a pointer, and
+[00:57:58] And then we check as our terminating condition, we check to see if that that input is indeed a pointer and if so we return.
+[00:58:05] And then we do a depth first reversal of the graph.
+[00:58:11] So if, and this, so we're doing a depth first reversal of the graph, and this is pointer as sort of our terminating condition for that depth first reversal.
+[00:58:23] Then we check the mark bit and if it's set, then that's another terminating condition.
+[00:58:28] There's no reason to search.
+[00:58:29] to search once we find a marked node, we know that all of everything reachable from
+[00:58:36] that node is marked. So we can terminate or return and just stop the search. If it's not set,
+[00:58:44] then we set the mark bit. And then we look at each word in the block and we recursively call
+[00:58:53] mark on each one of those words. Now each one of those words may or may not be a pointer, right?
+[00:58:57] So if it's not a pointer, then Mark will just return instantly immediately.
+[00:59:04] If it is a pointer, then it will continue the recursive depth-first search.
+[00:59:08] Okay, so does that make sense?
+[00:59:10] It's just a familiar, the familiar depth-first graph traversal that we all know about.
+[00:59:17] Okay, and then the sweep, sweep takes a pointer to the beginning of the heap.
+[00:59:26] The first, it takes a pointer to the first block in the heap, and then a pointer to the end of the heap.
+[00:59:31] And then in a while loop, then it scans the heap, each block.
+[00:59:38] If the mark bit is set, it clears it.
+[00:59:45] If it's, if it's allocated, it frees it.
+[00:59:50] And then it updates, and then it gets the address of the next block,
+[00:59:57] and then just continues until the end.
+[01:00:05] Okay, so how do we do such a thing in C, right?
+[01:00:07] Because all of these assumptions I've made don't hold in C, right?
+[01:00:10] You can't tell a pointer from a non-pointer.
+[01:00:12] Pointers can point anywhere.
+[01:00:14] So what?
+[01:00:18] What you could do, so the big issue is that if we get some value, we, we, even if it is a pointer,
+[01:00:30] it could point right into the middle of the block.
+[01:00:35] So given that, so first of all, we don't know if that value really is a pointer, it could just be a big integer,
+[01:00:41] but it also could be a pointer that's pointing into some data structure.
+[01:00:46] So if it is a pointer, how do we find the beginning of the block?
+[01:00:53] What we could do is just assume that every value is a pointer, and then we maintain a balanced tree to keep track of all the allocated blocks.
+[01:01:02] And so whenever we encounter a particular value, we would search that binary tree to see if it, if, assuming it is a pointer, if it falls within the beginning and end of some allocated block.
+[01:01:15] Okay?
+[01:01:16] If that condition is true, then we assume that it's pointing, that that that's a pointer to an allocated block, and we assume that we assume that it's pointing,
+[01:01:22] and we assume that that block is reachable.
+[01:01:26] Now, the reason it's conservative is because it really may not be a pointer, it might be this integer,
+[01:01:30] and we'll assume it's a pointer and assume that the block that it purportedly points to is allocated,
+[01:01:37] but it may in fact, be not be a pointer, and the block that it points to is garbage.
+[01:01:42] Right, so with this, with this scheme, we would leave some, some non-reachable blocks, we would indicate that some non-reachable blocks, we would indicate that some non-reachable blocks.
+[01:01:52] some non-reachable blocks are really reachable.
+[01:01:57] Okay, so once, now that we've got this great tool to dynamically allocate memory,
+[01:02:04] we can use it in our programs and shoot ourselves in the foot in all different kinds of ways.
+[01:02:10] Okay, so I'm going to, I'm going to try to help you out here by identifying some of the perils and pitfalls that
+[01:02:18] that we can run into with memory-related operations, or operations on memory.
+[01:02:24] And opera errors involving memory are the worst, the worst kinds of bugs to try to find out.
+[01:02:36] And the reason is that they're distant in both space and time.
+[01:02:40] So let's say you write to the wrong memory location and corrupt some data structure.
+[01:02:46] The right doesn't elicit any error.
+[01:02:49] You only find out about that erroneous right when you try to reference that data structure or that particular part of the data structure.
+[01:02:56] part of the data structure, which may be in a part of the code that's way far away from the right that caused the problem.
+[01:03:03] Both in space, you know, in distance, you know, lines of code, it could be a completely different function and a completely different module.
+[01:03:09] But also in time, it may not, you know, you may do the right, and then eons later, there's some read and it fails.
+[01:03:16] Right. So this is a fundamental thing that makes memory-related bugs just so nasty.
+[01:03:24] And another big thing, another thing that makes them hard to deal with,
+[01:03:29] is people's misunderstanding and misuse of pointers.
+[01:03:33] So usually an erroneous right is some, is some,
+[01:03:36] either a misunderstanding of pointers or an improperly initialized pointer,
+[01:03:42] so it all boils down to these pointers.
+[01:03:44] Okay.
+[01:03:45] And so I'm going to show you how to understand pointers, okay,
+[01:03:51] for the first time in your lives.
+[01:03:54] I don't know about you, but when I learned C, I learned about
+[01:04:01] about pointers, I just knew about what a few different types of pointers were by, and I did it by pattern matching.
+[01:04:07] So I knew that int star p was a pointer to an int. I knew that int star star p was a pointer to an
+[01:04:11] int. I knew that int star star p was an array.
+[01:04:15] I knew that int star p opened, closed bracket, was also an array,
+[01:04:21] just a different way to express that array.
+[01:04:24] So I had a small handful of pointers types that I could deal with, but I had no underlying understanding of
+[01:04:31] understanding of what that meant or anything.
+[01:04:33] It was just pure pattern matching.
+[01:04:35] And I'll bet you that's the way you do it too.
+[01:04:37] All right, but that's all going to change today.
+[01:04:40] All right, so in order to really understand pointers,
+[01:04:45] you need to understand the
+[01:04:47] precedence of various operators in C
+[01:04:51] because the pointer types are declared using these operators.
+[01:04:56] And so my copy of K&R has a dog yard at page 53.
+[01:05:01] This table comes from page 53 of K&R.
+[01:05:04] and you should have a paperclip or have that folded over for reference.
+[01:05:10] Now the thing to notice is that function and array and then these struct, these various struct operators,
+[01:05:19] have the highest priority, highest precedence.
+[01:05:24] And that, and then that's followed by unary operator.
+[01:05:27] So the star, this is the dereference operator and then the address of operator, they fall
+[01:05:35] they fall right below the highest precedence operators.
+[01:05:41] And then the binary versions of operators, you know, that you use in arithmetic operations, are below those.
+[01:05:48] Okay, so just remember that.
+[01:05:50] Function and array is higher than star, okay?
+[01:05:57] The de-reference.
+[01:06:00] Now, the great thing about pointers, although they always seem really complicated, is that there's an algorithm
+[01:06:07] for, there's an algorithm for constructing an English sentence that explains exactly
+[01:06:15] what that pointer, what that definition of the pointer means.
+[01:06:22] And if you're interested, it's in the K&R in section 5.12.
+[01:06:26] But I'll, I'll explain it to you now.
+[01:06:29] Now, I don't know how much in this class you're going to remember.
+[01:06:34] Okay.
+[01:06:35] But I guarantee you're going to remember this as the day you finally understood pointers.
+[01:06:39] Okay.
+[01:06:40] All right, so here's how it works.
+[01:06:45] You always start at the, this is a definition of a pointer, some kind.
+[01:06:51] You always start with the variable name.
+[01:06:54] And then you use your precedence.
+[01:07:02] Then you look for operators on either side of that variable name,
+[01:07:06] and you choose the one that has the highest precedence.
+[01:07:09] Okay, so we start with the variable.
+[01:07:13] So we say P is A, and then we look to the left and the right.
+[01:07:18] There's nothing to the right, but there's a, there's a,
+[01:07:20] pointer symbol to the left so we say p is a pointer then there's nothing more
+[01:07:26] and then we always end up with the the type of thing that it points at. So p is a
+[01:07:32] pointer to an int right so p is p is a pointer to some to some integer in memory.
+[01:07:50] Okay, so we all know that one that's pretty easy. Okay, what about the next one?
+[01:07:55] You've probably seen something like this. Some programs declare argv using this notation.
+[01:08:02] So this, you can have an optional size or not. So, so we start out, we start out, we say P is a, well, now in this case, there's operators to the left and the right. Remember, the array operator has higher precedence than the de-referencing operator, the pointer operator. So we say, so P is an array is an array of size 13, of size 13, of, so there's nothing more, so we go to the
+[01:08:37] left of pointers. So p is an array 13 of pointers to ints. So p is an array of
+[01:08:52] 13 pointers, each of which points to an ints, right? In this case, p is just the name of the
+[01:09:07] name of the array. So by default, p is a, is equivalent, is the address of the array. When you reference an array name, you're addressing, you're addressing the address
+[01:09:20] of the first element.
+[01:09:24] Okay, how about the next one?
+[01:09:27] Here we're being, if we put parentheses around things, then we can be explicit.
+[01:09:31] Okay, and this is a good practice.
+[01:09:33] So here we're saying P, and we have to look at this one first because of the parentheses.
+[01:09:39] So p is an array 13 of pointers to ints.
+[01:09:43] So that's the same thing.
+[01:09:45] And here we're just being more explicit.
+[01:09:47] Now what about star star star p?
+[01:09:49] So p is a pointer to a pointer to a pointer to an end.
+[01:09:54] to an int.
+[01:09:57] So this is a different type of array.
+[01:09:59] So p is a pointer to a pointer to an int.
+[01:10:10] Okay.
+[01:10:11] And typically, so this is another way to do arrays.
+[01:10:17] So the same way that char star points to a string,
+[01:10:24] this can point, it points to a pointer,
+[01:10:29] but then you can index on that.
+[01:10:32] And each one of those then corresponds to a point
+[01:10:37] Okay.
+[01:10:42] Here's another one.
+[01:10:45] Now P, and because of the parentheses, we have to go left.
+[01:10:48] So P is a pointer to an array 13 of ints.
+[01:10:53] Okay.
+[01:10:54] So P is an pointer to an array of 13 inch.
+[01:11:01] Alright, now what about this one?
+[01:11:13] F is a function or a, is it a function or a pointer?
+[01:11:20] F is a function, right, because of the precedence.
+[01:11:25] So F is a function.
+[01:11:26] F is a function.
+[01:11:27] returning pointer to int.
+[01:11:30] Okay, so if we go, if we go p equal f,
+[01:11:39] then that returns, that initialized p
+[01:11:41] to point to some int.
+[01:11:50] All right, and I'm going to do this one.
+[01:11:53] Let's jump down in the interest of time.
+[01:11:56] Totally ridiculous case, just so you can see that
+[01:12:00] this algorithm works.
+[01:12:02] All right, so x is an array of pointers to functions
+[01:12:10] returning pointers to an array five of ints.
+[01:12:18] And if you ever use anything like that in your code,
+[01:12:21] shame on you.
+[01:12:23] All right, so there you go.
+[01:12:27] So that's, now you know, now you understand pointers,
+[01:12:30] simple as can be, and all you need is page 53 of K&R
+[01:12:33] as a handy reference.
+[01:12:35] All right, so let's, we'll take the last five minutes
+[01:12:39] and I'll show you some,
+[01:12:40] some of the ways you can trip yourself up
+[01:12:43] when you're accessing memory.
+[01:12:45] Okay, so first is the question
+[01:12:46] classic scanf bug, you've probably all done this where you forget to pass at the address of a
+[01:12:52] of a variable. Instead you pass at the address. So scanf doesn't know where to put the, you know,
+[01:12:58] put the, you know, put the data. Okay, another common mistake is to read un-initialized memory.
+[01:13:07] So you can't really assume that your heap data is initialized to zero. So here we're
+[01:13:14] malicking an array of n-inths, and then we're going through and we're doing, we're updating a
+[01:13:19] we're updating this vector, this Y vector.
+[01:13:23] We're reading YI, we're taking Y, it's YI equal YI plus AIJ times XJ.
+[01:13:30] Okay, so we're using, we're assuming that Y, that Malik returns memory that's all zeros.
+[01:13:38] So that'll get you.
+[01:13:43] It's also easy to allocate the wrong sized object.
+[01:13:47] So here we want to create an array of end pointer.
+[01:13:51] of n pointers, of n pointers to ints.
+[01:13:56] Okay, and then for each one we want to allocate mints.
+[01:13:59] So this is where we're creating a two-dimensional array.
+[01:14:04] And can you see the mistake? Which line is buggy?
+[01:14:12] This one?
+[01:14:18] This one or this one?
+[01:14:21] The first one, right? Because we really want size of int star.
+[01:14:24] Right, so we're erroneously
+[01:14:26] incorrectly assuming that
+[01:14:27] ints are the same sizes as pointers.
+[01:14:31] This is a classic,
+[01:14:33] this is a classic,
+[01:14:34] This assumption is true for 32-bit code.
+[01:14:36] Inths and pointers are the same size, but it's not true for 64-bit.
+[01:14:40] And so this is why when you port,
+[01:14:43] when people port 32-bit code to a 64-bit machine,
+[01:14:47] a lot of times it breaks, because they have this assumption.
+[01:14:51] Okay, another way, it's easy to overwrite memory.
+[01:14:55] So here we're, we're correctly creating this array,
+[01:14:59] but then when we create each of the subarrays,
+[01:15:03] Instead of i lessen or equal to n, we're actually,
+[01:15:07] we only created n of these things, but we're traversing n plus 1 because of this lessen or equal.
+[01:15:12] So this is a classic off by one bug.
+[01:15:14] Okay, another problem you saw it with the code injection attacks from your attack lab,
+[01:15:22] not checking the size of a buffer.
+[01:15:24] So get-S is a classic example of this, so that'll get you into trouble.
+[01:15:30] Another classic mistake is misunderstanding pointer arithmetic.
+[01:15:35] arithmetic.
+[01:15:36] So if you increment a pointer, then it's incremented by the size of the object that pointer points to.
+[01:15:48] So if you increment an int star by one, it actually increments it by four, because that's the size
+[01:15:55] of an int.
+[01:15:58] You've got, that's a really important distinction.
+[01:16:01] And so people will often, so here it's assuming that incrementing,
+[01:16:06] so P is a pointer, and the programmer here assumed that he wants to increment the pointer
+[01:16:10] to increment the pointer to sort of traverse an array. So he doesn't understand pointer arithmetic.
+[01:16:16] And so to get to the next in, increments P by size event. Okay, this will really increment it by 16,
+[01:16:24] not by 4. Okay, overriding memory, that's a really nasty one. And a lot of times this can happen
+[01:16:34] if you don't understand the precedence of the operators that you're working with. So this is a heap,
+[01:16:42] not the kind of heap we've been talking about, but the heap data structure.
+[01:16:45] And this is a function to delete from a heap.
+[01:16:48] And this actually is from my own code, I have to admit.
+[01:16:52] And so I want to delete, I want to delete an element, I want to delete the first element of the
+[01:16:59] heap of the heap of the heap, right?
+[01:17:01] And then I want to re-heapify it.
+[01:17:04] Okay, so I, and then I want to return, I want to return that.
+[01:17:08] So I get the first element of the heap, I decrease the, I decrease the,
+[01:17:13] the size of the heap, or I take the last element and make that the first element.
+[01:17:22] And now I want to decrease the size of the heap, because this delete operation will delete
+[01:17:28] the heap size by one. So notice here, we pass size in as a pointer. And when this function
+[01:17:35] terminate, when this function returns, size should be updated,
+[01:17:40] size as a pointer, the value that it points to should be decremented. Okay, that's our intent.
+[01:17:44] And we do it right here with the size minus minus star. So what we want to do is we want to de-reference size and then decrement that value.
+[01:17:53] But because the unary minus minus minus has higher precedence than the de-reference, what we're really doing is we're decrementing the pointer and then de-referencing the value that's one word less than our size variable.
+[01:18:15] All right.
+[01:18:15] So these are nasty.
+[01:18:16] And it would have been much cleaner if I had just put parentheses around like I intended, just parentheses, just parentheses,
+[01:18:25] just parentheses, star-sized parentheses.
+[01:18:28] All right, another way you can mess up is referencing, forgetting the local variables disappear.
+[01:18:33] So if you have a function that returns an address of a local variable, no good.
+[01:18:38] Okay.
+[01:18:39] No good at all.
+[01:18:41] It might be okay for a while until somebody, another function,
+[01:18:44] reuses that space.
+[01:18:46] That could be a return address.
+[01:18:47] It could be another function's local variable.
+[01:18:50] Another terrible mistake, this is a really bad one, is freeing a block multiple time.
+[01:18:57] Now you know, from your understanding now of Malik, that free actually writes to the heap, right?
+[01:19:05] It's coalescing, it's changing pointers, it's changing size, block sizes.
+[01:19:09] So if you free a block that's already been freed, terrible things will happen.
+[01:19:14] Another thing is that you freeing,
+[01:19:18] you can do wrong is to reference a block.
+[01:19:20] You forget that you freed a block and then you reference it.
+[01:19:22] So here we free this block X
+[01:19:25] and then we're referencing it here.
+[01:19:27] Another big problem is memory leaks, so failing to free blocks,
+[01:19:32] so allocating some block in a function and then returning,
+[01:19:36] that block will stay there forever, right?
+[01:19:38] Because it's garbage.
+[01:19:39] Okay, so there's a number of ways to deal with memory bugs.
+[01:19:47] GDP is sometimes good.
+[01:19:49] At least it'll tell you where a seg fault occurs.
+[01:19:52] and then you've got to track down with the right that sort of caused that seg fault.
+[01:19:58] The best thing you can do, but GDD falls down whenever you're doing manipulation of complex data structures.
+[01:20:06] It's just simple sort of looking one instruction at a time.
+[01:20:10] What you really need to do is identify for any complex data structure, like a heap, for example,
+[01:20:15] is identifying variance for that structure that that data structure should always maintain.
+[01:20:20] And then you write a function.
+[01:20:22] that iterates over that structure, that data structure,
+[01:20:25] and checks that all those invariants are true.
+[01:20:28] So for example, in an allocator,
+[01:20:32] one of the invariants is that there should never be two contiguous free blocks.
+[01:20:37] Right?
+[01:20:38] So your consistency checker should go through the heap
+[01:20:41] and make sure there's no contiguous free blocks.
+[01:20:44] Or another invariant is that every free block should be in a free list somewhere.
+[01:20:51] So you would, you would, you would, you would,
+[01:20:53] You would up, your consistency checker would scan the heap, count the number of free blocks,
+[01:20:58] and then scan the free list, and make sure that the number of blocks in the free list is the same
+[01:21:02] as the number of free blocks.
+[01:21:04] Okay, so this idea of a consistency checker is something you'll use in your Malik lab, but it's something
+[01:21:09] it's also something you should use whenever you're updating any kind of complex data structure.
+[01:21:14] And the, and you know about Valgrind, but the great thing about these heap
+[01:21:20] heap checkers, okay, I'm passionate about heap checkers or consistency checkers.
+[01:21:24] The really powerful thing about them is you write them to run silently.
+[01:21:31] They don't print anything unless they find a violation of the invariance.
+[01:21:36] If you write your consistency checker like this, then you can use it like a probe.
+[01:21:41] So your program crashes.
+[01:21:43] So you do, you use this heap checker to do a binary search to isolate the cause.
+[01:21:48] So, you know, you put your, you put your heap checker here, everything's okay, and then later
+[01:21:55] the program crashes.
+[01:21:57] So now you stick the heap checker here,
+[01:21:59] and now it crashes,
+[01:22:01] the heap checker detects an in violation.
+[01:22:04] So you know that the problem is somewhere here,
+[01:22:06] and you can just keep narrowing it down.
+[01:22:08] So it's just like a probe,
+[01:22:09] surgical probe that you can use to track down bugs.
+[01:22:13] And so that's, if you do this,
+[01:22:16] it's, I don't know how anybody
+[01:22:18] debugs Malik without this kind of tool.
+[01:22:21] Okay, so that's it for today.
+[01:22:26] Have a good weekend.
+[01:22:29] We'll see.
+[01:22:30] See you on Tuesday.

@@ -1,0 +1,802 @@
+[00:00:00] Welcome, good to see you.
+[00:00:05] Today we're going to begin transitioning from how our programs interact with hardware
+[00:00:13] to how they interact with software, in particular system software.
+[00:00:17] And we're going to start that investigation by studying and learning about a process called linking,
+[00:00:23] which is how the system builds your programs.
+[00:00:30] So we're going to study the process of linking.
+[00:00:36] And then I'm going to show you a really cool technique called library interpositioning,
+[00:00:42] which allows you to use linking to actually intercept on function calls in libraries,
+[00:00:49] like the standard C library.
+[00:00:51] So it's a very, very powerful and interesting technique, and it's all enabled by linking.
+[00:00:58] So let's start with a simple program.
+[00:01:02] This program consists of two modules, main.
+[00:01:06] And sum.c and sum.
+[00:01:09] Sum.
+[00:01:10] Sum.
+[00:01:11] It takes as an array as an array as an argument and a length, n,
+[00:01:15] and then it sums up the elements of that array,
+[00:01:17] and returns the sum,
+[00:01:18] and returns the sum back to the caller.
+[00:01:22] Main.
+[00:01:24] C calls the sum function using,
+[00:01:27] and passes it a two-element array of ints,
+[00:01:30] and then returns that,
+[00:01:32] and then returns that,
+[00:01:34] returns the value received from some.
+[00:01:38] That's kind of an odd thing to do to return your exit status
+[00:01:42] like that, but we just did it so that the compiler wouldn't optimize away all of our code.
+[00:01:49] Now let's look at what happens when we want to compile those two modules.
+[00:01:55] For each of main.c and sum.c, the GCC calls a series of translators on that
+[00:02:04] on those modules, on those dot C files.
+[00:02:09] First calls a C preprocessor, CPP.
+[00:02:14] Then it calls the compiler, the actual compiler, which is CC1.
+[00:02:21] The compiler generates assembly, which is then translated
+[00:02:25] by the assembler, AS, resulting in a .0 file called main.O.
+[00:02:33] Similar things happens for some.
+[00:02:36] So after the, after these three translators work on the code, we have two object files, two dot O files.
+[00:02:47] The linker takes those, those dot O files, and puts them, links them together, sort of smashes them together, to form a single executable called called, that we can then run.
+[00:03:04] that we can then load and run on the system.
+[00:03:11] So the main.c and some dot C are called source files.
+[00:03:15] These .0 files are object files that we were separately compiled,
+[00:03:22] but, and we call them relocatable object files,
+[00:03:26] because they can be combined together
+[00:03:28] to form the fully linked executable object file.
+[00:03:34] So why do we do it like this?
+[00:03:37] Why do we do it like this?
+[00:03:38] the so-called separate compilation.
+[00:03:42] You know, why don't we just have like one big,
+[00:03:45] you know, one big file with all of our code in it?
+[00:03:48] Well, there's a couple reasons.
+[00:03:50] The first is modularity.
+[00:03:52] So by allowing you to break your code into smaller pieces,
+[00:03:56] you can put related functions into separate source files.
+[00:03:59] You can define libraries of functions.
+[00:04:02] So it's just good technique, and it allows you to kind of
+[00:04:07] break your code up into nice,
+[00:04:09] to nice modular pieces.
+[00:04:12] The other reason is efficiency.
+[00:04:15] So if we've broken up our program into multiple chunks,
+[00:04:19] if we've broken up our program into multiple chunks,
+[00:04:23] if we change, and if we only need to change one of the chunks,
+[00:04:29] we don't have to recompile the all the other modules.
+[00:04:33] Right?
+[00:04:34] We can just recompile the one module that we changed and then link them all together
+[00:04:38] together again.
+[00:04:39] So it's efficient.
+[00:04:41] In time, it's also efficient in space because you can take
+[00:04:45] all of, say, all of the functions in the standard C library,
+[00:04:50] you could put them all together, but then the only functions that you actually get compiled and linked into
+[00:04:56] your program are the ones that you actually call.
+[00:04:59] Okay, so you can save space.
+[00:05:02] You don't, you know, normally you use only a small subset of the standard C functions and
+[00:05:07] and so there's no, there's no point in linking all of those functions into your code if you don't need them.
+[00:05:15] All right, so what do linkers do?
+[00:05:18] Well, there's two main, there's two main tasks that a linker performs.
+[00:05:23] The first is called symbol resolution.
+[00:05:26] So programs define and reference symbols, okay, what the linker refers to as symbols.
+[00:05:34] And these are global variables and functions, okay, and the names,
+[00:05:39] And those objects are referred to as symbols.
+[00:05:45] So here we're declaring, we're defining a symbol called swap.
+[00:05:54] Here we're referring, when we call swap, we're referring to that symbol.
+[00:06:00] Okay, that's a reference to the symbol.
+[00:06:03] And here we're defining a pointer to an int called XP.
+[00:06:08] So we're defining xP, and we're defining xP, and we're initially
+[00:06:11] it to the address of X, so that's a reference to X.
+[00:06:17] Okay.
+[00:06:18] So the symbol definitions are stored in the object file by the assembler
+[00:06:23] in a symbol table,
+[00:06:26] which is an array of structs,
+[00:06:29] where each struck contains information about the symbol,
+[00:06:32] like the name of the symbol, its size,
+[00:06:35] and where it's located.
+[00:06:40] Now, what we mean by symbol resolution,
+[00:06:43] is that during the linking process,
+[00:06:47] the linker associates each symbol reference
+[00:06:52] with exactly one symbol definition.
+[00:06:56] Okay.
+[00:06:58] So it's possible in multiple, you know, why is this an issue?
+[00:07:01] Well, it's possible, like in multiple modules,
+[00:07:04] you may declare a global variable with the same name.
+[00:07:08] The linker has to decide which one of those definitions
+[00:07:11] to use for all subsequent references.
+[00:07:14] Now, once the linker has to decide which one of those definitions
+[00:07:17] Now once the linkers associated a unique object with each, a unique symbol definition
+[00:07:24] with each reference, then it does the second step, which is relocation.
+[00:07:30] And during relocation, it merges all of the modules together into a single, into a single executable object module
+[00:07:39] that that can be directly loaded and executed on the system.
+[00:07:44] So when it, when it does this merging,
+[00:07:47] it has to figure out where each symbol, each function, and each variable is going to be stored.
+[00:07:57] Okay, and this is called relocation because initially functions are just stored at some offset in their object module.
+[00:08:07] Right? Because the linker doesn't know where those functions are actually going to be eventually loaded into memory.
+[00:08:13] So before, before relocation, the address of,
+[00:08:18] of a function in the object module is just its offset in the module.
+[00:08:23] And similarly for data.
+[00:08:26] During the relocation step, the linker decides on where each symbol is going to be ultimately
+[00:08:35] located in memory when the program executes,
+[00:08:39] and it binds that those absolute memory locations to the symbol.
+[00:08:45] And then it goes and looks and looks at all the reference
+[00:08:49] to those symbols and it updates those references so that now they point to the correct address.
+[00:08:55] Okay, so figure out where stuff is going to go. For each definition, figure out where it's going to go.
+[00:09:01] And for each reference, then update that reference so it now points to the right spot.
+[00:09:08] So let's look at what these, how these steps work in more detail.
+[00:09:15] Before that, we need to, we need to define a few things.
+[00:09:19] So there's three kinds of object modules that.
+[00:09:22] I've alluded to.
+[00:09:24] There's the .0 file, which is a relocatable object module.
+[00:09:27] This is the output of the assembler.
+[00:09:30] Okay. And it's not, it's a binary file, but it's not in any form that can be directly loaded into memory.
+[00:09:39] It needs to be manipulated by the linker before it can be actually used.
+[00:09:44] There's the executable object file, which is generated by the linker.
+[00:09:50] These are called a dot out file.
+[00:09:52] sometimes historically, the very first Linux systems, the executable, the sort of the default name that the developers of Unix used, the default name for their executables, was A. Dot Out.
+[00:10:05] So that's just sort of a historical reason that it's called A. Dot Out.
+[00:10:11] And then there's another type of object file called a shared object file or .S.o file, which is a sort of a modern technique
+[00:10:22] for creating shared libraries.
+[00:10:25] Then we'll look at those.
+[00:10:26] We'll look at those later today.
+[00:10:29] Now, object modules come in a standard format called ELF format.
+[00:10:34] And it's a unified format for .0 files,
+[00:10:38] for executables, and for .
+[00:10:40] So, they all use the same format,
+[00:10:42] the same general format.
+[00:10:45] So this, while these ELF binaries are,
+[00:10:53] they're binaries, they're very structured.
+[00:10:55] They're very structured, and they're broken up into sections.
+[00:11:01] At the beginning is a header that defines things like the size of the words, the byte ordering,
+[00:11:09] whether it's a dot O, an a dot out, or a .
+[00:11:13] So it just provides some sort of general information about this binary.
+[00:11:20] And then there's what's a so-called segment header table, which is, it only
+[00:11:25] it's only defined for the executable object files, and it indicates where all the different segments of the code are going to go in memory.
+[00:11:34] So where does your stack go? Where do your shared libraries go? Where does your initialized and uninitialized data?
+[00:11:43] Where does your code go? All these various sections are defined in the segment header table.
+[00:11:53] And then there's the code itself, which is called
+[00:11:56] the dot text section for sort of arcane historical reasons. So dot text
+[00:12:01] is always code. And then that's followed by read only data, such as the jump tables in switch
+[00:12:11] statements. So text and read only, the dot text and dot text and dotRo data have the property
+[00:12:17] that they're, they're both read only. You don't write to them. Then that's followed by the data
+[00:12:24] section, which contains space for all of your
+[00:12:28] initialized global variables. And then there's a section called BSS, which
+[00:12:38] contains the un-initialized global variables. Now this doesn't actually take up any space because
+[00:12:45] they're uninitialized rights. Okay. But there are entries in the symbol table for them.
+[00:12:50] And when this program gets loaded, these variables are going to need, they're actually going to have
+[00:12:59] to have space allocated for them. BSS is another one of those sort of arcane names.
+[00:13:06] It goes all the way back to the 60s. For there's an IBM instruction called the block started by symbol.
+[00:13:12] I think a better way to remember what it means is better save space. Okay, so you can, if you have
+[00:13:18] a separate section for the uninitialized variable, since they don't have to
+[00:13:25] consume any room in the in the dot-o file. Okay, there's also a section for the symbol
+[00:13:35] table. This contained, like I said, it's an array of structs for procedures, global variables, and anything
+[00:13:49] defined with the static attribute. And each one of these, each one of these symbols gets an entry in
+[00:13:57] the symbol table. And then there's two, two sections called, that contains.
+[00:14:02] relocation info. So this is the notes. When the linker went and identified
+[00:14:09] all the references to symbols, it put a little note to say, I'm going to have to remember to fix this,
+[00:14:15] the reference to this symbol up when I, when I actually create the executable. So a relocation entry
+[00:14:23] is just like a note that the linker, or that it's a note that the assembler makes to the
+[00:14:28] linker to say, hey, you're going to have to fix up this reference because I don't know.
+[00:14:33] I don't know where this symbol is actually going to be stored in memory when it's when it's loaded.
+[00:14:38] Okay, and then there's a debug section that contains information
+[00:14:46] that relates line numbers to, in the source code, to line numbers in the machine code.
+[00:14:55] Okay, and so it's called dot debug, and this is what you get when you compile with dash g.
+[00:15:00] And then there's a header table that that tells you where all these different sections start.
+[00:15:06] Now,
+[00:15:08] Now, to a linker, there's three different kinds of symbols.
+[00:15:13] Global symbols are defined in some module M, and they can be used by other modules.
+[00:15:21] Right? So, I mean, did you notice when we, if we have a program that consists of multiple modules,
+[00:15:28] and we compile each one of those modules into a .0 file, we'll be calling functions that
+[00:15:34] aren't defined, that are defined by other modules.
+[00:15:38] Okay.
+[00:15:39] So those, but there's no error that the compiler doesn't throw an error because it's assuming that those are defined in other modules and it assumes the linker will be able to find them and determine the address.
+[00:15:54] So anything that's defined with any global, either global variable or a function name that's defined without the static attribute is a global symbol.
+[00:16:08] symbol.
+[00:16:09] Okay.
+[00:16:11] Now, and then external symbols are kind of the flip side of that.
+[00:16:15] External symbols are symbols that are referenced by some module but defined in some other module.
+[00:16:22] Okay. So in our, in our little running example, when main.
+[00:16:28] C called the function sum, it was referencing an external symbol.
+[00:16:34] Okay. And then there's, there's local symbols and these are symbols that are symbols that are defined
+[00:16:38] and referenced within a module.
+[00:16:42] Okay, and those, you create, you create, this is different from local variables.
+[00:16:48] Okay, the linker, you know, local C variables are managed by the compiler on the stack.
+[00:16:57] Linker has no idea about local C variables.
+[00:17:01] Okay, in this context, when we talk about a local symbol, what we're talking about is either, is a global,
+[00:17:08] a global variable or function declared with the static attribute that can only be referenced from within that module.
+[00:17:17] So we say that the scope, the scope of the function or a global variable defined with the static attribute
+[00:17:25] is limited to the module that it was defined in.
+[00:17:28] Okay?
+[00:17:30] So this is, in C, this is how we do abstraction.
+[00:17:34] And this is how we can create sort of private functions that,
+[00:17:38] and private functions that can't be called from outside that module.
+[00:17:46] So for instance, if we want to make a library in C of functions, we want to make a collection of functions,
+[00:17:51] we want to make a collection of functions that other programs can then call, link into their program
+[00:17:57] and call, the functions that we want to make visible to other programs are defined without the static
+[00:18:07] attribute and the functions that we want to have private and just be internal,
+[00:18:13] we declare with the static attribute.
+[00:18:16] And that way we get abstraction and we get hiding, information hiding, and we're only exposing
+[00:18:22] data and functions that that we want to expose.
+[00:18:27] All right, so let's look in detail how the symbol resolution step works.
+[00:18:33] Recall our example, our example program.
+[00:18:38] So here we're referencing a global called array that's defined within main.
+[00:18:50] C. Here when we, here we're defining main, a global called main, a global called main.
+[00:19:02] Here we're referencing a global called sum that's defined in sum.
+[00:19:09] And Val is a local C variable on the stack, and Val is a local C variable on the stack,
+[00:19:16] knows nothing about that.
+[00:19:17] Okay.
+[00:19:20] Nor does it know anything about I or S, which are also local variables.
+[00:19:24] Now let's just, let's make sure that we understand the difference between local static C variables versus local non-static C variables.
+[00:19:37] So here we're defining a local static variable called int within this function F.
+[00:19:49] Now, because it's local, its scope is limited to this function f.
+[00:19:53] So this variable X can only be referenced within function F.
+[00:19:59] And similarly, similarly, for this definition of x in function G, can only be referenced by function G.
+[00:20:11] Now what's, but because it's declared with the static attribute, it's not stored on the stack.
+[00:20:17] It's actually stored in dot data, just like a global would be.
+[00:20:22] So it's like a global.
+[00:20:23] It's like a global.
+[00:20:24] in the sense that it's actually stored in dot data rather than the stack.
+[00:20:29] But it's like a local C variable in the sense that its scope is limited just to the function that it's defined in.
+[00:20:35] Okay, so what the compiler will do, it'll allocate space for each definition of X.
+[00:20:43] So this, and it'll give it some name to disambiguate it.
+[00:20:47] So maybe it will call this one x.1, and maybe this one, x.2. So these symbols are allocated,
+[00:20:55] in dot data because they're initialized and they get symbol table entries just like
+[00:21:01] like any other symbol.
+[00:21:04] Okay, so I said that during symbol resolution, the linker associates each reference,
+[00:21:14] each symbol reference to exactly one unique symbol definition.
+[00:21:20] Now how does it do that if there's multiple symbol definitions across all the modules?
+[00:21:26] So to understand this, well,
+[00:21:30] We'll define symbols as being either strong or weak.
+[00:21:35] So strong symbols are either procedures or function, function names, or initialized global variables.
+[00:21:45] Weak symbols are uninitialized global variables.
+[00:21:48] Okay, so int, Fu here is a strong symbol because it's initialized, we're initializing it.
+[00:21:57] P1 is strong by definition.
+[00:22:00] Fu is weak.
+[00:22:02] In p2.2.c, this definition of foo is weak because it's un-initialized, and the definition of P2 is strong.
+[00:22:12] Okay, so that the rules that the Linkelae uses are the following.
+[00:22:19] Multiple strong symbols not allowed, so that's an error.
+[00:22:23] Okay.
+[00:22:24] So that means that if we, if across multiple modules, we declare a function with the same name,
+[00:22:30] the linker will throw an error.
+[00:22:32] That's not allowed.
+[00:22:35] Given a strong symbol and multiple weak symbols,
+[00:22:38] the linker will always choose the
+[00:22:41] strong symbol.
+[00:22:42] Now remember, if we initialize a global variable,
+[00:22:47] and if we declare an initialized global variable
+[00:22:54] variable across multiple modules, that's an error
+[00:22:56] because those are strong symbols, okay, by rule one.
+[00:22:59] But if we have one strong symbol and multiple weak symbols,
+[00:23:02] multiple weak symbols, all with the same name, then the compiler will choose the strong symbol.
+[00:23:08] Okay. And it will associate all references to that symbol will go to that strong symbol.
+[00:23:13] And if there's multiple weak symbols, then it just picks an arbitrary one.
+[00:23:17] And this, this, as we'll see, can be problematic.
+[00:23:20] Now you can override it with this GCC flag called no common.
+[00:23:25] And if you, if you declare your function with this no common argument, then multiple weak
+[00:23:33] symbols will throw an error in a linker.
+[00:23:36] All right, so why do we care about all this stuff?
+[00:23:38] Well, it turns out, if you're not aware of this stuff,
+[00:23:41] you can run into some really serious problems that are just perplexing and confounding,
+[00:23:46] right?
+[00:23:47] So, linker errors are like the worst kind, they're the hardest kind to debug,
+[00:23:52] because people aren't usually aware of what's going on inside their linkers.
+[00:23:56] And usually it's only like the very best programmers that really understand
+[00:24:02] you know, how these linkers work and what kind of errors they can throw and how to debug them.
+[00:24:08] So let me show you some examples of these kind of errors.
+[00:24:14] All right, so we have a program, we've were to, we have two modules, so each of these rectangles corresponds to a module.
+[00:24:23] And we're defining P1 in each module, so that's two strong symbols, that's an error.
+[00:24:31] Okay.
+[00:24:34] Now here we've, we've, we've, we've, we've, we've, you know, we're just one.
+[00:24:36] we're defining P1 and P2, so we're okay, but now we've got two weak symbols, both are integers,
+[00:24:44] uh, variables called X.
+[00:24:49] So, and if these modules are referencing X, the linker will just pick, it will just pick one of these
+[00:24:55] to serve as the, uh, the definition.
+[00:25:00] But is, is this really what you want?
+[00:25:03] Now, in this case, it doesn't really hurt anything because X is declared in both modules as an int.
+[00:25:09] So it'll just be some integer sized variable that, and it'll be, it'll be somewhere in,
+[00:25:19] but it doesn't really matter which one the linker chooses.
+[00:25:25] But we start to get into trouble if we declare these weak symbols with different types.
+[00:25:31] So here we've declared an int x in one module and a double X in another module.
+[00:25:40] So if we write to X in a X in another module.
+[00:25:42] So if we write to X in.
+[00:25:43] if the linker just arbitrarily chooses this this symbol definition to use.
+[00:25:51] Now this is a symbol that of length 8, of size 8.
+[00:25:58] If we anywhere in this program, if we, if the linker chooses that, then anywhere in the program,
+[00:26:06] those references to, those references to X will be to this double word, this double word.
+[00:26:15] Even even in this module, if we reference
+[00:26:19] X, it'll be an 8 byte right. So it'll overwrite Y with the high order,
+[00:26:29] excuse me. Oh no, it's completely, it's just, it'll just pick one arbitrarily and, and you don't know.
+[00:26:47] I mean, I mean, it, it, all right, here's, now this is, this is, here's a problem.
+[00:26:57] We've, we've defined a strong symbol of X because we've initialized this.
+[00:27:02] So the linker will always, will associate all references to X,
+[00:27:07] to this integer sized symbol.
+[00:27:17] So if we write, oh yeah, right, so writes to x, so writes to x here, this will be a double in this module,
+[00:27:38] but it'll overwrite y in this module. So that's really nasty. And here, we're defining a strong
+[00:27:51] symbol x. So references to x in this second module will always
+[00:27:58] get it will refer to this initialized variable which might not so it might not
+[00:28:02] be what you want right you may you may you may be assuming that it's uninitialized in
+[00:28:09] your code okay and then you get the the the ultimate nightmare scenario is
+[00:28:16] suppose you know because we're following a standard ABI we can compile our code with
+[00:28:21] multiple compilers and this actually happens in some oh yes questions oh yeah actually you're
+[00:28:36] right it will it will still take preference
+[00:28:39] and you'd be writing a 4 by quantity which is what you want.
+[00:28:43] So that slide is not quite right.
+[00:28:45] So that the static versus always being referenced locally in your function.
+[00:28:58] No, no, no, no, it's if you reference, if you reference a, if you reference a variable that's, you mean, so a variable
+[00:29:14] is defined in your module and then you.
+[00:29:16] And then you with the static?
+[00:29:20] Right.
+[00:29:22] Oh, they're both, they're both local.
+[00:29:26] So you do this if you want a value to,
+[00:29:30] to retain from if you want if you want that variable to retain value from invocation to invocation.
+[00:29:37] So suppose you, it's usually a bad idea as we'll see when we study threads because it makes your code non-threadsafe.
+[00:29:45] But like early, like random number generators, it would compute a pseudo random number number and
+[00:29:53] then it would store it in a static variable and then use that as the the starting value for the next
+[00:29:59] the next time you call that function.
+[00:30:02] So whenever you want values to persist across function invocations, you would do static.
+[00:30:06] Yes.
+[00:30:07] Well, wait a minute. Let me, let me get this straight.
+[00:30:28] Rights to X in P2 will actually correspond to the memory look.
+[00:30:34] It'll actually go to the memory location.
+[00:30:37] I'm sorry, I need to amend that.
+[00:30:42] So rights to X in P2 will be 8 bytes, because
+[00:30:48] it's the compiler, you know, the compiler knows that it's a double.
+[00:30:53] But it'll go to a memory location that's only four bytes because X, because the linker shows the
+[00:31:03] strong symbol.
+[00:31:04] Okay, so the rights to X and P2 will actually overwrite Y.
+[00:31:09] Okay.
+[00:31:13] I'm sorry.
+[00:31:14] Yes, question.
+[00:31:24] That's just usually the way it happens.
+[00:31:26] You know, no, no, no, no, global variables go in dot data.
+[00:31:37] They don't go.
+[00:31:38] on the stack. But usually if you define local variables in a function, it will put them, it will
+[00:31:43] allocate them one after the other on the on the stack. Okay. All right, so all this discussion
+[00:31:54] about these weird, strong, weak symbol rules that the linker have. It's another reason
+[00:32:02] to avoid global variables if you can. If you need to declare a global, see if you can
+[00:32:11] you can declare it static because that'll limit its scope to the module that it's
+[00:32:15] declared in.
+[00:32:16] So that's a good idea if you can do it.
+[00:32:19] And if you define a global variable, initialize it so that you'll find, you'll find, you'll discover
+[00:32:26] if you have multiple initialized global symbols with the same name in your code.
+[00:32:33] And then if you want to, it's always good practice if you're referencing an external variable to
+[00:32:39] tell the compiler about it by using the external attribute.
+[00:32:42] All right. So now, at this point, the linker has associated every symbol reference with some symbol definition.
+[00:32:55] Now it has to take all those object, relocatable object files and smush them together and create like one big executable.
+[00:33:05] So suppose with our example, or a little running example, each main.0 and sum.O and sum.O
+[00:33:13] contain code and initialized data.
+[00:33:18] Sum.0 doesn't have any initialized data. It just has code. And then there's system code that actually runs
+[00:33:27] before and after your program. So when when your program run, it actually starts executing a startup code from
+[00:33:34] LibC that that sort of initializes things. And then the last thing that it does is it calls
+[00:33:40] main and passes it ARC and ARC and ARGV.
+[00:33:46] And then when your program exits, well, that's a SISC call, but if your program, if your main function routine
+[00:33:54] does a return, then it returns back to that startup code, which then doesn't exit, okay?
+[00:34:01] So this is just, and so this consists of text and data as well.
+[00:34:09] And so when we, when the linker relocates these,
+[00:34:12] files, it takes all of the code, the dot text sections from each of the modules
+[00:34:21] and puts them together contiguously in the dot text section for the executable object file.
+[00:34:30] Okay?
+[00:34:31] So it just puts them together in some order that it determines, and it creates a combined dot text section
+[00:34:39] in the executable that contains all of the system code and the all of the code
+[00:34:45] defined in the modules.
+[00:34:47] And then it does the same thing with the data.
+[00:34:49] Takes all the dot data sections from the various object files and puts them together
+[00:34:56] in one combined dot data section in the executable.
+[00:35:03] And it also emerges the symbol tables and the debug information as well.
+[00:35:09] Now when it, just the act, the act of sort of relocating these object files,
+[00:35:18] requires the linker to figure out where it's going to actually store these these different
+[00:35:25] symbols when the system gets, when this program gets loaded.
+[00:35:31] So it has to pick an address for Maine that that function will start at, some absolute address.
+[00:35:41] It's going to have, it's going to have to do the same for swap. So for all the data arrays.
+[00:35:45] All right. And, but the problem is, is that when this code is, is,
+[00:35:55] is compiled, the compiler doesn't know what addresses the linker is going to pick.
+[00:36:02] So the compiler creates these, these reminders to the linker called relocation entries, which
+[00:36:10] which are then stored in the relocation sections of the object file.
+[00:36:15] And these, these relocation entries are instructions to the linker that's something,
+[00:36:22] that there's a reference to a symbol that's going to be patched up when the code is actually relocation.
+[00:36:27] is actually relocated and merged into the executable.
+[00:36:31] So let's look at a couple of these, a couple of examples.
+[00:36:35] So in our, in our main dot C module, there was a reference to this, to this global symbol called array.
+[00:36:45] Okay.
+[00:36:46] And then there was also a reference to this, this global symbol sum, which is a function.
+[00:36:53] So the compiler creates two relocation entries.
+[00:36:57] The first one for the compiler creates two relocation entries.
+[00:36:58] first one for the reference to the array A.
+[00:37:02] So here we're moving, you remember EDI is the first argument.
+[00:37:07] So remember our sum function takes the address of the array, of the input array as its argument.
+[00:37:17] So this move, we're moving the address of the array into EDI for the first argument.
+[00:37:28] But the compiler doesn't know what that address is going to be.
+[00:37:30] So it just, it just moves an immediate value of zero into EDI temporarily.
+[00:37:40] So you can see this is all zeros.
+[00:37:42] The BF is the move instruction, and then there's all zeros for now.
+[00:37:50] And then it places this relocation entry in the relocation section of main.O.
+[00:37:58] And it says, it says to the linker, at ADRA, at offset A,
+[00:38:03] So these, let me remind you, these are main .0 module only contains one function.
+[00:38:13] So that function starts at offsets zero in the, in the code section of the module, in the dot-text section of the module.
+[00:38:24] If there were other functions in this module, they would follow immediately after.
+[00:38:29] Okay, and it, so you can see what the compiler is, it's just all it's just generally, it's just
+[00:38:35] offs of these instructions from the beginning of the dot text section.
+[00:38:41] And it includes this relocation entry which says to the link or hey, when you're relocating main.
+[00:38:48] At offset A in this dot text section, you've got a reference, a reference to an array in the form of a 32 bit address.
+[00:39:06] So that
+[00:39:07] So eventually, the linker is going to have to patch up these.
+[00:39:11] So this is address 9, this is address A.
+[00:39:14] It's going to have to patch up the 4 bytes starting at address A with the absolute address of the symbol array.
+[00:39:28] And then similarly, the reference to this, the reference to this function sum, the compiler has no idea where some,
+[00:39:41] no idea where some actually will end up.
+[00:39:44] It doesn't even know what module it's in or even if it's defined in a module.
+[00:39:50] So in this case, it just, it does a call with all zeros.
+[00:39:58] And then it adds this relocation entry that says to the linker, at offset F, you've got a 4-byte
+[00:40:10] PC relative reference.
+[00:40:13] to a function, to a symbol called sum.
+[00:40:18] And then it, this is sort of an arcane detail that, but, but, and it includes,
+[00:40:24] there's an option to include a bias in the, in the offset.
+[00:40:29] And since we're using, since calls are, since calls are always resolved using PC relative addressing,
+[00:40:37] the value that's going to be placed here at these four bytes at offset F is going to be an
+[00:40:44] offset from the current RIP value, or program or counter value.
+[00:40:50] And since the program counter always points to the next instruction, it includes this, which is four
+[00:40:58] bytes away, it includes this, this offset of minus four.
+[00:41:04] So if it's, it's, it's, I talk about it in detail in the book, if you really want to know
+[00:41:11] how this works, but just the point here is that there's enough information for the linker to
+[00:41:16] actually fill in the right address.
+[00:41:19] So now, if we look at the relocated text section, so if we, if we compile this code into an executable,
+[00:41:25] and then we use object dump to disassemble it, then what you see is this, this reference here, where
+[00:41:34] we move the address of the address of A into EDI, those four bytes, which were originally
+[00:41:42] zero, have now been updated with the actual address of array in the, the, which we're originally zero,
+[00:41:48] in memory at runtime.
+[00:41:51] So the linkers decided that the array is going to go at address 0x 601018, and then it's, it's
+[00:42:00] it's actually patched that the four bytes in the in the move instruction with that absolute address.
+[00:42:09] And the call to sum is, it's also been updated, but this one's interesting, right?
+[00:42:16] So the address, it's been updated, it's been updated, that, so the address, it's been updated with the address
+[00:42:21] of five.
+[00:42:23] Okay, so when this program runs, this call instruction, what it will do when it, when it determines,
+[00:42:34] when it computes the absolute address of the function sum, it will take, it will take the current value of
+[00:42:55] of the program counter, which is the next instruction, so 4-0403,000, and it will add
+[00:43:02] to it, whatever, whatever value is in this immediate field, okay, which is a two's
+[00:43:10] comp, you interpret it as a two's complement integer, so it can go, it can be relative, you can go minus
+[00:43:17] or, or plus.
+[00:43:19] In this case, it's saying that the function that you want to call is that, is at 4004E3 plus 5, which is 4004E3 plus
+[00:43:28] 5, which is 4408, which is the address of sum.
+[00:43:36] Okay, and so the linker, the linker does, the compiler has all the smarts.
+[00:43:40] The compiler computed the relocation entry. The linker is just blindly going through each of
+[00:43:46] those relocation entries and just doing what it's told. Okay, but the net result is
+[00:43:52] that now all of these, these references have been patched up with valid, absolute addresses.
+[00:44:05] Once the linker has created an object file, that object file can be loaded,
+[00:44:13] the code and data in that object file can be loaded directly into memory with no further modification.
+[00:44:20] Okay, so the, if you look at all of the read only sections in the executable, so there's this
+[00:44:33] a knit section which, we're not to worry about that, that, that all the code is in the dot text and things
+[00:44:40] like jump tables or an RO data.
+[00:44:44] All of this data can be loaded directly into memory as is.
+[00:44:50] Okay, so these bytes can just be copied directly into, into memory, and that forms the
+[00:44:56] so-called a read-only code segment.
+[00:45:03] The data and the dot data and BSSX sections can also be copied directly into memory.
+[00:45:13] And in the case of the variables in dot data, there'll be
+[00:45:16] initialized to a value that's stored in the symbol table.
+[00:45:23] So we're drawing our memory here. This is the, this is the, this is the, the, the, the
+[00:45:32] the memory space that every Linux program sees. And we're drawing addresses starting from
+[00:45:42] zero and going up, increasing as we grow up, and every program up. And every program is loaded
+[00:45:50] at this same address, 0X, 4,000,000, 00.
+[00:46:00] And so the code comes directly from the object file, the data comes directly from the object file,
+[00:46:04] the data comes directly from the object file, and then that's followed by a runtime heap,
+[00:46:11] which is created and managed by Malik.
+[00:46:13] So when you need dynamically need to allocate memory, like using Malik, that memory, that memory comes
+[00:46:21] out of this heap, which starts immediately following the data segment and grows upwards.
+[00:46:30] The stack is at the very top of the visible memory that's available to application programs.
+[00:46:40] The memory above that is restricted to the kernel. Okay, so if you try to
+[00:46:48] to access those memory locations, you'll get a seg fault.
+[00:46:54] And then the stack, as we know, grows down. So this is managed and created a runtime. And
+[00:47:00] then there's this region somewhere in this huge gap between the stack and the
+[00:47:03] heap, there's a region for shared libraries. So the dot SO files all get loaded
+[00:47:10] into this memory mapped region for shared libraries. Now that the top of
+[00:47:19] the heap is indicated by this global.
+[00:47:21] variable maintained by the kernel called break, BRK, and the top of the stack,
+[00:47:29] as we know, is maintained by the general purpose register RSP.
+[00:47:33] Now there's a little bit of a, this is a little bit of a simplification. If you actually look at the
+[00:47:41] addresses returned by Malik, there's actually two heaps. There's a heap.
+[00:47:47] There's a heap up here in the high memory that grows down that's used for large
+[00:47:52] objects, very large, you know, if you malik, a whole bunch of space. And then the
+[00:47:57] the heap that grows up is reserved for smaller, smaller objects. So I'm not really sure why they do this.
+[00:48:05] I think it allows them to have separate allocation algorithms for large objects and small objects.
+[00:48:13] Okay, so one of the, one of the real advantages of linking is it allows us to create
+[00:48:24] libraries of things. So it's always something we want to do as programmers. We always
+[00:48:29] We always want to create abstractions and then present those abstractions to
+[00:48:36] use users.
+[00:48:37] Right? And we do that by creating libraries, defining an API. Yes.
+[00:48:41] I think it just, no, no, no, it, actually that's a good question.
+[00:49:00] I, the things I've done, it just grows until it runs out of memory, right?
+[00:49:05] So I don't think, actually, that's a really good question. I mean, I've, I've done
+[00:49:11] those experiments and it eventually reaches some limit. Yeah, I don't, I don't know.
+[00:49:23] It's a very large number. So, you know, as programmers, we always want to abstract, define
+[00:49:35] APIs, implement, package up those APIs, and make them available to other programmers.
+[00:49:45] So how can we actually do that? How can we make commonly use functions available to other programmers?
+[00:49:50] Well, one thing, given what we've learned so far, you could just take all the functions and put them all in a single big C file, right?
+[00:50:01] And then programmers would just link that C file into their, into their programs if they want to use them.
+[00:50:09] Another option would be to take, that might get kind of unwieldy if it's a big library, right?
+[00:50:13] Lipsy has hundreds and hundreds of functions.
+[00:50:17] So another option would might be to just take each function, put it in a separate function.
+[00:50:21] file and then compile them all together.
+[00:50:24] Compile and link them all together.
+[00:50:27] So this is more space and time efficient than our first option,
+[00:50:32] but it seems like it would be burdensome on the programmer
+[00:50:37] because the program would have to know where all these
+[00:50:40] functions were and put them in make files.
+[00:50:42] It would just be a lot of, you know,
+[00:50:45] you could end up with a ridiculously large command line to GCC.
+[00:50:50] So the, you could end up with a,
+[00:50:53] so that you could end up with a,
+[00:50:54] The one solution to this problem is that the first solution that the developers of Unix came up with is something called a static library.
+[00:51:05] So the idea with a static library is that you create this archive called a .a file,
+[00:51:12] which is it's just a collection of dot-o files where each dot-o file contains a function.
+[00:51:19] Okay, so you take all the functions in your library, you use option two to create a bunch of dot-o file.
+[00:51:24] create a bunch of dot-o files and then you use a program called an archiver,
+[00:51:29] AR, to take those dot-o files, put them together in a all together in a big file called an
+[00:51:37] archive with a with a table of contents at the beginning that tells you the
+[00:51:42] offset of each one of the dot-o files. Okay? So an archive is just this
+[00:51:47] concatenated collection of dot-o files. And then and then you link, you pass that
+[00:51:55] archive to the linker and it only takes the dot-o files that are actually referenced
+[00:52:02] and links them into the code.
+[00:52:04] So it's a more efficient way.
+[00:52:06] You can have a huge archive, but like LibC, but if you only call printf, the only dot-o file you get
+[00:52:13] is printf.
+[00:52:15] Okay, so the way this works is, as before, we take, we take all the functions we want to put in
+[00:52:27] our library. We run them through our translators to get dot-o files.
+[00:52:33] We pass those to the archiver to get a the archive. So in this case, libc.a, which has this code
+[00:52:44] for printf that we might want to use, right? And so we can, we can recreate that archive anytime
+[00:52:52] we want. So if one of these functions changes, like say printf changes, you just re-archive
+[00:52:58] the dot recompiled printf and then re-archive all of the dot 0 files.
+[00:53:04] So in Lib C it's it's about 1,500 object files in its archive.
+[00:53:09] Things like printf, scanf, simple integer math.
+[00:53:13] And there's also a math library which has, you know, several hundred common functions for
+[00:53:20] things like floating point math, sign, cosine, tangent, etc. These libraries, the
+[00:53:29] convention is that a library always is prefixed with LIB and then and then sort
+[00:53:36] of some indication of what it what it does.
+[00:53:43] So now let's see how linking with these static libraries would work. So I've created a
+[00:53:47] little example here. I've created a library called lib vector.a and it consists
+[00:53:55] of functions that manipulate vectors. And this is a real simple library. It just adds, there's
+[00:54:01] a function to add two vectors.
+[00:54:03] X and Y together and return the result in Z.
+[00:54:07] And then another similar function that will do pairwise multiplication of two vectors.
+[00:54:15] So xI times yI equals zi.
+[00:54:20] And now I compile these two programs and I want to, I'll package them into an archive called libvector.
+[00:54:28] And then in my in my main program, I'm going to call one of those functions,
+[00:54:34] ADVEC to add these two vectors X and Y together.
+[00:54:43] So now what happens when we compile this this program, we've already, we've constructed the archive,
+[00:54:51] libvector.a, from advec.0 and multvec.0, and we pass that archive to the linker along
+[00:55:02] with our main 2.0 relocatable object file. And we also pass it libcdbc.a, which
+[00:55:11] has the definition of which contains printf.0 and anything else that printf.O might call.
+[00:55:17] So these three, the linker detects the reference to advec, the function advec, and so
+[00:55:27] it just pulls advec.0 out and ignores the rest. Similarly for printf.0.O. And then it compiles
+[00:55:36] all those main 2.0, advec.0, and printf.O, all together into this fully linked executable
+[00:55:43] called Prog2C for compile time.
+[00:55:47] So we're doing this link, we're doing this linking at compile time
+[00:55:54] when we call it GCC.
+[00:55:59] Now what the linker does, when it's using static libraries,
+[00:56:07] it scans all the dot O files and dot A files in order on the command line.
+[00:56:12] So you're just typing GCC and then a list of dot O files.
+[00:56:17] and .a files in some order.
+[00:56:22] So during the scan, it keeps a list of the current unresolved references.
+[00:56:28] Right?
+[00:56:29] So if, let's say, let's say it looks at main.0 first and there's a reference to printf,
+[00:56:36] well, that's an unresolved reference because printf's not defined in main.0.
+[00:56:41] So that goes in a list of undefined references.
+[00:56:45] And at some point or another, as each new dot O file or dot A file,
+[00:56:50] is encountered, the linker tries to resolve its list of unresolved references
+[00:56:57] with the symbols that are defined in that .0 file or dot a file.
+[00:57:03] And then if there's any entries in the list at the end of the scan, then there's an error.
+[00:57:08] So the key here is that the linker will try to resolve these references from where we're left
+[00:57:12] to right on the command line. And so this is another sort of important thing for you to know
+[00:57:18] as programmers because the order that you that you put your files on the command line actually makes a difference.
+[00:57:25] Okay, so you can get sort of weird baffling linker errors if you, if you use the wrong order.
+[00:57:31] So for instance, suppose we've got a function, an object module called LibTest, that calls a function that's defined in,
+[00:57:47] and live mine.a.
+[00:57:49] Okay, and so these these dash l, dash big L,
+[00:57:52] period, that says to look for, to look for library files in the current directory,
+[00:58:03] that's what the dot, look there first, and then look in the normal places that you look.
+[00:58:08] And the dash lowercase L, that's a, it's like an abbreviation.
+[00:58:15] We could replace this with just the fully spelled out.
+[00:58:18] libmin.a.
+[00:58:20] Okay, but you'll see this, this lowercase L used a lot.
+[00:58:24] So, so lib test calls a function that's declared in,
+[00:58:29] in libmin.a.
+[00:58:31] So the linker looks at, it looks at the unresolved symbols in libtest.
+[00:58:36] Oh, and it detects that there's this unresolved function,
+[00:58:39] let's say it's called foo, or no, it's, it's called lib fun.
+[00:58:45] So, and it puts it on the list, and then it goes on to the next
+[00:58:50] on to the next command line entry, and that's lib.mine.a. And in there, it finds, it finds
+[00:58:57] this symbol of lib fund, and it resolves the reference to that, to lib fund, to the actual address,
+[00:59:04] to the realcated address. Now, if we switch the order and we put libmine.a first, followed
+[00:59:13] by libtest.0, well, there's, there's no unresolved references in this library, right?
+[00:59:19] It's just a collection of function definitions.
+[00:59:24] So there's no unresolved references, so the linker looks at that, that's all good.
+[00:59:28] And then it looks at lib test.0, and now there's an unresolved reference to lib fund, but we're
+[00:59:34] out of, we're at the end of the command line, so that's a linker error.
+[00:59:40] So you get this, you get this really cryptic error message.
+[00:59:46] And if you didn't know about this ordering rule, you wouldn't have any idea how to
+[00:59:50] debug it.
+[00:59:53] Okay, so the static libraries are kind of the old-fashioned solution.
+[00:59:57] The modern solution is to use dynamic libraries or shared, shared libraries.
+[01:00:04] So the reason there's this sort of newer form of libraries is that static libraries have some disadvantages.
+[01:00:12] So every, if you compile with static libraries, then every function they use as printf, or every program
+[01:00:22] that uses printf, has to have a copy of printout.
+[01:00:24] Okay, but almost every, every program uses printf, right?
+[01:00:29] So there's shared, shared libraries allow, provide a mechanism where there can just be one, where every, there's just one instance of a shared library member like Printf.
+[01:00:44] And every program running on the system will share that one copy.
+[01:00:48] Okay.
+[01:00:49] So that's the, that's sort of the big, the big disadvantage is this potential duplication.
+[01:01:00] So shared libraries are different in a sense that they contain code and data that are linked and data that are linked and loaded into the program, not when it's compiled and linked into an executable object file, but actually, when the program is loaded into the system.
+[01:01:26] So linking of references to shared library objects is deferred until the program is actually loaded into memory, until the executable object file is actually loaded into memory.
+[01:01:40] And this can either, and it can even happen, and it can happen when the program is actually loaded into memory, but it can also happen at runtime, anytime at runtime.
+[01:01:50] So you can be, you can be running a program and that program can arbitrarily decide,
+[01:01:56] to load a function that's declared in a shared library.
+[01:02:00] And I'll show you that. It's really cool.
+[01:02:02] Now, these things are often called, they're called shared libraries.
+[01:02:06] They're called dynamic link libraries.
+[01:02:08] Like in Windows, they're called DLs,
+[01:02:10] .S0 files.
+[01:02:12] They're all referenced the same thing.
+[01:02:21] Okay, so that, this like I said, you can, the dynamic linking can occur when the
+[01:02:26] the program's loaded or after it's loaded and actually running.
+[01:02:30] And there's this sort of big deal that shared library routines
+[01:02:36] can be shared by multiple processes.
+[01:02:37] And we'll look at this.
+[01:02:39] This will make sense when we look at virtual memory.
+[01:02:40] So don't worry about that now.
+[01:02:43] But here's how the process works.
+[01:02:50] So we've, first we have to create, instead of creating an archive,
+[01:02:55] we create a shared library.
+[01:02:58] So our lib vector routines, instead of creating an archive.
+[01:03:06] A file, we create a shared, a .S.
+[01:03:08] file using the shared argument to GCC. So we take our two input functions, ADVVAC and MULTHVEC, and shared
+[01:03:19] says to create, and we're telling GCC, to create a shared library and place it in libvector.
+[01:03:26] So, okay, and so, and there's also that the, the, the C developers created a function, a shared library called
+[01:03:35] libc.s0 that contains printf and all, and other.
+[01:03:39] are standard library functions.
+[01:03:44] So we take our program, main 2, this is the same program that calls ADVEC, and we
+[01:03:49] compile it into main2.0, and we pass main2.0 and these .0 files to the linker.
+[01:04:00] Now the linker doesn't, at this point, it doesn't actually copy, let's say we're using
+[01:04:06] advec or printf, it doesn't actually copy those functions or do anything with them.
+[01:04:13] in the executable. It just makes a note in the symbol table that those functions will need to be
+[01:04:20] the references to those functions will need to be resolved when the program is loaded. Okay, so it
+[01:04:26] it puts in a relocation entry that says fix this up when you load the program. So
+[01:04:33] it's partially linked, but it's not fully linked. You can't take the you can't take a program. You can't take a program. You can't take a
+[01:04:39] executable file that was dynamically linked and load it directly.
+[01:04:46] What you, what you do is the loader, which is the
+[01:04:52] is the exec VE system call, and we'll learn more about that, but just, this is just a
+[01:04:57] a sys call that loads, loads executables into memory and runs them.
+[01:05:03] The loader takes the executable, and then it takes the executable, and then it takes the
+[01:05:09] the shared dot S.O. files that this program needs. Okay, it also made,
+[01:05:17] the linker also made a note of which dot S.O. files it needs. So the loader calls the dynamic linker,
+[01:05:26] which takes those dot S.O.O. files and then actually resolves all the references to any
+[01:05:32] unresolved reference. Okay, so the address of ADVAC, the ADVAC and printF functions,
+[01:05:40] isn't determined until the program is loaded and by the, and it isn't determined
+[01:05:47] by the dynamic linker until the program is loaded. So the dynamic linker does, goes through a similar
+[01:05:53] process that the static linker did, sort of fixing up references to ADVAC, references to printf, and then
+[01:06:01] at that point, the binary is in a, is in a form that can be executed directly. So a question?
+[01:06:11] You said that it scans labor?
+[01:06:15] Yes.
+[01:06:15] What if you look?
+[01:06:25] The question is, what happens if you include a file?
+[01:06:30] So includes are handled by the C pre-processor.
+[01:06:34] So they're gone.
+[01:06:36] They're long gone by the time the linker gets around to it.
+[01:06:41] Okay, so the C pre-processor just takes sharp sign to find,
+[01:06:45] sharp sign, include, and interprets those, and outputs another C program.
+[01:06:51] So if you include a file,
+[01:06:55] The C pre-processor just takes that file and just expands it.
+[01:07:00] And the output C program contains an expanded version of all the files that you included.
+[01:07:06] Okay.
+[01:07:11] Now, what's really cool is that you can also do this dynamic linking at runtime.
+[01:07:17] So what I showed you before, we're doing it at load time.
+[01:07:21] But you can also arbitrarily decide to load, link, and call a function from a shared
+[01:07:29] from a shared, from any function defined in a dot SO file.
+[01:07:36] And the way you do it is there's a, there's an interface called the DL Open that's in LibC that allows you to do this.
+[01:07:45] And so let's say we want to, this is, this is our main program, and just like before we want to call ADVEC.
+[01:07:53] Okay, but ADVEC now is defined in a dot S file, file, the exact same dot S.O file that we
+[01:08:00] we generated before.
+[01:08:03] When we compile, so we'll call this DLLL.C, when we compile this program, dlll.c,
+[01:08:08] we have no, we have no idea that it's going to call a function from limb vector.
+[01:08:18] So we just compile it as though it was a standalone C program.
+[01:08:24] Within this program though, we declare a pointer, a function pointer called ADVEC, and we give
+[01:08:30] the prototype for this function. It's pointers, so it's two input arrays, the output array,
+[01:08:38] the output array, and the size. And then first we dynamically load the shared library that contains
+[01:08:45] the function we want. So we call DL.O. Open and we say load up this .0 file into
+[01:08:55] so that I can call a function. But don't resolve, you know, don't worry, don't worry
+[01:09:02] about resolving the references to functions until I actually tell you to. That's the lazy part.
+[01:09:09] And so what, what, what, what, this DL open returns the handle that then you use in subsequent calls.
+[01:09:17] Okay, so if we don't, if the handle is null, there was some kind of error, like maybe, maybe this
+[01:09:24] dot S.O file doesn't exist. So once we've opened that dot S.O file, then we use DL Sim with the handle, so
+[01:09:34] this and then we give it as we pass as a string the name of the function that we
+[01:09:40] want to invoke and we get what we get back from the L-Sim as a pointer to that function and
+[01:09:48] then we can we can use that function just like any other function so we can use that function
+[01:09:53] pointer and we will call it just as though it were a statically defined function so
+[01:09:59] you can see this is real a very powerful technique okay so let's let's finish
+[01:10:13] the last little bits of the class. I want to show you it to try to convince you that linking
+[01:10:18] is is actually interesting, which is kind of a hard sell sometime. Yes, question.
+[01:10:22] It would be a function. Yes. So would it? No, it's, that's how, no, you just, it's, it's
+[01:10:36] it's declared as a function pointer and you, then you just, you just, you just use the name of
+[01:10:42] the function. You don't have to dereference it. Or you just, you call it, you call it, you call the
+[01:10:47] function by just using that that function pointer name. Okay, just like I did.
+[01:10:54] If you de-referenced it, you just get back a pointer value. You'd get back the address of that function.
+[01:11:06] All right, so it's kind of a hard cell to, that, to convince you the linking is interesting, but I'm going to try.
+[01:11:16] Okay, so there's this powerful technique called library interpositioning, and the goal is to
+[01:11:24] intercept function calls from libraries and do something, intercept them for some reason, right?
+[01:11:34] So what we typically want to do is intercept a function call, maybe record some statistics, or do some
+[01:11:41] error checking, and then call the real function as intended, right? So, so the idea is we're
+[01:11:48] going to create wrappers, and when the program, when a program calls a function,
+[01:11:56] What we're going to do is we're going to execute its wrapper instead, and we're going to do it without changing any of the source.
+[01:12:10] Now, there's a lot of reasons, there's a lot of applications for this.
+[01:12:14] The neatest one that I know is that these Facebook engineers, we're trying to deal with this year-long bug in the Facebook iPhone app,
+[01:12:26] and nobody could figure out what was going on, and they figured it out using library interpositioning.
+[01:12:32] They figured out that there was something in the network stack writing to the wrong location.
+[01:12:37] And they figured it out by intercepting all the calls from their Facebook app that did rights.
+[01:12:44] So things like write, write V, P, right.
+[01:12:48] So they intercepted all those calls, and then they were able to, when they looked at the arguments
+[01:12:52] and how those functions were being called, they determined the error.
+[01:13:00] You can also use it for monitoring and profiling. So if you want to know, like, how many times
+[01:13:04] different functions get called, you can do, you can interpose.
+[01:13:09] We use it for generating address traces.
+[01:13:13] So your malloc, when you do your malloc lab later in the semester, you're going to be evaluating
+[01:13:19] your malloc using traces that we generated from real programs using this interpositioning
+[01:13:27] technique.
+[01:13:27] Right?
+[01:13:28] So we interposed on all the malloc and free calls in like Netscape.
+[01:13:33] And then we just recorded what addresses and sizes Malik was returning and what blocks free was freeing up.
+[01:13:45] And we just created a trace of those. And then, so let me show you how you would do this.
+[01:13:54] So the idea, let's say we have this main program, and the idea is to trace all the Malik and free call.
+[01:13:59] So there's one Malik call and there's one free call. And we want to know what these addresses are.
+[01:14:05] and we want to know what these sizes are.
+[01:14:09] So we can do this at either compile time, link time, or runtime.
+[01:14:13] To do it at compile time, we first write wrapper functions called My Malik and MyFree,
+[01:14:20] where My Malik calls the real Malik function, and then it prints out the size that it was called
+[01:14:28] and the address that Malik returned.
+[01:14:31] Okay, so this, when we run our program, it'll print out these, all these addresses. And it does the same
+[01:14:36] thing for free. And then here's the trick. In malloc.h, we define Malik to be my Malik, okay, and free to be my Malik, okay, and free to be my free. And then we give the prototype for it, so the compiler doesn't get confused. And then we compile my Malac.C into a dot O file. And then we call, then we call our program, we call our program, which is, our main program,
+[01:15:08] int.c for interpositioning.
+[01:15:12] And we call that, and here's the trick.
+[01:15:15] We call it with the dash cap I argument.
+[01:15:19] And we say look for any include files in the current directory.
+[01:15:22] Okay, so this was similar to that L dash, uh, cap L argument.
+[01:15:31] But because we tell GCC to look in the current directory first,
+[01:15:36] so this is sort of where the interpositioning happens.
+[01:15:38] This, because when it does,
+[01:15:39] does that, it's going to find a, it's going to find a library called malloc.
+[01:15:48] .h, I mean, a dot H file called malloc.h. And so all the calls to Malik will be translated by the
+[01:15:56] C preprocessor to my Malik. So when we run this, it prints out the Malik and free trace.
+[01:16:08] Now we can also do this at link time. So we can tell, see, in order to do this, we had to get access to
+[01:16:14] the we had to compile the program. We didn't have to change it, but we had to compile it.
+[01:16:20] We can use link time interpositioning to avoid that compilation. So the way this works, we define our wrapper
+[01:16:31] functions with this special name, underscore, underscore, Rapp Malik. And this calls the real Malik function
+[01:16:37] and then prints out the information. And then at link time, then we do the interpositioning
+[01:16:44] by calling the linker with this special dash wl argument.
+[01:16:52] and so what this does, the dash w.l flag to GCC says, hey, take what follows, the argument that follows,
+[01:17:00] replace all the commas with spaces, and then invoke the linker with this argument.
+[01:17:07] Okay, so what we're doing is passing a linker arguments to the linker.
+[01:17:12] And this dash dash dash wrap argument to the linker,
+[01:17:15] it tells the linker to resolve all references to Malik as underscore underscore
+[01:17:23] Rapp Malik and all references to underscore real Malik to should be resolved as Malik.
+[01:17:33] Okay, so anywhere in the program where we call Malik, it'll be resolved to underscore, underscore,
+[01:17:38] and it'll invoke our wrapper. And then the wrapper calls real Malik, which by, because of this flag,
+[01:17:46] to the actual Malik routine.
+[01:17:53] Now here you can also, and the really amazing thing is you can also do this interpositioning at load time and runtime when the program's loaded.
+[01:18:01] So you don't even need access to the dot O files. All you need is access to the executable, right?
+[01:18:07] And for every program we have access to the executable.
+[01:18:10] So think about that. We can take any program and we can interpose on its library calls at runtime.
+[01:18:18] So the way we do.
+[01:18:19] this is we write the wrapper function now uses the DL Sim call that we saw
+[01:18:25] saw before. And we call it with this special function, this special argument called Next.
+[01:18:32] And we, so we're, and what this is saying is get the address of the real Malik.
+[01:18:39] Okay, so, and we're going to, we're going to trick the linker into looking first
+[01:18:44] to our, our implementation of Malik. But here we want the real one. So we're telling it
+[01:18:51] to look in the next place, its next place that it would normally look and fetch the address of Malik.
+[01:18:59] So the result is a pointer, a function pointer called Malik P, and then we can just call that function
+[01:19:07] function to get, to call the Lib C Malik and then print out the data. Okay, and we do the same thing
+[01:19:14] for free. Same, we use DL Sim in exactly the same way for free. And then the inner position
+[01:19:22] now happens when the program is loaded.
+[01:19:27] So notice, we build this, our main program now, intR for runtime interpositioning.
+[01:19:33] We built it, I'm sorry, we created our dot s.o file, my malloc.s.o, using the shared argument.
+[01:19:41] And then, and then we compiled int.c.c into this executable called intr.
+[01:19:48] But notice there's no mention of my malloc.S.O.O. anywhere. And now the interposition
+[01:19:55] happens when we actually run the program. And we do it, we, we, we, we, we, we, we, we, we, we, we, we, we, we, we, we, we, we, we, we, we, the, the, the, the, the, the, the, the value, um, called LD preload to, to my malloc. So, and so what, this is a environment variable that tells the dynamic linker to look first in the, in the value in the value in the value of, of
+[01:20:25] locations. Look first in those locations to resolve references and only later look in the normal system places.
+[01:20:33] So we're saying to look in my malloc.so for unresolved references first, and then we're invoking.
+[01:20:41] So this is in Bash, this is how you initialize an environment variable. So we're initializing it to my malloc.
+[01:20:47] And then we're loading and running the program. And so the LD, so all the references to match
+[01:20:57] get turned into the references to the wrapper function, the malloc function that we defined in our program.
+[01:21:05] Okay, so that's, so that's it.
+[01:21:10] So that interpositioning is a really cool technique, and it's only possible because of linkers.
+[01:21:15] So, all right, so good, we'll see you on Thursday, and good luck with your cache labs.

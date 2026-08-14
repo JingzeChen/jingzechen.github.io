@@ -1,0 +1,794 @@
+{"id": 0, "start": 0.0, "end": 4.86, "text": "Well, good afternoon, everybody. Welcome. Good to see you.", "source": "faster-whisper"}
+{"id": 1, "start": 4.86, "end": 16.99, "text": "Today we're going to continue our study of exceptional control flow by looking at some higher level mechanisms known as Linux signals and C non-local jumps.", "source": "faster-whisper"}
+{"id": 2, "start": 16.99, "end": 26.49, "text": "Now, we're going to spend most of our time looking at signals because they have a lot of subtleties, the semantics can be kind of confusing.", "source": "faster-whisper"}
+{"id": 3, "start": 26.49, "end": 30.53, "text": "So we're going to spend most of our time there. And I'll mention", "source": "faster-whisper"}
+{"id": 4, "start": 30.53, "end": 38.14, "text": "the idea of non-local jumps, but for details on those, you'll want to look in your", "source": "faster-whisper"}
+{"id": 5, "start": 38.14, "end": 43.34, "text": "textbook and in the slides at the supplemental slides at the end of this slide deck.", "source": "faster-whisper"}
+{"id": 6, "start": 45.67, "end": 54.39, "text": "Now, to motivate the notion of signals, I want to talk a little bit about shell programs.", "source": "faster-whisper"}
+{"id": 7, "start": 56.0, "end": 62.0, "text": "Now, as we mentioned last time, there's only one way to create processes on a Linux system, and that's", "source": "faster-whisper"}
+{"id": 8, "start": 62.0, "end": 68.75, "text": "using the fork call. In fact, all of the processes on the system actually", "source": "faster-whisper"}
+{"id": 9, "start": 68.75, "end": 74.71, "text": "form a hierarchy. So that the very first process created when you boot the system up is the", "source": "faster-whisper"}
+{"id": 10, "start": 74.71, "end": 80.31, "text": "init process, which has a process ID of one. And then all other processes on the system", "source": "faster-whisper"}
+{"id": 11, "start": 80.31, "end": 87.88, "text": "are descendants of that, of that init process. Now, the init process, when it starts up,", "source": "faster-whisper"}
+{"id": 12, "start": 87.88, "end": 92.3, "text": "it creates demons, which are long-running programs that provide", "source": "faster-whisper"}
+{"id": 13, "start": 92.3, "end": 100.06, "text": "services typically. So, for example, a web server, other kinds of services that you always", "source": "faster-whisper"}
+{"id": 14, "start": 100.06, "end": 107.08, "text": "want running on the system. And then eventually it creates a login, so-called log-in shells, which provide", "source": "faster-whisper"}
+{"id": 15, "start": 107.08, "end": 113.78, "text": "the command line interface to users. So when you log into a Linux system, what you eventually", "source": "faster-whisper"}
+{"id": 16, "start": 113.78, "end": 121.93, "text": "get to is a login shell that's expecting you to type commands. Now, the", "source": "faster-whisper"}
+{"id": 17, "start": 121.93, "end": 127.32, "text": "Log-in shells, execute programs on your behalf.", "source": "faster-whisper"}
+{"id": 18, "start": 128.52, "end": 134.47, "text": "So when we type something into the shell, say we type the L-S command, command.", "source": "faster-whisper"}
+{"id": 19, "start": 134.47, "end": 141.59, "text": "We're asking, we're asking the shell to run the executable program called L-S.", "source": "faster-whisper"}
+{"id": 20, "start": 142.79, "end": 147.39, "text": "And so what the shell will do is it will create a child, and then it will execute", "source": "faster-whisper"}
+{"id": 21, "start": 147.39, "end": 155.07, "text": "LS within that child process. And it's possible that that process may create", "source": "faster-whisper"}
+{"id": 22, "start": 155.07, "end": 163.07, "text": "other other child processes. So a shell is an application program, no different", "source": "faster-whisper"}
+{"id": 23, "start": 163.07, "end": 170.72, "text": "from any other program, that executes programs on the behalf of users. The default", "source": "faster-whisper"}
+{"id": 24, "start": 170.72, "end": 176.46, "text": "shell for Linux is called Bash, but there's other shells that that were created on", "source": "faster-whisper"}
+{"id": 25, "start": 176.46, "end": 181.14, "text": "earlier, with earlier versions of", "source": "faster-whisper"}
+{"id": 26, "start": 181.16, "end": 182.52, "text": "of UNIX.", "source": "faster-whisper"}
+{"id": 27, "start": 182.52, "end": 185.56, "text": "S.H was the original shell, it's called the Bourne shell,", "source": "faster-whisper"}
+{"id": 28, "start": 185.56, "end": 187.86, "text": "because it was created by Stephen Bourne.", "source": "faster-whisper"}
+{"id": 29, "start": 187.86, "end": 191.0, "text": "And when Berkeley came out with their distribution of Unix,", "source": "faster-whisper"}
+{"id": 30, "start": 191.0, "end": 194.68, "text": "they created a shell called CSH.", "source": "faster-whisper"}
+{"id": 31, "start": 194.68, "end": 200.82, "text": "Now, the execution in a shell is a shell is a sequence of read", "source": "faster-whisper"}
+{"id": 32, "start": 200.82, "end": 202.72, "text": "and evaluate steps.", "source": "faster-whisper"}
+{"id": 33, "start": 202.72, "end": 207.44, "text": "So first, a shell prints out a prompt, and then it waits for,", "source": "faster-whisper"}
+{"id": 34, "start": 207.44, "end": 210.4, "text": "it waits for you to type something in on the command line and hit", "source": "faster-whisper"}
+{"id": 35, "start": 210.4, "end": 211.4, "text": "return.", "source": "faster-whisper"}
+{"id": 36, "start": 211.4, "end": 224.62, "text": "And typically what you're typing in is a command, which is just, so the first thing you type is a command, and then you follow that with optional arguments separated by spaces.", "source": "faster-whisper"}
+{"id": 37, "start": 224.62, "end": 241.07, "text": "Okay. So once you hit, once you type in a command and those optional arguments and hit return, the shell checks for the end of file character, which is a control D, D to a terminal, and if so it exits,", "source": "faster-whisper"}
+{"id": 38, "start": 241.07, "end": 245.55, "text": "it exits otherwise it evaluates that command line.", "source": "faster-whisper"}
+{"id": 39, "start": 245.55, "end": 253.25, "text": "And the evaluation consists, and then when it returns from the evaluation, it just does the same", "source": "faster-whisper"}
+{"id": 40, "start": 253.25, "end": 254.75, "text": "thing over it.", "source": "faster-whisper"}
+{"id": 41, "start": 254.75, "end": 260.94, "text": "Now the evaluation consists of the following kinds of steps.", "source": "faster-whisper"}
+{"id": 42, "start": 260.94, "end": 270.92, "text": "First, it parses the command line and by, and in the process, so it takes the command line,", "source": "faster-whisper"}
+{"id": 43, "start": 270.92, "end": 273.26, "text": "which in this example is in buff, buff, and it produces an RV, and in the process, so it takes the command line, and it", "source": "faster-whisper"}
+{"id": 44, "start": 273.26, "end": 281.26, "text": "it produces an ARGV array, where ARG V is a command, and then ARGV 1 and 2 and so on are the optional arguments.", "source": "faster-whisper"}
+{"id": 45, "start": 281.26, "end": 290.98, "text": "And the convention in a shell is that if the command line is terminated by an ampersand, then you're", "source": "faster-whisper"}
+{"id": 46, "start": 290.98, "end": 296.86, "text": "asking the shell to run that job, to run that command in the background, meaning the shell won't", "source": "faster-whisper"}
+{"id": 47, "start": 296.86, "end": 303.77, "text": "wait for that job to finish before it goes through its next read step. If it, if it, if the", "source": "faster-whisper"}
+{"id": 48, "start": 303.77, "end": 307.41, "text": "the line that you type doesn't have an ampersand, then you're asking the shell to run", "source": "faster-whisper"}
+{"id": 49, "start": 307.41, "end": 313.58, "text": "that job in the foreground, which means the shell will wait.", "source": "faster-whisper"}
+{"id": 50, "start": 313.58, "end": 321.9, "text": "So first we parse this command line into an ARGV array and we return whether or not it was terminated", "source": "faster-whisper"}
+{"id": 51, "start": 321.9, "end": 323.8, "text": "by an ampersand.", "source": "faster-whisper"}
+{"id": 52, "start": 323.8, "end": 326.49, "text": "So BG for background.", "source": "faster-whisper"}
+{"id": 53, "start": 326.49, "end": 330.89, "text": "If ARG0 was null, then that means we just hit a, we just hit return, right?", "source": "faster-whisper"}
+{"id": 54, "start": 330.89, "end": 332.61, "text": "So it's an empty line.", "source": "faster-whisper"}
+{"id": 55, "start": 332.61, "end": 336.35, "text": "So we'll just return and just ignore those.", "source": "faster-whisper"}
+{"id": 56, "start": 336.35, "end": 337.33, "text": "Now a shell.", "source": "faster-whisper"}
+{"id": 57, "start": 337.35, "end": 341.95, "text": "also implements what are called built-in commands.", "source": "faster-whisper"}
+{"id": 58, "start": 341.95, "end": 349.69, "text": "So various things like jobs, BG, FG, are examples of built-in commands, which are examples of built-in commands,", "source": "faster-whisper"}
+{"id": 59, "start": 349.69, "end": 353.18, "text": "which are just implemented in the shell itself.", "source": "faster-whisper"}
+{"id": 60, "start": 353.18, "end": 360.08, "text": "So if you type, if the first thing you type, if the command you enter is a built-in, then the shell", "source": "faster-whisper"}
+{"id": 61, "start": 360.08, "end": 366.74, "text": "will check that, it will check that, it will check ARGV-0 to see if it's a built-in command.", "source": "faster-whisper"}
+{"id": 62, "start": 366.74, "end": 368.2, "text": "And if it is, it'll just execute it'll just execute it.", "source": "faster-whisper"}
+{"id": 63, "start": 368.22, "end": 373.56, "text": "it, whatever it is you asked it to do.", "source": "faster-whisper"}
+{"id": 64, "start": 373.56, "end": 374.56, "text": "Okay.", "source": "faster-whisper"}
+{"id": 65, "start": 374.56, "end": 380.56, "text": "Otherwise, if it's not a built-in, then that means that you're asking the shell to run some program.", "source": "faster-whisper"}
+{"id": 66, "start": 380.56, "end": 382.42, "text": "Okay.", "source": "faster-whisper"}
+{"id": 67, "start": 382.42, "end": 390.0, "text": "So in that case, the shell will fork a child, and then the child will execute that program by", "source": "faster-whisper"}
+{"id": 68, "start": 390.0, "end": 397.36, "text": "calling exec VE, passing as the first argument, the name of the command, and as the second", "source": "faster-whisper"}
+{"id": 69, "start": 397.36, "end": 401.62, "text": "and third arguments, ARV, and the environment, respectively.", "source": "faster-whisper"}
+{"id": 70, "start": 401.64, "end": 406.68, "text": "Now, exec VE, if you recall from last time, never returns unless there's an error.", "source": "faster-whisper"}
+{"id": 71, "start": 407.24, "end": 421.72, "text": "So we check the return value for exec VE, and if it returns less than 0, in fact, the only time it'll return, if it does return, it'll always return minus 1.", "source": "faster-whisper"}
+{"id": 72, "start": 422.24, "end": 423.84, "text": "But we're just being careful here.", "source": "faster-whisper"}
+{"id": 73, "start": 424.78, "end": 431.48, "text": "So we check that for an error and print an error message if we find an error, and then, and print an error message if we find an error.", "source": "faster-whisper"}
+{"id": 74, "start": 431.74, "end": 432.74, "text": "exit.", "source": "faster-whisper"}
+{"id": 75, "start": 432.74, "end": 444.14, "text": "So once the, once the, once the, once the parent gets control again, then it waits for that foreground", "source": "faster-whisper"}
+{"id": 76, "start": 444.14, "end": 445.14, "text": "job to terminate.", "source": "faster-whisper"}
+{"id": 77, "start": 445.14, "end": 453.87, "text": "Okay, so if it's not a background job, then it waits for it to terminate by calling wait-pid and waiting", "source": "faster-whisper"}
+{"id": 78, "start": 453.87, "end": 458.87, "text": "for that child, that foreground job to terminate, and then, and reaping it.", "source": "faster-whisper"}
+{"id": 79, "start": 458.87, "end": 463.87, "text": "Otherwise, if it's a background job, it just prints a message and goes on.", "source": "faster-whisper"}
+{"id": 80, "start": 463.87, "end": 466.04, "text": "So this is really interesting, right?", "source": "faster-whisper"}
+{"id": 81, "start": 466.16, "end": 474.12, "text": "That there's really, the only difference between a foreground job and a background job is just that the shell does a weight pit on that job or not, right?", "source": "faster-whisper"}
+{"id": 82, "start": 474.12, "end": 477.32, "text": "So otherwise, there's really, there's really no difference.", "source": "faster-whisper"}
+{"id": 83, "start": 478.81, "end": 489.83, "text": "Now, what's the problem, there's a problem with our example shell, and that the problem is that we're doing the right thing for the foreground job.", "source": "faster-whisper"}
+{"id": 84, "start": 490.17, "end": 496.67, "text": "We always have to reap these children so they, they, uh, so that they're, they're, they're state,", "source": "faster-whisper"}
+{"id": 85, "start": 496.69, "end": 499.93, "text": "can be released.", "source": "faster-whisper"}
+{"id": 86, "start": 499.93, "end": 504.19, "text": "But we're not, we're not doing anything to reap any background jobs, right?", "source": "faster-whisper"}
+{"id": 87, "start": 504.19, "end": 508.63, "text": "When if it's a background job, so if not BG, we're just printing a message and then we're", "source": "faster-whisper"}
+{"id": 88, "start": 508.63, "end": 513.52, "text": "returning and then we're returning and then we're continuing with this read-evaluate step", "source": "faster-whisper"}
+{"id": 89, "start": 513.52, "end": 520.44, "text": "and never, never going back and taking care of that, of that background job.", "source": "faster-whisper"}
+{"id": 90, "start": 520.44, "end": 526.22, "text": "So this is a problem because that the background job will eventually become, if we", "source": "faster-whisper"}
+{"id": 91, "start": 526.22, "end": 529.98, "text": "we have enough of those jobs, we create a memory leak that could crash the system, right?", "source": "faster-whisper"}
+{"id": 92, "start": 529.98, "end": 536.57, "text": "So this is an error. So what are we going to do about this? Well, it turns out that exceptional control flow", "source": "faster-whisper"}
+{"id": 93, "start": 536.57, "end": 545.66, "text": "will help us solve this problem. And what happens is that the kernel will notify the shell", "source": "faster-whisper"}
+{"id": 94, "start": 545.66, "end": 554.71, "text": "when any of its children terminate. Okay? And then the shell can can then react to that and issue a weight pit.", "source": "faster-whisper"}
+{"id": 95, "start": 554.71, "end": 565.71, "text": "And this notification mechanism that the kernel uses is something called a signal.", "source": "faster-whisper"}
+{"id": 96, "start": 565.71, "end": 576.71, "text": "So a signal is a signal is a small message that the kernel delivers to a process to notify it that there's been some event in the system.", "source": "faster-whisper"}
+{"id": 97, "start": 576.71, "end": 588.76, "text": "Now, so this is very similar to the exceptions that we studied the last time, right, except it's it's all implemented in software.", "source": "faster-whisper"}
+{"id": 98, "start": 588.76, "end": 596.76, "text": "Now, signals are always sent from the kernel, but sometimes they're sent at the request of another process.", "source": "faster-whisper"}
+{"id": 99, "start": 596.76, "end": 600.76, "text": "Right? Sometimes the kernel will notice that there's some event.", "source": "faster-whisper"}
+{"id": 100, "start": 600.76, "end": 608.47, "text": "Other times, another process will ask the kernel to send a message to some other process.", "source": "faster-whisper"}
+{"id": 101, "start": 608.47, "end": 618.47, "text": "Now, we say that it's a small message because the only information that's contained in a signal is its unique integer ID.", "source": "faster-whisper"}
+{"id": 102, "start": 618.47, "end": 622.69, "text": "and the fact that it was it was delivered.", "source": "faster-whisper"}
+{"id": 103, "start": 622.69, "end": 631.69, "text": "Okay, so that's, so that there's nothing else in a signal except except that it arrived and that it has some, some, some unique ID.", "source": "faster-whisper"}
+{"id": 104, "start": 631.69, "end": 641.3, "text": "Now, examples of these are the sig-int. So signals have this, this unique ID, and then they also have a name.", "source": "faster-whisper"}
+{"id": 105, "start": 641.3, "end": 649.23, "text": "So the sig-int is what the, when you type Control C, and then they also have a name.", "source": "faster-whisper"}
+{"id": 106, "start": 649.23, "end": 656.23, "text": "on the command line, the colonel sends a Cig-int to every any processes in the", "source": "faster-whisper"}
+{"id": 107, "start": 656.23, "end": 657.23, "text": "foreground.", "source": "faster-whisper"}
+{"id": 108, "start": 657.23, "end": 660.23, "text": "And the default action of receiving a Cig-int is to terminate.", "source": "faster-whisper"}
+{"id": 109, "start": 660.23, "end": 665.23, "text": "So this is how if you're running a foreground job, you hit Control C, you get the prompt back", "source": "faster-whisper"}
+{"id": 110, "start": 665.23, "end": 668.74, "text": "because it kills that job.", "source": "faster-whisper"}
+{"id": 111, "start": 668.74, "end": 673.74, "text": "Sig-kill, number nine, can be used to terminate any program.", "source": "faster-whisper"}
+{"id": 112, "start": 673.74, "end": 679.19, "text": "So these two have, SIG-int and SIG-Kill have the same effect on the same effect on the", "source": "faster-whisper"}
+{"id": 113, "start": 679.19, "end": 683.19, "text": "effect on the programs that they kill the program.", "source": "faster-whisper"}
+{"id": 114, "start": 683.19, "end": 690.32, "text": "The unique aspect of SIG-Kill is that there's no way to ignore it or override it.", "source": "faster-whisper"}
+{"id": 115, "start": 690.32, "end": 692.32, "text": "Okay, so this is like the fail-safe.", "source": "faster-whisper"}
+{"id": 116, "start": 692.32, "end": 699.32, "text": "As we'll see, there are there are ways to catch and ignore other signals like SIG-int.", "source": "faster-whisper"}
+{"id": 117, "start": 699.32, "end": 704.32, "text": "SIG-SEG-V is the, our favorite seg-fault, segmentation violation.", "source": "faster-whisper"}
+{"id": 118, "start": 704.32, "end": 708.32, "text": "So if you access a region of memory that's protected or", "source": "faster-whisper"}
+{"id": 119, "start": 708.32, "end": 722.32, "text": "or not legal, then your program will, the kernel will send your, that process, a SIG-Seg-Seg-V signal, and the default,", "source": "faster-whisper"}
+{"id": 120, "start": 722.32, "end": 727.32, "text": "the default effect of that is to terminate the program.", "source": "faster-whisper"}
+{"id": 121, "start": 727.32, "end": 732.32, "text": "Sig-A-A-Larm is a way within your program you can arrange for a signal to be sent to yourself.", "source": "faster-whisper"}
+{"id": 122, "start": 732.32, "end": 738.3, "text": "So you can say, inside your program, send me a SIG alarm signal signal in", "source": "faster-whisper"}
+{"id": 123, "start": 738.32, "end": 739.32, "text": "three seconds.", "source": "faster-whisper"}
+{"id": 124, "start": 739.32, "end": 740.32, "text": "Something like that.", "source": "faster-whisper"}
+{"id": 125, "start": 740.32, "end": 745.02, "text": "So this is a way to do things like you can set up timers, you can set up timeouts,", "source": "faster-whisper"}
+{"id": 126, "start": 745.02, "end": 750.02, "text": "like if you want to, if you want to, if you want to set a timeout value and you're doing", "source": "faster-whisper"}
+{"id": 127, "start": 750.02, "end": 756.02, "text": "some some work and you want to guard against that work taking exceptionally long time,", "source": "faster-whisper"}
+{"id": 128, "start": 756.02, "end": 760.02, "text": "you can, you can use SIG alarm to set a timeout.", "source": "faster-whisper"}
+{"id": 129, "start": 760.02, "end": 765.15, "text": "And then a very important one, as we'll see, that will be very important for our shell,", "source": "faster-whisper"}
+{"id": 130, "start": 765.15, "end": 769.13, "text": "is the SIG child signal, which the kernel sends to", "source": "faster-whisper"}
+{"id": 131, "start": 769.15, "end": 774.24, "text": "to a parent every time one of its children terminates or stops.", "source": "faster-whisper"}
+{"id": 132, "start": 774.24, "end": 775.63, "text": "Okay.", "source": "faster-whisper"}
+{"id": 133, "start": 775.63, "end": 779.63, "text": "So this, as we'll see, now, we'll see this is how we're going,", "source": "faster-whisper"}
+{"id": 134, "start": 779.63, "end": 782.63, "text": "this is how our shell is going to actually reap its,", "source": "faster-whisper"}
+{"id": 135, "start": 782.63, "end": 784.63, "text": "all of its children, right?", "source": "faster-whisper"}
+{"id": 136, "start": 784.63, "end": 788.63, "text": "It's by taking advantage of this sig-child signal.", "source": "faster-whisper"}
+{"id": 137, "start": 788.63, "end": 791.4, "text": "But before I can show you that,", "source": "faster-whisper"}
+{"id": 138, "start": 791.4, "end": 794.4, "text": "we need to go through a number of concepts", "source": "faster-whisper"}
+{"id": 139, "start": 794.4, "end": 798.56, "text": "around signals.", "source": "faster-whisper"}
+{"id": 140, "start": 798.56, "end": 800.07, "text": "Okay.", "source": "faster-whisper"}
+{"id": 141, "start": 800.07, "end": 801.05, "text": "Like I said, the", "source": "faster-whisper"}
+{"id": 142, "start": 801.07, "end": 808.16, "text": "the semantics of signals, it's probably one of the thorniest aspects of Linux.", "source": "faster-whisper"}
+{"id": 143, "start": 808.16, "end": 820.7, "text": "It was developed very early in the lifespan of Linux when, and it maybe wasn't as clean as it could be, right?", "source": "faster-whisper"}
+{"id": 144, "start": 820.7, "end": 825.7, "text": "So in order to get a handle on signals, we're going to have to be very careful about defining terms", "source": "faster-whisper"}
+{"id": 145, "start": 825.7, "end": 828.7, "text": "and very careful about the way we talk about them.", "source": "faster-whisper"}
+{"id": 146, "start": 828.7, "end": 832.5, "text": "So we say that the kernel sends,", "source": "faster-whisper"}
+{"id": 147, "start": 832.5, "end": 837.53, "text": "sends or delivers a signal to some destination process.", "source": "faster-whisper"}
+{"id": 148, "start": 837.53, "end": 844.72, "text": "And it does this by setting some state in the context of the destination process.", "source": "faster-whisper"}
+{"id": 149, "start": 844.72, "end": 854.33, "text": "Now, nothing happens except that some bits get changed in the destination process context.", "source": "faster-whisper"}
+{"id": 150, "start": 854.33, "end": 859.33, "text": "Okay, there's no, there's no impact of, immediate impact of sending a signal.", "source": "faster-whisper"}
+{"id": 151, "start": 859.33, "end": 865.12, "text": "Now a kernel sends a signal,", "source": "faster-whisper"}
+{"id": 152, "start": 865.12, "end": 869.12, "text": "either because it detected some event in the system,", "source": "faster-whisper"}
+{"id": 153, "start": 869.12, "end": 873.15, "text": "like a child process is terminated, for example,", "source": "faster-whisper"}
+{"id": 154, "start": 873.15, "end": 878.15, "text": "or another process has asked the kernel to send,", "source": "faster-whisper"}
+{"id": 155, "start": 878.15, "end": 883.33, "text": "to deliver a process, a signal on its behalf.", "source": "faster-whisper"}
+{"id": 156, "start": 883.33, "end": 885.33, "text": "And there's a number of ways to do that.", "source": "faster-whisper"}
+{"id": 157, "start": 885.33, "end": 887.33, "text": "One of them is with the kill system call.", "source": "faster-whisper"}
+{"id": 158, "start": 887.33, "end": 891.45, "text": "It's kind of an unfortunate term, isn't it?", "source": "faster-whisper"}
+{"id": 159, "start": 891.45, "end": 895.45, "text": "I mean, the, so kill is a general way to send signals.", "source": "faster-whisper"}
+{"id": 160, "start": 895.45, "end": 897.45, "text": "And the, the, the, the,", "source": "faster-whisper"}
+{"id": 161, "start": 897.45, "end": 901.69, "text": "The impact is sometimes not to kill the program, right?", "source": "faster-whisper"}
+{"id": 162, "start": 901.69, "end": 907.8, "text": "But for some reason, they chose to call it kill.", "source": "faster-whisper"}
+{"id": 163, "start": 907.8, "end": 917.88, "text": "Now, the destination process receives a signal when it's forced by the kernel to act in some way,", "source": "faster-whisper"}
+{"id": 164, "start": 917.88, "end": 922.4, "text": "to react in some way, to the delivery of a signal.", "source": "faster-whisper"}
+{"id": 165, "start": 922.4, "end": 924.16, "text": "So these are two very different things.", "source": "faster-whisper"}
+{"id": 166, "start": 924.16, "end": 929.76, "text": "Sending a signal sets state in the context of the destination process.", "source": "faster-whisper"}
+{"id": 167, "start": 929.76, "end": 932.36, "text": "Receiving a signal is what happens when.", "source": "faster-whisper"}
+{"id": 168, "start": 932.38, "end": 940.48, "text": "the destination process is finally forced by the kernel to act in some way, to react in some way.", "source": "faster-whisper"}
+{"id": 169, "start": 940.48, "end": 949.77, "text": "Now, some possible ways to react are to just ignore the signal, okay? To terminate the", "source": "faster-whisper"}
+{"id": 170, "start": 949.77, "end": 958.2, "text": "process, or to catch the signal by executing a user-level function called a signal handler.", "source": "faster-whisper"}
+{"id": 171, "start": 958.2, "end": 963.2, "text": "So in this case, when we, when we catch signals, it's very similar to the signal handler.", "source": "faster-whisper"}
+{"id": 172, "start": 963.2, "end": 970.24, "text": "and execute a signal handler. It's very similar to executing an exception handler", "source": "faster-whisper"}
+{"id": 173, "start": 970.24, "end": 974.24, "text": "in response to some kind of event in the system.", "source": "faster-whisper"}
+{"id": 174, "start": 974.24, "end": 979.24, "text": "Now the difference is that exception handlers are in the kernel. Signal handlers are actually", "source": "faster-whisper"}
+{"id": 175, "start": 979.24, "end": 985.04, "text": "just in your C code. And they execute in your process.", "source": "faster-whisper"}
+{"id": 176, "start": 985.04, "end": 994.96, "text": "So the way to think about if we catch a signal by executing a signal handler, we have our process.", "source": "faster-whisper"}
+{"id": 177, "start": 994.96, "end": 1002.79, "text": "We have our process executing instructions, and then a signal is received by that process.", "source": "faster-whisper"}
+{"id": 178, "start": 1002.79, "end": 1011.59, "text": "So the kernel passes control to a signal handler, which is also just in the code that's executing in the current process.", "source": "faster-whisper"}
+{"id": 179, "start": 1011.59, "end": 1015.97, "text": "It's just a function in our C code.", "source": "faster-whisper"}
+{"id": 180, "start": 1015.97, "end": 1023.97, "text": "The signal handler runs, and when it returns, it eventually returns back to the next instruction, and then we continue.", "source": "faster-whisper"}
+{"id": 181, "start": 1023.97, "end": 1025.97, "text": "So it's just like kind of like an interrupt.", "source": "faster-whisper"}
+{"id": 182, "start": 1025.97, "end": 1027.33, "text": "kind of like an interrupt, right?", "source": "faster-whisper"}
+{"id": 183, "start": 1027.33, "end": 1036.42, "text": "We just temporarily pause what we're doing in our code to execute this handler before just continuing on.", "source": "faster-whisper"}
+{"id": 184, "start": 1036.42, "end": 1047.65, "text": "Okay, now we say that a signal is pending if it's been sent by the kernel but not yet received.", "source": "faster-whisper"}
+{"id": 185, "start": 1047.65, "end": 1048.65, "text": "Okay.", "source": "faster-whisper"}
+{"id": 186, "start": 1048.65, "end": 1056.71, "text": "So at any given point in time, there can only be one pending signal of any particular type.", "source": "faster-whisper"}
+{"id": 187, "start": 1056.71, "end": 1060.69, "text": "So this has very important consequences for using signals.", "source": "faster-whisper"}
+{"id": 188, "start": 1060.71, "end": 1063.31, "text": "because you can't cue signals up, right?", "source": "faster-whisper"}
+{"id": 189, "start": 1063.31, "end": 1066.71, "text": "At any point in time, there's, there can only be one pending", "source": "faster-whisper"}
+{"id": 190, "start": 1066.71, "end": 1070.71, "text": "SIG child signal, for example, or SIG-int signal.", "source": "faster-whisper"}
+{"id": 191, "start": 1070.71, "end": 1076.77, "text": "And if a subsequent SIG-child signal, say, is sent, it just overrides,", "source": "faster-whisper"}
+{"id": 192, "start": 1076.77, "end": 1080.77, "text": "well, you can think of it as, it has no impact.", "source": "faster-whisper"}
+{"id": 193, "start": 1080.77, "end": 1083.77, "text": "It's just discarded, right, if there's already a pending signal.", "source": "faster-whisper"}
+{"id": 194, "start": 1083.77, "end": 1086.77, "text": "So they don't queue up in any meaningful way.", "source": "faster-whisper"}
+{"id": 195, "start": 1086.77, "end": 1091.92, "text": "Now, a process can block the receipt of certain signals.", "source": "faster-whisper"}
+{"id": 196, "start": 1091.92, "end": 1092.92, "text": "signals.", "source": "faster-whisper"}
+{"id": 197, "start": 1092.92, "end": 1101.24, "text": "Now, it can't stop signals from being delivered, but it can stop the process from having to react to", "source": "faster-whisper"}
+{"id": 198, "start": 1101.24, "end": 1104.24, "text": "react to that signal when it's received.", "source": "faster-whisper"}
+{"id": 199, "start": 1104.24, "end": 1107.73, "text": "Okay.", "source": "faster-whisper"}
+{"id": 200, "start": 1107.73, "end": 1118.73, "text": "So blocked signals can be delivered, but they won't be received until the signals unblocked.", "source": "faster-whisper"}
+{"id": 201, "start": 1118.73, "end": 1121.73, "text": "And pending signals are received at most once.", "source": "faster-whisper"}
+{"id": 202, "start": 1121.73, "end": 1132.9, "text": "Now, the kernel keeps track of these pending and blocked signals in bit vectors that", "source": "faster-whisper"}
+{"id": 203, "start": 1132.92, "end": 1135.22, "text": "we'll call pending and blocked.", "source": "faster-whisper"}
+{"id": 204, "start": 1135.22, "end": 1138.92, "text": "And pending represents the set of pending signals, right,", "source": "faster-whisper"}
+{"id": 205, "start": 1138.92, "end": 1144.92, "text": "where each bit in the pending bit vector corresponds to some particular signal.", "source": "faster-whisper"}
+{"id": 206, "start": 1144.92, "end": 1146.92, "text": "Okay, so this is why they can't be cued, right?", "source": "faster-whisper"}
+{"id": 207, "start": 1146.92, "end": 1153.08, "text": "Because there's only one bit, for any signal K, there's only one bit in the bit vector.", "source": "faster-whisper"}
+{"id": 208, "start": 1153.08, "end": 1158.08, "text": "And if we, and when we deliver a signal, we're just setting, we'll set that bit, the kernel will set that bit.", "source": "faster-whisper"}
+{"id": 209, "start": 1158.08, "end": 1162.08, "text": "If we deliver another signal of the same type, it'll just set that bit again,", "source": "faster-whisper"}
+{"id": 210, "start": 1162.08, "end": 1166.85, "text": "which has no effect.", "source": "faster-whisper"}
+{"id": 211, "start": 1166.85, "end": 1172.41, "text": "Now the kernel sets that the bit and pending when the signals delivered and it clears it clears", "source": "faster-whisper"}
+{"id": 212, "start": 1172.41, "end": 1175.93, "text": "it when the signals received.", "source": "faster-whisper"}
+{"id": 213, "start": 1175.93, "end": 1182.73, "text": "And the kernel also provides mechanism for users to block signals with this blocked bit", "source": "faster-whisper"}
+{"id": 214, "start": 1182.73, "end": 1183.29, "text": "vector.", "source": "faster-whisper"}
+{"id": 215, "start": 1183.29, "end": 1187.29, "text": "So the blocked bit vector is the same size as the pending bit vector.", "source": "faster-whisper"}
+{"id": 216, "start": 1187.29, "end": 1192.2, "text": "Turns out it's just a 32-bit int, okay.", "source": "faster-whisper"}
+{"id": 217, "start": 1192.2, "end": 1195.62, "text": "And it can be set and cleared, the bits in that can be set and cleared using", "source": "faster-whisper"}
+{"id": 218, "start": 1195.64, "end": 1198.89, "text": "the SIGPROC-Mask system call.", "source": "faster-whisper"}
+{"id": 219, "start": 1198.89, "end": 1210.21, "text": "Okay, now the blocked, in the Linux literature, the blocked bit vector is also called the signal mask.", "source": "faster-whisper"}
+{"id": 220, "start": 1210.21, "end": 1214.21, "text": "Okay, now we're, I want to look in a little more detail about sending and receiving signals.", "source": "faster-whisper"}
+{"id": 221, "start": 1214.21, "end": 1220.88, "text": "So let's start first with sending signals. First, we need to understand the idea of a process", "source": "faster-whisper"}
+{"id": 222, "start": 1220.88, "end": 1229.4, "text": "group. So every process belongs to exactly one process group. And those, so here", "source": "faster-whisper"}
+{"id": 223, "start": 1229.4, "end": 1231.38, "text": "I'm showing a shell that's in process group.", "source": "faster-whisper"}
+{"id": 224, "start": 1231.4, "end": 1237.07, "text": "It has a process ID of 10 and a process group ID of 10.", "source": "faster-whisper"}
+{"id": 225, "start": 1237.07, "end": 1245.36, "text": "The shell created a foreground job, which has a process ID of 20 and a process group ID of 20.", "source": "faster-whisper"}
+{"id": 226, "start": 1245.36, "end": 1253.6, "text": "And then all of the children that this foreground job created have the same process group ID of 20.", "source": "faster-whisper"}
+{"id": 227, "start": 1253.6, "end": 1260.02, "text": "So these process groups can be set by a system called set process group ID.", "source": "faster-whisper"}
+{"id": 228, "start": 1260.02, "end": 1263.02, "text": "And you can fetch that process group ID.", "source": "faster-whisper"}
+{"id": 229, "start": 1263.02, "end": 1264.0, "text": "And you can fetch that process group.", "source": "faster-whisper"}
+{"id": 230, "start": 1264.02, "end": 1267.02, "text": "using the get process group system call.", "source": "faster-whisper"}
+{"id": 231, "start": 1267.02, "end": 1273.05, "text": "So you can see in this example, what the shell has done is it created a foreground child.", "source": "faster-whisper"}
+{"id": 232, "start": 1273.05, "end": 1279.05, "text": "So it created this child and it changed the process group ID to be equal to", "source": "faster-whisper"}
+{"id": 233, "start": 1279.05, "end": 1282.05, "text": "be equal to the process ID of the child.", "source": "faster-whisper"}
+{"id": 234, "start": 1282.05, "end": 1291.08, "text": "And then when this child created other child, children, they just inherited the same process group ID.", "source": "faster-whisper"}
+{"id": 235, "start": 1291.08, "end": 1294.57, "text": "Okay.", "source": "faster-whisper"}
+{"id": 236, "start": 1294.57, "end": 1296.57, "text": "Now this notion of a process group is useful.", "source": "faster-whisper"}
+{"id": 237, "start": 1296.57, "end": 1303.81, "text": "is useful because it allows you to send signals to groups of processes at the same time.", "source": "faster-whisper"}
+{"id": 238, "start": 1303.81, "end": 1310.62, "text": "And you can do that with a program called kill, which is typically in slash bin directory.", "source": "faster-whisper"}
+{"id": 239, "start": 1310.62, "end": 1315.96, "text": "And that the kill program, you can use the kill program to send an arbitrary signal to either", "source": "faster-whisper"}
+{"id": 240, "start": 1315.96, "end": 1322.87, "text": "an individual process or all the processes in one process group.", "source": "faster-whisper"}
+{"id": 241, "start": 1322.87, "end": 1328.41, "text": "So let's look at an example. This program, this Forks program, this Forks program, and", "source": "faster-whisper"}
+{"id": 242, "start": 1328.43, "end": 1336.0, "text": "creates two children, with each of which has a process group of", "source": "faster-whisper"}
+{"id": 243, "start": 1336.0, "end": 1342.23, "text": "a 24817. And of course, they have different process, they have different process IDs.", "source": "faster-whisper"}
+{"id": 244, "start": 1342.23, "end": 1354.35, "text": "And so if we do a PS, we see these two, we see these two processes running. And these just go into loop, so they'll just run continuously.", "source": "faster-whisper"}
+{"id": 245, "start": 1354.35, "end": 1361.33, "text": "Okay. Now we can, we can use kill to kill.", "source": "faster-whisper"}
+{"id": 246, "start": 1361.33, "end": 1363.99, "text": "to kill an individual process.", "source": "faster-whisper"}
+{"id": 247, "start": 1363.99, "end": 1370.95, "text": "For example, so if we call it, the first argument indicates what signal you want to send.", "source": "faster-whisper"}
+{"id": 248, "start": 1371.07, "end": 1375.07, "text": "So in this case, it's signal 9, which is the sig-kill signal.", "source": "faster-whisper"}
+{"id": 249, "start": 1375.79, "end": 1382.81, "text": "So kill minus 9 is a very typical, usually if you want to kill processes, you just kill minus 9.", "source": "faster-whisper"}
+{"id": 250, "start": 1383.96, "end": 1392.61, "text": "And actually, one of my favorite auto lab nicknames for 213 was the nickname was the nickname was kill minus", "source": "faster-whisper"}
+{"id": 251, "start": 1392.71, "end": 1403.06, "text": "So then the second argument is the, if it's, is the, is the process ID.", "source": "faster-whisper"}
+{"id": 252, "start": 1403.06, "end": 1412.56, "text": "So this is asking, this is asking the kernel to kill process ID 24818 by sending it a sig-kill signal.", "source": "faster-whisper"}
+{"id": 253, "start": 1412.56, "end": 1422.52, "text": "Now, if the, if the process ID is preceded by a dash, then it sends a sig-kill to every", "source": "faster-whisper"}
+{"id": 254, "start": 1422.52, "end": 1428.2, "text": "process in process group to then it it treats this argument as a process group", "source": "faster-whisper"}
+{"id": 255, "start": 1428.2, "end": 1433.68, "text": "and then it sends a signal to every process in that process group so in this case it", "source": "faster-whisper"}
+{"id": 256, "start": 1433.68, "end": 1440.72, "text": "will send a sig-kill to both of these both of these children processes and then", "source": "faster-whisper"}
+{"id": 257, "start": 1440.72, "end": 1446.9, "text": "afterwards we if we do a PS we see that those processes are gone okay that it really", "source": "faster-whisper"}
+{"id": 258, "start": 1446.9, "end": 1454.29, "text": "did work that way now another way to send signals is by typing either control C or", "source": "faster-whisper"}
+{"id": 259, "start": 1454.53, "end": 1459.72, "text": "Z to the command line.", "source": "faster-whisper"}
+{"id": 260, "start": 1459.72, "end": 1466.44, "text": "Control C causes the kernel to send a CIG-int to every job in the foreground process group, and Control", "source": "faster-whisper"}
+{"id": 261, "start": 1466.44, "end": 1476.34, "text": "Z causes it to send a S-C-T-stop signal to every job in the in the foreground process group.", "source": "faster-whisper"}
+{"id": 262, "start": 1476.34, "end": 1479.34, "text": "The default action for SIG-int is to terminate the process.", "source": "faster-whisper"}
+{"id": 263, "start": 1479.34, "end": 1484.94, "text": "The default action for the SIG-T-stop is to suspend the process, stop it, stop it until it receives", "source": "faster-whisper"}
+{"id": 264, "start": 1484.94, "end": 1494.76, "text": "a C-O-N-T signal.", "source": "faster-whisper"}
+{"id": 265, "start": 1494.76, "end": 1497.26, "text": "So you can see an example of this.", "source": "faster-whisper"}
+{"id": 266, "start": 1497.26, "end": 1505.27, "text": "Here we have a program that creates a parent and a child running in the foreground.", "source": "faster-whisper"}
+{"id": 267, "start": 1505.27, "end": 1507.27, "text": "So the parents running in the foreground.", "source": "faster-whisper"}
+{"id": 268, "start": 1507.27, "end": 1516.49, "text": "Now when we type Control Z to the command line, the shell notifies us that it's suspended that process.", "source": "faster-whisper"}
+{"id": 269, "start": 1516.49, "end": 1521.49, "text": "And if we do a PS, we can see the parent and the child", "source": "faster-whisper"}
+{"id": 270, "start": 1521.49, "end": 1528.52, "text": "indeed are suspended so the PS indicates that it's suspended or stopped using T.", "source": "faster-whisper"}
+{"id": 271, "start": 1528.52, "end": 1542.5, "text": "Now next we type in the built-in, the shell built-in, which is FG, and FG restores those suspended jobs to the foreground.", "source": "faster-whisper"}
+{"id": 272, "start": 1542.5, "end": 1551.0, "text": "So after typing FG, now we're running this our program again in the foreground.", "source": "faster-whisper"}
+{"id": 273, "start": 1551.0, "end": 1555.98, "text": "And then we can kill it by typing Control C, which elicits a C", "source": "faster-whisper"}
+{"id": 274, "start": 1556.0, "end": 1559.0, "text": "whose default action is to terminate.", "source": "faster-whisper"}
+{"id": 275, "start": 1559.0, "end": 1563.0, "text": "And then when we do a PS, we see that indeed that they're gone.", "source": "faster-whisper"}
+{"id": 276, "start": 1563.0, "end": 1573.04, "text": "Now, the third way that we can send signals is by using the kill system call.", "source": "faster-whisper"}
+{"id": 277, "start": 1573.04, "end": 1577.76, "text": "So here's an example of how that works.", "source": "faster-whisper"}
+{"id": 278, "start": 1577.76, "end": 1581.76, "text": "So in this, in this example, we're creating N children,", "source": "faster-whisper"}
+{"id": 279, "start": 1581.76, "end": 1585.28, "text": "each of which goes into an infinite loop,", "source": "faster-whisper"}
+{"id": 280, "start": 1585.28, "end": 1591.59, "text": "and we're recording the process idea of each child that we create.", "source": "faster-whisper"}
+{"id": 281, "start": 1591.59, "end": 1593.57, "text": "And then in it, we go, in another,", "source": "faster-whisper"}
+{"id": 282, "start": 1593.59, "end": 1600.59, "text": "We go through and we kill each of those child processes by using the kill function,", "source": "faster-whisper"}
+{"id": 283, "start": 1600.59, "end": 1606.59, "text": "passing it the process ID, and the signal that we want sent to that process.", "source": "faster-whisper"}
+{"id": 284, "start": 1606.59, "end": 1608.07, "text": "Okay.", "source": "faster-whisper"}
+{"id": 285, "start": 1608.07, "end": 1614.07, "text": "And then we do our due diligence and reap each one of those children that we've terminated.", "source": "faster-whisper"}
+{"id": 286, "start": 1614.07, "end": 1618.52, "text": "Now, this isn't strictly necessary because we're going to exit.", "source": "faster-whisper"}
+{"id": 287, "start": 1618.52, "end": 1623.58, "text": "As soon as this fork 12 function returns, we're going to exit the code.", "source": "faster-whisper"}
+{"id": 288, "start": 1623.58, "end": 1624.58, "text": "So we're going to exit the code.", "source": "faster-whisper"}
+{"id": 289, "start": 1624.58, "end": 1630.36, "text": "But we're just being, you know, careful here and maybe a little pedantic.", "source": "faster-whisper"}
+{"id": 290, "start": 1630.36, "end": 1640.14, "text": "But, okay, now let's look at how a process receives signals.", "source": "faster-whisper"}
+{"id": 291, "start": 1640.14, "end": 1656.05, "text": "Now suppose process A is running along, executing its user code, and then there's a control passes into the kernel because of some exception.", "source": "faster-whisper"}
+{"id": 292, "start": 1656.05, "end": 1662.33, "text": "Now, that exception can be either a timer going off, maybe an interrupt, or it can be a", "source": "faster-whisper"}
+{"id": 293, "start": 1662.33, "end": 1669.58, "text": "a trap, you know, user calls a system call, okay, but it's always caused the trap into", "source": "faster-whisper"}
+{"id": 294, "start": 1669.58, "end": 1675.8, "text": "the, or the transfer and control into the kernel is always caused by some exception.", "source": "faster-whisper"}
+{"id": 295, "start": 1675.8, "end": 1684.06, "text": "So at this point, the kernel, calls its scheduler function, and it decides to do a context", "source": "faster-whisper"}
+{"id": 296, "start": 1684.06, "end": 1694.52, "text": "switch from process A to process B. And it gets process B all set up, and right before it returns from", "source": "faster-whisper"}
+{"id": 297, "start": 1694.52, "end": 1703.1, "text": "that exception and right before it's ready to pass control back to the user code", "source": "faster-whisper"}
+{"id": 298, "start": 1703.1, "end": 1713.84, "text": "and process B, it checks for any signals that, any pending signals. Okay. And it does this by", "source": "faster-whisper"}
+{"id": 299, "start": 1713.84, "end": 1721.51, "text": "computing a bit vector, PNB, so pending non-blocked, which is the logical end of the pending", "source": "faster-whisper"}
+{"id": 300, "start": 1721.51, "end": 1726.61, "text": "bit vector and the inverse of the blocked bit vector.", "source": "faster-whisper"}
+{"id": 301, "start": 1726.61, "end": 1734.02, "text": "So PNB is a list of all the pending signals that aren't blocked. Okay, so these are all", "source": "faster-whisper"}
+{"id": 302, "start": 1734.02, "end": 1741.48, "text": "the pending signals that should be received. If now if PNB is all zeros, then", "source": "faster-whisper"}
+{"id": 303, "start": 1741.48, "end": 1747.88, "text": "there's no pending signals, so it just returns, it passes control back, it passes", "source": "faster-whisper"}
+{"id": 304, "start": 1747.88, "end": 1755.34, "text": "control back to process B, which can continue executing. However, if PNB is non-zero, then it", "source": "faster-whisper"}
+{"id": 305, "start": 1755.34, "end": 1763.34, "text": "chooses the smallest non-zero bit in PNB and it forces process P to receive that signal,", "source": "faster-whisper"}
+{"id": 306, "start": 1763.34, "end": 1776.98, "text": "the corresponding signal. The receipt of the signal triggers some action in the process. And then we repeat", "source": "faster-whisper"}
+{"id": 307, "start": 1776.98, "end": 1784.84, "text": "that for all the non-zero signals K that, or non-zero bits that are set in PNB.", "source": "faster-whisper"}
+{"id": 308, "start": 1784.84, "end": 1789.56, "text": "And finally, when we've gone through all the non-zero bits, then we pass control", "source": "faster-whisper"}
+{"id": 309, "start": 1789.56, "end": 1796.95, "text": "to the next instruction in the process P.", "source": "faster-whisper"}
+{"id": 310, "start": 1796.95, "end": 1808.35, "text": "So the receipt of a signal always triggers some action, which is either the process terminates, the process", "source": "faster-whisper"}
+{"id": 311, "start": 1808.35, "end": 1816.14, "text": "stops until it's restarted by a sig-cont signal, the process ignores the signal. Okay, so that's,", "source": "faster-whisper"}
+{"id": 312, "start": 1816.14, "end": 1822.58, "text": "there's always some predefined default action. But we can modify that, that default action, but we can modify", "source": "faster-whisper"}
+{"id": 313, "start": 1822.58, "end": 1829.61, "text": "that default action by using a function, a system call called signal.", "source": "faster-whisper"}
+{"id": 314, "start": 1829.61, "end": 1836.8, "text": "So we can, now signal is a little, that's another sort of misleading kind of term, just like kill,", "source": "faster-whisper"}
+{"id": 315, "start": 1836.8, "end": 1840.8, "text": "right? Because when we send a signal to a process, we don't always want to kill it.", "source": "faster-whisper"}
+{"id": 316, "start": 1840.8, "end": 1846.8, "text": "And signal doesn't actually signal anything. It just, it just modifies the default action", "source": "faster-whisper"}
+{"id": 317, "start": 1846.8, "end": 1854.77, "text": "associated with some signal. Okay, so if the signal function takes a signal function takes a signal number,", "source": "faster-whisper"}
+{"id": 318, "start": 1854.79, "end": 1861.8, "text": "and then specifies a change in the default action for that signal.", "source": "faster-whisper"}
+{"id": 319, "start": 1861.8, "end": 1870.18, "text": "And those default actions can be either to ignore the signal, okay, ignore signals of type signal,", "source": "faster-whisper"}
+{"id": 320, "start": 1870.18, "end": 1880.98, "text": "revert to the default behavior for that signal, or we can give it, or it can be the address of a user-level", "source": "faster-whisper"}
+{"id": 321, "start": 1880.98, "end": 1886.16, "text": "level signal handler, which is a function that we've declared in our C program.", "source": "faster-whisper"}
+{"id": 322, "start": 1886.16, "end": 1903.16, "text": "Okay. There's nothing special about the function. It has a certain prototype. It takes a single argument, which is the signal number. So when that function gets called, in response to receiving a signal, in response to receiving a signal number, that argument will be set to the signal number.", "source": "faster-whisper"}
+{"id": 323, "start": 1903.16, "end": 1919.66, "text": "Okay. So calling signal with a, and specifying a signal handler is called installing a handler, and then executing the handler is referred to as catching or executing the handler, and then executing.", "source": "faster-whisper"}
+{"id": 324, "start": 1919.68, "end": 1922.85, "text": "They are handling the signal.", "source": "faster-whisper"}
+{"id": 325, "start": 1922.85, "end": 1926.65, "text": "And, and this, this handler then, is just like an exception handler.", "source": "faster-whisper"}
+{"id": 326, "start": 1926.65, "end": 1935.71, "text": "When it returns, it will, when it's executed, it will interrupts the, whatever is currently executing in the process.", "source": "faster-whisper"}
+{"id": 327, "start": 1935.71, "end": 1942.68, "text": "And when it returns, it'll return back to that point and continue executing.", "source": "faster-whisper"}
+{"id": 328, "start": 1942.68, "end": 1948.5, "text": "Okay, so here's a simple example of, um, of installing a handler.", "source": "faster-whisper"}
+{"id": 329, "start": 1948.5, "end": 1952.8, "text": "So here in Maine, we're, we're going to install a SIG-int handler.", "source": "faster-whisper"}
+{"id": 330, "start": 1952.8, "end": 1959.73, "text": "which is called Sigint underscore handler, which is defined up here.", "source": "faster-whisper"}
+{"id": 331, "start": 1959.73, "end": 1969.76, "text": "And the prototype for this function is returns nothing, and it takes a single integer argument, which is the signal number, and returns nothing.", "source": "faster-whisper"}
+{"id": 332, "start": 1969.76, "end": 1970.76, "text": "Okay.", "source": "faster-whisper"}
+{"id": 333, "start": 1970.76, "end": 1977.76, "text": "And after we install that handler, then we're going to execute the pause syscall, which just waits for a signal handler to execute", "source": "faster-whisper"}
+{"id": 334, "start": 1977.76, "end": 1982.14, "text": "a signal handler to execute. Okay, so pause terminates the current, or suspends", "source": "faster-whisper"}
+{"id": 335, "start": 1982.14, "end": 1989.02, "text": "the current process until a signal is received and a handler executes in that process. And", "source": "faster-whisper"}
+{"id": 336, "start": 1989.02, "end": 1996.4, "text": "then pause, then pause returns. So we're going to wait until a sigint happens. So", "source": "faster-whisper"}
+{"id": 337, "start": 1996.4, "end": 2003.7, "text": "sigint recall is when we type control C. So when you were doing your bombs, did, did", "source": "faster-whisper"}
+{"id": 338, "start": 2003.7, "end": 2008.75, "text": "did you panic at some point and try to hit control C to get out of it? Okay. So that", "source": "faster-whisper"}
+{"id": 339, "start": 2008.75, "end": 2014.47, "text": "That snarky message you got, that was, we did that by installing a signal,", "source": "faster-whisper"}
+{"id": 340, "start": 2014.47, "end": 2017.23, "text": "a sig-int handler in, in your bomb.", "source": "faster-whisper"}
+{"id": 341, "start": 2017.23, "end": 2022.52, "text": "Okay, so when you type Control C, that elicits a", "source": "faster-whisper"}
+{"id": 342, "start": 2022.52, "end": 2028.7, "text": "a sig-int, when that sig-int is received, we printed this message and then", "source": "faster-whisper"}
+{"id": 343, "start": 2028.7, "end": 2031.63, "text": "eventually let you exit.", "source": "faster-whisper"}
+{"id": 344, "start": 2031.63, "end": 2042.72, "text": "Now, signals are another examples of concurrency. Now, we've seen", "source": "faster-whisper"}
+{"id": 345, "start": 2042.72, "end": 2044.12, "text": "concurrency.", "source": "faster-whisper"}
+{"id": 346, "start": 2044.12, "end": 2048.22, "text": "earlier in the form of processes, right?", "source": "faster-whisper"}
+{"id": 347, "start": 2048.22, "end": 2052.82, "text": "Concurrent flows overlapping in time.", "source": "faster-whisper"}
+{"id": 348, "start": 2052.82, "end": 2056.3, "text": "Okay. Logical flows overlapping in time.", "source": "faster-whisper"}
+{"id": 349, "start": 2056.3, "end": 2059.3, "text": "By definition are concurrent.", "source": "faster-whisper"}
+{"id": 350, "start": 2059.3, "end": 2066.06, "text": "Now, with processes, because they have separate address spaces,", "source": "faster-whisper"}
+{"id": 351, "start": 2066.06, "end": 2069.06, "text": "those concurrent flows never interfere with each other.", "source": "faster-whisper"}
+{"id": 352, "start": 2069.06, "end": 2073.06, "text": "Right? So in some sense, processes are very easy to deal with", "source": "faster-whisper"}
+{"id": 353, "start": 2073.06, "end": 2077.04, "text": "and we don't really have to worry about one process", "source": "faster-whisper"}
+{"id": 354, "start": 2077.06, "end": 2082.52, "text": "doesn't have to worry about being interfered with by another process.", "source": "faster-whisper"}
+{"id": 355, "start": 2082.52, "end": 2087.52, "text": "In fact, you have to go to great lengths to share, like to share things between processes.", "source": "faster-whisper"}
+{"id": 356, "start": 2087.52, "end": 2095.25, "text": "You have to use specific system calls in order to say share memory between two processes.", "source": "faster-whisper"}
+{"id": 357, "start": 2095.25, "end": 2102.24, "text": "Now, signals are another form of concurrency. This is the second time in this class that you've experienced", "source": "faster-whisper"}
+{"id": 358, "start": 2102.24, "end": 2109.0, "text": "concurrency. And so a signal is just a concurrent flow, it's just a logical flow. So a", "source": "faster-whisper"}
+{"id": 359, "start": 2109.0, "end": 2115.22, "text": "The handler is just another logical flow that runs concurrently with your program.", "source": "faster-whisper"}
+{"id": 360, "start": 2115.22, "end": 2122.95, "text": "So we're, let's say we're executing a while loop in Process A, okay, and that while loop is executing.", "source": "faster-whisper"}
+{"id": 361, "start": 2122.95, "end": 2131.83, "text": "And then process A receives a signal, a signal which causes a transfer of control to this handler.", "source": "faster-whisper"}
+{"id": 362, "start": 2131.83, "end": 2139.92, "text": "This handler executes, so this is a concurrent flow that overlaps in time with the while loop in process A.", "source": "faster-whisper"}
+{"id": 363, "start": 2139.92, "end": 2148.18, "text": "Eventually, this handler returns, and we return back to process A.", "source": "faster-whisper"}
+{"id": 364, "start": 2148.18, "end": 2166.2, "text": "Now, one of the reasons signals are so tricky is because of this overlapping concurrent flow, this concurrency, because the signal handler runs in the same process as the main program.", "source": "faster-whisper"}
+{"id": 365, "start": 2166.2, "end": 2170.2, "text": "So it shares all the global variables of that program.", "source": "faster-whisper"}
+{"id": 366, "start": 2170.2, "end": 2181.58, "text": "So that signal handler is a function that you've declared and it has access to all the state, all the global state in the program.", "source": "faster-whisper"}
+{"id": 367, "start": 2181.58, "end": 2187.74, "text": "Okay. And the existence of this shared global state can create real problems, right?", "source": "faster-whisper"}
+{"id": 368, "start": 2187.74, "end": 2201.76, "text": "And we'll, we'll get into more details about some of those problems.", "source": "faster-whisper"}
+{"id": 369, "start": 2201.76, "end": 2209.76, "text": "So another way to look at these signal handlers as concurrent flows is using this context switch diagram.", "source": "faster-whisper"}
+{"id": 370, "start": 2209.76, "end": 2221.45, "text": "So suppose we're executing in process A, and now at some point a signal is delivered to process A.", "source": "faster-whisper"}
+{"id": 371, "start": 2221.45, "end": 2226.45, "text": "Now nothing happens, right? Just the pending bit gets set in process A at this point.", "source": "faster-whisper"}
+{"id": 372, "start": 2226.45, "end": 2239.96, "text": "Now at some point, there's a transfer of control into the kernel, and the kernel decides to do a context switch from A to B, and now B gets to run for a while.", "source": "faster-whisper"}
+{"id": 373, "start": 2239.96, "end": 2241.96, "text": "There's another transfer of control to the kernel.", "source": "faster-whisper"}
+{"id": 374, "start": 2241.96, "end": 2247.17, "text": "and the kernel decides to schedule process A.", "source": "faster-whisper"}
+{"id": 375, "start": 2247.17, "end": 2257.04, "text": "And now right before it returns control to process A, it notices, it notices that the pending bit for this signal is set,", "source": "faster-whisper"}
+{"id": 376, "start": 2257.04, "end": 2260.04, "text": "so it causes process A to receive that signal.", "source": "faster-whisper"}
+{"id": 377, "start": 2260.04, "end": 2263.04, "text": "So that executes the handler code.", "source": "faster-whisper"}
+{"id": 378, "start": 2263.04, "end": 2269.1, "text": "When the handler returns, it returns for briefly to the kernel, which then transfers control back", "source": "faster-whisper"}
+{"id": 379, "start": 2269.1, "end": 2273.1, "text": "back to the next instruction that the process was going to execute.", "source": "faster-whisper"}
+{"id": 380, "start": 2273.1, "end": 2274.1, "text": "to execute.", "source": "faster-whisper"}
+{"id": 381, "start": 2274.1, "end": 2281.37, "text": "Now handlers are also tricky because they can be interrupted by other handlers.", "source": "faster-whisper"}
+{"id": 382, "start": 2281.37, "end": 2289.76, "text": "So suppose we have our main program that catches a signal S, which causes a transfer of control", "source": "faster-whisper"}
+{"id": 383, "start": 2289.76, "end": 2295.32, "text": "to Handler S. And then while Handler S, oh, did you have a question?", "source": "faster-whisper"}
+{"id": 384, "start": 2295.32, "end": 2308.17, "text": "Oh, okay. While Handler S is executing, the program catches signal T, the program catches signal T.", "source": "faster-whisper"}
+{"id": 385, "start": 2308.19, "end": 2315.98, "text": "which causes a transfer of control to the handler for T.", "source": "faster-whisper"}
+{"id": 386, "start": 2315.98, "end": 2325.43, "text": "And then when that handler returns, it returns to the point, to the, to the instruction in Handler S that was where it was interrupted.", "source": "faster-whisper"}
+{"id": 387, "start": 2325.43, "end": 2329.43, "text": "And then Handler S continues its execution.", "source": "faster-whisper"}
+{"id": 388, "start": 2329.43, "end": 2334.43, "text": "And eventually it returns back to the point in the main program where it was interrupted.", "source": "faster-whisper"}
+{"id": 389, "start": 2334.43, "end": 2344.66, "text": "Now, signals that the kernel always blocks pending signals of the type", "source": "faster-whisper"}
+{"id": 390, "start": 2344.68, "end": 2346.68, "text": "currently being handled.", "source": "faster-whisper"}
+{"id": 391, "start": 2346.68, "end": 2352.0, "text": "So a handler for a signal of type T can't be interrupted", "source": "faster-whisper"}
+{"id": 392, "start": 2352.0, "end": 2356.07, "text": "by the receipt of another signal of that same type.", "source": "faster-whisper"}
+{"id": 393, "start": 2356.07, "end": 2361.16, "text": "Okay, it can be, as I showed in the previous slide, it can be interrupted by a signal of another type,", "source": "faster-whisper"}
+{"id": 394, "start": 2361.16, "end": 2363.16, "text": "but not by a signal of the same type.", "source": "faster-whisper"}
+{"id": 395, "start": 2363.16, "end": 2368.16, "text": "So that's sort of an implicit form of blocking.", "source": "faster-whisper"}
+{"id": 396, "start": 2368.16, "end": 2374.61, "text": "But there's the kernel also provides a system call that allows you to explicitly block", "source": "faster-whisper"}
+{"id": 397, "start": 2374.61, "end": 2378.61, "text": "and unblock signals in the form of the", "source": "faster-whisper"}
+{"id": 398, "start": 2378.61, "end": 2381.7, "text": "SIGPROC function.", "source": "faster-whisper"}
+{"id": 399, "start": 2381.7, "end": 2388.7, "text": "And then there's associated, so this allows you to block and unblock a set of signals", "source": "faster-whisper"}
+{"id": 400, "start": 2388.7, "end": 2394.99, "text": "and then there's some support functions that allow you to create those sets.", "source": "faster-whisper"}
+{"id": 401, "start": 2394.99, "end": 2405.24, "text": "So just think of these as bit vectors and these functions will set and set and reset and reset the bits in those bit vectors.", "source": "faster-whisper"}
+{"id": 402, "start": 2405.24, "end": 2412.95, "text": "So let's see how we can use SIG PROC mask to temporarily block and unblock a signal.", "source": "faster-whisper"}
+{"id": 403, "start": 2412.95, "end": 2420.95, "text": "So this is going to turn out to be very important for you when you, working on your shells, which is your next lab assignment.", "source": "faster-whisper"}
+{"id": 404, "start": 2420.95, "end": 2425.86, "text": "Okay.", "source": "faster-whisper"}
+{"id": 405, "start": 2425.86, "end": 2428.86, "text": "So what we do, we'll use SIG empty set to create an empty mask.", "source": "faster-whisper"}
+{"id": 406, "start": 2428.86, "end": 2433.86, "text": "So this is a mask with all zeros, okay, with no elements in the set.", "source": "faster-whisper"}
+{"id": 407, "start": 2433.86, "end": 2437.02, "text": "And then we're going to add a single element to the set,", "source": "faster-whisper"}
+{"id": 408, "start": 2437.02, "end": 2448.13, "text": "which is SIG-int. And now we have some code that we don't want to be interrupted by the seed of SIG-int.", "source": "faster-whisper"}
+{"id": 409, "start": 2448.13, "end": 2456.9, "text": "So we want to temporarily block the receipt of SIG-int signals. And we do it by calling SIG-PROC", "source": "faster-whisper"}
+{"id": 410, "start": 2456.9, "end": 2469.22, "text": "with the command, say, I want to block the signals that are in the set specified by mask.", "source": "faster-whisper"}
+{"id": 411, "start": 2469.22, "end": 2475.95, "text": "And I'll assign the, so this will become my new mask.", "source": "faster-whisper"}
+{"id": 412, "start": 2475.95, "end": 2479.95, "text": "So this becomes the new blocked bit vector.", "source": "faster-whisper"}
+{"id": 413, "start": 2479.95, "end": 2484.11, "text": "Okay. Or the not the, the new signal mask.", "source": "faster-whisper"}
+{"id": 414, "start": 2484.11, "end": 2491.11, "text": "And it makes a copy of the old one and stores it at the address specified in the third argument.", "source": "faster-whisper"}
+{"id": 415, "start": 2491.11, "end": 2498.88, "text": "So at this point, after we return from SIG PROC mask, SIGN signals are blocked and they won't be received.", "source": "faster-whisper"}
+{"id": 416, "start": 2498.88, "end": 2503.42, "text": "And then we, so we can execute", "source": "faster-whisper"}
+{"id": 417, "start": 2503.44, "end": 2509.61, "text": "this code knowing that we won't be interrupted by receipt of a SIG-int.", "source": "faster-whisper"}
+{"id": 418, "start": 2509.61, "end": 2518.05, "text": "And then we can restore the previous block set by using the SIG-set mask operation and", "source": "faster-whisper"}
+{"id": 419, "start": 2518.05, "end": 2530.19, "text": "passing in the previous mask that we saved up here when we initially blocked SIG-In.", "source": "faster-whisper"}
+{"id": 420, "start": 2530.19, "end": 2536.04, "text": "Okay, so signals and signal handling is a really tricky business. And there's sort", "source": "faster-whisper"}
+{"id": 421, "start": 2536.04, "end": 2541.39, "text": "of three things that make them so tricky and kind of nasty, really.", "source": "faster-whisper"}
+{"id": 422, "start": 2541.39, "end": 2547.42, "text": "One is that you have to be very careful to write handlers that are safe.", "source": "faster-whisper"}
+{"id": 423, "start": 2547.42, "end": 2554.81, "text": "Okay, so there's, you can write signal handlers that are unsafe in the sense that they'll create a deadlock in your program.", "source": "faster-whisper"}
+{"id": 424, "start": 2554.81, "end": 2556.58, "text": "Okay.", "source": "faster-whisper"}
+{"id": 425, "start": 2556.58, "end": 2565.77, "text": "Or you can, or you can write signal handlers that'll corrupt a global data structure that's being modified by the main program.", "source": "faster-whisper"}
+{"id": 426, "start": 2565.77, "end": 2571.77, "text": "So, I mean, imagine, imagine your main programming is updating some, um,", "source": "faster-whisper"}
+{"id": 427, "start": 2571.77, "end": 2574.77, "text": "some data structure like a linked list.", "source": "faster-whisper"}
+{"id": 428, "start": 2574.77, "end": 2577.77, "text": "And right in the middle of updating that data structure,", "source": "faster-whisper"}
+{"id": 429, "start": 2577.77, "end": 2579.77, "text": "when it's no longer consistent,", "source": "faster-whisper"}
+{"id": 430, "start": 2579.77, "end": 2583.79, "text": "the program gets interrupted by the receipt of a signal.", "source": "faster-whisper"}
+{"id": 431, "start": 2583.79, "end": 2588.37, "text": "And if that signal handler is updating that same data structure,", "source": "faster-whisper"}
+{"id": 432, "start": 2588.37, "end": 2591.37, "text": "reading that structure or modifying it,", "source": "faster-whisper"}
+{"id": 433, "start": 2591.37, "end": 2594.59, "text": "then it's going to encounter it in an inconsistent state", "source": "faster-whisper"}
+{"id": 434, "start": 2594.59, "end": 2596.59, "text": "and you're in trouble.", "source": "faster-whisper"}
+{"id": 435, "start": 2596.59, "end": 2598.17, "text": "Okay.", "source": "faster-whisper"}
+{"id": 436, "start": 2598.17, "end": 2603.9, "text": "So this, the fact that it's the fact that it's,", "source": "faster-whisper"}
+{"id": 437, "start": 2603.9, "end": 2605.9, "text": "the fact that it's easy,", "source": "faster-whisper"}
+{"id": 438, "start": 2605.9, "end": 2611.9, "text": "to write signal handlers that are unsafe is one aspect that makes them tough to deal with.", "source": "faster-whisper"}
+{"id": 439, "start": 2611.9, "end": 2616.9, "text": "Another aspect is they have this funny semantics that signals aren't queued.", "source": "faster-whisper"}
+{"id": 440, "start": 2616.9, "end": 2626.02, "text": "And so if you're not really careful about this, it's very easy to use the receipt of signals to count events.", "source": "faster-whisper"}
+{"id": 441, "start": 2626.02, "end": 2628.18, "text": "And you can't do that.", "source": "faster-whisper"}
+{"id": 442, "start": 2628.18, "end": 2633.18, "text": "If signals were queued, you could use the receipt of a signal to count events in the system,", "source": "faster-whisper"}
+{"id": 443, "start": 2633.18, "end": 2635.18, "text": "but you can't do it because their signals aren't queued.", "source": "faster-whisper"}
+{"id": 444, "start": 2635.18, "end": 2637.63, "text": "signals aren't queued.", "source": "faster-whisper"}
+{"id": 445, "start": 2637.63, "end": 2641.63, "text": "And then a third aspect of signals, which makes them tough, is that", "source": "faster-whisper"}
+{"id": 446, "start": 2641.63, "end": 2645.63, "text": "they're not even portable across different versions of Linux.", "source": "faster-whisper"}
+{"id": 447, "start": 2645.63, "end": 2647.18, "text": "Okay.", "source": "faster-whisper"}
+{"id": 448, "start": 2647.18, "end": 2652.98, "text": "So if you use Solaris or some form of BSD, it's not necessarily,", "source": "faster-whisper"}
+{"id": 449, "start": 2652.98, "end": 2656.98, "text": "the signal handling semantics aren't necessarily the same as they are in Linux.", "source": "faster-whisper"}
+{"id": 450, "start": 2656.98, "end": 2658.23, "text": "Okay.", "source": "faster-whisper"}
+{"id": 451, "start": 2658.23, "end": 2661.23, "text": "So we'll look at all three of these in a little more detail.", "source": "faster-whisper"}
+{"id": 452, "start": 2661.23, "end": 2666.86, "text": "First, we'll start with writing safe handlers.", "source": "faster-whisper"}
+{"id": 453, "start": 2666.86, "end": 2668.86, "text": "So let me give you some guidelines.", "source": "faster-whisper"}
+{"id": 454, "start": 2668.86, "end": 2673.12, "text": "for how to write safe handlers.", "source": "faster-whisper"}
+{"id": 455, "start": 2673.12, "end": 2676.41, "text": "And this is just the collection of,", "source": "faster-whisper"}
+{"id": 456, "start": 2676.41, "end": 2683.63, "text": "this is just a collection of sort of collected wisdom from various sources.", "source": "faster-whisper"}
+{"id": 457, "start": 2683.63, "end": 2688.98, "text": "But it covers a lot of aspects of signal handlers.", "source": "faster-whisper"}
+{"id": 458, "start": 2688.98, "end": 2692.98, "text": "So the first guideline is to keep your handlers as simple as possible.", "source": "faster-whisper"}
+{"id": 459, "start": 2692.98, "end": 2695.98, "text": "For example, the simplest possible handler I can think of", "source": "faster-whisper"}
+{"id": 460, "start": 2695.98, "end": 2698.98, "text": "just sets a global variable and then it returns.", "source": "faster-whisper"}
+{"id": 461, "start": 2698.98, "end": 2700.94, "text": "And in fact,", "source": "faster-whisper"}
+{"id": 462, "start": 2700.94, "end": 2710.52, "text": "In fact, the CMU cert, provides guidelines for sort of compliant programs.", "source": "faster-whisper"}
+{"id": 463, "start": 2710.52, "end": 2715.52, "text": "And this is the only signal handler that they allow.", "source": "faster-whisper"}
+{"id": 464, "start": 2715.52, "end": 2717.52, "text": "This is the only compliant signal handler.", "source": "faster-whisper"}
+{"id": 465, "start": 2717.52, "end": 2721.71, "text": "One that just sets a global variable and then returns.", "source": "faster-whisper"}
+{"id": 466, "start": 2721.71, "end": 2726.4, "text": "Okay.", "source": "faster-whisper"}
+{"id": 467, "start": 2726.4, "end": 2733.4, "text": "Guideline number one, call only functions in your handlers that are, that have this property of async signal safety.", "source": "faster-whisper"}
+{"id": 468, "start": 2733.4, "end": 2735.04, "text": "Okay.", "source": "faster-whisper"}
+{"id": 469, "start": 2735.04, "end": 2737.04, "text": "We'll look at this in a second.", "source": "faster-whisper"}
+{"id": 470, "start": 2737.04, "end": 2739.04, "text": "But I want to point out that printf, S printf,", "source": "faster-whisper"}
+{"id": 471, "start": 2739.04, "end": 2741.04, "text": "Maliq, exit,", "source": "faster-whisper"}
+{"id": 472, "start": 2741.04, "end": 2745.36, "text": "functions that are very common and commonly used are not safe.", "source": "faster-whisper"}
+{"id": 473, "start": 2745.36, "end": 2752.92, "text": "Guideline number two is to always save and restore error no", "source": "faster-whisper"}
+{"id": 474, "start": 2752.92, "end": 2754.92, "text": "on entry and exit.", "source": "faster-whisper"}
+{"id": 475, "start": 2754.92, "end": 2756.92, "text": "So you know, error no is a global,", "source": "faster-whisper"}
+{"id": 476, "start": 2756.92, "end": 2759.92, "text": "a global variable that's set whenever there's an error", "source": "faster-whisper"}
+{"id": 477, "start": 2759.92, "end": 2762.27, "text": "in a system level function.", "source": "faster-whisper"}
+{"id": 478, "start": 2762.27, "end": 2766.27, "text": "So you need to save and, you need to save and restore it on entry and exit", "source": "faster-whisper"}
+{"id": 479, "start": 2766.27, "end": 2767.27, "text": "so that it doesn't get over.", "source": "faster-whisper"}
+{"id": 480, "start": 2767.27, "end": 2775.78, "text": "It doesn't get overwritten if you're interrupted by another handler.", "source": "faster-whisper"}
+{"id": 481, "start": 2775.78, "end": 2789.82, "text": "Okay, if you're accessing any shared data structures inside a signal handler that are also accessed by your main routine, then you need to temporarily block signals while you access that data structure,", "source": "faster-whisper"}
+{"id": 482, "start": 2789.82, "end": 2792.94, "text": "both in the main routine and your signal handler.", "source": "faster-whisper"}
+{"id": 483, "start": 2792.94, "end": 2795.94, "text": "And the reason for this is what I described earlier.", "source": "faster-whisper"}
+{"id": 484, "start": 2795.94, "end": 2799.94, "text": "If your main routine is updating that global data structure and then it gets interrupted,", "source": "faster-whisper"}
+{"id": 485, "start": 2799.94, "end": 2810.88, "text": "and the signal handler is reading that data structure, it's going to find it in an inconsistent state, and bad things will happen.", "source": "faster-whisper"}
+{"id": 486, "start": 2810.88, "end": 2817.88, "text": "Okay, you want to be sure to declare any global variables that are shared between signal handlers and the main routine as volatile.", "source": "faster-whisper"}
+{"id": 487, "start": 2817.88, "end": 2827.41, "text": "Okay, the volatile attribute will prevent the compiler from putting that value in a register.", "source": "faster-whisper"}
+{"id": 488, "start": 2827.41, "end": 2834.41, "text": "So if you declare a global variable as volatile, it will always be, reads and writes will always go to and from memory.", "source": "faster-whisper"}
+{"id": 489, "start": 2834.41, "end": 2837.08, "text": "Okay, so this is very important.", "source": "faster-whisper"}
+{"id": 490, "start": 2837.08, "end": 2852.1, "text": "You might, if you don't declare these global variables as volatile, and the compiler chooses to put one of those in a register, then you may miss that variable being updated.", "source": "faster-whisper"}
+{"id": 491, "start": 2852.1, "end": 2859.19, "text": "So suppose your signal handler is setting a global variable.", "source": "faster-whisper"}
+{"id": 492, "start": 2859.19, "end": 2866.34, "text": "And now suppose your main routine is spinning, waiting for that global variable to get set.", "source": "faster-whisper"}
+{"id": 493, "start": 2866.34, "end": 2869.34, "text": "Well, if it's in a register, the right to that variable will just update.", "source": "faster-whisper"}
+{"id": 494, "start": 2869.34, "end": 2872.34, "text": "just update the register, right?", "source": "faster-whisper"}
+{"id": 495, "start": 2872.34, "end": 2878.34, "text": "And so your main routine is in danger of just spinning forever, not, not seeing the change.", "source": "faster-whisper"}
+{"id": 496, "start": 2878.34, "end": 2884.5, "text": "Okay, so always use volatile to, so that they're not stored in registers.", "source": "faster-whisper"}
+{"id": 497, "start": 2884.5, "end": 2899.52, "text": "And then if you have, if you have a special kind of global called a flag, which by definition is a variable that's only read or written, not incremented or updated, it's just read or written,", "source": "faster-whisper"}
+{"id": 498, "start": 2899.52, "end": 2904.52, "text": "If you have a variable with that property, then you can declare it with the", "source": "faster-whisper"}
+{"id": 499, "start": 2904.52, "end": 2907.52, "text": "the SIG atomic T attribute.", "source": "faster-whisper"}
+{"id": 500, "start": 2907.52, "end": 2914.52, "text": "And if you do that, then the system guarantees that reads and writes to that variable will be atomic.", "source": "faster-whisper"}
+{"id": 501, "start": 2914.52, "end": 2918.52, "text": "So you don't have to, in other words, you don't have to protect accesses", "source": "faster-whisper"}
+{"id": 502, "start": 2918.52, "end": 2923.52, "text": "to these shared, to accesses or references to those global variables.", "source": "faster-whisper"}
+{"id": 503, "start": 2923.52, "end": 2929.58, "text": "Okay, and so by this by atomic, what means that the, the read or right of that flag,", "source": "faster-whisper"}
+{"id": 504, "start": 2929.58, "end": 2933.58, "text": "will always happen in one uninterruptible step.", "source": "faster-whisper"}
+{"id": 505, "start": 2933.58, "end": 2938.13, "text": "Okay, one uninterruptible load or store, particular.", "source": "faster-whisper"}
+{"id": 506, "start": 2938.13, "end": 2944.57, "text": "Now, in practice, on most systems, the SIG-Atomic T is an int.", "source": "faster-whisper"}
+{"id": 507, "start": 2944.57, "end": 2949.6, "text": "Okay, it's, so you can, you can read or write an int with one instruction.", "source": "faster-whisper"}
+{"id": 508, "start": 2949.6, "end": 2951.6, "text": "Okay, so it's, it's atomic.", "source": "faster-whisper"}
+{"id": 509, "start": 2951.6, "end": 2960.6, "text": "But if you want to be portable, you declare it with SIG-atomic T, and then it'll, it'll work on all systems.", "source": "faster-whisper"}
+{"id": 510, "start": 2960.6, "end": 2964.45, "text": "systems.", "source": "faster-whisper"}
+{"id": 511, "start": 2964.45, "end": 2968.72, "text": "Okay, we mentioned this property of async signal safety.", "source": "faster-whisper"}
+{"id": 512, "start": 2968.72, "end": 2976.68, "text": "Now a function is safe to be used inside of a signal handler if it's either reentrant, okay, or", "source": "faster-whisper"}
+{"id": 513, "start": 2976.68, "end": 2979.49, "text": "if it can't be interrupted by signals.", "source": "faster-whisper"}
+{"id": 514, "start": 2979.49, "end": 2985.49, "text": "And a reent function, as we'll see when we study threads, is a function where all of its, all of", "source": "faster-whisper"}
+{"id": 515, "start": 2985.49, "end": 2990.74, "text": "the data that it accesses is on its own stack.", "source": "faster-whisper"}
+{"id": 516, "start": 2990.74, "end": 2995.16, "text": "So no global variables, no pointers to global variables, everything's stored on the stack.", "source": "faster-whisper"}
+{"id": 517, "start": 2995.18, "end": 3000.36, "text": "locally. So that means you can be, it's called reentrant", "source": "faster-whisper"}
+{"id": 518, "start": 3000.36, "end": 3004.28, "text": "because you can have multiple instances of that function and they all have their own", "source": "faster-whisper"}
+{"id": 519, "start": 3004.28, "end": 3011.59, "text": "separate copies of all of the variables that they're using. Now the POSIX standard", "source": "faster-whisper"}
+{"id": 520, "start": 3011.59, "end": 3020.52, "text": "guarantees 117 different functions to be async signal saved. These include", "source": "faster-whisper"}
+{"id": 521, "start": 3020.52, "end": 3026.58, "text": "underscore exit, right, weight, weight, pit, sleep, kill. But unfortunately, there's", "source": "faster-whisper"}
+{"id": 522, "start": 3026.58, "end": 3028.8, "text": "some very popular functions that aren't on this.", "source": "faster-whisper"}
+{"id": 523, "start": 3028.82, "end": 3032.82, "text": "list, printf, S printf, things that you really want to use.", "source": "faster-whisper"}
+{"id": 524, "start": 3032.82, "end": 3037.82, "text": "And in fact, write is the only output function that's async signal safe.", "source": "faster-whisper"}
+{"id": 525, "start": 3037.82, "end": 3047.67, "text": "So this is kind of a problem because especially when, you know, you'd often like your", "source": "faster-whisper"}
+{"id": 526, "start": 3047.67, "end": 3053.99, "text": "signal handlers to output information, but you can't, if you want to really be pedantic and careful,", "source": "faster-whisper"}
+{"id": 527, "start": 3053.99, "end": 3061.82, "text": "you can't use printf. In fact, it's possible to write a program. And I'll try to, I'll try to,", "source": "faster-whisper"}
+{"id": 528, "start": 3061.82, "end": 3069.05, "text": "it's possible to write a program that does a tight loop of printfs in the main routine", "source": "faster-whisper"}
+{"id": 529, "start": 3069.05, "end": 3075.04, "text": "and then a steady stream of interreps which execute a", "source": "faster-whisper"}
+{"id": 530, "start": 3075.04, "end": 3080.77, "text": "handleer which also does a printf.", "source": "faster-whisper"}
+{"id": 531, "start": 3080.77, "end": 3089.4, "text": "Now, the printf call has to acquire what's called a lock on the terminal.", "source": "faster-whisper"}
+{"id": 532, "start": 3089.4, "end": 3096.38, "text": "Okay, each printf, inside that library function, it acquires a lock, which means only one", "source": "faster-whisper"}
+{"id": 533, "start": 3096.4, "end": 3100.96, "text": "instance of printf can write to the terminal at any point in time.", "source": "faster-whisper"}
+{"id": 534, "start": 3100.96, "end": 3109.03, "text": "If another function tries to acquire that lock, it has to wait until whatever function owns the", "source": "faster-whisper"}
+{"id": 535, "start": 3109.03, "end": 3111.01, "text": "lock releases it.", "source": "faster-whisper"}
+{"id": 536, "start": 3111.01, "end": 3117.49, "text": "Okay, so a lock prevents, a lock is a way for, to get mutually exclusive access to shared", "source": "faster-whisper"}
+{"id": 537, "start": 3117.49, "end": 3119.66, "text": "resources.", "source": "faster-whisper"}
+{"id": 538, "start": 3119.66, "end": 3127.76, "text": "So if we have a tight loop in our main routine with executing printf, imagine what happens if one", "source": "faster-whisper"}
+{"id": 539, "start": 3127.78, "end": 3133.98, "text": "of those printups acquires a lock on the terminal and then gets interrupted", "source": "faster-whisper"}
+{"id": 540, "start": 3133.98, "end": 3140.38, "text": "now by the receipt of a signal now within the signal handler it calls another printf", "source": "faster-whisper"}
+{"id": 541, "start": 3140.38, "end": 3147.76, "text": "and that printf tries to acquire that lock and it blocks forever because nothing's", "source": "faster-whisper"}
+{"id": 542, "start": 3147.76, "end": 3151.6, "text": "going to release that lock because the the main routine was interrupted by the", "source": "faster-whisper"}
+{"id": 543, "start": 3151.6, "end": 3159.45, "text": "handler so you have what's called a classical a classical a classical condition", "source": "faster-whisper"}
+{"id": 544, "start": 3159.45, "end": 3161.95, "text": "called deadlock which is we have a process", "source": "faster-whisper"}
+{"id": 545, "start": 3161.97, "end": 3164.47, "text": "waiting for an event that will never occur.", "source": "faster-whisper"}
+{"id": 546, "start": 3164.47, "end": 3171.19, "text": "In this case, the printf and the signal handler is waiting for a lock to be released that will never be released.", "source": "faster-whisper"}
+{"id": 547, "start": 3171.19, "end": 3182.43, "text": "So it's interesting, you can try this. It's, it's not too hard to create this deadlock situation.", "source": "faster-whisper"}
+{"id": 548, "start": 3182.43, "end": 3187.43, "text": "So to deal with this, I really didn't want to tell you guys that you couldn't have any output in your programs.", "source": "faster-whisper"}
+{"id": 549, "start": 3187.43, "end": 3190.43, "text": "And Wright's a very difficult thing to deal with.", "source": "faster-whisper"}
+{"id": 550, "start": 3190.43, "end": 3194.44, "text": "So I created a small little library.", "source": "faster-whisper"}
+{"id": 551, "start": 3194.46, "end": 3202.3, "text": "called the Safe I.O.O. library consists of three routines, and they're available", "source": "faster-whisper"}
+{"id": 552, "start": 3202.3, "end": 3210.78, "text": "to you in the CSAPP.c file, which is distributed on the website. And it consists of three reent", "source": "faster-whisper"}
+{"id": 553, "start": 3210.78, "end": 3219.78, "text": "routines. SIO put S-S prints a string, put L prints along, prints along, and SIO error", "source": "faster-whisper"}
+{"id": 554, "start": 3219.78, "end": 3230.82, "text": "prints along and SIO error prints a message and then exits.", "source": "faster-whisper"}
+{"id": 555, "start": 3230.82, "end": 3236.56, "text": "So you can safely use, take my word for it, you can safely use this in your signal handlers.", "source": "faster-whisper"}
+{"id": 556, "start": 3236.56, "end": 3243.9, "text": "So if we were going to rewrite our sig-int handler from the binary bomb, we could rewrite it like", "source": "faster-whisper"}
+{"id": 557, "start": 3243.9, "end": 3253.2, "text": "this and now we have every function is async signal safe. All right, now signals are also tough because", "source": "faster-whisper"}
+{"id": 558, "start": 3253.2, "end": 3264.4, "text": "of this funky non-kewing semantics. And so it's really easy to make mistakes when you have", "source": "faster-whisper"}
+{"id": 559, "start": 3264.4, "end": 3274.82, "text": "an implicit assumption that the receipt of a signal that can be used to count the occurrence of an event.", "source": "faster-whisper"}
+{"id": 560, "start": 3274.82, "end": 3286.32, "text": "So let's look at this, let's look at this example program. We install a SIG Child Handler. Okay, and this is, actually, this, this sort of I want", "source": "faster-whisper"}
+{"id": 561, "start": 3286.32, "end": 3290.56, "text": "to close the loop, remember when we talked about our example shell, we're wondering,", "source": "faster-whisper"}
+{"id": 562, "start": 3290.56, "end": 3295.92, "text": "how are we going to reap those background children? Well, we do it by installing a SIG child handle", "source": "faster-whisper"}
+{"id": 563, "start": 3295.92, "end": 3302.91, "text": "like we're doing in this example. So this, here we have a program that installs this SIG child", "source": "faster-whisper"}
+{"id": 564, "start": 3302.91, "end": 3311.25, "text": "handler, and then it creates N different child processes, where each child sleeps for a little", "source": "faster-whisper"}
+{"id": 565, "start": 3311.25, "end": 3318.48, "text": "bit and exits. And then it spins until", "source": "faster-whisper"}
+{"id": 566, "start": 3318.5, "end": 3323.88, "text": "the C-count variable becomes zero.", "source": "faster-whisper"}
+{"id": 567, "start": 3323.88, "end": 3330.78, "text": "The parent, I'm sorry, the parent spins until the c-count variable becomes zero.", "source": "faster-whisper"}
+{"id": 568, "start": 3330.78, "end": 3343.92, "text": "Now in the, in our child handler, we have a global that's initialized to zero, c-count.", "source": "faster-whisper"}
+{"id": 569, "start": 3343.92, "end": 3352.4, "text": "And then we wait, we're going to wait, so this child, when the child handler gets called, that means it's called because we received a C-child signal.", "source": "faster-whisper"}
+{"id": 570, "start": 3352.4, "end": 3354.4, "text": "So in our, in our handler, we're going to wait.", "source": "faster-whisper"}
+{"id": 571, "start": 3354.4, "end": 3362.01, "text": "we're going to reap that child by calling weight, and then we'll decrement", "source": "faster-whisper"}
+{"id": 572, "start": 3362.01, "end": 3370.6, "text": "C count. Okay. So once all of the children have been, have been reaped, C count will be zero,", "source": "faster-whisper"}
+{"id": 573, "start": 3370.6, "end": 3380.48, "text": "and then the parent can exit this wild loop. Okay, now in this particular example, N was 5, but when", "source": "faster-whisper"}
+{"id": 574, "start": 3380.48, "end": 3389.88, "text": "we run this code, we only, the handler only gets called twice. Okay, so the handler only gets called twice. Okay, so", "source": "faster-whisper"}
+{"id": 575, "start": 3389.94, "end": 3395.94, "text": "the message handler reaped child only gets executed twice, right, which means", "source": "faster-whisper"}
+{"id": 576, "start": 3395.94, "end": 3404.01, "text": "the handler was only called twice. We created five children. We terminated five children, but we only", "source": "faster-whisper"}
+{"id": 577, "start": 3404.01, "end": 3414.32, "text": "reaped two. Okay, so that the problem is that when we, the problem is that we assumed that the receipt,", "source": "faster-whisper"}
+{"id": 578, "start": 3414.32, "end": 3421.81, "text": "that the, um, that the execution of the child handler corresponded to the single receipt of a", "source": "faster-whisper"}
+{"id": 579, "start": 3421.81, "end": 3424.71, "text": "single sig child signal, okay?", "source": "faster-whisper"}
+{"id": 580, "start": 3424.71, "end": 3430.37, "text": "When in reality, these signals aren't queued.", "source": "faster-whisper"}
+{"id": 581, "start": 3430.37, "end": 3436.15, "text": "We had, in reality, multiple sig-child signals were delivered to that child, which kept", "source": "faster-whisper"}
+{"id": 582, "start": 3436.15, "end": 3440.22, "text": "overriding that bit in the pending bit vector.", "source": "faster-whisper"}
+{"id": 583, "start": 3440.22, "end": 3446.76, "text": "And the delivery of those signals didn't have, didn't cause any reaction in the process until", "source": "faster-whisper"}
+{"id": 584, "start": 3446.76, "end": 3450.46, "text": "that process was just about ready to be rescheduled.", "source": "faster-whisper"}
+{"id": 585, "start": 3450.46, "end": 3454.12, "text": "And only then was where it was a signal received, but even", "source": "faster-whisper"}
+{"id": 586, "start": 3454.14, "end": 3458.14, "text": "even though, like, say, three signals were delivered, only one was received.", "source": "faster-whisper"}
+{"id": 587, "start": 3458.14, "end": 3467.66, "text": "Okay. So you can't use events. In this case, we're using event, we're using signals to count events, which in this case,", "source": "faster-whisper"}
+{"id": 588, "start": 3467.66, "end": 3487.28, "text": "which in this case, is the termination of a child. Okay, so the receipt of a signal, in this case, it only indicates that at least one child terminated, right? Not not one child terminated. All we can infer from the receipt of that", "source": "faster-whisper"}
+{"id": 589, "start": 3487.34, "end": 3491.54, "text": "is that at least one child has terminated.", "source": "faster-whisper"}
+{"id": 590, "start": 3491.54, "end": 3503.19, "text": "Okay, so to fix that, when we receive a SIG child, we have to put, we have to put the weight that's reaping our children.", "source": "faster-whisper"}
+{"id": 591, "start": 3503.19, "end": 3506.19, "text": "We have to put that in this, in a loop.", "source": "faster-whisper"}
+{"id": 592, "start": 3506.19, "end": 3518.22, "text": "So we have to assume that the receipt of a SIG child, if we get a SIG child, there could be multiple terminated children that we have to, that we have to reap.", "source": "faster-whisper"}
+{"id": 593, "start": 3518.22, "end": 3520.2, "text": "And so we put that we put that in this,", "source": "faster-whisper"}
+{"id": 594, "start": 3520.22, "end": 3526.28, "text": "loop and we execute this loop until there's no more terminated children, in which case,", "source": "faster-whisper"}
+{"id": 595, "start": 3526.28, "end": 3534.52, "text": "wait, we'll exit with an error code of minus 1 and an error know of E child. So this isn't really", "source": "faster-whisper"}
+{"id": 596, "start": 3534.52, "end": 3539.86, "text": "an error. It's just, it just means there's no more terminated children. So we check as long as if our", "source": "faster-whisper"}
+{"id": 597, "start": 3539.86, "end": 3546.16, "text": "error knows, not E child, then we have an error. Otherwise, we terminated normally, as we", "source": "faster-whisper"}
+{"id": 598, "start": 3546.16, "end": 3553.9, "text": "expected. Now, if we run this code, now we see that we reap all five children", "source": "faster-whisper"}
+{"id": 599, "start": 3553.9, "end": 3564.99, "text": "as we should. Okay, so let's the litany of problems with signals. First, it's easy to write", "source": "faster-whisper"}
+{"id": 600, "start": 3564.99, "end": 3572.44, "text": "handlers that aren't safe. Second, it's easy to get the semantics wrong. Third, they're", "source": "faster-whisper"}
+{"id": 601, "start": 3572.44, "end": 3578.96, "text": "often not even portable across different versions of Unix. So there's some older systems, I don't", "source": "faster-whisper"}
+{"id": 602, "start": 3578.96, "end": 3586.56, "text": "There's some earlier versions of Unix that after you catch a signal, it restores", "source": "faster-whisper"}
+{"id": 603, "start": 3586.56, "end": 3593.66, "text": "the default action. So you have to reinstall the handler every time a handler gets called, you have to", "source": "faster-whisper"}
+{"id": 604, "start": 3593.66, "end": 3600.0, "text": "re-install that handler by calling signal inside the handler itself. We don't have to do that for", "source": "faster-whisper"}
+{"id": 605, "start": 3600.0, "end": 3609.65, "text": "that for Linux systems. On some systems, when you have so-called slow syscalls, for", "source": "faster-whisper"}
+{"id": 606, "start": 3609.65, "end": 3616.19, "text": "example, read, you know, if you do a read system call, the kernel doesn't wait", "source": "faster-whisper"}
+{"id": 607, "start": 3616.19, "end": 3624.17, "text": "around for that data to arrive. It's, you know, it sends a request to the disk controller and", "source": "faster-whisper"}
+{"id": 608, "start": 3624.17, "end": 3629.08, "text": "then it schedules another process, right? So in a way that the read call is sort of, and", "source": "faster-whisper"}
+{"id": 609, "start": 3629.08, "end": 3633.76, "text": "then only when the data arrives and the interrupt comes in and announcing that", "source": "faster-whisper"}
+{"id": 610, "start": 3633.76, "end": 3639.78, "text": "the data arrives, does that read call finish and then restore and return. So you", "source": "faster-whisper"}
+{"id": 611, "start": 3639.78, "end": 3643.78, "text": "you can think of read is actually kind of broken up into two parts, right?", "source": "faster-whisper"}
+{"id": 612, "start": 3643.78, "end": 3654.0, "text": "And so the functions like read, these kind of functions are called slow syscalls.", "source": "faster-whisper"}
+{"id": 613, "start": 3654.0, "end": 3664.37, "text": "And on some systems, if the process receives a signal before a slow system call has finished, the", "source": "faster-whisper"}
+{"id": 614, "start": 3664.37, "end": 3669.09, "text": "kernel will just abort that system call and return from that system call with an error.", "source": "faster-whisper"}
+{"id": 615, "start": 3669.09, "end": 3670.09, "text": "Okay.", "source": "faster-whisper"}
+{"id": 616, "start": 3670.09, "end": 3672.57, "text": "So from user's point of view,", "source": "faster-whisper"}
+{"id": 617, "start": 3672.59, "end": 3678.43, "text": "you're doing a read call and it returns with this this e-inter signal, this", "source": "faster-whisper"}
+{"id": 618, "start": 3678.43, "end": 3683.29, "text": "E-inter error. You did nothing wrong. You just happened to have the bad luck of being", "source": "faster-whisper"}
+{"id": 619, "start": 3683.29, "end": 3689.33, "text": "interrupted by some signal. And so in your user code, you have to check for that. And if if a", "source": "faster-whisper"}
+{"id": 620, "start": 3689.33, "end": 3694.49, "text": "slow system call like read is interrupted by signal, you have to redo it. So you have to put,", "source": "faster-whisper"}
+{"id": 621, "start": 3694.49, "end": 3699.15, "text": "which is really a pain, right, because you have to put these these read calls in a loop and", "source": "faster-whisper"}
+{"id": 622, "start": 3699.15, "end": 3701.67, "text": "keep looping until it succeeds.", "source": "faster-whisper"}
+{"id": 623, "start": 3701.67, "end": 3706.4, "text": "And finally, some systems don't block signals of the type being handled.", "source": "faster-whisper"}
+{"id": 624, "start": 3708.43, "end": 3712.13, "text": "So the solution for this is a replacement for signal.", "source": "faster-whisper"}
+{"id": 625, "start": 3712.27, "end": 3714.15, "text": "So the problem is with the signal syscall.", "source": "faster-whisper"}
+{"id": 626, "start": 3714.95, "end": 3722.19, "text": "And the solution is a newer syscall called SIG action, which provides a mechanism, a replacement for signal", "source": "faster-whisper"}
+{"id": 627, "start": 3722.19, "end": 3726.49, "text": "that provides a mechanism for portable and predictable signal handling.", "source": "faster-whisper"}
+{"id": 628, "start": 3727.56, "end": 3733.28, "text": "And so what I've done, what I've done is created a wrapper called uppercase", "source": "faster-whisper"}
+{"id": 629, "start": 3733.3, "end": 3742.32, "text": "signal that takes the same arguments as the signal call, but inside it calls the", "source": "faster-whisper"}
+{"id": 630, "start": 3742.32, "end": 3748.69, "text": "the SIG action function to get portable signal handling. And so it's it's not really", "source": "faster-whisper"}
+{"id": 631, "start": 3748.69, "end": 3756.58, "text": "important to go into detail about this. The point is, in your code, you always want", "source": "faster-whisper"}
+{"id": 632, "start": 3756.58, "end": 3763.7, "text": "to call uppercase signal using the wrapper that provided in CSAPP.C. And then,", "source": "faster-whisper"}
+{"id": 633, "start": 3763.7, "end": 3768.2, "text": "And if you do that, then you'll always block signals of the type being handled.", "source": "faster-whisper"}
+{"id": 634, "start": 3768.2, "end": 3775.2, "text": "The system will automatically restart slow sys calls that have been interrupted by signals.", "source": "faster-whisper"}
+{"id": 635, "start": 3775.2, "end": 3780.69, "text": "Okay, so fortunately, there's an easy fix for this.", "source": "faster-whisper"}
+{"id": 636, "start": 3780.69, "end": 3790.88, "text": "Now let's, let's finish up with, there's some interesting, I mentioned that signals are", "source": "faster-whisper"}
+{"id": 637, "start": 3790.88, "end": 3794.88, "text": "difficult because of the fact that they're concurrent flows.", "source": "faster-whisper"}
+{"id": 638, "start": 3794.88, "end": 3799.88, "text": "So I want to look at some sort of subtle issues that you can run into because of this concurrency.", "source": "faster-whisper"}
+{"id": 639, "start": 3799.88, "end": 3806.75, "text": "And I want to talk about how to identify those errors and how to fix them.", "source": "faster-whisper"}
+{"id": 640, "start": 3806.75, "end": 3818.88, "text": "So here's a program that this is like a simple shell program that maintains a jobs list, right?", "source": "faster-whisper"}
+{"id": 641, "start": 3818.88, "end": 3823.88, "text": "So every time it creates a new child, it adds it to the jobs list.", "source": "faster-whisper"}
+{"id": 642, "start": 3823.88, "end": 3827.88, "text": "And every time that child terminates, it removes it removes it from the jobs list.", "source": "faster-whisper"}
+{"id": 643, "start": 3827.88, "end": 3828.88, "text": "Okay?", "source": "faster-whisper"}
+{"id": 644, "start": 3828.88, "end": 3836.9, "text": "So, so our simple shell, just in a loop, it just in a loop, it just", "source": "faster-whisper"}
+{"id": 645, "start": 3836.92, "end": 3842.48, "text": "creates a child and then executes a program within that child.", "source": "faster-whisper"}
+{"id": 646, "start": 3842.48, "end": 3852.61, "text": "And then in the parent, it correctly blocks all of the signals temporarily while it adds a job to the job queue.", "source": "faster-whisper"}
+{"id": 647, "start": 3852.61, "end": 3857.81, "text": "And then it unblocks and then it unblocks those signals.", "source": "faster-whisper"}
+{"id": 648, "start": 3857.81, "end": 3871.98, "text": "Okay, so this is correct in that it's protecting access to this shared job queue because that that job queue is also manipulated by the SIG child handler.", "source": "faster-whisper"}
+{"id": 649, "start": 3871.98, "end": 3880.29, "text": "So when a child terminates and the parent receives the sig child, this handler runs,", "source": "faster-whisper"}
+{"id": 650, "start": 3880.29, "end": 3887.75, "text": "and this handler goes through and it reaps all of the children, potentially terminated children.", "source": "faster-whisper"}
+{"id": 651, "start": 3887.75, "end": 3892.75, "text": "And then for each one, it deletes that that job from the job queue.", "source": "faster-whisper"}
+{"id": 652, "start": 3892.75, "end": 3893.25, "text": "All right?", "source": "faster-whisper"}
+{"id": 653, "start": 3893.25, "end": 3895.41, "text": "So here's a classic case.", "source": "faster-whisper"}
+{"id": 654, "start": 3895.41, "end": 3900.91, "text": "We have two concurrent flows, our main routine and our signal handler.", "source": "faster-whisper"}
+{"id": 655, "start": 3900.91, "end": 3903.24, "text": "They're each accessing a shared data.", "source": "faster-whisper"}
+{"id": 656, "start": 3903.26, "end": 3916.05, "text": "structure, in this case the job queue, and they're correctly blocking signals while they update this job queue.", "source": "faster-whisper"}
+{"id": 657, "start": 3916.05, "end": 3926.34, "text": "But this program has a really subtle and nasty bug in it. Can you see what it is?", "source": "faster-whisper"}
+{"id": 658, "start": 3926.34, "end": 3936.57, "text": "What's a sequence of events that would cause this program to fail?", "source": "faster-whisper"}
+{"id": 659, "start": 3936.57, "end": 3952.64, "text": "Yes. Exactly. That's exactly it's exactly it. So is it possible that the child process", "source": "faster-whisper"}
+{"id": 660, "start": 3952.66, "end": 3956.66, "text": "could terminate before the parent has a chance to add that job to the queue.", "source": "faster-whisper"}
+{"id": 661, "start": 3956.66, "end": 3958.66, "text": "And the answer is yes, right?", "source": "faster-whisper"}
+{"id": 662, "start": 3958.66, "end": 3964.66, "text": "You cannot make any assumptions about the execution ordering of the child in the process", "source": "faster-whisper"}
+{"id": 663, "start": 3964.66, "end": 3966.66, "text": "or about how long they run.", "source": "faster-whisper"}
+{"id": 664, "start": 3966.66, "end": 3971.66, "text": "Right? So it's, it's very possible that the child can,", "source": "faster-whisper"}
+{"id": 665, "start": 3971.66, "end": 3976.66, "text": "after the fore, control returns to the child instead of the parent,", "source": "faster-whisper"}
+{"id": 666, "start": 3976.66, "end": 3981.66, "text": "and then the child terminates before the parent ever has a chance to add that job to the job case.", "source": "faster-whisper"}
+{"id": 667, "start": 3981.66, "end": 3982.66, "text": "to the job queue.", "source": "faster-whisper"}
+{"id": 668, "start": 3982.66, "end": 3995.84, "text": "So now what's happened is that the child is deleting a job that hasn't been added to the job queue.", "source": "faster-whisper"}
+{"id": 669, "start": 3995.84, "end": 4001.08, "text": "And now when the parent finally gets around to running, it adds that job to the job queue, and that job", "source": "faster-whisper"}
+{"id": 670, "start": 4001.08, "end": 4003.98, "text": "will never be deleted.", "source": "faster-whisper"}
+{"id": 671, "start": 4003.98, "end": 4011.43, "text": "So this is the kind of subtle, nasty, horrible kind of bug that you run into when you're dealing", "source": "faster-whisper"}
+{"id": 672, "start": 4011.43, "end": 4017.05, "text": "with concurrency. Trying to keep track of all of these interleaving of events can just", "source": "faster-whisper"}
+{"id": 673, "start": 4017.05, "end": 4024.56, "text": "make your head explode. All right. Now, and it happens and signal, it happens with any kind of concurrency", "source": "faster-whisper"}
+{"id": 674, "start": 4024.56, "end": 4030.72, "text": "where you have concurrent flows accessing shared resources and signal handlers are no different.", "source": "faster-whisper"}
+{"id": 675, "start": 4030.72, "end": 4035.12, "text": "Now we'll look at principled ways where we can deal with this kind of sharing when we study threads", "source": "faster-whisper"}
+{"id": 676, "start": 4035.12, "end": 4043.64, "text": "later on. But I just want to point this out to you and scare you a little bit. All right, so", "source": "faster-whisper"}
+{"id": 677, "start": 4043.64, "end": 4047.44, "text": "So here's how we would fix that.", "source": "faster-whisper"}
+{"id": 678, "start": 4047.44, "end": 4056.32, "text": "What we have to do is somehow avoid the, avoid the, avoid the, the, the, the, avoid the possibility of the child", "source": "faster-whisper"}
+{"id": 679, "start": 4056.32, "end": 4064.28, "text": "handler executing before the parent can add the corresponding job to the job queue.", "source": "faster-whisper"}
+{"id": 680, "start": 4064.28, "end": 4069.71, "text": "Now we can't control whether the child executes first or the parent executes first,", "source": "faster-whisper"}
+{"id": 681, "start": 4069.71, "end": 4075.5, "text": "and we can't control how long the child runs, but we can't control how long the child runs, but we can't control when the", "source": "faster-whisper"}
+{"id": 682, "start": 4075.5, "end": 4079.9, "text": "The SIG child handler runs because we can block signals.", "source": "faster-whisper"}
+{"id": 683, "start": 4079.9, "end": 4090.03, "text": "So what we'll do, we'll modify our program to, we'll use SIGPROC mask to block SIGCHILD", "source": "faster-whisper"}
+{"id": 684, "start": 4090.03, "end": 4094.55, "text": "signals before we create the child, okay.", "source": "faster-whisper"}
+{"id": 685, "start": 4094.55, "end": 4101.94, "text": "So at this point, after this invocation of SIGPROC, SigChild signals are blocked.", "source": "faster-whisper"}
+{"id": 686, "start": 4101.94, "end": 4108.83, "text": "Okay, then we create the child, and before we do our execVE, since we don't know that", "source": "faster-whisper"}
+{"id": 687, "start": 4108.83, "end": 4115.65, "text": "child may need to reap its children, right? We don't know if it, by default,", "source": "faster-whisper"}
+{"id": 688, "start": 4115.65, "end": 4125.5, "text": "children inherit the blocked bit vector of their parents. Okay, so when this child runs, after it", "source": "faster-whisper"}
+{"id": 689, "start": 4125.5, "end": 4130.9, "text": "returns from fork, at this point, right after the fork, a SIG child is blocked in the child as well.", "source": "faster-whisper"}
+{"id": 690, "start": 4130.9, "end": 4138.82, "text": "Right, so if we didn't do anything, if the child created children and try to reap, you know, reap them", "source": "faster-whisper"}
+{"id": 691, "start": 4138.82, "end": 4143.48, "text": "with a SIG child handler, that SIG child wouldn't run. So that would be a problem.", "source": "faster-whisper"}
+{"id": 692, "start": 4143.48, "end": 4150.04, "text": "So in the child, before we execute the program itself, we unblock SIG child. And this was an example", "source": "faster-whisper"}
+{"id": 693, "start": 4150.04, "end": 4158.28, "text": "that I was alluding to last time of how it's useful sometimes to separate creating processes with executing", "source": "faster-whisper"}
+{"id": 694, "start": 4158.28, "end": 4165.37, "text": "programs. So this allows us to get our signal mask set up the way we want it before we run", "source": "faster-whisper"}
+{"id": 695, "start": 4165.37, "end": 4176.37, "text": "our program in the child. So now, even if the child terminates early, the", "source": "faster-whisper"}
+{"id": 696, "start": 4176.37, "end": 4185.4, "text": "SIG child handler won't run until after we've added the job to the job queue because we don't", "source": "faster-whisper"}
+{"id": 697, "start": 4185.4, "end": 4198.52, "text": "unblock SIG child until after the, until after we call ad job. Okay, now there's another,", "source": "faster-whisper"}
+{"id": 698, "start": 4198.52, "end": 4204.22, "text": "so this, this sort of scenario will be very relevant to you when you do your shell lab.", "source": "faster-whisper"}
+{"id": 699, "start": 4204.22, "end": 4205.21, "text": "Okay.", "source": "faster-whisper"}
+{"id": 700, "start": 4205.21, "end": 4207.71, "text": "So you want to be careful not to make that mistake.", "source": "faster-whisper"}
+{"id": 701, "start": 4212.26, "end": 4215.68, "text": "Another thing that you're going to need to do in your shell lab.", "source": "faster-whisper"}
+{"id": 702, "start": 4216.94, "end": 4222.1, "text": "Now, you remember in our simple shell example, we did the weight inside the main routine.", "source": "faster-whisper"}
+{"id": 703, "start": 4222.18, "end": 4224.22, "text": "So we waited for foreground jobs using weight.", "source": "faster-whisper"}
+{"id": 704, "start": 4225.26, "end": 4231.3, "text": "But now in a real shell, we're going to have our SIG child handler do all the weights, call all the weights.", "source": "faster-whisper"}
+{"id": 705, "start": 4232.24, "end": 4237.4, "text": "And it, so we can't put the weight has to go in the SIG child handler, can't go in the main routine.", "source": "faster-whisper"}
+{"id": 706, "start": 4240.4, "end": 4240.56, "text": "Okay.", "source": "faster-whisper"}
+{"id": 707, "start": 4241.0, "end": 4250.92, "text": "So if we can't put a weight in the main routine, how are we going to, how are we going to detect that our foreground job is finished?", "source": "faster-whisper"}
+{"id": 708, "start": 4252.81, "end": 4266.99, "text": "Right? So somehow, so what we could do, we could define in the SIG child handler, when we reap the foreground job, right?", "source": "faster-whisper"}
+{"id": 709, "start": 4266.99, "end": 4277.49, "text": "We've created a foreground job. When we reap that foreground job, we could set this global flag, we could declare the process, this", "source": "faster-whisper"}
+{"id": 710, "start": 4277.49, "end": 4284.49, "text": "process ID variable, PID as a global flag, and then just assign the process ID of", "source": "faster-whisper"}
+{"id": 711, "start": 4284.49, "end": 4291.58, "text": "the, of the, of the, of the foreground job. Okay, so in this, this is an example of a handler. It's", "source": "faster-whisper"}
+{"id": 712, "start": 4291.58, "end": 4303.08, "text": "just, all it does, it sets a flag and then exits. And then in our main routine, okay, we want to, we want to", "source": "faster-whisper"}
+{"id": 713, "start": 4303.08, "end": 4309.28, "text": "we want to block SIG child just by, just like before, okay, to avoid that, that race condition between", "source": "faster-whisper"}
+{"id": 714, "start": 4309.28, "end": 4314.42, "text": "between the parent and the child. And then we create, and then we", "source": "faster-whisper"}
+{"id": 715, "start": 4314.56, "end": 4324.19, "text": "create the child, and then in the, and then the parent, we set PID to zero, okay?", "source": "faster-whisper"}
+{"id": 716, "start": 4324.19, "end": 4333.19, "text": "Then we unblock SIG child, and then we wait for the SIG child handler to run and set PID to non-zero.", "source": "faster-whisper"}
+{"id": 717, "start": 4333.19, "end": 4340.6, "text": "Okay. Okay. Okay, everybody see that? I mean, this, so this is correct, right? But it's extremely", "source": "faster-whisper"}
+{"id": 718, "start": 4340.6, "end": 4350.28, "text": "wasteful, right? We're spinning, we're using valuable processor cycles in this tight spin loop, just", "source": "faster-whisper"}
+{"id": 719, "start": 4350.28, "end": 4353.68, "text": "executing over and over and over and over and over and over for who knows how long.", "source": "faster-whisper"}
+{"id": 720, "start": 4355.04, "end": 4357.08, "text": "Okay, so that's not a good, that's not a good solution.", "source": "faster-whisper"}
+{"id": 721, "start": 4358.43, "end": 4363.72, "text": "All right, so let's look at a couple other things we might consider, and that have been considered", "source": "faster-whisper"}
+{"id": 722, "start": 4363.72, "end": 4365.9, "text": "by generations of 213 students.", "source": "faster-whisper"}
+{"id": 723, "start": 4369.3, "end": 4374.74, "text": "So one thing, you might think, well, I'll just, instead of just putting a semicolon here,", "source": "faster-whisper"}
+{"id": 724, "start": 4375.38, "end": 4384.66, "text": "I'll pause, and then I'll wait for the SIG child handler to run, and then I'll go back up,", "source": "faster-whisper"}
+{"id": 725, "start": 4384.66, "end": 4387.35, "text": "and I'll check PID again.", "source": "faster-whisper"}
+{"id": 726, "start": 4388.76, "end": 4390.22, "text": "Now, you have to put this in a loop.", "source": "faster-whisper"}
+{"id": 727, "start": 4390.3, "end": 4395.54, "text": "It still has to be in a loop because we have other signal handlers in our program.", "source": "faster-whisper"}
+{"id": 728, "start": 4395.64, "end": 4396.56, "text": "We have a SIG-int handler.", "source": "faster-whisper"}
+{"id": 729, "start": 4397.62, "end": 4402.42, "text": "So it might be if we do the pause here and the SIG-A-N comes in and the SIG-N handler runs,", "source": "faster-whisper"}
+{"id": 730, "start": 4403.06, "end": 4407.08, "text": "that would cause us to exit the pause function and go back up.", "source": "faster-whisper"}
+{"id": 731, "start": 4407.08, "end": 4409.62, "text": "So we have to keep checking P-I-D because we're not sure.", "source": "faster-whisper"}
+{"id": 732, "start": 4410.48, "end": 4414.62, "text": "We have to keep checking for the specific signal handler, sig-child handler,", "source": "faster-whisper"}
+{"id": 733, "start": 4414.62, "end": 4417.56, "text": "to run instead of other handlers that might run.", "source": "faster-whisper"}
+{"id": 734, "start": 4419.53, "end": 4425.87, "text": "But this is actually wrong because it has a race.", "source": "faster-whisper"}
+{"id": 735, "start": 4426.03, "end": 4427.55, "text": "Can you see what the race is?", "source": "faster-whisper"}
+{"id": 736, "start": 4434.42, "end": 4435.3, "text": "What's wrong with this?", "source": "faster-whisper"}
+{"id": 737, "start": 4435.36, "end": 4438.42, "text": "There's a good chance that this thing will block forever.", "source": "faster-whisper"}
+{"id": 738, "start": 4443.62, "end": 4443.82, "text": "Yes?", "source": "faster-whisper"}
+{"id": 739, "start": 4456.02, "end": 4460.42, "text": "Yeah, that's, so the problem, the problem with this is like,", "source": "faster-whisper"}
+{"id": 740, "start": 4460.86, "end": 4466.1, "text": "so if the signal is received after PID is checked,", "source": "faster-whisper"}
+{"id": 741, "start": 4466.9, "end": 4468.68, "text": "but before the pause executes,", "source": "faster-whisper"}
+{"id": 742, "start": 4468.78, "end": 4473.36, "text": "Okay, which is possible, right?", "source": "faster-whisper"}
+{"id": 743, "start": 4473.36, "end": 4477.54, "text": "It's unlikely, but it's possible.", "source": "faster-whisper"}
+{"id": 744, "start": 4477.54, "end": 4492.88, "text": "If that signals arrives here, then the handler will set PID to non-zero, and then we'll execute the pause, and then we'll execute the pause, and the pause will be blocked forever waiting for a signal that'll never arrive, right?", "source": "faster-whisper"}
+{"id": 745, "start": 4492.88, "end": 4495.88, "text": "Because the SigChile signal already came.", "source": "faster-whisper"}
+{"id": 746, "start": 4495.88, "end": 4498.65, "text": "Very subtle, right?", "source": "faster-whisper"}
+{"id": 747, "start": 4498.65, "end": 4502.23, "text": "So this code looks okay, it looks benign, but it's wrong.", "source": "faster-whisper"}
+{"id": 748, "start": 4502.23, "end": 4509.96, "text": "but it's wrong and and your program would just hang forever so we say", "source": "faster-whisper"}
+{"id": 749, "start": 4509.96, "end": 4514.9, "text": "well okay that's no good we could replace the pause with a sleep so we could say let's let's", "source": "faster-whisper"}
+{"id": 750, "start": 4514.9, "end": 4521.82, "text": "check PID and then sleep for some predetermined amount of time in this case one", "source": "faster-whisper"}
+{"id": 751, "start": 4521.82, "end": 4529.9, "text": "second and then go back up and check PID again so this while this is correct it's way", "source": "faster-whisper"}
+{"id": 752, "start": 4529.9, "end": 4533.78, "text": "too slow right we're asking the system to wait for a second which is an eternity", "source": "faster-whisper"}
+{"id": 753, "start": 4533.78, "end": 4536.6, "text": "And there's forms of sleep,", "source": "faster-whisper"}
+{"id": 754, "start": 4536.6, "end": 4539.5, "text": "nanosecond, where you can wait, instead of units of", "source": "faster-whisper"}
+{"id": 755, "start": 4539.5, "end": 4541.7, "text": "seconds, you can wait in units of nanoseconds.", "source": "faster-whisper"}
+{"id": 756, "start": 4542.2, "end": 4544.08, "text": "But what value do you use, right?", "source": "faster-whisper"}
+{"id": 757, "start": 4544.22, "end": 4548.87, "text": "If it's, it's, so that's, if you choose a value that's too large,", "source": "faster-whisper"}
+{"id": 758, "start": 4548.99, "end": 4551.29, "text": "then you have this problem, this slowness problem.", "source": "faster-whisper"}
+{"id": 759, "start": 4551.71, "end": 4554.73, "text": "If you choose a sleep time that's too small,", "source": "faster-whisper"}
+{"id": 760, "start": 4554.93, "end": 4557.37, "text": "then you have the other problem that it's inefficient.", "source": "faster-whisper"}
+{"id": 761, "start": 4558.74, "end": 4563.83, "text": "So the solution is to use Sigsispend, which is the last", "source": "faster-whisper"}
+{"id": 762, "start": 4563.83, "end": 4565.65, "text": "last thing we're going to look at today.", "source": "faster-whisper"}
+{"id": 763, "start": 4566.56, "end": 4575.94, "text": "So SIG suspend is a function that takes a signal mask, and it's equivalent to an uninterruptible", "source": "faster-whisper"}
+{"id": 764, "start": 4575.94, "end": 4578.94, "text": "version of these three statements.", "source": "faster-whisper"}
+{"id": 765, "start": 4578.94, "end": 4585.26, "text": "So we block the signals that are specified in the signal mask.", "source": "faster-whisper"}
+{"id": 766, "start": 4585.26, "end": 4594.75, "text": "And then it's atomic in the sense that after that this, this, these two statements can't be interrupted.", "source": "faster-whisper"}
+{"id": 767, "start": 4594.75, "end": 4597.14, "text": "They're always executed together.", "source": "faster-whisper"}
+{"id": 768, "start": 4597.14, "end": 4601.21, "text": "Okay, so we block these signals, and then we execute the", "source": "faster-whisper"}
+{"id": 769, "start": 4601.23, "end": 4609.75, "text": "pause. So there's no chance of a signal interrupting this program in between the", "source": "faster-whisper"}
+{"id": 770, "start": 4609.75, "end": 4620.38, "text": "SIG PROC mask and the pause. Okay. And then when a signal does come in and the", "source": "faster-whisper"}
+{"id": 771, "start": 4620.38, "end": 4625.22, "text": "execution of the handler causes pause to exit, then we set the mask back to what it was", "source": "faster-whisper"}
+{"id": 772, "start": 4625.22, "end": 4633.03, "text": "before. Okay. So the proper way then to wait for a signal is to use SIG suspend in the", "source": "faster-whisper"}
+{"id": 773, "start": 4633.03, "end": 4638.86, "text": "following way. So here's our, here's our program again. We, before we create", "source": "faster-whisper"}
+{"id": 774, "start": 4638.86, "end": 4645.06, "text": "the child, we block SIG child, then we create the child, and now we're going to wait for the", "source": "faster-whisper"}
+{"id": 775, "start": 4645.06, "end": 4652.71, "text": "SIG child to be received. Now SIG child is still blocked. Okay, so there's no danger", "source": "faster-whisper"}
+{"id": 776, "start": 4652.71, "end": 4659.78, "text": "of the SIG child handle or running. Okay, so we set that global variable to zero.", "source": "faster-whisper"}
+{"id": 777, "start": 4659.78, "end": 4666.37, "text": "And then while it's, while it's non-zero, we repeatedly call SIG suspend. And so", "source": "faster-whisper"}
+{"id": 778, "start": 4666.39, "end": 4669.89, "text": "SIG suspend is using the previous mask that was set up here.", "source": "faster-whisper"}
+{"id": 779, "start": 4669.89, "end": 4675.42, "text": "So SIGSyspend is using the mask where SIG child is unblocked.", "source": "faster-whisper"}
+{"id": 780, "start": 4675.42, "end": 4681.42, "text": "Okay, when we, when we entered this first SIGPROC mask, SIG child was unblocked.", "source": "faster-whisper"}
+{"id": 781, "start": 4681.42, "end": 4688.8, "text": "So this allows inside the SIG suspend, SIG child is unblocked.", "source": "faster-whisper"}
+{"id": 782, "start": 4688.8, "end": 4695.12, "text": "Okay, so it allows for the handler now to be received or to be executed.", "source": "faster-whisper"}
+{"id": 783, "start": 4695.12, "end": 4699.7, "text": "Okay, so when it, and it does it does it.", "source": "faster-whisper"}
+{"id": 784, "start": 4699.72, "end": 4707.49, "text": "safely because of the atomic nature of those first two instructions.", "source": "faster-whisper"}
+{"id": 785, "start": 4707.49, "end": 4715.43, "text": "So once the, so it's possible that the implicit pause inside of SIG child could be interrupted by, say,", "source": "faster-whisper"}
+{"id": 786, "start": 4715.43, "end": 4721.54, "text": "another signal, like SIG int, okay, in which case we'd loop back up, we'd notice that PID", "source": "faster-whisper"}
+{"id": 787, "start": 4721.54, "end": 4727.66, "text": "was still zero, and we'd go back into SIG suspend with, with SIG child unblocked.", "source": "faster-whisper"}
+{"id": 788, "start": 4727.66, "end": 4730.23, "text": "Okay? So that makes sense to everybody?", "source": "faster-whisper"}
+{"id": 789, "start": 4730.23, "end": 4732.45, "text": "And now, so this is exactly the behavior we want.", "source": "faster-whisper"}
+{"id": 790, "start": 4732.47, "end": 4735.37, "text": "We're not wasting resources, but we've eliminated the race.", "source": "faster-whisper"}
+{"id": 791, "start": 4739.11, "end": 4740.65, "text": "Okay, so that's it for today.", "source": "faster-whisper"}
+{"id": 792, "start": 4740.75, "end": 4748.87, "text": "If you're interested, non-local jumps are this weird thing in C that allows a function to return to some other function that didn't call it.", "source": "faster-whisper"}
+{"id": 793, "start": 4750.75, "end": 4755.45, "text": "But it's described in your textbook and also in some additional slides here if you're interested.", "source": "faster-whisper"}

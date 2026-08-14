@@ -12,8 +12,10 @@ module Garden
     MAX_SEARCH_TEXT_LENGTH = 12_000
 
     def generate(site)
-      site.posts.docs.each do |post|
-        root = Kramdown::Document.new(post.content, input: "GFM").root
+      documents = site.posts.docs + site.collections.fetch("courses").docs
+      documents.each do |post|
+        markdown = post.content.gsub(/\{%\s*(?:raw|endraw)\s*%\}/, "")
+        root = Kramdown::Document.new(markdown, input: "GFM").root
         headings = collect_headings(root)
         body_text = normalize(extract_text(root))
         excerpt_source = if post.data["garden_description_valid"]

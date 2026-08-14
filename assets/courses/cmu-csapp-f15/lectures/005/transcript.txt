@@ -1,0 +1,780 @@
+[00:00:01] Good afternoon, everyone.
+[00:00:05] So now we're going to jump into the part of the course that I'd call the real core of the course, where we go into machine-level programming.
+[00:00:14] And by the term machine-level programming, I mean when you're actually considering the individual instructions that get executed by the machine in response to your program.
+[00:00:26] And there's really two forms of machine programs. One is the actual object code that runs on the computer.
+[00:00:33] And as we'll see, that's a series of bytes that encode instructions that the
+[00:00:39] processor executes. But well, because it's hard to look at bytes and understand them, there's various
+[00:00:46] text forms to make it more clear. And one of those is assembly code that it used to be that's how
+[00:00:54] people program machines. And nowadays, it's what the target of a compiler is, is to generate assembly
+[00:00:59] code. And I'll use those terms, when I say machine code.
+[00:01:03] I sort of interchangeably mean object code, the binary form, or assembly code, the text
+[00:01:09] version of it, interchangeably, because there really is a one-to-one mapping between them.
+[00:01:14] But in case I sort of use a term like assembly code, instead of consistently saying machine code,
+[00:01:23] it's because they're really the same general idea.
+[00:01:25] So this is sort of one place where this course, 213, 513,
+[00:01:33] takes a particular perspective that's very different from done elsewhere.
+[00:01:40] In the bad old days of computing, you would be required to take a course that was typically called assembly
+[00:01:46] level programming, where you actually learn to write programs in assembler.
+[00:01:51] And your assignments would be to do things like to sort an array of numbers or set up some kind
+[00:01:59] of linkless data structure, just sort of low-level programming.
+[00:02:03] that nowadays you wouldn't even think of wanting to write an assembly code.
+[00:02:07] And so people didn't really enjoy those courses very well.
+[00:02:12] And so they got sort of largely cut out of the curriculum.
+[00:02:15] But what our version of it is, is, is this is pretty important stuff to know
+[00:02:21] as the sort of gateway between what's, how you write your programs, say, and see,
+[00:02:26] or any other language, and how those programs actually execute on a machine.
+[00:02:31] So, machines.
+[00:02:32] So machine code is sort of the intermediate form there, the intermediate language,
+[00:02:37] and you need to understand that, to understand better what your programs are trying to do and what the machine is trying to do.
+[00:02:45] So as a result of that, our perspective will be, we won't actually write, except in very, very small amounts.
+[00:02:53] We're not going to actually sit down and write assembly programs in this course.
+[00:02:58] But what you'll do is you're going to look at a lot of code that was generated
+[00:03:02] by a C compiler, GCC, and try to see how does that what came out of that compiler relate to what went into it?
+[00:03:11] How does this low-level code implement the higher level constructs that I was trying to express my program in?
+[00:03:22] How are procedures functions implemented in machine language?
+[00:03:27] How are data structures such as arrays and structs?
+[00:03:30] How are those implemented in machine language?
+[00:03:31] in machine code. So we're going to learn all of that stuff, and it takes a significant chunk of this course and a fair number of lectures to get through all that material, because it's really quite a bit.
+[00:03:44] But I think it's, like I said, I think this is sort of the core of where this course is.
+[00:03:53] And as you know, in this course, we only look at one particular class of machines, even though there's many more
+[00:04:03] different machine level programming possibilities out there and we've chosen the
+[00:04:08] Intel, the 64-bit version of the Intel instruction set. So I'll go through a little bit of the history
+[00:04:16] behind Intel and how it got to where it is. We'll look at sort of this idea of how does C-code relate
+[00:04:23] to assembly code, machine code, and so forth. We'll go through sort of the low-level basics that
+[00:04:29] you need to understand what assembly machine code looks like.
+[00:04:34] And then we'll actually take on and look at some real code focusing specifically on arithmetic operations.
+[00:04:40] So x86 is the sort of colloquial term for Intel processors, and the reason is that the first one was called the 8086,
+[00:04:52] and then they kind of skipped 81, but then they went to 82, and so forth.
+[00:05:00] 83-86. So the one thing in common was 86, and so people just call it X-86.
+[00:05:07] And one thing that's important to this, and it will have influence on what the programs look like, is
+[00:05:14] is x-86 is a language like English, that it's been an accrual and evolution of different features layered on top of each other
+[00:05:25] in not always the most elegant way. So just like English, there's been an accrual, an evolution of different features layered on top of each other in different features layered on top of each other in the top of each other,
+[00:05:29] English, there's all these sort of quirky things that how you write it is very different from how you pronounce it and there's all these irregular cases and it doesn't make sense. It's not sort of a purpose-designed language. It's the same with x86. It's a language that just got there because of a bunch of decisions that locally were probably the right thing to do, but globally were not. There's other instruction sets that are much cleaner and easier to understand. But we figure it's
+[00:05:59] just the same reason that you learn English instead of learning Esperanto or something like that, that it's a much more useful language.
+[00:06:07] Um, x86 is what sometimes was called a sisk. There's a big thing in the early 80s, uh, 80s in general, called risk versus sisk.
+[00:06:20] Sisk's, well, risk was a new, a relatively new idea, what they called a reduced instruction set computer, and it was all the rage.
+[00:06:28] And it was all the rage.
+[00:06:30] name for what came before, but the risk people named what came before a
+[00:06:35] SISC for a complex instruction set computer with the obvious sort of pejorative nature to that
+[00:06:41] title. And so Intel is sort of the the classic SISC architecture, meaning it has a ton
+[00:06:47] of features. We're not going to even scratch the surface. If you want to, the manual for it is two
+[00:06:54] big fat books, which nowadays you do with PDF documents, but it's still a huge amount
+[00:07:00] stuff and some 500 or more instructions, everything from doing decimal arithmetic
+[00:07:07] to even decimal floating point and all kinds of goofy stuff in there. But it turns out that you can
+[00:07:15] kind of get a pretty good handle on it by focusing more on just what does the code look like that
+[00:07:21] GCC is generating for the kind of programs that you typically write. And you should also realize that
+[00:07:31] Many levels, this should not have been the successful design, because as I said, it's just got lots of stuff on there.
+[00:07:43] But Intel has been such a powerful company and had so much market and such better technology as far as semiconductors than its competitors that it's been able to kind of keep this thing alive for almost 40 years.
+[00:08:00] It's pretty admirable.
+[00:08:04] So just to give you a sort of time scale, as I mentioned, the 8086 was the first, one of the first single-chip 16-bit microprocessors.
+[00:08:13] It came out in 78.
+[00:08:15] And a slight variation on it was the very, the basis for the original IBM PC, which I know predates most of you, your lives.
+[00:08:25] But it was sort of the big breakthrough through that put computers on the desktop
+[00:08:32] of many people.
+[00:08:35] And there's been many, many generations.
+[00:08:37] I'm just giving you the highlights that are relevant to this particular class.
+[00:08:42] The 386, which dates back to 1985, was the one that really made the transition from these being
+[00:08:48] personal computers that could run not very interesting applications to ones that could actually
+[00:08:55] run something like a Unix or Linux machine.
+[00:08:58] And the reason is they extended it to 32 bits, and they removed.
+[00:09:02] some of the weird addressing stuff that used to be in there, so that these
+[00:09:07] look like sort of a generic processor. And that was clear back in 85, and that was what
+[00:09:13] sometimes called IA32, Intel Architecture 32, which was the dominant way of code up until
+[00:09:24] just even a few years ago. So even up as recently as this past summer, this past summer, this
+[00:09:29] course was teaching IA32.
+[00:09:34] And then there, and I'll talk about it more later, there was a reason and a strange story behind
+[00:09:41] the extension from 32 to 64 bits, which kind of was sneaked in by Intel in an
+[00:09:48] odd model, the Pentium 4E, but you see it was only about 10 years ago.
+[00:09:55] And one of the smart things they did with that is that the machines that can run
+[00:10:00] the 64-bit code can also run 32-bit code.
+[00:10:05] So they were able to sort of bring out all these machines without everybody having to change over their software.
+[00:10:11] And it's taken about that amount of time for the software to largely transition away from 32-bit
+[00:10:18] bit code to 64-bit code.
+[00:10:23] And then for actually fairly interesting reasons, you could map how fast
+[00:10:31] a single processor would run.
+[00:10:33] And it was climbing up at a pretty steady pace.
+[00:10:36] Until around 2004.
+[00:10:40] And then Intel got, and all the companies got into serious trouble with the power consumption of their chips.
+[00:10:46] They're approaching 100 watts.
+[00:10:47] So imagine a 100 watt light bulb and how much heat that generates inside of a box that you try to blow a fan on really hard to keep it from getting too hot.
+[00:10:58] And they were reaching the point where they really couldn't
+[00:11:01] go much beyond 100 watts.
+[00:11:04] And so they sort of got into a power budget problem.
+[00:11:07] And as a result, they haven't been able to scale up the frequency,
+[00:11:10] how fast the inner clock that drives this thing is,
+[00:11:14] beyond just a few gigahertz, since 2004.
+[00:11:18] So what's happened was they said,
+[00:11:22] well, we can't make any single processor faster,
+[00:11:25] but we can put a bunch of processors on a single chip.
+[00:11:28] And those are referred to cores or multi-core.
+[00:11:30] multi-core.
+[00:11:31] So most of you with laptops probably have two cores on those on a laptop processor and a server might have up to 16 cores.
+[00:11:42] So those are independent processors that are all reside on a single chip.
+[00:11:47] The shark machines date back to 2008 and they are, each have four cores on them.
+[00:11:57] The shark machines, the one thing about computers haven't really gotten that much faster.
+[00:12:01] gotten that much faster in the meantime.
+[00:12:04] So they're still fairly, and they were, in their day, a very high-performance machine, so they're
+[00:12:10] still pretty decent.
+[00:12:15] This shows a picture of the chip that makes up a, I think, the shark machines, or approximately
+[00:12:25] that same era.
+[00:12:26] And you'll see that, as the picture shows, there's four cores are integrated onto one chip, and then
+[00:12:32] down at the bottom is what.
+[00:12:33] what they call a cache, and we'll learn a lot about cache memory, but it's basically a temporary
+[00:12:40] memory used to hold the most recently accessed data so that you can get to it more quickly. And you'll
+[00:12:48] see that that's shared across the four cores. So if you look at the latest, if you were to go off
+[00:12:56] shopping in the catalog, the latest instance, and I don't have any chip pictures of it, is a model
+[00:13:03] they call the Broadwell model.
+[00:13:05] And you'll see that on a single chip, they have multiple cores,
+[00:13:10] four for a standard desktop model, and eight for a server class machine.
+[00:13:16] And then built around the perimeter there are various connections to the rest of the world.
+[00:13:22] So DDR is the way you connect to the main memory, what's called DRAM, dynamic RAM.
+[00:13:28] PCI is the connection to peripheral devices.
+[00:13:32] devices.
+[00:13:34] SETA is a connection to different types of disks.
+[00:13:39] And USB, well, you know what USB is.
+[00:13:44] And then the Ethernet is the connection also to a network connection.
+[00:13:48] So that's all integrated onto a single chip.
+[00:13:54] It's not just the processor itself,
+[00:13:56] but a lot of logic that glues that
+[00:13:59] processor into a larger system.
+[00:14:02] And one interesting thing you'll notice is that the desk
+[00:14:05] model is a higher power 65 watts versus the server is 45 watts.
+[00:14:11] When you put a lot of computers in a room, turns out power is the biggest issue you have to deal with.
+[00:14:21] So Intel isn't the only company in this game.
+[00:14:24] They're sort of historic competitor is a company called AMD.
+[00:14:28] And AMD was always sort of number two behind Intel.
+[00:14:34] In all the, just like Avis is number two behind Hertz.
+[00:14:38] But
+[00:14:39] But they had a little burst in time
+[00:14:46] when they kind of got out ahead of Intel because Intel
+[00:14:49] had wasted their time on some bad ideas.
+[00:14:53] And they actually were the one that came up with the 64-bit extension
+[00:14:57] to Intel that we use.
+[00:15:00] Right now, though, AMD is not doing very well.
+[00:15:03] Intel sort of realized that it had to get its act together
+[00:15:07] and it did, and it is more or less crushed AMD.
+[00:15:10] But, and I should mention, they had these ferocious patent suits many years ago,
+[00:15:18] and the result of that was a cross-licensing deal that allows AMD to produce x86 processors too.
+[00:15:25] Now, it's interesting story behind Intel and 64 bits.
+[00:15:30] They decided to make this radical shift to an architecture that they called the,
+[00:15:35] they called IA-64 at the time, and it was based on a whole new concept
+[00:15:42] a whole new concept that looked really good on paper and initial results
+[00:15:48] looked promising. They invested a lot of money in this stuff. They formed a joint operation with
+[00:15:53] Hewlett Packard on this, and it turned out not to work. It was much too aggressive. It assumed
+[00:15:59] a miraculous optimization capabilities by the compiler, and so it was a, from a technically
+[00:16:07] idea, it was very interesting technology, but in the marketplace it didn't work. And this was a
+[00:16:12] This was sort of a branch off that Intel pursued and felt obligated to keep it up because they'd invested so much in it.
+[00:16:20] And along came AMD and they said, well, we don't have to do this radical shift.
+[00:16:24] We'll just sort of do the obvious thing of adding, making the registers bigger, making things go from 32 to 64 bits.
+[00:16:33] And they came along with that and got a, and were successful.
+[00:16:37] And so Intel kind of had to just sheepishly fall.
+[00:16:42] behind AMD on this, but they could because of their cross-licensing deal.
+[00:16:47] So nowadays, as I mentioned, hardware-wise, just about every processor that is in a laptop, in a desktop,
+[00:16:54] in a desktop, even your cell phones of recent generation are all 64-bit processors.
+[00:16:59] So what we'll talk about then, we used to teach IA32, but that's gone. This is the first term where we're skipping it all together.
+[00:17:13] So we're using what we'll call X-86-6-
+[00:17:16] There's various ways this is named, but this is sort of the Linux way of naming it.
+[00:17:22] If you're interested in I-32, there's a document on the web associated with the book called a Web
+[00:17:28] WebAside that goes through at least some of the basics of it.
+[00:17:31] But to really read that, you need to learn the 64-bit because it assumes you kind of already know that.
+[00:17:37] Okay, so let's go in.
+[00:17:41] And I should mention, too, if, just for general interest, the other major class of processor and common use today,
+[00:17:48] called ARM. So ARM actually is an acronym for ACORN risk machine. I just told
+[00:17:55] you what risk means. It means risk reduced instruction set computer. An ACORN means like,
+[00:18:01] you know, the seed of an oak tree. It was a British company that decided to make its own
+[00:18:08] personal computers in the early days of it, and they said, we're not going to buy those
+[00:18:12] chips from Intel, we're going to make them ourselves. So they designed and manufactured
+[00:18:16] their own chips. Well, as a company, a company,
+[00:18:18] computer manufacturer it was a complete bust but it turned out that they'd come
+[00:18:23] up with a fairly good instruction set that was sufficiently simple that it could be put on
+[00:18:30] chips and better yet it could be customized so arm is now a company of its own
+[00:18:37] headquartered in Cambridge England and the reason why part of the reason they're
+[00:18:42] successful therefore is because it tends to be a lower power process requirements than an
+[00:18:48] x86 machine because it's simpler. But the other is that they don't actually
+[00:18:52] sell processors. They sell companies the rights, the licensing rights, to use their designs.
+[00:18:59] And so if you look at like a cell phone processor, the actual arm processor is a little tiny part of it on
+[00:19:07] the chip, and then they'll have other stuff to make the graphics go better, to improve your
+[00:19:13] phone calls and so forth. And so they're really selling what intellectual property
+[00:19:18] is opposed to chips. And so people, we've gotten various inquiries, when are you going to start
+[00:19:25] talking about arm in your book or your course or something? And we go, it would be another book to
+[00:19:30] write, to do justice to arm. It would be like a whole redo of the thing. And we're
+[00:19:36] not inclined to do that right now. But just so you know, there's sort of a two worlds out there,
+[00:19:43] X-86 and ARM are the dominant players right now. So let's talk some terminology and
+[00:19:51] you've probably heard some of these terms before, but let's make it clear. So when we talk about
+[00:19:56] the instructions, the instructions set, that's the target of a compiler to give you a series
+[00:20:04] of instructions that tell the machine exactly what to do. But it turns out that the hardware
+[00:20:10] people have figured out all kinds of clever ways to implement instructions. Some of them are
+[00:20:16] really fast but take a lot of hardware. Some are pretty slow, but don't take
+[00:20:21] much hardware at all. And so they managed to create this this abstraction that's called the
+[00:20:27] instruction set architecture, which is what the target of a compiler should be, and then let the
+[00:20:33] hardware people figure out how best to implement it. And then the lower, so that's a concept
+[00:20:38] actually that came along in the 1960s. So that's even before my time, as far as a computer.
+[00:20:47] person, but it's a very important concept in the world of computers.
+[00:20:54] And then what they call the lower level stuff, how it actually gets implemented is called the microarchitecture.
+[00:20:59] We will talk very, very little about microarchitecture in this course.
+[00:21:04] And as I mentioned, machine code is sort of a generic term that incorporates both the actual bits that
+[00:21:10] are operating, executing as well as the assembly level version of it. And as I mentioned, you can
+[00:21:19] think of from an instruction set point of view. So IA32, x86, 64, and what's called
+[00:21:27] itanium, or this not very successful Intel thing, those are all in some ways different instruction set
+[00:21:36] architectures. Arm actually, similar to Intel, has gone through various different generations.
+[00:21:42] So there's various different generations of its instruction set. So from a programmer, machine
+[00:21:50] At the machine level programmers perspective, things are a bit different than you see when you write C code.
+[00:21:56] First of all, there is some very visible parts of the instruction, the machine state, that you can examine
+[00:22:03] and test and operate on, and you must, in fact, that you would never understand what those
+[00:22:09] are if you're just thinking in terms of C.
+[00:22:12] So in particular, there's some sort of a program counter.
+[00:22:16] It's a, it tells you what address is the instruction that you where, what address is the
+[00:22:20] instruction that you're going to execute next, where is that located in memory?
+[00:22:24] And then there's a set of registers which are part of the, that the programmer actually makes use of,
+[00:22:33] you can think of them as a very small number of memory locations, but rather than giving an address
+[00:22:40] from zero up to n minus one or something, you actually give them by name specifically. And then
+[00:22:48] And then there's another sort of state that's just a few bits worth of state that
+[00:22:53] talk about what what are the results of some recent instructions where they, did it produce a value
+[00:23:01] of zero, did it produce a negative or a positive value?
+[00:23:05] And those are used to implement conditional branching, which we'll look at later as we go.
+[00:23:10] And then the other part of it, so that's sort of the processor, and then the other part of
+[00:23:15] of it is the memory.
+[00:23:16] And as I mentioned in one of the first lectures, the memory is you can think
+[00:23:23] of logically as just an array of bytes.
+[00:23:27] And that's what the machine level programmer sees.
+[00:23:31] And it's actually kind of a fiction in different ways.
+[00:23:35] As I mentioned before, there's sort of a collaboration between the operating system and the hardware,
+[00:23:40] what they call virtual memory, to make it look like each program running on a processor has its
+[00:23:46] own independent array of bytes that it can access, even though they actually share
+[00:23:53] values within the physical memory itself. And furthermore, you heard the term cache. The idea of a cache
+[00:24:01] is not visible here at all because it just is automatically loaded with recent stuff,
+[00:24:08] and the only thing that will look different is if you re-access that memory, it will go faster than it would
+[00:24:14] if it hadn't been cached. But it's not
+[00:24:16] visible in terms of there's no instructions to manipulate the cache. There's no way you
+[00:24:21] can directly access the cache. So you already see that it's already abstract. It's got some more
+[00:24:31] details of real hardware, but underneath it, the sort of microarchitecture level, has some features
+[00:24:38] built into it that you're not operating on, you're not making use of directly when
+[00:24:48] write machine level programs. So if you have a program then, say in C, it would
+[00:24:58] typically, on a larger program, it will include multiple files, and it will make use of some library
+[00:25:04] code. And so the process of compilation is actually a series of steps that will take what you've
+[00:25:12] written for code, turn it into machine code, combine it with the compiled, compiler-generated
+[00:25:19] code for the libraries and produce finally a file that's your actual executable
+[00:25:26] program. And so that's shown here in this picture that the first step is to take C and actually generate
+[00:25:33] assembly code from it. And then the next is to run that through an assembler, which takes the text
+[00:25:39] representation of instructions and turns it into the actual byte level representation.
+[00:25:44] We'll look at all this shortly. And then there's a, a
+[00:25:49] a program called a linker, which merges together all the different files for both your
+[00:25:56] individual file, their compiled versions, and for the library code. And then finally, there's
+[00:26:04] a, even once you run a program, there's actually some libraries that get imported dynamically when
+[00:26:11] the program first begins. So it's a sort of many-layered set of activities. And I'll go through
+[00:26:19] some of these one by one for you. So for example, here's a not very interesting
+[00:26:27] function in terms of doing anything useful, but it sort of demonstrates some basic ideas of
+[00:26:32] compilation. And if I run this through a C compiler, I get something that looks like what's
+[00:26:40] shown on the right. And that's assembly code. And just to give you an idea of what it is, it looks
+[00:26:46] like a sort of strange language the first time you see it. But you'll see
+[00:26:50] those percent are something. Those are the actual names of registers. Remember I told you
+[00:26:56] there's registers that you give by name. And then those instructions are telling it to do
+[00:27:01] something. Push Q means push something onto a stack. Move means, move it from one place
+[00:27:08] to another. Call means to call some procedure. Pop is the counterpart to push. And then
+[00:27:16] And ret is exit, return out of this particular function.
+[00:27:20] So you see each of those is an instruction. And it's written in text, but each of those will turn into one actual instruction in actual instruction in the object code representation.
+[00:27:31] So I should tell you that this is actually a slightly cleaned up version of what really happens.
+[00:27:38] So let me show you the reality because you'll be experiencing that a bit more too.
+[00:27:42] I had this bigger before.
+[00:27:50] Let me make it bigger.
+[00:28:05] Blow this up so that you can see it.
+[00:28:07] Is that? Can you see it in the back there?
+[00:28:12] Bigger? Better?
+[00:28:16] And let me get the other one.
+[00:28:26] And I've already logged into a fish machine to get here.
+[00:28:56] So this is a file then.
+[00:28:59] You see it's called sum.
+[00:29:01] And I'll mention that all of these programs are available.
+[00:29:05] You can see the whole, well, slash AFS is my own personal.
+[00:29:11] and all that first stuff is my own personal links.
+[00:29:15] But once you get to the class web page,
+[00:29:18] www.
+[00:29:19] and then it's all given by which particular lecture it is.
+[00:29:22] It's all given by which particular lecture it is.
+[00:29:25] I think these are linked on the homepage, too.
+[00:29:28] And you can see various files there
+[00:29:30] that are used for the demonstration.
+[00:29:32] The C files are obviously the programs
+[00:29:36] that we typed in.
+[00:29:38] And then once it have an S at the end, that's a
+[00:29:40] at the end, that's assembly code, one that are D,
+[00:29:43] what's called disassembly.
+[00:29:45] So anyways, if I say GCC minus O2,
+[00:29:49] I'm sorry, minus OG,
+[00:29:52] g, minus s capital, sum.
+[00:29:57] That, what I did was just tell the compiler
+[00:30:02] to take the C code and turn it into assembly code.
+[00:30:06] So when you invoke GCC, you're actually invoking it's
+[00:30:09] not just one program, but
+[00:30:11] a whole sequence of programs that do various stages of the compilation.
+[00:30:17] And by giving it this minus capital S switch, I'm saying stop, just do the first part, C to assembly code.
+[00:30:24] And the minus O little G is a specification of what kind of optimization I want in the compiler
+[00:30:33] to do.
+[00:30:34] So if you don't say anything, if you just don't give any directive, it will generate completely unoptimized,
+[00:30:42] code and it's actually very hard to read that code. It's very tedious the way it works.
+[00:30:48] If you say minus 01, which is what you used to do, to turn on the optimizer,
+[00:30:56] it turns out that as GCC as they've gotten more advanced, it does a lot of optimizations now,
+[00:31:02] that for the purpose of this course, make the code pretty hard to understand.
+[00:31:07] So it just with one of the most recent generations of GCC
+[00:31:12] came out with this level called G for debugging.
+[00:31:17] That's a nice, for this course, purpose of this course,
+[00:31:21] a nice level that it sort of does the obvious kind of optimizations
+[00:31:25] to make the code readable without being sort of extravagant
+[00:31:30] and trying to rewrite your whole program in a way that would make it
+[00:31:34] a lot different and hopefully more efficient.
+[00:31:37] So that's what we'll use in this course.
+[00:31:40] It's only exists in the recent versions of GCCC.
+[00:31:42] it's non-standard across other compilers.
+[00:31:45] Question?
+[00:31:47] That is zero or like...
+[00:31:48] No, it's an O, capital O.
+[00:31:52] It stands for optimize.
+[00:31:55] So what that command just did was produce a file called sum.
+[00:32:00] So let me show you what sum.
+[00:32:08] S is.
+[00:32:09] And let me show you the function sum store.
+[00:32:11] Can you see that then?
+[00:32:17] Okay.
+[00:32:19] So this is the code.
+[00:32:30] It says some store.
+[00:32:32] And then you'll see...
+[00:32:34] You'll recognize those instructions I mentioned before, the push, the move, the call, the
+[00:32:39] the mush, the move, the pop, and the ret.
+[00:32:42] But you also see other junk there that we edited it out for the presentation and even in the book
+[00:32:51] it got edited out.
+[00:32:53] And the reason is these are various directives that aren't really directly part of the code itself.
+[00:32:58] The fact they start with a period is an indication that these aren't actually instructions,
+[00:33:03] there's something else.
+[00:33:04] And they all are related to what the information that needs to be fed to a debugger for it to be able to locate various parts of the program.
+[00:33:16] And some information for the linker to tell it that this is a globally defined function
+[00:33:22] and various other things that you don't really need to at least think about initially.
+[00:33:27] So we sort of take those out of the program just to make a more readable.
+[00:33:33] But if you ever do this yourself, you'll find this crud in there,
+[00:33:37] and we don't want you to get like, oh my gosh,
+[00:33:39] this wasn't in the book. I don't know what to do with it.
+[00:33:45] So, let's go back.
+[00:33:49] The other thing is people are learning on data lab is
+[00:34:01] shark versus non-shark. It makes a difference.
+[00:34:04] And even like, like, this is a Mac computer and I can,
+[00:34:09] I've got GCC installed, and it generates its Intel processor in there.
+[00:34:14] there but it's not directly compatible with Linux code. So it's pretty important
+[00:34:20] for this course we're saying just stick with the shark machines for everything you do.
+[00:34:29] So what are some characteristics then of assembly code, especially how do they differ from C?
+[00:34:35] Well first of all there's a number of different sort of integer data types of size 1, 2, 4, and 8 bytes.
+[00:34:43] In integer data types, they don't distinguish sign versus unsigned.
+[00:34:48] in how it gets stored.
+[00:34:52] And even an address or a pointer is just stored as a number in a computer
+[00:34:57] and doesn't have any special significance to it.
+[00:35:01] A floating point is handled in a very different way,
+[00:35:04] on the other hand, with a different set of registers
+[00:35:07] that I think we'll talk about very briefly in one of the later lectures.
+[00:35:12] The program itself is in x86, it's just a series of bytes,
+[00:35:16] and I'll show you some examples of those.
+[00:35:18] And things like arrays and structs and things that you think of as fundamental data types don't exist at the machine level.
+[00:35:27] They're sort of constructed artificially by the compiler.
+[00:35:31] And later in the course, in these lectures, we'll cross over into how that's actually done as well.
+[00:35:37] So some of the things you know about in C exist here, and some of them are sort of have to be built up in layers on top of the assembly.
+[00:35:48] of the assembly level program.
+[00:35:50] So the other thing about assembly level programming is each instruction is
+[00:35:56] each instruction is very, very limited in what it can do.
+[00:35:59] It can move data from a register to memory, from, or it can do an addition or a multiplication,
+[00:36:08] or something like that, but it can really basically only do one thing.
+[00:36:13] And so you have to write a whole, if you were writing it by hand, you'd have to write a whole series of
+[00:36:21] of instructions to get anything done.
+[00:36:23] And that's part of the reason why it's really much better to let the compiler do that.
+[00:36:27] And we'll also see there's sort of how things like do loops, while loops,
+[00:36:33] while loops, conditionals, switch statements, those are all built up on top of some other
+[00:36:42] lower level features in the instructions.
+[00:36:48] So for this function, some store, actually it gets encoded by a total of
+[00:36:54] 14 bytes.
+[00:36:56] And so one thing about x86 is some instructions are as short as one byte,
+[00:37:01] but others can be as long as 15 bytes in the encoding.
+[00:37:06] And like I said, each each instruction really typically only does one thing.
+[00:37:18] So for example, in C, if you say star-dast equals t,
+[00:37:23] what that will typically, and not always, but the sort of way to think about that at the machine level, is it's
+[00:37:29] T or some local value would be typically stored in a register.
+[00:37:34] And as you know and see, if you put star in front of it, you want it referenced as a pointer.
+[00:37:39] And if that reference is on the left, you want to store a number or value
+[00:37:44] at that place where you're pointing to.
+[00:37:47] So what would typically happen is desk, the actual pointer value,
+[00:37:53] would also be stored in a register.
+[00:37:55] Here it's in register RBX.
+[00:37:58] And I use a move.
+[00:37:59] instruction to say take the value from one register, which is called RAX here, and store it in the memory location that's specified by another register.
+[00:38:10] So you see the idea, we'll go into more detail about all these register names and what the parentheses mean.
+[00:38:17] But you get the rough idea that a move instruction is saying can refer to either a register or a memory location.
+[00:38:28] And the actual object code representation of this is,
+[00:38:31] is just three bytes, where the first byte tells it that it,
+[00:38:38] and we won't even talk much in this course about how the instructions are encoded.
+[00:38:43] Won't generally let programs do that for us.
+[00:38:47] But in this case, it only takes three bytes to write that particular instruction.
+[00:38:53] So how can we know that kind of stuff?
+[00:38:56] How can we figure out that level of detail?
+[00:38:58] Well, there's some really useful tools that let you examine machine code
+[00:39:02] code, even if you don't have a copy of the original C file or even the assembly code file ahead of time.
+[00:39:10] And there's one called a disassembler.
+[00:39:12] So an assembler goes from this text version of instructions to a byte-level representation.
+[00:39:20] And a disassembler just reverses that.
+[00:39:23] It says, here is a series of bytes.
+[00:39:25] And I, the disassembler, know that this particular byte sequence
+[00:39:32] refers is a move instruction.
+[00:39:34] And so it will now print out on the screen to say, oh, that was a move instruction.
+[00:39:39] And so it basically reverse engineers from the object code back to the assembly code,
+[00:39:45] or something sort of like the assembly code.
+[00:39:48] You'll see it lost, it's very slightly different.
+[00:39:56] One thing also to notice I should mention about assembly code is all those
+[00:40:02] All those, you know, all the names I used, all the names of variables are completely lost at the assembly code level, or at the machine code level.
+[00:40:12] Things are just, they're in registers, they're somewhere in memory.
+[00:40:15] The program has no understanding of your original source code at that level.
+[00:40:20] And so the disassembled is just a way to go backward.
+[00:40:25] And you can do that yourself, and you'll find that useful in various contexts,
+[00:40:31] to do that.
+[00:40:32] To do that yourself, things kind of monkeying around me.
+[00:40:40] So if I compile the sum program, so if I do the more standard thing you do in using a compiler, you say run the compiler,
+[00:41:09] give it some optimization, tell it what the source files are, and tell it where to put the final executable code.
+[00:41:16] And I'm terribly clever, I call the function sum.
+[00:41:20] And so sum is a binary file of 8,600660.
+[00:41:27] you'll see off on the left it's marked is executable.
+[00:41:32] And it actually works.
+[00:41:35] I can add numbers together with it.
+[00:41:38] So that's your sort of standard executable program.
+[00:41:42] Excuse me.
+[00:41:45] And if I run a program called object dump
+[00:41:49] and ask it to disassemble, it can do various things,
+[00:41:55] it will spit out a disassembled version of the program and it will fly
+[00:42:00] on the screen, but if I redirect that to some file, which I already did, I'll remove the old one,
+[00:42:19] and now I look at that, you'll see that it has, what I described as, is the disassembled representation
+[00:42:27] of the program, including some files that you didn't, some functions that you didn't write.
+[00:42:33] It has ones that are sort of the low-level functions that are used in the initial startup of a program.
+[00:42:40] called in it.
+[00:42:44] Oops.
+[00:42:49] But here, somewhere in the middle of it, you'll see, lo and behold,
+[00:42:52] is that program, that function, some store, that got compiled.
+[00:42:57] And you can see that what it did was it
+[00:43:01] took this 14 bytes from the original, the object code,
+[00:43:09] and it picked those apart, and came back with what instructions those bytes in code.
+[00:43:14] So, for example, the push instructionally takes a single byte.
+[00:43:18] The move, as you saw before, takes three bytes.
+[00:43:22] This call, because it has to give the location of where to call is a five-byte instruction, and so forth.
+[00:43:33] But again, the disassembler didn't have access to the source code.
+[00:43:37] It didn't have access even to the assembly code.
+[00:43:39] It figured this out just by the bytes in the actual object code file.
+[00:43:44] So this is the way, if you ever want to know,
+[00:43:49] actually, the byte level encoding, this is how you figure it out.
+[00:43:53] Is to run a program, run it through an assembler, get object code,
+[00:44:00] and then come back out with it.
+[00:44:03] There's another way you can do it using the debugging program,
+[00:44:09] which you'll get to know very well in the next lab you're going to do.
+[00:44:16] And it's called GDB.
+[00:44:20] And GDB is a...
+[00:44:21] is a very powerful debugging program that you can examine, step through, and operate on programs.
+[00:44:29] And again, you can, if the source code for it's available, it will make use of it.
+[00:44:37] But it also can be used on programs for which there's no source available.
+[00:44:41] But one of the features is the ability to disassemble functions in there.
+[00:44:45] So if I say disassemble some store, it'll come back.
+[00:44:52] It'll come back with something that looks a lot like what you saw from object dump.
+[00:44:57] A listing of the instructions.
+[00:45:00] And here it just shows in hex what the addresses of those different instructions are.
+[00:45:05] It doesn't show the byte level encoding.
+[00:45:07] So my point here is there's various tools that let you
+[00:45:14] look at a program, even if its actual representation is a binary file that you don't want to examine directly.
+[00:45:22] So, um,
+[00:45:44] What this slide shows is what I just showed you on the screen, which is what the object dump program produces for this function.
+[00:45:54] And this is a version showing what GDB would show you for.
+[00:45:58] And with GDB, if you want to actually get the bytes out, you can do that.
+[00:46:04] You can basically, for any address, you can just give an address and tell it to display some number of bytes.
+[00:46:11] And so this rather cryptic command to GDB says,
+[00:46:15] examine 14 bytes in hex format starting at the address of the function sum store.
+[00:46:23] And it produced something that looks like what you see on the left.
+[00:46:29] In fact, disassembly is a tool that can be used as part of any reverse engineering tools.
+[00:46:39] And I used to demo this by showing a disassembly of the windows of Microsoft Word.
+[00:46:46] I had a PC back then, not a Mac.
+[00:46:49] Not a Mac.
+[00:46:50] But some people, and you know, our slides are online, and so we got some nasty grams from people saying,
+[00:46:58] you know, you're violating the Microsoft end user license agreement when you do that because you're supposed to,
+[00:47:05] you don't know this, but remember all those quick through I agree things that you never read?
+[00:47:11] One of them is voucher.
+[00:47:13] I agree not to try to reverse engineer any Microsoft product.
+[00:47:18] So.
+[00:47:19] So this would technically, so I've served just for modesty, I've blanked this out.
+[00:47:25] But you can actually do it.
+[00:47:26] If you can find where the file is, it's sort of obscure where the actual executable files of an application are.
+[00:47:33] My point is that word like any other application you run is just an executable file,
+[00:47:43] and that executable file is just a bunch of bytes that encode instructions.
+[00:47:47] Okay.
+[00:47:49] So let's go a little bit further into this assembly level programming business.
+[00:47:54] So I keep talking about registers.
+[00:47:58] And x86-64 has this totally quirky set of registers.
+[00:48:03] And it's a reflection, again, of this sort of evolutionary history to it.
+[00:48:08] But you'll see that there's 16 registers that you can use to hold integers and pointers.
+[00:48:16] And some of them have these sort of alphabetic
+[00:48:20] names and some of them have numeric names.
+[00:48:23] I'll show you why in a minute.
+[00:48:25] And also for each register, if you use the sort of percent R
+[00:48:28] name of it, you'll get 64 bits.
+[00:48:32] But if you use the percent E version of it, you'll get 32 bits.
+[00:48:36] And what you'll find in programs that manipulate long ints,
+[00:48:41] you'll see the use of R.
+[00:48:43] And if they're just inths, 32-bit things, you'll see code saying percent E.
+[00:48:48] So you'll see both of these show up.
+[00:48:49] these show up.
+[00:48:50] And it's fairly important to remember that the percent e version is just the low order 32 bits of a larger percent
+[00:49:00] R entity.
+[00:49:03] And in fact, it goes beyond that.
+[00:49:06] You can also reference the lower order 16 bits and the lower order two bit.
+[00:49:12] I'm sorry, one byte, two bytes and one byte within each of these registers as well.
+[00:49:20] But again, think of these as like.
+[00:49:22] named locations where you can store values and you can retrieve values from them.
+[00:49:29] And you have to, you, you, the, I'm sort of personifying machine-level programming here, not you personally,
+[00:49:40] will actually have to explicitly name those registers for the most part to say where things should
+[00:49:46] go, where they should come out of. It's not like a memory where you just give a number to
+[00:49:52] to tell where to look for, you could compute a number.
+[00:49:54] They're actually, each one is identified separately.
+[00:49:58] So just as a little bit of history, with I-832, so back, we just talked about there being eight
+[00:50:09] registers, all the percent e-versions, and one of the changes that went from IA32 to
+[00:50:16] x86-64 was to double the number of registers. And by the way, this is a really helpful thing
+[00:50:22] because it was very frustrating how few registers there were in the old I-32 machines.
+[00:50:32] And then the, as I mentioned, you could actually, in the old machine,
+[00:50:40] refer to the low-order 16 bytes of these registers, and that was a legacy from the 80-86 days.
+[00:50:50] And within the first four, you could even refer to the individual, uh,
+[00:50:54] two lower-order bites in those.
+[00:50:59] So nowadays you can actually get to the lower-order bite of all of them, and we just sort of
+[00:51:05] of, that's covered in the book actually.
+[00:51:09] We don't talk about how you can get to these bites because that's really a legacy from back
+[00:51:14] before the 80-86 was one called the 8080, which was an 8-byte machine.
+[00:51:30] So anyways, you can see then how you got from this kind of weird state of affairs to the even
+[00:51:37] we're even we're in today, where some of them have names and some of them have numbers.
+[00:51:46] And those names, by the way, had a reason back in ancient days.
+[00:51:52] They had very specific purposes, and so they were given names that sort of reflected those purposes.
+[00:51:58] But that all went away years and years ago.
+[00:52:02] and so now these names are just legacy names that have nothing to do with
+[00:52:07] their purpose.
+[00:52:08] Now I should mention there's only, there are some special, there's one special register nowadays
+[00:52:16] as shown in pink here and that's called the stack pointer and that register you don't just
+[00:52:22] use any old way you please. It has a very specific purpose and all the other
+[00:52:26] registers there's some that are slightly different than the other but for the most part
+[00:52:30] they're all usable for holding programs.
+[00:52:33] data. Back in the I-A32 days, there was a register called the base pointer that
+[00:52:40] also got used for procedures, but that no longer gets used anymore either, at least not usually.
+[00:52:48] So anyways, I didn't want to, I don't want to spend a lot of time on historic legacy stuff and
+[00:52:53] have you memorize, you know, what feature was added and what model of processor, but just in case
+[00:53:00] you're wondering why there's these weird names for these things, just you know, just you know,
+[00:53:04] just so you appreciate the fact that this is a legacy thing.
+[00:53:10] Okay.
+[00:53:11] So now we can think of it then that there's eight registers with names and there's eight registers with names
+[00:53:16] and there's eight registers that are indicated by some number.
+[00:53:20] And let's look at some of the instructions that operate on those registers.
+[00:53:27] And there's sort of three different, so move, the move instruction in X86 is actually can do a lot of things.
+[00:53:38] Because it can do a lot of things.
+[00:53:39] different types of information or what they call operands.
+[00:53:44] So the source is some where you're you're copying from the source to the source to the destination.
+[00:53:50] The source can be some what's called immediate. It's actually a number that's baked into the program
+[00:53:57] that you want to copy into some other location.
+[00:54:01] A register we've talked about is one of these specially named memory locations. And memory is the array of
+[00:54:08] the array of bytes that you typically, you have to specify what's the address
+[00:54:13] the address that you're either reading from if it's the source or you're writing two if it's the destination.
+[00:54:19] And so the move instruction gives you all these possibilities.
+[00:54:26] An immediate value can be written to a register or directly to memory.
+[00:54:33] A register value can be copied to another register or written to memory.
+[00:54:38] Or you can take a value from memory, read it from memory, and copy it to a register.
+[00:54:44] So if you think of, wait, shouldn't there be nine different combinations here?
+[00:54:49] Well, no, because it doesn't make sense to have an immediate value as a destination, right?
+[00:54:55] It's a constant.
+[00:54:57] And also, just for sort of the sake of convenience of the hardware designers,
+[00:55:02] it doesn't let you directly copy from one memory location to another.
+[00:55:06] What you have to do is use,
+[00:55:08] two instructions, one to copy from memory, to read it from memory, copy it to a register,
+[00:55:16] and a second to take that value in the register and write it to memory.
+[00:55:20] So that's why there's this only five possibilities.
+[00:55:25] And so each of these actual five combinations you'll see in some form or another.
+[00:55:32] So for example, if I take a constant value and copy it to a register, it's a little like, you can think
+[00:55:39] of registers is sort of the temporary data that you're operating on right now.
+[00:55:43] So it's a way of sort of assigning a constant value to a temporary.
+[00:55:48] Similarly, if you have a memory as your destination, it's like storing a constant value
+[00:55:56] in memory somewhere.
+[00:55:58] If you're copying from one register to another, it's sort of like copying one temporary value to another.
+[00:56:05] A register to memory, it's as if you, it's sort of like, it's sort of like copying one temporary value to another one.
+[00:56:11] storing to an address, a pointer
+[00:56:15] de-reference where the pointer is on the left side, the
+[00:56:18] de-reference.
+[00:56:19] And memory to register is the opposite.
+[00:56:22] It's your reading from some location into a temporary
+[00:56:27] position.
+[00:56:30] So these, you'll see, all five versions get used in some form or
+[00:56:34] another.
+[00:56:37] So now let's talk about how we write these pointers,
+[00:56:41] how we specify either a source or a
+[00:56:45] destination for a memory reference.
+[00:56:48] And you already saw one version of this, in fact, in some of the code.
+[00:56:52] When you put the name of a register in parentheses, that's just saying, use this register, whatever
+[00:56:59] is in that, that's an address.
+[00:57:01] And use that address to reference some memory location.
+[00:57:06] And so you'll see something like this is the equivalent of dereferencing a pointer and putting it in a temporary.
+[00:57:13] You're also allowed to do a little bit of arithmetic.
+[00:57:15] arithmetic to derive an address from some collection of registers and other constant values.
+[00:57:23] So if you see a number, it's called the displacement, D, in front of this parentheses, it means to offset,
+[00:57:31] not use the address that's in the register, but add or subtract some number from it, to get an
+[00:57:37] address that's just slightly off of it by some fixed amount. And that we'll see is fairly
+[00:57:43] useful for accessing different data structures.
+[00:57:45] So here's an example of a very simple function that we can understand everything about it already because we know what the move instruction does.
+[00:57:58] And that's the sort of classic swapping of two values that are stored in memory.
+[00:58:05] So my point, my arguments are two pointers called XP and YP, and I'm going to de-reference those pointers.
+[00:58:13] I'm going to de-reference those pointers. I'm going to read from memory into registers.
+[00:58:15] and then I'm going to copy back to memory but reversing the the two destinations.
+[00:58:25] And so, as you can imagine, it lines up to be four move instructions that correspond to these four references.
+[00:58:33] And the final one, RET, just will learn more about functions and how they're called, but just think of the red as it gets you, it returns from wherever the
+[00:58:46] calling position was.
+[00:58:48] And so let's look at more detail at the actual code then.
+[00:58:57] And so it turns out with the 64, x8664, the arguments always come in some
+[00:59:08] specific registers, and the ones to remember for today is
+[00:59:12] RDI will be the first argument register and RSI will be the second argument register,
+[00:59:15] and RSI will be the second argument register.
+[00:59:17] There can be up to six of these, and we'll go into
+[00:59:20] to more of that later. So those two registers represent the values of xp and yp.
+[00:59:25] Those are set before when this, before the function is actually begins executing. That's
+[00:59:32] set by the part of the code that calls this function. And those will be pointers. So what
+[00:59:38] they are is they contain addresses that's specifying locations in memory. And then within
+[00:59:44] the code, the compiler just came up with its own ideas of how to use different registers
+[00:59:50] for temporary data by whatever what's known as the register allocation algorithm it uses.
+[00:59:58] And we don't really care. We just want to, what we'll want to do is figure out what it's doing.
+[01:00:04] And we'll see that a register R a X is being used to hold the value T0 and RDX of the value T1.
+[01:00:14] Now, so let's get actually concrete here. And this is very detailed, but I think it's important that you
+[01:00:22] understand sort of you can almost simulate the execution of some instructions
+[01:00:27] by yourself. You're going to really have to know this stuff. So what each of these instructions is doing
+[01:00:34] and how it works and really have that wired into you pretty well. So let's make up an example.
+[01:00:40] Let's imagine that the two addresses that are used for these two pointers are in hex 120 and
+[01:00:48] one zero zero. By the way, those would not be
+[01:00:52] typical addresses. They're way too small a number, but it's much easier
+[01:00:56] to use them as an illustration. And let's suppose that one of them held the value 1, 2, 3,
+[01:01:02] and the other 4, 5, 6. So the first instruction says, use RDI as an address,
+[01:01:10] copy from that memory location, and store the result, and register RIX. So RDI is
+[01:01:17] 120.0. I'll read from that address, I'll read the value 1, I'll read the value 1, 3, and store it
+[01:01:23] register R-A-X. These are all, by the way, 8 byte values. And I'm just sort of glossing
+[01:01:30] over that part of it. But the Q refers to what in Intel terminology is a quad word. A word,
+[01:01:38] word, because it goes back to the 80-86, is 16 bits, 2 bytes. A long word is 32-bit,
+[01:01:49] bits and a quad word is 64 bits. That's just their terminology and we're stuck
+[01:01:57] with it. Okay. So that one instruction had that effect. The second instruction does the same
+[01:02:04] thing but using RSI, which holds 1-0-0 as an address, and so it copies 456 into
+[01:02:12] RDX. And then the third instruction is writing back to memory. So it's source
+[01:02:20] is register RDX. The destination has the address of RDI, which is 120, and it's
+[01:02:29] storing that back in memory. And finally, this fourth instruction does the other part of the
+[01:02:36] right. So you see these four instructions, two read from memory into registers, two of them
+[01:02:41] wrote from registers back to memory, and that's the whole function. And you can see it this
+[01:02:49] move instruction is doing all the work here.
+[01:02:55] So we've shown that example just showed this very simple memory referencing that's
+[01:03:01] designated by the parentheses. And as I mentioned, you can do a version where you put a
+[01:03:06] displacement there too. And in fact, there's a much more elaborate form, and we'll see
+[01:03:12] that this is useful for implementing array references, where there can be actually
+[01:03:17] there can be a displacement which is a constant offset and a scale factor
+[01:03:28] which will be one, two, four, eight. And the general idea of it is to take our register that I'm
+[01:03:36] referring to as R sub i, that's known as an index register, you multiply it by the scale factor,
+[01:03:43] you add the value of RB, the register, you add the value of RB, the register.
+[01:03:49] your RB, and you also add the constant displacement.
+[01:03:54] And these have a, RB refers to base, RI is index, and S is scale.
+[01:04:00] And it turns out this will be the sort of natural way to implement array referencing.
+[01:04:04] It will make a lot more sense when we talk about arrays.
+[01:04:08] But basically you can think of as, if this is an array index, I have to typically scale it
+[01:04:14] by however many bytes my data type is.
+[01:04:18] So if it's an int, I have to scale it by four.
+[01:04:21] If it's the long, I have to scale it by eight.
+[01:04:24] So that's where these scale factors will come in.
+[01:04:31] And basically, the format in the assembly code lets you eliminate some of these fields if they're not being used.
+[01:04:40] So you'll see, and we already saw the single parentheses is sort of a reduced version of this form.
+[01:04:47] So let's just do some examples of these address computations.
+[01:04:52] And let's imagine.
+[01:04:53] that register RDX holds hex F with 3 zeros and RCX holds 1 with 2 zeros.
+[01:05:01] So if I, rather than doing it one at a time, you can see each of these, I'm taking RDX, which is F with
+[01:05:10] 3 zeros, adding 8, and so that's F008. Here I'm adding together registers RDX and RCX and
+[01:05:20] that gives me F100. I'm doing the same here, except that I'm skipping the same here, except that I'm
+[01:05:24] scaling R-CX by 4. So 4 times 1-00 is 4-0, and I'm adding that to F.
+[01:05:34] And here I'm taking RDX, which is f0 with 3-0s. If I double that, I get 1E with 3-0s. If you think about shifting an F to the left 1, you get a 1-1-0, and then it goes 1-1-0, and that's an E. And then I'm adding this displacement.
+[01:05:56] of it. So the point of this is all of this is arithmetic. It's all using whatever
+[01:06:02] is in the register and there's some rules for how you combine this and get an address, and then
+[01:06:08] that's being used to either read or write some memory location. Okay, so now it's as a final
+[01:06:17] part of it today, I'll go through some arithmetic. And one of the things that will be sure
+[01:06:24] to confuse you and drive you crazy and make you be sending email to the state
+[01:06:29] for explanation is an instruction called load effective address.
+[01:06:35] And the reason is its purpose in life is to do basically the ampersand operation of C, to compute
+[01:06:42] an address based on some whatever you want to compute an address from. But it also turns
+[01:06:50] out to be a pretty handy way to do arithmetic, and the C compiler likes to use it. So in particular,
+[01:06:56] it looks the format of it looks like a move instruction. There's a source
+[01:07:04] and a destination, but the destination has to be a register. And the source will be one of these memory
+[01:07:12] references. So it looks like a move instruction. It looks like you're doing some
+[01:07:19] address computation, then you're reading from memory and storing it to a register. But what
+[01:07:24] it actually does is it does that address computation.
+[01:07:28] And then it actually writes that address, not the memory value, but the value that got that got computed, directly to the register.
+[01:07:38] Which is what you wanted to do here. Remember, the ampersand operation is, give me the address of some place.
+[01:07:45] Give me a pointer that designates some location. So, for example, this is fairly typical in C code.
+[01:07:55] If you say multiply x by 12, it'll turn it into an address computation, and this is just a clever way to compute three times RDI.
+[01:08:09] It adds RDI plus 2 times RDI, so that's three times RDI, and stores it in R-A-X.
+[01:08:18] And then SALQ means shift left left by 2, and so you
+[01:08:26] you remember shifting left by 2 is like multiplying by 4. So the first value computed
+[01:08:31] three times x, I shift that left four by two positions and I have 12 times x. So that's a very special,
+[01:08:41] the LEA, but you'll see it all over the place, so you need to be ready for it. These other ones
+[01:08:47] look more like what you'd expect for arithmetic instructions. They have names like add and subtract
+[01:08:52] subtract and multiply and so forth. And they all have the same general
+[01:08:57] that they have two arguments.
+[01:09:00] And what's called the destination is actually also a source.
+[01:09:04] It's a little like in C if you say x plus equals y.
+[01:09:09] It's saying take the value of x, add the value of y,
+[01:09:13] and then store the result in x, and now the destination is like that.
+[01:09:18] The other thing that's weird is that the operands are in the
+[01:09:22] inverse order from where you'd expect them to be.
+[01:09:25] So the source comes first in the destination.
+[01:09:27] comes last and that's important to remember.
+[01:09:33] And other thing you'll see that there's nothing special here,
+[01:09:36] whether it's a, except that this is an arithmetic shift and this is a logical shift,
+[01:09:41] of whether it's a signed or unsigned value,
+[01:09:44] because you remember the bit level behavior of these two instructions is the same.
+[01:09:49] And then there's a series of instructions that are used
+[01:09:55] that are just take one arc,
+[01:09:57] increment, increment, decrement, negate, and not.
+[01:10:02] knot.
+[01:10:03] Not is like the tilda operation in C, not the exclamation mark.
+[01:10:09] So those are the basic instructions.
+[01:10:11] And again, now we can actually look at some programs and understand them.
+[01:10:14] And here's one that just does a bunch of junk of arithmetic instructions,
+[01:10:20] and it converts into the following assembly code.
+[01:10:24] And you see it's using this LEA instruction multiple times to do addition in various forms.
+[01:10:30] And it also has shifting.
+[01:10:33] and it has multiplication.
+[01:10:36] You saw in the original code, I just have addition and multiplication.
+[01:10:40] Here I have various instructions.
+[01:10:43] I only have one multiply here, whereas I had two there.
+[01:10:46] So the compiler is sort of scrambling things around, trying to find clever ways to implement
+[01:10:52] what you're asking for using less complex,
+[01:10:57] less expense, less time-consuming instructions.
+[01:11:00] And if you sort of go through the
+[01:11:05] this code carefully, what you'll find is that this instruction here corresponds to
+[01:11:13] this computation of T1. It's adding two values and giving it a new name. It's putting in R-A-X.
+[01:11:20] Similarly, this one is adding Z to T-1 and storing it back in R-A-X. The X-plus-4 doesn't show up directly here.
+[01:11:32] It turns out what it does is it jumps right at head to here.
+[01:11:35] and to multiply y by 48, it does it by first computing 3Y, like we saw before,
+[01:11:42] and computing shifting that left by 4, because 3 times 16 is 48.
+[01:11:50] And then the 4 here that's in x plus 4 actually shows up here.
+[01:11:55] It just uses the displacement field of this computation to add 4 to some other values.
+[01:12:02] And so this is labeled, then, these,
+[01:12:06] show how these correspond to the program.
+[01:12:08] And these registers show it.
+[01:12:10] So the important thing to get from here,
+[01:12:12] you will want to actually go back through this and make sure you
+[01:12:15] believe that the comments are correct.
+[01:12:19] But it's very important for you to figure out this LEA instruction.
+[01:12:24] Otherwise, you're just going to be hopelessly confused.
+[01:12:27] And it's also important to understand that the code that gets
+[01:12:31] generated will correctly implement your C function,
+[01:12:35] but it might not exactly represent
+[01:12:37] at a low level,
+[01:12:39] the exact sequence of operations he's specified at a high level.
+[01:12:43] So that will, just to summarize then, you've already gotten a glimpse then,
+[01:12:47] of what this very odd world of machine programming is and how different it is
+[01:12:54] is from C code already.
+[01:12:58] So you've already seen that x86 is weird.
+[01:13:02] Like I said, it's English.
+[01:13:04] It's not Latin.
+[01:13:06] It's not Latin.
+[01:13:07] It's not well designed.
+[01:13:08] And
+[01:13:09] But you just got to deal with that.
+[01:13:12] So that's your beginning to machine level programming.
+[01:13:15] Thanks a lot.

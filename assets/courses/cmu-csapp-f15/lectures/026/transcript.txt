@@ -1,0 +1,668 @@
+[00:00:00] Well, hello, everyone.
+[00:00:03] Interesting how far fewer seats are filled than at the beginning of the course.
+[00:00:09] So, of course, we're in the final stretch of this course.
+[00:00:15] You're working on the last lab.
+[00:00:17] And the material that we're covering both this lecture and next lecture are not on the exam,
+[00:00:23] and you don't need them for your lab.
+[00:00:25] So at some level, you could just tune out and skip it all.
+[00:00:28] And if your only purpose in taking this course is to pass it,
+[00:00:31] it or to get some grade in it and that's it.
+[00:00:36] Well, go ahead, tune out.
+[00:00:38] But on the other hand, the material we're talking about is very relevant to where computers are today and where they're going in the future.
+[00:00:46] And so if you think about the longer term and whatever your investment is in the computer industry
+[00:00:52] and computer technology is, then I think you'll find these very worthwhile.
+[00:00:57] But so think of this more as the icing on the cake.
+[00:01:01] you've learned the hard stuff you've done the grinding part and now you get to
+[00:01:06] think beyond the sort of narrow confines of the course material and think bigger but that's
+[00:01:13] really the way you should be viewing this lecture and the last lecture which will be on
+[00:01:17] Thursday so today what we're going to talk about is parallelism and the issue
+[00:01:23] is that that that wow that PowerPoint is a product made by a certain company
+[00:01:36] in Seattle that it's not always reliable.
+[00:01:39] But the issue is, as you know nowadays, when you buy a computer,
+[00:01:45] you don't get just one CPU on the processor chip.
+[00:01:49] You have at least two on a typical laptop.
+[00:01:52] Even my phone has two cores in it as well as four graphic processing units.
+[00:02:01] And a typical, the next generation of iPad will be a six
+[00:02:07] core processor. So these have become not just the sort of specialized domain of high-end machines, but actually there all the time.
+[00:02:19] And actually, we'll talk some next time. Why is it that instead of having one fast computer,
+[00:02:26] you get two medium-size, medium-performance processors on a chip or more. And that's
+[00:02:32] that's actually a really interesting technology issue that I'll talk about next time. But it's the
+[00:02:37] it is. So you can think of it when you write a program and it runs as a single thread,
+[00:02:44] then you're basically not making use of the computing resources that you have available to you.
+[00:02:50] So the natural thing is, well, could we make our programs run faster by doing multiple threads?
+[00:02:57] So you've already learned, or you're in the process of applying a multi-threaded programming,
+[00:03:04] as a way to deal with a concurrency of external events.
+[00:03:14] There's multiple clients who want to make use of a server, and instead of serving one and then another
+[00:03:20] and then another, if you can handle them all, it's sort of an external use of concurrency.
+[00:03:27] But what we'll talk about today is more an internal use.
+[00:03:30] Can I make use of multiple threads running on multiple cores to make a program run a
+[00:03:36] single program run faster. And the message behind that is yes, but.
+[00:03:42] And what I mean is it is truly possible and people spend a lot of time making programs run faster by using
+[00:03:49] multiple threads. But it's harder than you'd think it should be and it's fraught with, as you've
+[00:03:56] probably already experienced programming bugs, but also it's just really darn hard to get the kind
+[00:04:02] of performance out of a multi-core processor that you should, would think it'd be
+[00:04:06] available. So we'll talk about some of that. And then we'll finish it up
+[00:04:11] a little bit understanding of how when you're writing concurrent programs you want
+[00:04:18] to think about the state of memory and how that's a challenge for multi-core
+[00:04:23] processors or in fact any concurrent
+[00:04:26] concurrent system. So there's actually two sources of concurrency on a modern processor,
+[00:04:37] multiple cores, which is you have actually multiple CPUs on a single chip, but there's also something called hyperthreading, which is, in my experience, less useful.
+[00:04:48] But let me go through this. So this is what a typical modern processor looks like, processor chip. Is that there's actually, on a single chip, there's multiple independent CPUs. And each of them has, some
+[00:05:07] part of the cash hierarchy, which is private to that particular
+[00:05:12] core.
+[00:05:15] And then there is another part of the cash hierarchy that's shared across cores, and then they
+[00:05:21] all have a common interface to main memory.
+[00:05:24] So if these cores are running, and this is what happens a lot, is they're running
+[00:05:29] programs that are completely independent, have nothing to do with each other, then
+[00:05:33] they more or less just exist and run and they're happy as can be.
+[00:05:37] they each are caching parts of their own state.
+[00:05:41] And, you know, sometimes this cache will get polluted by the junk from other programs in terms of performance, but it won't matter with functionality.
+[00:05:52] The trick when you're trying to do multi-core programming as a parallel computing thing is somehow getting all these cores working on parts of a, different parts of a single problem in a way that makes
+[00:06:07] it so that you get the performance out of it. They don't spend all their time
+[00:06:10] basically arguing with each other about who has access to what. And also that they're not stepping
+[00:06:16] over each other and messing up each other's state. So hyperthreading is a little bit more into the deep
+[00:06:27] works of how a processor operates. You'll recall from the lecture on performance or what's
+[00:06:34] chapter five of the book that a modern microprocessor looks absolutely nothing like
+[00:06:40] the model that you get by looking at assembly code instructions.
+[00:06:44] The model of assembly code is you execute one instruction, then you execute the next one, then you execute the next one, then you execute the next one.
+[00:06:51] Modern processors don't do that at all. They haven't done it for, well, they haven't done it that way for 30 years.
+[00:06:59] And since 1995, so since 20 years, they do it in this totally different way, which is sometimes referred to as out of order
+[00:07:10] And so just real quickly, the basic idea is on the processor chip, there's multiple functional units that are capable of doing different types of operation.
+[00:07:21] There's ones for integer arithmetic. There's ones for floating point arithmetic and so forth.
+[00:07:27] And then there's separate blocks that interface to the memory, actually, to the cache memories.
+[00:07:33] And they're both loading, meaning reading from the memory and storing, writing out to memory.
+[00:07:39] But these units are sort of operate independently.
+[00:07:43] And what happens is there's a block of logic, which is actually an enormously huge block of logic in an x86 processor,
+[00:07:51] that reads the instructions out of the instruction stream, rips them apart into little pieces, keeps track of data dependencies and control dependencies,
+[00:08:01] and then schedules all the various operations in your program on these different functional units.
+[00:08:08] So we talked some about that in the context of how can you write a program that will sort of maximize how much is going on down here by writing your code in particular ways.
+[00:08:22] So all this is an introduction to say, this is how you have to understand what hyperthreadinging is.
+[00:08:30] So in a single execution mode, there's basically, basically, there's basically,
+[00:08:35] And it has its own set of state here, its own program counter, its own queue of operations that it's already decoded and haven't completed yet.
+[00:08:47] It has its own set of registers.
+[00:08:49] They're actually not registers like you'd expect.
+[00:08:52] They're highly virtualized registers.
+[00:08:54] But all this state is there to help to service the execution of one thread of execution.
+[00:09:02] With hyperthreading, basically what you do is,
+[00:09:05] is the idea of it is to say 90% of all programs don't really make use of all these
+[00:09:12] functional units, especially if you're blocking on a load because there's a miss and a cache,
+[00:09:20] then all these arithmetic units are sitting there without any useful work to do.
+[00:09:25] And so why don't we just double up or quadruple up or k times up the state
+[00:09:34] associated with the decoding and control parts of the program so that you can have multiple threads running and sharing these functional units among each other.
+[00:09:47] So they're operating really independently.
+[00:09:50] Their states are not intertwined, but they're sort of making more use of the available hardware for performing functions.
+[00:09:59] And so that's called hyperthreading, that's an Intel term.
+[00:10:03] You'll also sometimes here call SMT.
+[00:10:04] here called SMT, simultaneous multi-threading.
+[00:10:07] And in my experience, and we'll see here the numbers,
+[00:10:11] it doesn't really make that big a difference, but it turns out to be in the sort of large picture
+[00:10:19] of things, a relatively inexpensive feature for them to throw onto processors, and so they do it.
+[00:10:25] And so nowadays, at least with an x86 processor, usually have two-way hyperthreading in them.
+[00:10:34] So given that,
+[00:10:35] If you look at our shark machines, which are a little bit old, they're sort of 2010-era machine,
+[00:10:41] but they were high-end machines in their day, and so they still actually are more powerful than what
+[00:10:48] you'd buy as, say, a desktop and way more powerful than as a laptop that you'd get today.
+[00:10:54] So they're actually pretty decent machines.
+[00:10:55] And actually, we'll talk next time about why computers aren't a lot faster than they were five years
+[00:11:02] ago.
+[00:11:03] That's actually an interesting technology thing.
+[00:11:05] So they're server class machines, so they have multiple cores and they have eight of them, which is a lot.
+[00:11:15] You can buy 10 core machines, x86 machines, on a single chip, but I don't think you can get
+[00:11:25] more yet.
+[00:11:25] So these were a fairly advanced machine in their day, and they also have two-way hyperthreading.
+[00:11:33] So in theory, you should be able to get 16 independent threads running, sort of 16-way
+[00:11:41] parallelism, potentially out of a program, if you can keep everything working and keep bad things
+[00:11:48] from happening.
+[00:11:55] So let's give a really trivial application, one that should be very simple to make a run-in-parallel.
+[00:12:02] And that says, imagine we want to sum up the numbers between zero and n-minus-1, which
+[00:12:08] which is, by the way, a really stupid thing to do because there's a very simple closed
+[00:12:11] form formula for it, which is good in the sense that will let us check our work. But it's
+[00:12:16] a completely stupid application. But it just shows you this idea. And so what we're just
+[00:12:22] going to do is block off, if we have N-way parallelism, we're just going to split our
+[00:12:29] range of numbers, N-ways, and just have a single thread sum up one-enth of the numbers,
+[00:12:38] and then they'll collectively sum together the results in some way or another.
+[00:12:43] So this is about as easy a parallel program as you could imagine.
+[00:12:48] So let's do one version which you said, well, gee, I understand how to use threads, P-threads,
+[00:12:55] and I know about these things called semaphores or mutual exclusion.
+[00:12:59] So what I'll do is just I'll have one place in memory where I'm collecting the sum over all N value.
+[00:13:08] And for a thread to be able to add to that, if it will lock it, it will get a mutual
+[00:13:15] exclusive access to it, increment it, and then unlock it. And we'll just let all the threads go helter-skelter,
+[00:13:23] locking and unlocking this. So the code for that's pretty easy to write. It's,
+[00:13:28] it's, here's the code. And of course, all-threaded code looks a lot messier than you think it should. But in the
+[00:13:37] it's a fairly straightforward code. So in particular, this is the thread routine, is
+[00:13:46] passing through this weird Varg-P structure that you do with threads, the way you pass arguments,
+[00:13:56] to a thread routine. But basically it's figuring out where's the start and end range of the numbers,
+[00:14:03] then adding for all I between the start and the start and before the end range of the numbers, then adding,
+[00:14:08] before the end, I'll lock that, acquire a semaphore lock, I'll increment
+[00:14:16] this global sum, and then I'll release the lock.
+[00:14:19] Okay, so pretty much the style of code that you've been working with.
+[00:14:24] And what you find is actually, this is really a bad idea.
+[00:14:28] So running as a single thread, it takes 51 seconds to do that.
+[00:14:33] It would be, by the way, if you didn't lock and unlock, because it's only one thread,
+[00:14:37] you'd blow this away.
+[00:14:39] It would take just a couple of seconds.
+[00:14:40] So, and then you see as you add more threads, it actually gets worse.
+[00:14:44] And especially if you jump from one to two, you increase by a factor nine how much time it takes.
+[00:14:52] And it only starts to get better as you get up into eight threads, and then it gets worse again.
+[00:14:58] So the reason is that locking and unlocking is a very time-consuming task.
+[00:15:06] And basically, you can think of is that you, if you have that you have that you,
+[00:15:10] that map of the multi-core processors with all their private caches and one shared cache,
+[00:15:16] these threads are basically fighting with each other for control for that one memory address that they,
+[00:15:22] that they're incrementing, and it has to grab the control away from one core to the core that's accessing it,
+[00:15:33] do the lock, unlock, and then it gets grabbed back for it.
+[00:15:37] So it's a miserable performance for cache.
+[00:15:39] huge overhead for the semaphore activities and just really a bad thing all around.
+[00:15:45] And so lesson one is semaphores or mutaxes are very expensive.
+[00:15:51] And if you're trying to do low-level parallelism, you don't want fine grain locking at that level.
+[00:15:58] Otherwise, you're just completely sunk.
+[00:16:00] And so that's not the way to do it.
+[00:16:03] I won't go into it, but there's quite a bit of literature about what they call lock-free synchronization,
+[00:16:08] which is a way to avoid semaphores but get the effect.
+[00:16:13] And they wouldn't work in this context either.
+[00:16:15] Those, just if you've ever heard that term,
+[00:16:18] those are generally designed for examples where you expect relatively little contention between the threads.
+[00:16:26] And so you try and be optimistic and then roll back if something bad happens.
+[00:16:32] This is a case where, nope, all those threads are going to be pounding that one memory location,
+[00:16:37] and they're really fighting for it.
+[00:16:39] There's no good solution to that problem.
+[00:16:44] The other thing I'll point out is this jump here shows you that hyper threading isn't
+[00:16:49] really helping us here. Going from the fact that we slow down from 8 to 16 means we
+[00:16:56] can't really make use of 16 threads in this application. Eight threads are better
+[00:17:01] than four, but obviously all of that's kind of a waste of time because this is
+[00:17:05] just really a bad idea all around. So let's do something different.
+[00:17:11] Let's have each of them accumulate their own sum for their own subrange.
+[00:17:18] And we'll give a, so we'll have an array of accumulators where the each thread is incrementing only one element of this array.
+[00:17:30] So they're not fighting with each other directly for it, but they are fighting for, if you think about it,
+[00:17:37] for the same cache line because an array is typically
+[00:17:41] stored and so it's not totally nice. But this, it gives you a pointer to this idea
+[00:17:48] if we could sort of move into a private state the stuff that we're making the most direct
+[00:17:55] access to, then we'll get better performance. So this is the thread routine. And the point is that
+[00:18:03] there's some global array called PSUM, but it's only incrementing the part of it that's sort of assigned
+[00:18:10] to this particular thread.
+[00:18:13] And here you do see a performance improvement, right?
+[00:18:15] So one thread takes five seconds.
+[00:18:18] Remember, before it was 58.
+[00:18:20] So that shows you just the advantage of the cost of semaphores
+[00:18:25] right there is a factor at 10.
+[00:18:28] And you see you are actually getting an improvement
+[00:18:30] all across the line, including up to 16 threads.
+[00:18:33] You're still getting an improvement.
+[00:18:35] It would flatten out.
+[00:18:36] I should have shown the number for 32,
+[00:18:38] but it would flatten out at this point.
+[00:18:41] But it actually is getting some advantage out of hyperthreading as well.
+[00:18:45] So that's good. It's not an amazing speed up. So you can think that what they call the speedup is the
+[00:18:52] performance of it running on a single core versus the performance on n cores.
+[00:18:58] And in the ideal case, it goes n times faster, and we're not quite hitting that.
+[00:19:04] But here is, you've already learned that it's generally bad to be accumulating into a memory.
+[00:19:12] And so why not do the thing we learned before, which is you accumulate in a register,
+[00:19:18] and you only update the memory when you're done with that.
+[00:19:21] So let's just do that and I'll call that the local version.
+[00:19:25] I'll just increment a sum, which is a local variable,
+[00:19:29] and only when I'm done, then I'll store it in the global array.
+[00:19:36] Okay, so it's functionally equivalent to the one we just showed.
+[00:19:41] We're just moving, instead of accumulating in a global array.
+[00:19:43] in a global array. We're accumulating in a
+[00:19:45] global array.
+[00:19:46] We're accumulating in a register.
+[00:19:47] And here you see a pretty big performance improvement.
+[00:19:50] So blue is what we showed with the global array.
+[00:19:54] Red or orange is what's this a local variable.
+[00:19:59] And so you see it's actually interesting.
+[00:20:02] We're getting a performance improvement as well,
+[00:20:06] although it bottoms out at eight, and it actually gets worse
+[00:20:12] when you go to 16.
+[00:20:14] And this is showing that hyperthreading isn't really helping here because basically the
+[00:20:19] the single thread is just accumulating as fast as it can and adding to a register.
+[00:20:27] And so it's making pretty good use of what functional units it uses.
+[00:20:31] And putting multiple threads sharing it isn't really helping.
+[00:20:34] At least not on the shark machines.
+[00:20:40] This actually might be different on different machines.
+[00:20:42] machines. And actually, if you recall from the performance optimization, we found
+[00:20:47] that if you're just doing a bunch of additions, you can make use as associativity and get more accumulation in parallel.
+[00:20:54] So you could actually speed up this program just at the single-threaded version
+[00:20:59] of this program pretty well. But anyways, it shows that, okay, this is starting to look like
+[00:21:05] like your, A, your single-threaded performance is pretty good, and B, you're getting some useful speed-up out
+[00:21:12] of parallelism. But as I said, this is like the easiest example in the world
+[00:21:17] to parallelize. So if you can't do it here, then life is pretty hopeless as far as multi-threading.
+[00:21:26] So let's talk about, as I mentioned, this idea of speed up. So speed up is just defined
+[00:21:32] to be the time for a single-threaded program divided by the time for p-threaded program divided by the time for p-threaded
+[00:21:39] running.
+[00:21:41] Or actually, we'll use it P-cores instead of P-threads.
+[00:21:45] Question.
+[00:21:50] Yes, generally.
+[00:21:52] The scheduler has some kind of load balancing built into it,
+[00:21:57] and it will tend to, especially in a case like this,
+[00:22:01] where the threads are sort of grabbing and running,
+[00:22:05] making, they will generally get spread across the cores.
+[00:22:11] So that's a pretty, the Linux scale.
+[00:22:13] is pretty good at that. When you have more threads than there are cores, then it basically starts scheduling them in some cyclic order, and you won't, you'll, at best, you will not get any advantage, and in a worst case, you'll actually start slowing down from having more threads than are there. Good question. So there's really two versions of speed up. One is,
+[00:22:44] if I take my multi-threaded routine and run it with one thread, and then I do it with P threads or cores, I can get a speed-up.
+[00:22:53] But actually, the truer thing is if I take the best known sequential algorithm for performing this task with the best implementation of that, and then I compare it against my parallel one.
+[00:23:05] So that's referred to as absolute speed-up, which is the best measures, you know?
+[00:23:10] you give both sides the opportunity to do the best implementation that they can, and then you compare it.
+[00:23:17] And then what's referred to as the efficiency is how close does the speed up get to the ideal speed up, which is if I'm running on P cores, I should be P times faster.
+[00:23:29] And you'll see that where, you know, the question of hyperthreading versus not, we're sort of here, we're saying, no, you don't, we're not, we're not, we're not trying to gain from hyperthreadinging.
+[00:23:39] You can play this game various ways and you can argue back and forth, whether hyper threading should count.
+[00:23:47] So for P is p, the total number of possible threads or the total number of possible threads or the total number of cores.
+[00:23:53] That's really something to argue back and forth about.
+[00:24:00] So the point is the efficiency, though, is measured as how much do we do relative to ideal.
+[00:24:09] And so this is what you get for this code, the local version of P-Sum.
+[00:24:14] You'll see that our efficiency numbers are somewhere in the high 70 range, which is good but not great.
+[00:24:23] It's pretty good, actually.
+[00:24:24] If you can get 75% efficiency, you're doing better than most.
+[00:24:28] But again, that's because this should have been the world's easiest program to parallelize.
+[00:24:34] So, and the best speed up we're getting is a factor of six out of eight cores.
+[00:24:41] So again, that's pretty good, but this really should be something you can do well.
+[00:24:48] So that just gives you a flavor of what parallel computing can be.
+[00:24:54] So now let's sort of back off and talk some general principles, just like the speed up.
+[00:25:00] There's a fellow named Gene Namdahl who coincidentally just died a few weeks ago.
+[00:25:05] He might have seen it in the news. He was one of the original pioneers at IBM in their
+[00:25:10] mainframe computers.
+[00:25:11] And then at some point he, in the 60s, he started his own company called Amdahl
+[00:25:19] Computers, and they were like, they were the cool company in mainframe computers, if that could
+[00:25:26] ever be considered cool, right?
+[00:25:29] And he built competitors to IBM that absolutely drove them crazy because they had a virtual
+[00:25:35] monopoly.
+[00:25:35] They actually were the subject of an antitrust suit.
+[00:25:39] So Amdal was a sort of.
+[00:25:41] of the rebel who broke away from the mother company and started a competitor.
+[00:25:48] And he made this very simple observation that's called Amzdal's Law, which is basically junior high
+[00:25:55] level algebra to think of this, but it's actually a fairly perceptive point.
+[00:26:00] About what's the possible benefit of speeding up something?
+[00:26:04] And this is discussed in the book, you know, this isn't just for computers, it's any process
+[00:26:09] that you want to speed up.
+[00:26:10] And it's very simple.
+[00:26:11] observation, which is suppose there's some fraction of a system that I can make go faster.
+[00:26:18] And I'll call that fraction P. P is some number between 0 and 1.0, right? 100%, 0%.
+[00:26:25] And let's suppose we take that part that we're going to make run faster and improve its performance
+[00:26:33] by a factor a K. Then we can just very simply talk about what will be the benefit of that
+[00:26:42] performance. So we'll call it T sub K. And what it says is the fraction P of the time
+[00:26:49] will be reduced by k, but the fraction that you can't change, one minus p will remain in its old time.
+[00:27:00] And that's Amdal's law. That's it. That's the whole thing. And one interesting measure is,
+[00:27:06] what if k were infinity? What if we had unbounded resources to speed things up? And
+[00:27:12] And what the observation is the best speedup you'll get is, is a 1 minus P.
+[00:27:19] So just think of it this way. If you have 10% of it that you can't change, the other 90% of it you make infinitely fast,
+[00:27:29] then your performance improvement will be a factor of 10.
+[00:27:34] That's really all it's saying, right? Pretty straightforward idea.
+[00:27:38] So this has sort of direct implications in, uh, so the example is,
+[00:27:43] suppose that we can improve the performance of some system of 90% of it, and we can speed up by a factor 9, and that number is chosen to make the numbers work out, then we'll get at best at 2x performance improvement.
+[00:27:58] Basically what it says is the part of the system that you can't speed up will become your bottleneck.
+[00:28:04] And that's just the way it is.
+[00:28:06] So the implications for this for parallel programming are fairly obvious, that if we can take our application and chop off some fraction of it,
+[00:28:14] and make it
+[00:28:15] k times faster by running it on k cores,
+[00:28:18] then the part of it that's still running sequentially
+[00:28:24] will come to, will limit the ultimate performance we can get.
+[00:28:28] So that's not really an issue for this summation problem,
+[00:28:33] because it really does divide into as many independent tasks as you have numbers,
+[00:28:40] and as you can see, you can make them run.
+[00:28:43] But many other applications are some part of it that I can't really
+[00:28:46] make no parallel. So just as an example, and just for the sake of this
+[00:28:54] class, you know, an example of a little bit more involved a problem in parallel programming and
+[00:28:59] multi-threading, let's think about sorting a bunch of numbers. So we have n numbers,
+[00:29:03] and we want to sort them, and we have some number of threads that we can do this
+[00:29:14] with. Is there way we can speed this up? And you think about it, it's not that that
+[00:29:19] clear how you do it there's actually a vast literature in parallel
+[00:29:23] sorting and those that you've taken or will take the class 210 will be exposed to a lot
+[00:29:29] of this but I'm just going to do a very simple version which is quicksort so
+[00:29:34] quick sort is for example the the the C library program Q sort is quicksort it
+[00:29:44] was invented in the early 1960s or 1950s by a guy named
+[00:29:50] Tony Hoare who also founded a lot of the fundamental logic of programs. So he's
+[00:29:56] like an amazing person still alive today. He lives in Cambridge, England. But if you ever
+[00:30:04] have a chance to go to a talk by him, do so. He's an amazing person. Anyways, the idea
+[00:30:09] quicksort is very simple, and this is sort of the basic sorting algorithm. You grab some
+[00:30:15] element from the array that you're trying to sort, and that's called the pivot.
+[00:30:20] And then you split the data so that you look at the elements that are either greater or less than the pivot and potentially also equal.
+[00:30:29] Let's just assume all the elements are unique here.
+[00:30:32] So you just split it into two piles. One is the less than one's the greater.
+[00:30:37] Now recursively you recursively you sort those two piles by the same method and when it's all done, you'll end up with everything sorted.
+[00:30:47] One nice thing about it is it can be done in place, meaning if you have a
+[00:30:50] array of data you can do this all just by swapping elements around and not have
+[00:30:56] to use any extra space which you would for example with merge sort. So this is a fairly
+[00:31:03] simple algorithm and just to visualize it then you have some block of data x array and
+[00:31:09] you want to sort it. So you pick an element called the pivot and there's various
+[00:31:12] strategies for doing that. And now you just subdivide x into three parts. L the left
+[00:31:20] hand are the right hand meaning less and greater than p and then you place
+[00:31:26] p in the middle and then you recursively when you're doing this for in a sequential code
+[00:31:33] you'll pick one of these two usually you left most or right most whatever doesn't
+[00:31:38] really matter and you'll recursively you'll apply the same method to to to the left side
+[00:31:46] and ultimately after enough recursions you get to the point where
+[00:31:51] has been sorted and that's shown in this kind of a swishy color
+[00:31:55] thing and call that L prime and same with you'll do the the same thing now with the
+[00:32:04] the right hand side and when you're done this is usually done in place so you're just
+[00:32:11] the L part works on one array part of the array and the R part on another and when
+[00:32:17] you're done they're in sorted order it's a very simple sort and generally has very good
+[00:32:23] performance so this is what
+[00:32:26] the code for it looks like which is usually you have is a special case
+[00:32:30] if there's only one or two elements and then you do this partitioning so this
+[00:32:36] routine of splitting it between the left and the right hand part is
+[00:32:39] handled by a function called partition and then if there's more than one
+[00:32:44] element in the left side you sort that and if there's more than one element in the
+[00:32:51] right hand side you sort that and then when all these recursions are
+[00:32:57] done then the array is sorted so pretty typical code and we won't go in
+[00:33:02] the trickiest part writing the code is how do you make this partitioning go
+[00:33:06] a fast but I won't go into that just imagine it happens so this algorithm actually
+[00:33:14] has a natural version of parallelism which is in my sequential version I was
+[00:33:19] sorting both the first the left and then the left of the left and the left of the left and
+[00:33:22] the left of the left and kind of working my way until I got that whole array
+[00:33:27] sorted and then I was coming back and I was working on the right
+[00:33:30] and then the left part of the right and the left to the left of the right
+[00:33:33] and blah blah blah blah and doing these recursions because the way
+[00:33:36] the code's written right I am doing the full sort of the left-hand part and only
+[00:33:46] after that is sorted then I'm doing the complete sort of the right-hand part so the point
+[00:33:51] is it's it's an algorithm where I'm working just on one part of the
+[00:33:56] array at a time but there's a very natural
+[00:33:59] recursion parallelism here that says okay I've got two parts each
+[00:34:05] need to be sorted let me just fire off two threads and let them deal with that and
+[00:34:11] that's so it's what you call divide and conquer parallelism it's a very
+[00:34:17] natural kind of parallelism it shows up in this code so basically I'll do the same
+[00:34:25] thing as before I'll at the top level it will be a purely sequential process of
+[00:34:31] partitioning
+[00:34:32] And, but then assuming a partition comes up with some non-trivial split,
+[00:34:39] then I will recursively begin fork off two threads, each of which will be responsible for the other.
+[00:34:47] And so it will sort of look like I'm working on the two parts in parallel.
+[00:34:52] And eventually both sides will end up.
+[00:34:55] Now, this picture isn't really quite true in that it makes it look like they're all kind of synchronized together, and I'm doing
+[00:35:03] you know, kaboom down like this in a strict way.
+[00:35:07] But in fact, they're not.
+[00:35:08] It's very asynchronous.
+[00:35:10] The left part is one thread.
+[00:35:11] The right is another.
+[00:35:13] They just go at their own pace.
+[00:35:15] And at the end, I'm just going to wait for it all to complete.
+[00:35:19] But there's no strict temporal ordering on how that all occurs.
+[00:35:24] So the way I'll write this, and the code is available on the course website.
+[00:35:34] I'm only going to show you a glimpse of it.
+[00:35:36] It's a non-trivial amount of code it takes to do it.
+[00:35:39] But basically what I'm going to do is have a bunch of a pool of threads that are ready to work.
+[00:35:46] And that's a pretty typical way you write threaded code because actually the initiation of a thread is a non-trivial amount of computation.
+[00:35:57] So usually what you do is you say I've got this many cores, I'm going to create a set of that many threads.
+[00:36:06] and they will each work by sharing a task queue.
+[00:36:12] So some agent that is forking off work for the different threads to do, they will do the work assigned to them.
+[00:36:20] When that's complete, they'll come back and say,
+[00:36:24] okay, I'm ready for something new, and it will give them something new.
+[00:36:27] So I've, there's a little bit of code, a very rudimentary code there of creating this task model and task scheduling.
+[00:36:35] So the basic rule will be any given task, any given thread that at any given time has been assigned some sub-range of this array to be sorting.
+[00:36:47] And it will be specified by the base, meaning the starting point of this particular range, and then the number of elements that it's told to sort.
+[00:37:02] And one other thing I'll do is,
+[00:37:05] once I get down to this array being small enough, I'll just sort it sequentially.
+[00:37:13] And we'll see how big that block is or not is actually a performance parameter that you can use for tuning the program.
+[00:37:22] So the point is that you don't want to take this down too far because the sort of overhead of threads is enough that
+[00:37:30] when you get too fine-grained, you're actually going to start losing performance.
+[00:37:34] So assume that it's bigger than this.
+[00:37:36] I assume that it's bigger than that. I've been given some block there.
+[00:37:40] What I'll do then is I'll run the partition step.
+[00:37:44] This thread will run it's a partition step just using the exact function I showed you or didn't show you.
+[00:37:52] And then as long as, and then I will create an add to the task queue, two new tasks, one for the left part and one for the right part.
+[00:38:06] And then
+[00:38:07] the scheduler that will assign two threads to handle those two parts.
+[00:38:14] And so that code will, that's exactly how the code's going to work.
+[00:38:17] It's going to keep reusing the same threads over and over again to, but at any given time,
+[00:38:25] they'll be given a range of places.
+[00:38:28] What typically will happen is they'll run their partitioning step and then say, okay, I've done my job,
+[00:38:34] now assigned to new three new third.
+[00:38:36] into two new threads to do this.
+[00:38:38] And that's the general scheme of it.
+[00:38:40] Or they'll say this is a small enough block.
+[00:38:43] I'm just going to sort the darn thing.
+[00:38:45] Okay? So that's really all the code does.
+[00:38:47] It's online.
+[00:38:48] If you're interested in this kind of stuff, it's,
+[00:38:51] I think it's pretty well-written code because I wrote it.
+[00:38:57] So this is sort of the
+[00:39:00] a somewhat simplified version of the code.
+[00:39:05] It's say,
+[00:39:06] initialize my task queue scheduling.
+[00:39:08] Q scheduling system, create global variables of describing the beginning end of this array to be sorted, create a new task queue, and then this is the main function.
+[00:39:23] The TQ sort helper is given some range of addresses and a pointer to the task queue that's used to manage these tasks.
+[00:39:36] And then, when it's all, it will just wait until all the tasks have completed.
+[00:39:44] This is the top level, this isn't part of any recursion.
+[00:39:48] This is the top level code, and then it will free up the data structures.
+[00:39:54] And then this is the part of it that actually does the real work.
+[00:39:59] It will say, so now the TQ sort helper is the part that's assigned to sort helper is the part that's assigned to sort some,
+[00:40:08] particular range of places from the starting address, the base, and some
+[00:40:16] number of elements. And so this is what each task will do. And it says, okay, if this is a small
+[00:40:25] enough block of elements, I'm just going to call my serial quicksort to do it. Otherwise,
+[00:40:32] I'm going to, oh, it's a little bit messier than this. Okay. Now, now, I'm going to,
+[00:40:48] Otherwise, it's going to spawn a task to do the sorting.
+[00:40:53] Let's see.
+[00:40:54] I was a little mixed up.
+[00:40:57] This is a high level.
+[00:40:58] So the actual splitting occurs in this thing, which is where it's,
+[00:41:06] so this is the actual thread routine.
+[00:41:10] And what it's saying is run the partition here
+[00:41:14] and then call this TQ sort helper,
+[00:41:18] which you just saw on the left and the right part.
+[00:41:21] So just to review then, the actual spawning of a task is done by this helper routine.
+[00:41:32] But then that, what it calls is the thread routine, is what does the work here. And what it will do is, it will do the partitioning within that thread.
+[00:41:43] And then it will just throw back and add to the task queue, two calls to this helper.
+[00:41:52] But it has that kind of, so between these two routines, you can see it's doing this idea of divide and conquer parallelism.
+[00:42:00] So this is a performance running on the shark machines.
+[00:42:06] And this is a fairly straightforward, I'm just taking some number of random value, 2 to the 37th.
+[00:42:19] That can't be right.
+[00:42:25] This is number is not to the 37th, right?
+[00:42:28] You agree with that?
+[00:42:29] me to the 37th is 128 billion roughly. So this number is not right. I'll
+[00:42:37] have to check it out. And now what this x-axis, so the y-axis just denotes, how long does it take
+[00:42:47] to complete? By the way, one thing, if you're used to measuring performance based on CPU
+[00:42:52] time, that's not useful when you're talking parallel computing. You really want to
+[00:42:56] talk a lapse time, the time that you'd get from looking at a clock and measuring.
+[00:43:01] it and dealing with whatever inefficiency occurs there.
+[00:43:05] So these are actually the elapsed runtime of the entire program.
+[00:43:09] And you'll see that it varies according to this thing called the serial fraction.
+[00:43:15] The serial fraction is just, at what point do I slide between a serial quicksort or keep dividing.
+[00:43:25] So how big does the array need to be as a fraction, expressed as a fraction of the original
+[00:43:30] array before I will go into recursion. If I were actually to write this as a real
+[00:43:38] application, I wouldn't do it based on a fraction. I'd do it based on a block size to say
+[00:43:43] anything smaller than a thousand elements or some number like that. But this code just happens
+[00:43:50] to be expressed this way. But the thing to notice that's interesting is you'll see here, if
+[00:43:57] the fraction is one, it basically says I won't split this at all. I'm just
+[00:44:01] I'm just going to call a sequential quick sort. So this is a purely sequential
+[00:44:06] version of it. And what it shows is if I, once I start to be willing to sort of split this
+[00:44:13] up and do parallelism, I start making it run faster and faster and faster and faster.
+[00:44:21] And then I get into this trough and now if I start going finer and finer grain, then I'm
+[00:44:27] running into the problem where the thread overhead is more than the advanced.
+[00:44:32] I'm getting by doing the parallelism. And I'm faster to run that block
+[00:44:37] big assort just using a sequential algorithm rather than parallel. But the good news here is
+[00:44:45] this is this is a pretty long trough here. So it means is if you're trying to tune this program,
+[00:44:52] it's not that hard. You're not going to pay a huge penalty if you don't nail a
+[00:44:56] parameter exactly. So as long as, because this is a huge range, right, 30, from a 32 to
+[00:45:03] 40, 96. That's a factor of a lot. Two to the fifth and two to the twithth and two to the
+[00:45:12] the twelfth is two to the seventh. Factor 128. You see how I do my arithmetic and powers it two.
+[00:45:19] Anyways, it's roughly, you know, 128. So several orders of magnitude, decimal orders of
+[00:45:26] magnitude over which you get pretty comparable performance. So that means from a performance
+[00:45:31] tune point of view, it's not that hard to do. And you'll also see we're getting
+[00:45:36] a pretty decent speed up. On our eight-core two-way hyper threaded machine, we're getting
+[00:45:42] basically a 7x performance. And hyperthreading really isn't helping us at all, is part of
+[00:45:50] the lesson here. But if you just think of it as eight cores, then that's pretty good.
+[00:45:54] So there is an obvious place here where there's an amdall's law issue going on. If you
+[00:46:06] think at that first top level split, the first call to partition is being done over
+[00:46:12] the entire array by a serial sequential process. And that, so at the very least, that is not going
+[00:46:20] parallel at all. There's going exactly one thread is doing the initial partition. And then
+[00:46:26] that splits into two. So at most you have two threads worth of parallelism. And then the next
+[00:46:32] level down at most four. And so you really don't, you have to get several levels of recurrence
+[00:46:36] of recursion down before you're really running on all the course that you have available.
+[00:46:42] So you'd think that that's limiting your speed up, and it does, and that's part of the reason
+[00:46:47] why our best performance is a factor of seven and not a factor of eight or more.
+[00:46:56] So there's quite a bit of work, as I mentioned, on how to speed up performance, including
+[00:47:08] how to make quicksort go faster.
+[00:47:12] There's a vast body of literature on parallel sort.
+[00:47:20] So one thing I tried was to say, okay, well, let's try and do this partitioning step, at least the top
+[00:47:29] couple levels, let's try and do a parallel version of that. And so the idea is you pick one
+[00:47:35] pivot element, but now you fire up in this example four threads, and each of those four threads runs
+[00:47:42] a partition step on one-fourth of the range, and they'll generate their own versions
+[00:47:50] of left and right.
+[00:47:52] And then you globally figure out how many are in each of these sub-ranges, and then you tell each
+[00:48:02] thread, okay, now you copy your part of it over to the relevant section of the array.
+[00:48:10] But the good news, so there's some amount of synchronization that goes on there.
+[00:48:14] But you can imagine that this partitioning step, once, when you're running it,
+[00:48:20] it's completely independent of, across the different threads.
+[00:48:24] So it's getting an almost ideal speed up.
+[00:48:27] So I implemented this and tried, and I couldn't make it run faster than the original code.
+[00:48:33] And I think the problem with this was the copying, the cost of copying data
+[00:48:40] here was even though it's being done by multiple threads and getting pretty good performance out of the memory system because you're doing sequent copying, you know, all the cache issues are pretty good here.
+[00:48:56] But that's just enough extra work that has to be done for this parallel code that doesn't have to be done.
+[00:49:02] The sequential code is totally in place, meaning not using any additional storage, not copying.
+[00:49:09] And so that's just enough of a penalty on the parallel part that it didn't really improve performance at all.
+[00:49:16] So that code is shown as part of the code on the course website.
+[00:49:21] But like I said, I banged on it quite a bit and tried to tune it and squeak it in various ways and could never make it so I got better overall performance out of this program.
+[00:49:33] And so that's, again, a lesson, and that's one of the unfortunate lessons, is you can spend a lot of time.
+[00:49:40] trying to make a program run faster and get absolutely nowhere.
+[00:49:45] And it's frustrating because you put in a lot of work and you know it's a pretty cool idea and you'd love to publish a paper about it or tell your friends about it.
+[00:49:53] And it just goes nowhere and it just sits there's nothing.
+[00:49:57] Unfortunately, there's not an accumulated repository of the bad ideas of computer science.
+[00:50:02] Don't waste your time trying this that people can talk about.
+[00:50:06] So this is just a lesson to learn.
+[00:50:12] So anyways, that was my experience with that.
+[00:50:15] Again, other people have spent a lot more time.
+[00:50:18] This is one of the most common applications that people try to do parallel programming for.
+[00:50:26] So some of the lessons from this is you need a good strategy for how you're going to get parallelism out of your application.
+[00:50:33] And I showed you two basic versions. One is partitioned into K parts that are more or less completely independent of each other.
+[00:50:42] or something like a divide and conquer strategy where you can keep splitting it,
+[00:50:47] but the two splits that you create out of that can go concurrently.
+[00:50:51] There's other different types of parallelism too.
+[00:50:55] In general, you want to make the inner loops.
+[00:50:57] You can't have any synchronization primitives in there.
+[00:51:01] It will just run too slow.
+[00:51:02] Umdal's law, as I mentioned,
+[00:51:04] is always sort of lurking in the background of if you can only speed up a part of your program, then the other part of
+[00:51:13] the bottleneck. But the other thing is, like I said, you can do it.
+[00:51:18] You've got the tools. You've learned with P threads and your knowledge of programming and your
+[00:51:25] understanding of cache memories and things like that.
+[00:51:28] You've got the tools you need to be an effective programmer of this kind of thing.
+[00:51:33] But you have to, and there's nothing that beats sort of trial and error and testing and tuning, experimenting.
+[00:51:41] If there's some parameters that need to be set, then you want to run experiments and it will sweep through the parameters to try and figure out what the setting should be.
+[00:51:50] So that's sort of a little bit about parallel programming.
+[00:51:55] Let me just finish this lecture with a little bit of sort of classic issues about concurrency that are critical when you're dealing with
+[00:52:05] these systems based on what you call a shared memory model of computation.
+[00:52:11] So multi-core is an example of conceptually,
+[00:52:15] multi-threaded computation, remember, you're working within a single virtual address space
+[00:52:21] and you have private stacks, but the more global, the heat memory,
+[00:52:27] is completely shared across threads.
+[00:52:30] And so that's what you call the shared memory programming model,
+[00:52:34] and that's what we've really been looking at in this course.
+[00:52:37] So there's a sort of interesting question called memory consistent
+[00:52:42] models. And here I'll illustrate it with a very simple example.
+[00:52:46] Imagine we have two global variables, A and B, and we have two different threads.
+[00:52:51] And so the first thread is going to write, meaning assign a value to A,
+[00:52:58] and it's going to read, meaning print the value of B.
+[00:53:02] And the other thread is going to do the opposite.
+[00:53:05] It's going to write, assign a value to B and print the value of A.
+[00:53:09] And so now the question is, what are the possible output
+[00:53:12] outputs for this program.
+[00:53:16] And so there's a model that sort of the accepted standard
+[00:53:19] called sequential consistency, which means that these events
+[00:53:23] can occur, well, that these, within a single thread,
+[00:53:30] things have to occur in the sequential order of that thread.
+[00:53:34] But across threads, whether right A or right B occurs
+[00:53:39] first is completely arbitrary.
+[00:53:41] And similarly whether writing of
+[00:53:43] B occurs between these two actions or before is alt-to-arbitrary.
+[00:53:52] So what it means is you can take two different threads and you can interleave their events in any way, but you should be able to pull out of that interleaving the sequential order of either of both of the two threads.
+[00:54:12] So when you do that, you end up, you can enumerate in an example like this, all the possibilities.
+[00:54:18] You can say, well, look at, first is either going to be write A or write B.
+[00:54:23] Let's pick write A.
+[00:54:25] So now the next event will be either a read of B or a write of B.
+[00:54:32] And then if I do write A, write B, then I've completed this thread.
+[00:54:39] And so now the only possibility is to write to B and read A.
+[00:54:43] And so forth, you work out all the possible things.
+[00:54:46] You'll get six different event orderings.
+[00:54:50] And then what will be printed is, well, first of all, whether you print B or before A,
+[00:54:56] will depend on the relative ordering of those two threads.
+[00:54:59] So that's shown, I'm showing the B value in blue and the red value in red.
+[00:55:05] I'm sorry, the A value in red.
+[00:55:09] And you'll get these different possibilities.
+[00:55:12] These are all the six possible outputs.
+[00:55:14] of this program.
+[00:55:15] But you'll see that there are two other outputs one could imagine that won't arise.
+[00:55:24] One is to print 101.
+[00:55:28] In other words, to have them both print the original values of these two variables.
+[00:55:35] And that's impossible because I have to have done at least one right before I can reach either of these two print statements.
+[00:55:45] print statements, right?
+[00:55:46] So it's not possible for these to still be in their original values when I hit these print statements.
+[00:55:55] And whichever order I hit these two.
+[00:55:59] So those two are impossible.
+[00:56:01] So that's the idea of sequential consistency, that there's some very large number but of possible outputs
+[00:56:10] of a program, but in any case, they can't violate the ordering and
+[00:56:16] by the individual threads.
+[00:56:18] So you'd say, okay, duh, that seems like pretty obvious thing.
+[00:56:23] But actually, if you think from a hardware perspective, it's not that trivial to make that happen.
+[00:56:29] So let me just throw, show you a scenario of multi-core hardware that would violate sequential consistency.
+[00:56:39] Assume that each of our threads has its own private cache.
+[00:56:43] And so if I, uh,
+[00:56:46] If I execute this statement, what I'll do is I will grab a copy of A from the main memory and bring it into my cache, and I will assign this new value to it.
+[00:57:01] And similarly, thread 2 will grab a copy of its, of B and update that.
+[00:57:10] And now if I do my two print statements, if I do my two print statements, if thread 2 picks up the value from the memory,
+[00:57:17] from the memory, not knowing that thread 1 has a modified copy of that value,
+[00:57:23] then it would naturally print 1.
+[00:57:25] And similarly, if thread 1 picked up a copy of B from main memory, it would print 100.
+[00:57:31] So we'd see exactly this unallowable execution.
+[00:57:36] And the reason is, because each of these threads have their own private copies of these shared variables,
+[00:57:42] and they're not properly synchronized.
+[00:57:46] But you could.
+[00:57:47] you could see in a hardware scenario, it would be easy to build this hardware and make that mistake.
+[00:57:52] So how does it work in a multi-core processor? Well, they have a trick, they call it Snoopy
+[00:57:59] caches. And it's a little bit like the readers, writers, uh, uh, uh, synchronization that you're
+[00:58:06] working on for your proxies, that you want to make it so that if everyone's just reading
+[00:58:12] some shared value, they should be able to get copies into their own caches,
+[00:58:16] to optimize the performance of it.
+[00:58:20] But if one of them wants to write to it, it needs to get an exclusive copy of it and lock out any other thread from accessing that,
+[00:58:30] either to read it or to write it, for long enough to make the update.
+[00:58:37] And so they have a protocol where they tag, actually, and these tags are at the level of cash line.
+[00:58:47] typically. So the tag a cash line in main memory with its state, and the typical
+[00:58:54] state would be invalid, it's shared, or it's exclusive. So shared means that there can
+[00:59:02] be copies of it, but they can only be read-only copies, and exclusive, meaning
+[00:59:09] that it's exclusively available to a single thread. So this is built into then the hardware of a
+[00:59:18] a multi-core processor. So what will happen then is in order to do a write to A,
+[00:59:24] thread 1 will acquire an exclusive copy of this element. And that actually tagging
+[00:59:32] happens down here at the main memory and in the cache both. And similarly, if thread 2 wants
+[00:59:40] a to write to be, it must get an exclusive copy of that. And then when the read occurs, what
+[00:59:51] What happens is actually this cache, miss, will send out a signal on a bus, a shared
+[00:59:58] communication medium saying, I want to read A. And instead of the main memory responding to it,
+[01:00:05] actually it will, that result will be supplied by the other cache. And it will convert the state
+[01:00:14] of this element to being a shared element locally, but you'll see that the main memory element to being a shared element,
+[01:00:22] element isn't updated yet. It goes through the whole right-back protocol
+[01:00:25] you've already seen. And sometimes it will update that. There's different
+[01:00:29] implementations. But this is why it's called a snoopy cache, is that it's
+[01:00:32] basically thread 2 is peeking into or getting access to information that's
+[01:00:39] available in thread 1's cache. And so now thread 2 will correctly get a copy of
+[01:00:48] a copy of A that's in the shared state. And the same goes with B.
+[01:00:53] It will snoop over and thread two, one will get a readable copy.
+[01:00:58] These are now all marked as shared state.
+[01:01:00] And so if either of them wanted to write, they'd have to now basically get exclusive access to it,
+[01:01:09] and that would have to then disable the copy in the other locations.
+[01:01:16] So you can imagine this protocol being non-trivial actually to get right and to implement.
+[01:01:21] And it gets way more complicated than this with all the,
+[01:01:24] variations on it. So, but it's become the norm in multi-core hardware design.
+[01:01:31] But it's actually part of the factor that limits the core count on a processor, because just the hardware
+[01:01:39] involved in keeping the consistency across the caches is non-trivial. It has to work very fast.
+[01:01:46] We're talking at the cash rate access speeds. So there's not a lot of time involved in there.
+[01:01:52] So actually implementing this stuff, making it run, making it scale across, say, 8 cores, 10 cores, 16 cores is not a trivial thing.
+[01:02:02] But that goes on in the background.
+[01:02:04] And so you can, for most systems nowadays, you can assume that there's some memory consistency model that you can program to that's supported by the hardware of the system.
+[01:02:16] And that this serializeability that's referred to is sort of the, the
+[01:02:23] easiest to understand. There's others that are a little bit more nuanced.
+[01:02:29] Oh, I guess that fell off the bottom here. That doesn't seem right. Nope, that's it. Okay. So
+[01:02:45] just to wrap that up then, it gives you a flavor of, of, of, and you can see that,
+[01:02:53] that getting programs to run fast through multi-threading is not, not easy. You often
+[01:02:58] have to rewrite your application, you have to think about the algorithm, you have to worry
+[01:03:02] about debugging it. As you've already discovered, both the shell lab and the proxy lab,
+[01:03:09] the concurrency where you can't predict the order of events, makes it much more difficult to debug code.
+[01:03:16] So all these factors come in, and you have to have some understanding of the underlying mechanisms
+[01:03:24] that are used and what their performance implications are. So in particular, let me just
+[01:03:29] observe here that if I'm like doing synchronization across threads, like you saw
+[01:03:39] that original one where they're fighting over this global variable P-sum or whatever it was called,
+[01:03:46] you can imagine these, the caches in this battle with each other to try and get exclusive access to
+[01:03:53] to this single memory value value. And because each one is running as fast as fast as to this single memory value value value and
+[01:03:59] Because each one is running as fast as it possibly can, but each one requires getting exclusive copy, writing to it, and releasing it.
+[01:04:11] So that locking mechanism is flying back and forth between these caches, and it's really not very fast.
+[01:04:18] So that's, that kind of thing is why, and also, you know, as an application programmer, you're making calls.
+[01:04:29] semaphore call bounces you up into the OS kernel, which is a cost involved.
+[01:04:36] So this thing has all the bad, all the things that make programs not run the way you really like them to.
+[01:04:43] So that's one of the challenges in parallel programming is how do you actually make use of the parallelism that's there without getting bogged down by the cost of the various mechanisms of control?
+[01:04:57] So anyways, this is part of what you have to appreciate and understand as a programmer,
+[01:05:04] is how these things work at a level deep enough that you'll have some sense of what makes, you know, programs run faster or slower,
+[01:05:12] where the mistakes could lie.
+[01:05:14] So that's just a little, little flavor of a much bigger topic.
+[01:05:19] So that's it for today.

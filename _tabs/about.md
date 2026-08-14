@@ -1,7 +1,7 @@
 ---
 # the default layout is 'page'
 icon: fas fa-info-circle
-order: 8
+order: 9
 ---
 
 我是 Jingze Chen，一名目前就职于微软的软件工程师。我的工作主要集中在后端服务和 LLM 相关领域，包括 Prompt Engineering、Evaluation，以及持续改善 AI 的回复质量。我的专业背景是软件工程，尤其关注如何构建真正实用的 AI 系统，并通过可靠的工程实现带来出色的用户体验。
