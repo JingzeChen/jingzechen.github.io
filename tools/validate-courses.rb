@@ -148,6 +148,11 @@ lectures.each do |path, data|
 
   html = Nokogiri::HTML(File.read(html_path, encoding: "UTF-8"))
   assert.call(!html.at_css("[data-course-workbench]").nil?, "#{label}: workbench is missing")
+  if slides["manifest"]
+    slide_image = html.at_css("[data-course-slide-image]")
+    assert.call(!slide_image.nil?, "#{label}: slide image is missing")
+    assert.call(!slide_image&.[]("src").to_s.empty?, "#{label}: slide image source is missing")
+  end
   timeline.each do |section|
     assert.call(
       !html.at_css("##{section.fetch('note_anchor')}").nil?,
