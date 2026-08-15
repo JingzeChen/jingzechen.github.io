@@ -1,0 +1,1720 @@
+[00:00:05] Good morning everybody.
+[00:00:07] Wait for a minute and then we'll begin
+[00:00:10] class.
+[00:00:21] Just a request. Today's class is
+[00:00:23] somewhat long. As always, I will be
+[00:00:27] asking you questions.
+[00:00:30] Uh, humor me and answer me quickly.
+[00:00:33] That's
+[00:00:55] Okay, let's begin.
+[00:00:59] So,
+[00:01:00] we're going to continue our series of
+[00:01:02] lectures on recurrent neural networks.
+[00:01:06] Specifically, we're going to be looking
+[00:01:07] at sequence to sequence models. So, what
+[00:01:12] is a sequencetosequence model? It's a
+[00:01:15] model where a sequence of inputs goes in
+[00:01:19] X1 through Xn and a different sequence
+[00:01:21] Y1 through YM comes out like in speech
+[00:01:24] recognition speech goes in a word
+[00:01:26] sequence comes out or machine
+[00:01:27] translation one word sequence goes in
+[00:01:30] another one comes out dialogue systems a
+[00:01:33] user statement goes in and a system
+[00:01:35] response comes out or question answering
+[00:01:37] a question goes in an answer comes out
+[00:01:40] in every case a sequence goes in
+[00:01:43] outcomes a sequence
+[00:01:45] And there is no requirement that the
+[00:01:48] number of in number of symbols in the
+[00:01:50] input sequence has any direct
+[00:01:52] relationship to the number of sequ
+[00:01:55] symbols in the output sequence. There
+[00:01:56] need not even be synchrony between the
+[00:01:59] two. So we can identify two kinds of
+[00:02:01] problems. One where one kind of sequence
+[00:02:04] to sequence problem where there is some
+[00:02:07] kind of a synchrony between the input
+[00:02:09] and the output like in speech
+[00:02:11] recognition. If speech goes in and a
+[00:02:13] word sequence comes out, if you reorder
+[00:02:17] the speech, the word sequence will also
+[00:02:19] guaranteed reorder the same way. Whereas
+[00:02:23] you have a different kind of problem
+[00:02:24] where uh like in machine translation, a
+[00:02:28] word sequence goes in, a different word
+[00:02:29] sequence comes out. It is possible to
+[00:02:32] reorder the input word sequence and
+[00:02:34] still get the same output word sequence
+[00:02:37] and have it be right. So there is no
+[00:02:39] onetoone correspondence between the
+[00:02:41] inputs and the outputs.
+[00:02:44] Uh I have examples of machine
+[00:02:46] translation. I ate an apple translates
+[00:02:48] to Isha and an upfill gigasen. And I've
+[00:02:52] marked the uh correspondences. I
+[00:02:55] corresponds to ish but 8 actually splits
+[00:02:58] into two harbor and gigasen on the
+[00:03:01] output side. So there's no one to
+[00:03:03] correspondence. The output may not even
+[00:03:05] seem related to the input. Like in a
+[00:03:08] dialogue system, if you say, "My screen
+[00:03:09] is blank." And the system comes back
+[00:03:11] with, "Please check if your computer is
+[00:03:13] plugged in." There is no one to
+[00:03:15] correspondence between the two. Yet the
+[00:03:16] answer is right.
+[00:03:18] The kind of problem we are currently
+[00:03:20] looking at is where there is a
+[00:03:24] correspondence, an alignment between the
+[00:03:26] input and the output. We using speech
+[00:03:28] recognition as an example. So here the
+[00:03:31] input and output sequence happen in the
+[00:03:34] same order although they may not be time
+[00:03:36] synchronous. So what this means is that
+[00:03:39] they're order synchronous. So the output
+[00:03:41] sequence can be aligned against the
+[00:03:44] input like in speech recognition. The
+[00:03:47] input speech can be aligned to the phone
+[00:03:49] sequence that is being output.
+[00:03:53] So the problems we saw in this kind of
+[00:03:55] setup were were twofold. First, how do
+[00:03:58] we perform inference on such a model?
+[00:04:01] How to output time asynchronous but
+[00:04:04] autosynchronous sequences? And the
+[00:04:06] second was how do we train such models?
+[00:04:09] This we partially addressed. We show we
+[00:04:11] showed that we could do something
+[00:04:13] somewhat reasonable using greedy search.
+[00:04:15] It's not fully answered. The problem of
+[00:04:18] inference is something that we will go
+[00:04:20] back to at the end of today's class. The
+[00:04:22] one that we are more interested in is
+[00:04:24] how do we train such models?
+[00:04:27] So here we saw that if your training
+[00:04:29] data consisted of inputs and an order
+[00:04:33] aligned output sequence with the
+[00:04:35] alignment given then the training was
+[00:04:38] straightforward. You could just expand
+[00:04:41] the desired output sequence out to be
+[00:04:44] times synchronous with the input and
+[00:04:46] then define a divergence which is the
+[00:04:49] sum of the individual divergences at
+[00:04:52] each time. And if you use the callback
+[00:04:54] library divergence as the divergence at
+[00:04:56] each time, then the overall divergence
+[00:04:59] simply became minus of the sum over all
+[00:05:02] time of the KL divergence at each time.
+[00:05:06] And the KL divergence at any time we saw
+[00:05:08] was simply the negative of the log
+[00:05:12] probability assigned to the target
+[00:05:14] symbol by the network. Does everybody
+[00:05:16] remember all of this? Yes. Now,
+[00:05:20] all of this. Okay, good.
+[00:05:22] And so here the divergence was minus sum
+[00:05:27] over all time of the log of the
+[00:05:30] probability assigned to the correct
+[00:05:34] symbol in the expanded symbol sequence
+[00:05:36] at each time. So if you took the
+[00:05:39] derivative of this divergence with
+[00:05:41] respect to the output of the network at
+[00:05:43] any single time, then of course uh
+[00:05:47] that's simply going to be the derivative
+[00:05:49] of the log probability assigned to the
+[00:05:52] target symbol at that time. So that's
+[00:05:54] going to be a whole bunch of zeros. And
+[00:05:57] for the target symbol alone, the
+[00:05:59] derivative is going to have minus1 over
+[00:06:01] the probability assigned to the symbol.
+[00:06:04] So this is what we saw in the last
+[00:06:06] class.
+[00:06:08] The problem arose when no alignment was
+[00:06:10] provided. So if only the output symbol
+[00:06:12] sequence is provided but no timing
+[00:06:14] information is given. In this case we
+[00:06:18] saw that one way of doing this was to
+[00:06:21] guess the alignment.
+[00:06:23] You would initialize the alignment
+[00:06:24] somehow, train models with a given
+[00:06:27] alignment, and then using the train
+[00:06:30] model, you would realign the symbol
+[00:06:33] sequence to get a new alignment and
+[00:06:34] iterate the process until the whole
+[00:06:37] thing converged.
+[00:06:40] So that leads us to our very first hole.
+[00:07:22] Okay, 10 seconds, guys.
+[00:07:33] All right, let me end this poll.
+[00:07:37] What are the answers? What's the answer
+[00:07:39] to the true and true? Right. Bay
+[00:07:42] training explicitly estimates the
+[00:07:44] alignment of each training instance and
+[00:07:45] computes the divergence for the
+[00:07:47] estimated alignment. It requires the
+[00:07:49] reestimation of alignments at every
+[00:07:51] iteration.
+[00:07:52] And we said there was a problem with
+[00:07:54] this approach. What was that?
+[00:07:57] That's correct. So we said there was a
+[00:07:59] problem on this approach. What was the
+[00:08:01] problem here? Anybody recall
+[00:08:05] what was the problem?
+[00:08:10] anyone.
+[00:08:12] Okay, let me remind you because this is
+[00:08:15] heavily dependent on the initial guest
+[00:08:18] alignment and if it's poor then the
+[00:08:20] model that you train is not going to be
+[00:08:22] very good and then the fresh alignments
+[00:08:26] that you estimate from it are going to
+[00:08:27] be bad and the entire training can very
+[00:08:30] quickly fall into a poor local optimum.
+[00:08:34] So that make sense to everybody?
+[00:08:38] Okay. And so the alternate solution we
+[00:08:41] suggested was that we should not commit
+[00:08:44] to an alignment any single alignment
+[00:08:47] during any passive training. So this was
+[00:08:50] the second approach that we briefly
+[00:08:53] mentioned in the last class. If the
+[00:08:56] alignment is not provided, one solution
+[00:08:58] was to guess the alignment. The second
+[00:09:00] was to consider all possible alignments.
+[00:09:04] How does that work?
+[00:09:06] So to understand this we have to go back
+[00:09:09] and look at how we actually computed the
+[00:09:12] alignments in the first place.
+[00:09:16] And the way we did this was if you were
+[00:09:19] given a symbol sequence. We computed a
+[00:09:24] reduced probability table by pulling out
+[00:09:27] the probabilities for all the symbols in
+[00:09:29] the sequence and arranging them in a
+[00:09:32] separate table. And then any path
+[00:09:35] through this table from the top left
+[00:09:37] corner of the table to the bottom right
+[00:09:39] corner of the table gave us an alignment
+[00:09:42] of the compressed symbol sequence to the
+[00:09:45] input.
+[00:09:46] And the specific path we chose at any
+[00:09:50] time was the most likely alignment, the
+[00:09:53] most probable alignment.
+[00:09:55] And when you uh uh computed the
+[00:09:58] divergence using this most probable
+[00:10:00] alignment that was simply the sum
+[00:10:02] overall time of minus of the log of the
+[00:10:05] probabilities
+[00:10:07] of all the symbols at each step in the
+[00:10:10] alignment. So everybody remember this?
+[00:10:15] Yes. Now yes. Whoever just drew the pink
+[00:10:18] line, could you please erase it? I can't
+[00:10:20] do this. Right. So the issue with this
+[00:10:24] is that
+[00:10:26] this can be way off. The one single
+[00:10:28] guess alignment can be really poor
+[00:10:31] especially in the early stages of
+[00:10:33] training when the model is not yet
+[00:10:36] anywhere close to convergence
+[00:10:38] particularly the model is poorly
+[00:10:40] initialized.
+[00:10:42] So our solution is to this is to realize
+[00:10:46] that there isn't just one alignment. If
+[00:10:49] I look at this graph, there are many
+[00:10:51] paths through this graph.
+[00:10:54] Each path represents an alignment. So if
+[00:10:57] I
+[00:10:59] rep sort of drew a chart of each of
+[00:11:03] these alignments on the x-axis
+[00:11:06] and the probabilities of these
+[00:11:10] alignments in the y along the y-axis,
+[00:11:13] we chose the one alignment that had the
+[00:11:17] highest probability and went with it.
+[00:11:21] This we saw was somewhat of a problem,
+[00:11:24] right? Can someone suggest because this
+[00:11:28] could end up hooking on to a really bad
+[00:11:31] alignment. So can someone suggest an
+[00:11:33] alternative solution to this? There are
+[00:11:35] many alignments within the graph each
+[00:11:37] which are each with its own probability.
+[00:11:38] We just chose the largest one. The the
+[00:11:42] alignment with the largest probability.
+[00:11:44] Is there an a different solution that
+[00:11:47] you can think of?
+[00:11:49] Anyone compute the average over all
+[00:11:52] possible alignments? Right. You could
+[00:11:54] sample an alignment randomly that's less
+[00:11:57] likely to go into according to this
+[00:11:59] probability distribution that's less
+[00:12:01] likely to go into a crappy local optimum
+[00:12:03] or just average across all alignments
+[00:12:06] which is a more robust technique.
+[00:12:11] So how do you compute the average across
+[00:12:14] all possible alignments? Now for any
+[00:12:17] given alignment the divergence is the
+[00:12:20] negative of the sum over all time of the
+[00:12:24] log of the probabilities assigned to the
+[00:12:28] symbols at each time in the alignment
+[00:12:33] right
+[00:12:35] this you remember yes or no
+[00:12:38] guys
+[00:12:40] what we want to do is to take the
+[00:12:42] average so each alignment over here will
+[00:12:46] have a corresponding log probability of
+[00:12:49] this kind. The alignment itself has an
+[00:12:52] overall probability. Remember the
+[00:12:54] alignments have a probability
+[00:12:55] distribution. So our ex our average is
+[00:12:59] going to be the log probability negative
+[00:13:01] log probability of each alignment
+[00:13:04] multiplied by the posterior probability
+[00:13:06] of the alignment itself. that it's the
+[00:13:09] expected value of the uh negative log
+[00:13:14] probability of the alignment. But then
+[00:13:17] okay even if I before I get into the but
+[00:13:19] then here is my second pole
+[00:14:03] 10 seconds, Guys,
+[00:14:07] my don't worry about it. 10 seconds. 5
+[00:14:09] seconds.
+[00:14:12] All right, let me close this.
+[00:14:17] Can tell me somebody tell me the answer
+[00:14:19] to the first question. True or false?
+[00:14:22] Second one.
+[00:14:25] Second one's false. Right. The training
+[00:14:28] without alignment computes the average
+[00:14:29] divergence over all possible alignments.
+[00:14:32] Because you're computing the average
+[00:14:33] over all possible alignments, it follows
+[00:14:36] that you don't need to actually estim
+[00:14:38] explicitly estimate an alignment of the
+[00:14:41] label sequence to the input.
+[00:14:43] So here we are again. The new divergence
+[00:14:46] is the expected value of the divergences
+[00:14:50] overall alignments. It's the expectation
+[00:14:53] of minus of the sum over all time of the
+[00:14:57] log of the probability assigned to the
+[00:15:00] symbols at each time along the
+[00:15:02] alignment. But then expectation is a
+[00:15:04] linear operator. So the expectation can
+[00:15:06] go into the sum. And so the divergence
+[00:15:09] actually ends up becoming minus of the
+[00:15:12] sum over all time of the expected log
+[00:15:16] probability of the uh symbols in the
+[00:15:20] alignment at time t. So what is this
+[00:15:23] guy? You're summing over all time at
+[00:15:26] each time. Each of these nodes in the
+[00:15:28] graph has a log probability. You're
+[00:15:32] going to compute the average of the log
+[00:15:35] probabilities on all across all the
+[00:15:37] nodes at that time. But it's not just a
+[00:15:40] regular average. It's a weighted
+[00:15:42] average. And the weight is this time
+[00:15:44] term over here. The weight for any node
+[00:15:47] is going to be the probability that a
+[00:15:50] randomly chosen alignment will go
+[00:15:53] through that node.
+[00:15:56] That make sense? You're summing over all
+[00:15:58] time
+[00:16:00] over all time at each time you're
+[00:16:02] summing over all nodes and over all
+[00:16:04] nodes you're multiplying the log
+[00:16:07] probability at the node with the
+[00:16:10] probability that
+[00:16:13] a random alignment goes through that
+[00:16:15] node and of course there's the minus
+[00:16:17] outside to make it a negative log
+[00:16:19] probability. Did this did this make
+[00:16:20] sense?
+[00:16:23] Right? We are not considering all
+[00:16:25] equally likely. This term is the weight.
+[00:16:29] So where does this weight come from?
+[00:16:32] This is the probability that when you
+[00:16:34] align the symbol sequence to the input,
+[00:16:37] the specific symbol s will align to the
+[00:16:42] tth
+[00:16:44] time in tth input in the sequence. So we
+[00:16:48] need to be able to compute this. And
+[00:16:50] what exactly is this for any given node?
+[00:16:54] This is the probability
+[00:16:57] that an alignment will go through this
+[00:17:00] node.
+[00:17:02] So this is going to be basically
+[00:17:04] proportional to the probability total
+[00:17:06] probability of all paths through the
+[00:17:09] graph that go through this node. That
+[00:17:12] make sense to you that this guy it's
+[00:17:15] proportional. I'll see tell you why it's
+[00:17:17] proportional and not just equal to all
+[00:17:19] path the total probability of all paths
+[00:17:21] that go through the node s at time t in
+[00:17:25] the graph that make sense to everybody
+[00:17:28] yes or no
+[00:17:32] okay all right so what is that that is
+[00:17:35] going to be the total probability of
+[00:17:37] this highlighted graph in the picture
+[00:17:40] did that also make sense it's all paths
+[00:17:42] that go through this node
+[00:17:45] So we need to compute this probability.
+[00:17:47] And how do we compute this probability?
+[00:17:49] To do that, we're going to decompose the
+[00:17:51] graph into two subsections. The first is
+[00:17:54] all paths going up to this node and the
+[00:17:58] second is all paths starting from the
+[00:18:00] nodes immediately following this node.
+[00:18:03] So the probability of the blue blue
+[00:18:05] graph, the total probability of all
+[00:18:07] paths going through this node is going
+[00:18:09] to be the total probability of all paths
+[00:18:11] in the blue graph times the total
+[00:18:14] probability of all paths in the red
+[00:18:16] graph conditioned on the blue graph.
+[00:18:20] What I mean by condition on the blue
+[00:18:21] graph is that is the condition that the
+[00:18:26] alignment of the initial portion of the
+[00:18:28] input falls within this blue graph. Did
+[00:18:31] that make sense?
+[00:18:33] Yes or no? Right? So it's P of the blue
+[00:18:37] graph times P of red graph given the
+[00:18:38] blue graph
+[00:18:40] and this term. So we can write it down
+[00:18:43] as the probability of product of two
+[00:18:45] probabilities. The first is the
+[00:18:47] probability of this blue graph. The
+[00:18:50] second is the probability of the red
+[00:18:52] graph which is all paths that come out
+[00:18:54] of here but not including this guy given
+[00:18:57] that the initial alignment lies within
+[00:18:59] the blue graph. Great.
+[00:19:02] But there's this conditioning, you know,
+[00:19:04] given that the initial portion lies
+[00:19:06] within the blue graph. That looks kind
+[00:19:07] of weird. It turns out we don't have to
+[00:19:10] worry about it. Why? Because when you
+[00:19:13] compute the vector of probabilities at
+[00:19:16] any time using a recurrent neural
+[00:19:17] network, the recurrence is through the
+[00:19:20] hidden state, right? So then you compute
+[00:19:23] a vector of probabilities.
+[00:19:25] When you compute the alignment, the fact
+[00:19:27] that this guy aligns to symbol D over
+[00:19:30] here does not in any way any way
+[00:19:33] influence the computation of this vector
+[00:19:37] of probabilities because that is not
+[00:19:39] going back into the graph. Which symbol
+[00:19:42] this guy was aligned to at this time
+[00:19:44] does not influence the computation of
+[00:19:47] probabilities anywhere over here because
+[00:19:48] that is coming only through the hidden
+[00:19:51] state. Did that make sense?
+[00:19:55] Yes. No. Right. So this portion of the
+[00:19:58] graph is conditionally independent of
+[00:20:01] this portion of the graph once the input
+[00:20:04] has been provided. And so what this
+[00:20:07] means is that
+[00:20:09] I don't need to condition the total
+[00:20:11] probability of the blue portion of the
+[00:20:13] graph on what happens before it. So the
+[00:20:16] overall probability of the graph is
+[00:20:19] simply going to be the total probability
+[00:20:21] of the red portion of the graph.
+[00:20:23] which ends at this node at at this times
+[00:20:28] the probability of the blue portion of
+[00:20:30] the graph that follows this node. We're
+[00:20:33] going to call call this first guy the
+[00:20:35] forward probability alpha tr which is
+[00:20:38] the alpha for the graph that that
+[00:20:43] arrives at node at symbol number r at
+[00:20:46] time t. And the blue portion of the
+[00:20:49] graph we're going to call the backward
+[00:20:51] probability bet
+[00:20:53] which is the probability of or the
+[00:20:56] portion of the graph that starts
+[00:20:58] after symbol r at time t. That make
+[00:21:03] sense over here what we're talking about
+[00:21:06] over here. Yes or no?
+[00:21:09] Okay. Can I get a few more yeses? All
+[00:21:12] right. And so given this now let's see
+[00:21:15] how we compute this.
+[00:21:17] I'm going to call this first node, first
+[00:21:20] term alpha t. It's my forward
+[00:21:22] probability.
+[00:21:23] How do I compute it? That's the
+[00:21:25] probability of this portion of the
+[00:21:27] graph. It is the total probability of
+[00:21:29] all paths that start from the source
+[00:21:31] node and arrive at this sync node which
+[00:21:36] is the node at symbol r at time t. So is
+[00:21:40] this notation making sense? alpha tr is
+[00:21:43] the total probability of all paths that
+[00:21:45] start from the source node and end at
+[00:21:49] row r at time t. Okay, how can I compute
+[00:21:52] that? Now clearly you can see that there
+[00:21:56] are only way two ways to arrive at this
+[00:21:58] node over here. This node has two
+[00:22:00] parents. So any path that comes from
+[00:22:04] here has to be either a path that went
+[00:22:07] through the first parent and then trans
+[00:22:09] transition to this node or a path that
+[00:22:12] went through the second parent and then
+[00:22:14] transition through through the node. So
+[00:22:16] alpha tr is going to be the sum of the
+[00:22:20] total probability of all paths that
+[00:22:22] ended at symbol b at time 2 and then
+[00:22:26] transition to y3 e over here plus the
+[00:22:30] total probability of all paths that
+[00:22:32] ended at symbol e at time 2 and then
+[00:22:36] transition to e at time three. Did this
+[00:22:40] breakup make sense this guy?
+[00:22:44] And what is the total probability of all
+[00:22:46] paths that end over here? What is that?
+[00:22:50] Anyone?
+[00:22:52] What is the total probability of all
+[00:22:54] paths that end over here?
+[00:22:58] Anybody
+[00:23:01] one?
+[00:23:04] So the total probability of all paths
+[00:23:06] that end over here is alpha let's say 3
+[00:23:10] E. Correct?
+[00:23:12] So what is the total probability of all
+[00:23:14] paths that end over here?
+[00:23:18] This is going to be alpha 2b. Correct?
+[00:23:22] What is the total probability of all
+[00:23:23] paths that end over here?
+[00:23:26] Anyone
+[00:23:28] is the total probability of all paths
+[00:23:30] through this graph. Right? What is that?
+[00:23:35] Alpha 2 E. That makes sense to everybody
+[00:23:38] that this is the total probability of
+[00:23:40] all paths that arrived at symbol r minus
+[00:23:43] one at time t minus one. This is the
+[00:23:45] total probability of all paths that has
+[00:23:47] arrived at symbol r at time t minus one.
+[00:23:50] And so alpha tr is going to be simply
+[00:23:53] alpha in this case alpha 3 e is going to
+[00:23:56] be alpha 2b * y3 e plus alpha 2 e * y3
+[00:24:02] e. That make sense?
+[00:24:08] Okay. And so here we are, right? The
+[00:24:11] total alpha
+[00:24:13] at 3 is going to be the sum of alpha 2 b
+[00:24:18] * y 3 + alpha 2 e * y 3 or more
+[00:24:22] generally it's going to be the sum over
+[00:24:24] all parents of this node of their alphas
+[00:24:28] times the probability at the node. Did
+[00:24:32] this make sense?
+[00:24:34] to everybody.
+[00:24:36] Yes. No. Okay. Very good. And so there
+[00:24:40] we have it, right?
+[00:24:43] Alpha TR is the sum over all parents of
+[00:24:47] node tr
+[00:24:49] of the alpha at the parent times the
+[00:24:53] node probability itself. This is the
+[00:24:56] total probability of the entire subgraph
+[00:24:57] that starts from the source and ends at
+[00:25:00] the node ti.
+[00:25:03] And so in our case each node has only
+[00:25:06] two parents. Node tr has parent tus 1 r
+[00:25:10] - one and t - 1 r. So alpha tr is alpha
+[00:25:14] t - 1 r plus alpha t - 1 r - 1 times the
+[00:25:18] node probability. Correct?
+[00:25:21] You okay with this?
+[00:25:25] Okay.
+[00:25:27] And so here is how our forward algorithm
+[00:25:29] works.
+[00:25:30] You're going to initialize and you're
+[00:25:32] going to start from the very first
+[00:25:34] column and you're going to compute the
+[00:25:36] total subat probabilities to all nodes
+[00:25:38] all all graphs that end on these nodes.
+[00:25:41] That's going to be just the symbol
+[00:25:43] probability itself for this first node.
+[00:25:46] And since these guys are not allowed in
+[00:25:48] the graph that the alpha for these guys
+[00:25:51] are all for these guys are all going to
+[00:25:53] be zero. That make sense to everybody?
+[00:25:58] Okay. And so then subsequently you go to
+[00:26:02] the next column. So that those are the
+[00:26:04] alphas. Then you go to the next column.
+[00:26:07] For each column you first sum the alphas
+[00:26:10] for all the parents. This guy of course
+[00:26:12] has only one parent. So it has only one
+[00:26:14] alpha. This guy has two parents. So you
+[00:26:18] sum those two alphas. And then you
+[00:26:19] multiply that alpha by the node
+[00:26:22] probability. So the alpha for this guy
+[00:26:25] is going to be the alpha here * y 1 b.
+[00:26:30] The alpha over here is going to be this
+[00:26:31] alpha plus this alpha which just happens
+[00:26:33] to be 0 * y1 e. Did this make sense?
+[00:26:40] Right all of it. And so if you just
+[00:26:43] follow this you're going to find that
+[00:26:44] the last two nodes also have
+[00:26:47] zeros for the alphas. Then you go to the
+[00:26:48] next column and you go down the column.
+[00:26:51] For each node, you add the alphas for
+[00:26:54] their parents. And then you multiply
+[00:26:56] that sum alpha by the node probability
+[00:26:59] to get the alpha for the node. Once you
+[00:27:01] compute the alphas for all the nodes in
+[00:27:03] column 2, you proceed to column 3. And
+[00:27:07] again, you use the same thing. You go
+[00:27:08] from the top to the bottom. For each
+[00:27:10] node, you sum the alphas for all the
+[00:27:13] parents. And then multiply by the node
+[00:27:14] probability. and keep going left to
+[00:27:17] right till you go through the entire
+[00:27:18] graph.
+[00:27:20] That make sense to everybody this
+[00:27:22] algorithm?
+[00:27:24] Yes or no? Yes. And so once you do this,
+[00:27:27] you're going to have the alphas for all
+[00:27:29] the nodes in the graph. Not just the
+[00:27:31] node you're interested in, but all the
+[00:27:33] nodes in the graph.
+[00:27:36] And of course the alpha for this guy is
+[00:27:40] going to be the total probability of all
+[00:27:42] paths that started from here and ended
+[00:27:45] over here. Correct.
+[00:27:48] This guy
+[00:27:50] that's simply going to be the
+[00:27:52] probability that this symbol sequence
+[00:27:55] can be aligned to the input. So the
+[00:27:57] alpha at this bottom right node is the
+[00:28:00] probability of this compressed symbols
+[00:28:03] sequence across all alignments. Did that
+[00:28:06] make sense?
+[00:28:08] That's not going to be one because
+[00:28:10] remember you can have some other the
+[00:28:13] input is just being measured and every
+[00:28:15] symbol sequ you can compute a similar
+[00:28:17] graph for every possible symbol sequence
+[00:28:19] and every possible single symbol
+[00:28:21] sequence will have an alpha.
+[00:28:24] So this is not going to be one. It's
+[00:28:25] just the probability of this symbol
+[00:28:27] sequence, right? So, is everybody with
+[00:28:31] me so far?
+[00:28:34] Yes or no?
+[00:28:36] Okay.
+[00:28:39] And so, we've computed the alpha for
+[00:28:41] this node. I'll call it I'm calling it
+[00:28:44] alpha tr. Let me just replace this up
+[00:28:45] with alpha tr. and the probability again
+[00:28:49] in this in this formula again remember
+[00:28:50] I'm trying to compute the total
+[00:28:52] probability of the highlighted graph
+[00:28:53] that goes through this node the forward
+[00:28:56] pass gave me the alphas for all the
+[00:28:58] nodes and from that I can get the alpha
+[00:29:00] for this node so now I need to compute
+[00:29:03] the second term the total probability of
+[00:29:06] all the paths that started from this
+[00:29:09] node but did not include this node and
+[00:29:11] ended at the sync so it's the total
+[00:29:13] probability of all paths starting from
+[00:29:16] here but not including this node and
+[00:29:19] that ended at this node.
+[00:29:22] That make sense to everybody what I'm
+[00:29:23] trying to compute.
+[00:29:26] Okay. Now, not including this node makes
+[00:29:29] it a little annoying. So, what I'm going
+[00:29:32] to do is to also include this node and
+[00:29:35] compute the total probability of all
+[00:29:37] paths from here to the destination
+[00:29:40] including this node. But then once I'm
+[00:29:43] going going to call that beta hat tr and
+[00:29:46] then once I compute beta hat tr I will
+[00:29:49] just divide beta hat by the probability
+[00:29:51] of the node itself to get the beta which
+[00:29:54] is just the probability of the graph
+[00:29:55] without this node. Did this make sense
+[00:29:59] what I'm doing here
+[00:30:02] all of you guys? That make sense? Can I
+[00:30:04] get a few more yeses? Okay, clear.
+[00:30:08] And so now once you do that we know
+[00:30:10] exactly how to compute it. The total
+[00:30:12] probability of all paths from here to
+[00:30:15] the sync that can now there are this
+[00:30:18] node has only two children in my
+[00:30:20] example. So to get from here to the
+[00:30:23] sync, you can either go from here
+[00:30:26] to this green node and then have the
+[00:30:28] total probability of all paths from the
+[00:30:30] green node to the sync or I can go from
+[00:30:33] here to the red node and then have the
+[00:30:36] total probability of all paths from the
+[00:30:38] red node to the sync. Did this make
+[00:30:40] sense? This equation over here, this
+[00:30:42] this what I have in the figure and the
+[00:30:44] corresponding equation,
+[00:30:46] right? And what is the total probability
+[00:30:48] of all paths that go from here to the
+[00:30:51] sink? What is that?
+[00:30:56] What is that over here guys?
+[00:31:01] The total probability of all paths from
+[00:31:03] here to the sink we said was beta hat
+[00:31:06] 3e. Right? What is the total probability
+[00:31:08] of all paths that go from here to the
+[00:31:10] sink?
+[00:31:12] What is that going to be?
+[00:31:14] Anyone?
+[00:31:18] That's beta hat for E, right?
+[00:31:24] Time for symbol E. Yes or no?
+[00:31:29] What is the total probability of all
+[00:31:31] paths that go from here to the sink?
+[00:31:34] What's it going to be?
+[00:31:37] That's that's beta hat for F. That's
+[00:31:41] what we called it, right? The total
+[00:31:44] probability from any node to the sync is
+[00:31:47] basically the beta for that node. Beta
+[00:31:49] hat for that node. So the total
+[00:31:51] probability for all paths from here to
+[00:31:52] the sync is the beta hat for this node.
+[00:31:54] The total probability of all paths from
+[00:31:56] here to the sync is the beta hat for
+[00:31:58] this node. So this guy is simply going
+[00:32:00] to be beta hat for E. This guy is simply
+[00:32:03] going to be beta hat for F. That make
+[00:32:06] sense to everybody?
+[00:32:11] Yes. No. Yes. Okay. And so here you have
+[00:32:14] it, right? So beta hat 3 e is going to
+[00:32:17] be the node probability y3 e times beta
+[00:32:21] hat 4 e plus beta hat 4f.
+[00:32:27] And now this gives us this backward
+[00:32:29] algorithm. The beta hat for any node is
+[00:32:33] the node probability
+[00:32:35] times the sum of the betas of all the
+[00:32:38] children of that node. This make sense?
+[00:32:43] this equation,
+[00:32:47] right? And I see a few more yeses
+[00:32:51] because this is about this is about as
+[00:32:54] complicated as it gets. And so this
+[00:32:57] gives us a way to compute the betas for
+[00:33:00] the entire graph. First, you start off
+[00:33:03] with the beta hat for this bottom right
+[00:33:06] node, which is simply going to be the
+[00:33:07] node probability itself. And the beta
+[00:33:10] hat for these nodes is going to be zero
+[00:33:12] because the graph cannot end at these
+[00:33:15] nodes.
+[00:33:17] So did this initialization make sense to
+[00:33:19] all of you?
+[00:33:22] Right? And then subsequently I can take
+[00:33:26] a step back. So these are the beta hats.
+[00:33:29] Then I take a step back and I compute
+[00:33:31] the beta hats for all these nodes. And
+[00:33:34] the beta hat for each node is going to
+[00:33:36] be the node probability times the sum of
+[00:33:39] the beta hats of all the children of
+[00:33:42] that node. And so I get the beta hat for
+[00:33:46] all the nodes over here. Then I can take
+[00:33:49] a step back and then go down these nodes
+[00:33:52] and compute the beta hats for each of
+[00:33:54] these nodes. Once again, the beta hat
+[00:33:55] for any node is the node probability
+[00:33:58] times the sum of the beta hats for all
+[00:34:00] the children of that node.
+[00:34:02] I can I can keep stepping backwards all
+[00:34:06] the way to the beginning of the graph.
+[00:34:09] That make sense to everybody?
+[00:34:12] Yes. No. Yes. Okay.
+[00:34:18] And so the node probabilities were
+[00:34:20] computed from the input by the by the
+[00:34:22] recurrent neural network way back,
+[00:34:24] right? So we'll get back to that. But
+[00:34:27] then the uh what we want are the betas
+[00:34:30] and the betas are computed by just
+[00:34:32] dividing out the beta hat by the node
+[00:34:34] probability.
+[00:34:36] And so we can use this backward
+[00:34:38] algorithm to compute the beta hats and
+[00:34:40] subsequently divide the beta hat at each
+[00:34:43] node by the node probability to get the
+[00:34:44] betas. Did that make sense to everybody?
+[00:34:48] Yes or no?
+[00:34:54] All right. So
+[00:34:57] and so here you have the entire backward
+[00:34:59] algorithm. You initialize the beta hats
+[00:35:02] to be zero here just the node
+[00:35:04] probability here. Then you work your way
+[00:35:05] backwards within each column you go down
+[00:35:07] the nodes and at each node you compute
+[00:35:10] the beta hat for the node as the node
+[00:35:12] probability time the sum of times the
+[00:35:14] sum of the beta hats for its children.
+[00:35:16] From the beta hat you compute the beta
+[00:35:18] itself by just dividing it by the node
+[00:35:21] probability. And so at the end of it now
+[00:35:24] you have the betas for every one of
+[00:35:26] these nodes as well. That's the
+[00:35:28] probability of this blue graph. Right?
+[00:35:32] So where because at t t minus one I'm
+[00:35:36] going from 0 to t minus one rather than
+[00:35:39] 0 1 to t David. And so t minus one was
+[00:35:45] initialized out here.
+[00:35:48] Right. Okay.
+[00:35:50] And so once we've done that, we have
+[00:35:53] computed the betas for every node in the
+[00:35:57] graph using the these are the backward
+[00:35:59] probabilities. And so you can replace
+[00:36:01] this probability of the big blue graph
+[00:36:04] by the beta which you have computed
+[00:36:06] using the backward algorithm. And so the
+[00:36:10] total probability of all paths going
+[00:36:12] through a particular node is simply
+[00:36:14] going to be alpha tr times beta tr. It
+[00:36:18] just so happens that if you look at this
+[00:36:20] term alpha TR * betr for each of the
+[00:36:24] nodes in a column, these four won't
+[00:36:28] necessarily sum to one. Those four are
+[00:36:30] basically going to sum to the total
+[00:36:33] probability of all paths from here to
+[00:36:35] here, which is just the probability of
+[00:36:38] the symbol sequence itself. But what I
+[00:36:41] want in my formula is the posterior
+[00:36:45] probability that if I randomly chose a
+[00:36:47] path specifically from this graph, what
+[00:36:50] is the probability that it would go
+[00:36:51] through this node? And so that must sum
+[00:36:54] to one for the four nodes. So how can I
+[00:36:57] convert this guy which doesn't sum to
+[00:37:01] one when I sum over all four nodes to a
+[00:37:04] value that actually sums to one. How
+[00:37:06] would I convert it?
+[00:37:09] anybody
+[00:37:13] softmax I just normalize it right so
+[00:37:18] here it is this is what you got for each
+[00:37:21] node alpha tr bit time beta tr you sum
+[00:37:25] that over the column and you divide by
+[00:37:29] the sum and that's going to give you the
+[00:37:31] posterior probability of each node uh
+[00:37:35] when the prob posterior probability that
+[00:37:37] an alignment of this of the symbol
+[00:37:39] sequence to the input goes through any
+[00:37:41] particular note. That make sense to
+[00:37:43] everybody? This one here
+[00:37:47] which is this right? And so this guy is
+[00:37:50] what we will call a gamma
+[00:37:54] which is the product of alpha and beta.
+[00:37:57] The gamma for any node is the product of
+[00:38:00] alpha and beta for the node normalized
+[00:38:02] by the sum of the alpha beta products
+[00:38:06] down the column.
+[00:38:09] And so here we have it. Our our
+[00:38:12] divergence was the sum over all time
+[00:38:17] of the sum over all nodes at each time
+[00:38:21] of the product of the posterior
+[00:38:23] probability of the node and the log
+[00:38:24] probability at the node which is simply
+[00:38:27] the product of the gamma at the node and
+[00:38:31] the log probability at the node.
+[00:38:34] We have a formula. This makes sense to
+[00:38:36] everybody.
+[00:38:39] It's okay. Beautiful.
+[00:38:42] And that leads us to our third pole.
+[00:38:58] Oh, yeah. We'll get to that in a few
+[00:39:00] minutes.
+[00:39:29] 10 seconds, guys.
+[00:39:38] All right, let me stop the poll right
+[00:39:39] here.
+[00:39:44] What are the answers guys?
+[00:39:49] Both right. The forward backward
+[00:39:51] algorithms is used to compute the eight
+[00:39:53] posterior probability of aligning each
+[00:39:55] symbol in the compressed sequence to the
+[00:39:57] input. These are required to compute the
+[00:39:59] expected divergence across all
+[00:40:01] alignments of the compressed symbol
+[00:40:02] sequence to the input. And so here we
+[00:40:05] are.
+[00:40:06] Now the divergence was computed off
+[00:40:10] reduced graph. But what we really need
+[00:40:14] to compute the uh gradients that are
+[00:40:17] used in back propagation are the
+[00:40:19] derivatives of the divergence with
+[00:40:21] respect to the output of the recurrent
+[00:40:23] neural network at each time. And at each
+[00:40:26] time the recurrent neural network
+[00:40:27] actually computes a probability vector
+[00:40:30] that includes probabilities for all the
+[00:40:32] symbols in the vocabulary. Right? So
+[00:40:37] you remember this? Yes. No.
+[00:40:44] Right. And now so the derivative of this
+[00:40:46] divergence
+[00:40:47] will it have a nonzero value for any
+[00:40:51] symbol that doesn't occur over here?
+[00:40:54] Will it?
+[00:40:56] Yes. No. No. Right. So the derivative of
+[00:40:59] the divergence with respect to the
+[00:41:00] output at any time, say this guy, is
+[00:41:03] going to be a vector which has a bunch
+[00:41:05] of zeros for for symbols that are not
+[00:41:07] here. And for the symbols that are over
+[00:41:10] here, you're going to get the
+[00:41:12] derivatives of so this is time six.
+[00:41:15] That's going to be the derivative of the
+[00:41:17] divergence with respect to these the
+[00:41:22] probabilities in these nodes. But it
+[00:41:25] gets to be a little more complicated
+[00:41:27] than that because if you look over here,
+[00:41:30] the divergence basically is the sum is
+[00:41:33] is the uh weighted sum of the
+[00:41:36] probabilities of all the nodes at at all
+[00:41:38] the nodes within the column, right? And
+[00:41:41] so if I'm looking at the derivative of
+[00:41:42] the divergence with respect to say y 6,
+[00:41:44] I need to focus only on column 6. So I
+[00:41:48] only look for at t= 6 and everything
+[00:41:50] else goes away. And then I go down here
+[00:41:53] and I'm going to be summing down this
+[00:41:56] column and I'm going to be computing the
+[00:41:58] derivative of this guy with respect to
+[00:42:02] all of the probabilities output by the
+[00:42:05] network for the symbols out here and
+[00:42:09] those there are only three symbols B E
+[00:42:12] and for E happens to occur twice and so
+[00:42:16] when I'm computing so for the all the
+[00:42:18] symbols which are not BE or for this
+[00:42:20] term is going to be zero
+[00:42:22] for bur e and fur. If I'm looking at the
+[00:42:25] derivative for the divergence for bur,
+[00:42:28] I'm going to be looking at just the
+[00:42:30] derivative for this guy, which is gamma
+[00:42:34] 6b
+[00:42:36] time log
+[00:42:40] y 6b
+[00:42:44] minus. Did this make sense over here?
+[00:42:48] Similarly, if I'm looking at the
+[00:42:49] derivative for fur, that's going to be
+[00:42:52] simply the derivative of mamma minus
+[00:42:55] gamma 6 f*
+[00:42:59] log of
+[00:43:01] y 6.
+[00:43:04] This make sense
+[00:43:08] to all of you guys? But then if I'm
+[00:43:10] looking at the derivative for y for this
+[00:43:13] symbol right for e. So the derivative of
+[00:43:18] the divergence with respect to y 6 e is
+[00:43:23] going to be the derivative of minus
+[00:43:25] gamma
+[00:43:27] 6 e*
+[00:43:34] uh the gamma over here right. So gamma
+[00:43:38] * y 6 e this r is 2 I'm sorry right plus
+[00:43:44] the gamma over here - gamma like 4 e * y
+[00:43:49] 6 log
+[00:43:54] y 6. I know it looks very confusing, but
+[00:43:57] did that make sense that when I'm
+[00:43:58] looking for the derivative for E, E
+[00:44:01] occurs twice in the graph and so I
+[00:44:03] actually get contributions from two
+[00:44:05] entries. Did that make sense?
+[00:44:09] Or do I need
+[00:44:12] because two and four because y occurs in
+[00:44:14] positions two and four,
+[00:44:18] right? And so here you have it.
+[00:44:21] You must compute the derivative of the
+[00:44:23] divergence with respect to all of these
+[00:44:24] elements. This is for the symbols that
+[00:44:27] are not over here. It's going to be
+[00:44:29] zero. For the rest of them, it's going
+[00:44:32] to be the sum over all nodes that
+[00:44:34] include that particular symbol
+[00:44:37] of the derivative of gamma for the node
+[00:44:40] times the log of the probability at that
+[00:44:42] node.
+[00:44:44] So given this for for bur and fur you
+[00:44:48] just get single entries for e because y4
+[00:44:52] e was copied into two locations you're
+[00:44:55] going to have to sum over both these
+[00:44:58] locations if you want to get get the
+[00:45:00] derivative of the divergence with
+[00:45:01] respect to y4 e. So again did this make
+[00:45:05] sense
+[00:45:08] all of you guys right? Yes. No. Okay.
+[00:45:13] Now let's go back with what is this
+[00:45:14] derivative? What is the derivative of
+[00:45:16] gamma tr * log y t l
+[00:45:22] that
+[00:45:24] is going to be from the laws of
+[00:45:27] differentiation
+[00:45:28] gamma * gamma divided by lo by by y plus
+[00:45:33] the derivative of gamma* log y.
+[00:45:37] Everybody good with this formula?
+[00:45:42] Yes, this first term is easy to compute.
+[00:45:47] The second term of gamma, this this
+[00:45:49] derivative turns out to be hideous
+[00:45:51] because gamma itself invokes y.
+[00:45:55] And so the second term is a bit nasty.
+[00:46:00] What do you do in engineering when you
+[00:46:01] run into a really nasty term?
+[00:46:05] Typically, what do you do when you run
+[00:46:07] into a nasty term?
+[00:46:10] break it up. How about we just ignore
+[00:46:12] it? And so we just throw it away and
+[00:46:16] come up with an alternate mathematical
+[00:46:17] explanation for it. And we say that if
+[00:46:20] you throw it away, this ends up being a
+[00:46:21] maximum likelihood estimate. Turns out
+[00:46:23] to be mathematically correct. And so
+[00:46:25] that's what it ends up being. And so the
+[00:46:29] derivative of the divergence with
+[00:46:31] respect to ytl
+[00:46:35] is simply
+[00:46:37] this uh you know for at any given node
+[00:46:40] the derivative of gamma tr log ytl with
+[00:46:43] respect to ytl simply becomes gamma
+[00:46:45] divided by y and so when you compute the
+[00:46:50] derivative of the divergence with
+[00:46:51] respect to the probability of any symbol
+[00:46:53] at any time it's simply minus1 over that
+[00:46:57] probability
+[00:46:58] times the sum of the gamas for all the
+[00:47:01] nodes at that time that include that
+[00:47:04] symbol.
+[00:47:06] This make sense
+[00:47:10] to everybody? And so here we have it,
+[00:47:13] right? We know how how exactly to
+[00:47:15] compute the derivative of the divergence
+[00:47:18] with respect to all the wires in the
+[00:47:19] network. And so here is the overall
+[00:47:22] training procedure.
+[00:47:25] You're given an input, you're given an
+[00:47:27] output sequence, you're not given an
+[00:47:28] alignment. So the first thing you do,
+[00:47:30] you set up the network, typically a
+[00:47:32] millimeter LSDN. You initialize all the
+[00:47:35] parameters of the network. Then in the
+[00:47:37] first step, you're going to pass the
+[00:47:39] input through the network and it's going
+[00:47:41] to give you a vector of output
+[00:47:44] probabilities at each time. Then from
+[00:47:48] this you construct the graph for the
+[00:47:51] reduced the reduced graph for the
+[00:47:53] compressed symbol sequence which may
+[00:47:56] include repetitions of certain symbols
+[00:48:00] and then subsequently
+[00:48:02] uh
+[00:48:06] oops
+[00:48:09] and then subsequently
+[00:48:11] on this graph you're going to perform
+[00:48:12] the forward and backward computation to
+[00:48:14] get the alphas and betas for all nodes.
+[00:48:17] From the alphas and betas you compute
+[00:48:19] the gamas and then from the gamas you
+[00:48:21] can you can compute the derivatives of
+[00:48:23] the divergence with respect to all the
+[00:48:26] probabilities
+[00:48:28] the probability vector output by the
+[00:48:30] network at each time. That derivative is
+[00:48:32] going to be zero for all the symbols
+[00:48:34] that are not in the compressed sequence.
+[00:48:36] And for the for the symbols that are in
+[00:48:38] the compressed sequence, it's just going
+[00:48:40] to be as we saw minus one over the
+[00:48:44] probability of the symbol times the sum
+[00:48:47] of all the gamas at that all the gamas
+[00:48:49] for all the nodes at that time that
+[00:48:51] include that symbol. And so we compute
+[00:48:54] the derivative of the divergence with
+[00:48:56] respect to the output of the network.
+[00:48:59] Here again I actually have the formula
+[00:49:01] over here. And then once you have the
+[00:49:03] derivative of the divergence with
+[00:49:04] respect to the output of the network,
+[00:49:06] you have the derivative of the
+[00:49:08] divergence with respect to the output of
+[00:49:10] the network at each time. You can just
+[00:49:12] use regular back propagation and
+[00:49:15] aggregate derivatives over many batches
+[00:49:16] and update parameters. Did this whole
+[00:49:19] process make sense to you guys?
+[00:49:22] Everything that we've said so far. Any
+[00:49:24] questions?
+[00:49:27] Any questions?
+[00:49:30] Okay. If it all made sense, we're good,
+[00:49:33] right? So the story story so far,
+[00:49:35] sequence tosequence models which
+[00:49:38] irregularly output symbols can be
+[00:49:40] decoded through greedy decoding which
+[00:49:42] assumes that a symbol is output at each
+[00:49:43] time and merges adjacent symbols.
+[00:49:46] They require for training they require
+[00:49:48] alignment of the output
+[00:49:51] of the output symbol sequence to the
+[00:49:52] input. This alignment is generally not
+[00:49:54] given. Training can be performed by
+[00:49:56] iteratively estimating the alignment
+[00:49:59] through WB alignment followed by times
+[00:50:02] synchronous training. Alternately, it
+[00:50:04] can be performed by optimizing the
+[00:50:06] expected divergence over all possible
+[00:50:09] alignment. This requires posterior
+[00:50:11] probabilities uh which can be computed
+[00:50:14] using the forward backward algorithm.
+[00:50:17] So
+[00:50:19] is everything clear so far? Can I
+[00:50:21] proceed? Things become faster a bit
+[00:50:23] better. Yeah.
+[00:50:26] So it's just the connection is temporal
+[00:50:28] model. The whole model is the connection
+[00:50:29] is temporal model. Okay, connection is
+[00:50:31] temporal classification.
+[00:50:33] So we got through but then we were left
+[00:50:36] with two key problems. One is a key
+[00:50:38] decoding problem. Consider the problem
+[00:50:41] where the output symbols are characters.
+[00:50:42] If I have a decode a time synchronous
+[00:50:44] greedy decode which says r e e d
+[00:50:49] is this if you compress it does it
+[00:50:51] become red or does it become read? Is
+[00:50:54] there any way of making out which of the
+[00:50:56] two it is just from this sequence?
+[00:50:59] Can you actually tell from this sequence
+[00:51:01] alone?
+[00:51:03] Yes or no? You cannot. Right?
+[00:51:06] So this is the problem we saw alluded to
+[00:51:08] earlier that if I just perform a greedy
+[00:51:10] decode and begin compressing things, we
+[00:51:12] cannot disambiguate
+[00:51:14] repetitions.
+[00:51:18] So
+[00:51:19] we have a solution. The solution is to
+[00:51:22] include an explicit extra invisible
+[00:51:25] symbol which serves to separate discrete
+[00:51:29] versions of a symbol. This is just a new
+[00:51:32] entry in the vocabulary. I'm going to
+[00:51:34] represent it by a blank. But then you
+[00:51:36] have to remember that it's actually not
+[00:51:38] seen. It's invisible. So if I get a
+[00:51:40] greedy decode which looks like this.
+[00:51:42] Three Rs, three blanks, two E's, three
+[00:51:44] blanks, and three D's. And then I
+[00:51:46] compress it by dduplication. The three
+[00:51:49] Rs become an R. The three blanks become
+[00:51:52] an invisible symbol. They're not seen
+[00:51:54] anymore. The two E become an E. The
+[00:51:56] three blanks over here become an
+[00:51:58] invisible symbol, not seen. And the 3Ds
+[00:52:00] become a D. So this becomes red. Did
+[00:52:03] this make sense that the act of
+[00:52:05] compression
+[00:52:07] compresses the invisible symbols as
+[00:52:09] well, but they cannot be seen.
+[00:52:14] Does this make sense? Yes. Similarly
+[00:52:16] over here, right? The two Rs would
+[00:52:18] compress to an R. You have a invisible
+[00:52:20] symbol. Then you have an E. Then the
+[00:52:24] three R symb blanks compress to a single
+[00:52:27] invisible symbol. The two E's compress
+[00:52:30] to a single E and the D stays a D. So
+[00:52:32] now this becomes read. Did that make
+[00:52:34] sense?
+[00:52:38] Did this make sense? Okay.
+[00:52:41] And so also over here the two Rs become
+[00:52:43] an R because you have an invisible
+[00:52:46] symbol in between the next R stays
+[00:52:47] separate you have an R then the two E
+[00:52:50] become an E then the D becomes a D
+[00:52:52] because of you have this invisible
+[00:52:54] symbol these two don't get merged the
+[00:52:55] two Ds become a D so you get two Rs an E
+[00:52:58] and two D's so using the same logic what
+[00:53:01] would this become
+[00:53:06] what would this become
+[00:53:10] R R let's see indeed you're all right
+[00:53:14] right perfect
+[00:53:16] so if I'm doing a time synchronous
+[00:53:19] decode I can get a sequence of invisible
+[00:53:20] symbols that's all I'm speaking of times
+[00:53:23] synchronous decodes over here and then
+[00:53:25] compressing them okay so here is our
+[00:53:28] fourth poll
+[00:54:12] man. It's just a a
+[00:54:15] invisible symbol is just a symbol like
+[00:54:17] an A. If you were doing a time
+[00:54:19] synchronous decode, just as you get
+[00:54:21] three E, you can get three blanks,
+[00:54:22] right?
+[00:54:30] All right, let me end this poll, guys.
+[00:54:37] And
+[00:54:39] can you tell me the answer?
+[00:54:43] This four, right?
+[00:54:47] So this is the only one that becomes
+[00:54:49] Billy because this guy is going to
+[00:54:51] become B I L Y. This is going to become
+[00:54:57] B
+[00:54:59] I L Y. This is going to become B I L Y.
+[00:55:06] This is the only one that becomes B I L
+[00:55:10] L Y. This makes sense to everybody
+[00:55:15] that when you compress it multiple
+[00:55:16] blanks just become one single invisible
+[00:55:20] symbol which is not seen. Okay.
+[00:55:23] And so here we are. Now this
+[00:55:26] introduction of the blank modifies your
+[00:55:29] forward backward algorithm. Now your
+[00:55:32] vocabulary includes the blank the
+[00:55:35] invisible symbol. And so when you pass
+[00:55:37] the input through the network, it's
+[00:55:39] going to compute the probabilities not
+[00:55:41] just for all your visible symbols, but
+[00:55:44] also the invisible symbol at each time.
+[00:55:48] And now let's say I performed a greedy
+[00:55:51] decode and picked the most likely symbol
+[00:55:53] at each time. And I got this sequence.
+[00:55:56] This is going to be two B's which
+[00:55:57] compress to a B, two E's which compress
+[00:56:00] to an E, three Fs, four Fs which
+[00:56:03] compress to a single F, and an E. I
+[00:56:06] don't have to worry about whether these
+[00:56:08] are two fs or not because I have
+[00:56:10] invisible symbol separating repetitions.
+[00:56:14] On the other hand, if I get something
+[00:56:15] like this, I have an invisible symbol at
+[00:56:18] the beginning so I won't see it. This
+[00:56:20] becomes an E. These two E compress to an
+[00:56:23] this becomes a B. These two E compressed
+[00:56:25] to an E. These two blanks will
+[00:56:28] disappear. These two Fs compress to an
+[00:56:31] F. And this becomes an E. Bye. So, did
+[00:56:34] this make sense?
+[00:56:38] Um, mana, did this answer your question?
+[00:56:43] I'm assuming it did, right? Why multiple
+[00:56:46] blanks? This is it just that that's
+[00:56:47] that's just a greedy decoding process,
+[00:56:49] right? What would this become, guys?
+[00:56:54] What would this become? Anybody? Don't
+[00:56:56] look at the answer on the slide. What is
+[00:56:58] this going to be?
+[00:57:01] there going to be two Fs because there's
+[00:57:03] a blank separating these two Fs, right?
+[00:57:06] And so you get an idea how the whole
+[00:57:09] thing works.
+[00:57:12] So this modifies our training. Now
+[00:57:16] earlier, okay, I'm changing my example
+[00:57:18] from B to ED because it gives me two D's
+[00:57:21] one after the other. If I have any if I
+[00:57:24] just compos composed a graph of this
+[00:57:26] kind and then I got an alignment when I
+[00:57:30] compress the alignment I would never get
+[00:57:32] two D's because an alignment of this
+[00:57:35] graph is going to give me something like
+[00:57:37] E D
+[00:57:40] E right and when I compress it this is
+[00:57:43] always going to give me a single D.
+[00:57:47] So this kind of graph cannot be used to
+[00:57:50] determine that I'm training for ed with
+[00:57:52] two D's and not ED with just a single D.
+[00:57:55] That make sense?
+[00:57:58] Right? But then once I introduce blanks,
+[00:58:02] things change. So here's how earlier
+[00:58:05] when you didn't have blanks, if I had
+[00:58:06] the word beefy, add B followed by E, E
+[00:58:09] followed by F followed by E.
+[00:58:12] Now
+[00:58:13] if I introduce blanks, I can have an
+[00:58:16] initial blank. It's optional, right? If
+[00:58:18] it's there, you won't see it. I need a
+[00:58:20] B. B can directly be followed by E or it
+[00:58:24] can be followed by a blank and then
+[00:58:25] followed by an E. E can. So I'm
+[00:58:29] distinguishing between what you see and
+[00:58:31] what is. And there is a money to one
+[00:58:34] mapping between what is and what you see
+[00:58:36] because the blanks are invisible and
+[00:58:38] they cannot be seen. This graph
+[00:58:40] represents all ways of getting B fe. Did
+[00:58:43] that make sense? I can have B followed
+[00:58:45] by a blank followed by an E or B just
+[00:58:47] directly followed by an E. E followed by
+[00:58:49] a blank followed by a fur or E just
+[00:58:51] directly followed by F and so on. This
+[00:58:53] make sense to everybody?
+[00:58:56] Yes. Okay. On the other hand, if I have
+[00:58:59] Eddie,
+[00:59:01] I can have an initial blank which is not
+[00:59:02] seen. I have a A can be followed by a
+[00:59:05] blank and then followed by a D or can be
+[00:59:06] directly followed by D. But
+[00:59:10] D cannot be directly followed by D
+[00:59:13] because if D were directly followed by D
+[00:59:15] any compression would compress the two
+[00:59:17] D's into a single D. So when I have two
+[00:59:20] symbols which are the same you must have
+[00:59:23] an invisible blank in the middle.
+[00:59:27] That make sense
+[00:59:29] the graph that I've got over here.
+[00:59:32] Right? And so this is how having blanks
+[00:59:37] uh makes
+[00:59:39] the mod modifies the graph. You can have
+[00:59:41] blanks everywhere because they're
+[00:59:42] invisible. You can't see them.
+[00:59:45] And they're not mandatory between two
+[00:59:47] symbols which are not the same. But if I
+[00:59:49] have two symbols which are identical
+[00:59:51] following one another, they are
+[00:59:53] mandatory between the two. Otherwise,
+[00:59:56] the two would just collapse into a
+[00:59:57] single instance. Right?
+[01:00:01] With that said, now how do I compose the
+[01:00:03] graph for training? So if I have Eddie,
+[01:00:06] this is the graph I'm going to use. A
+[01:00:08] followed by D followed by D followed by
+[01:00:10] E. But then I have blanks between every
+[01:00:12] two symbols. They are optional if the
+[01:00:14] symbols on either side are not the same.
+[01:00:16] Otherwise, they're not optional. And so
+[01:00:19] this is the this is the same graph over
+[01:00:21] here drawn vertically. That make sense
+[01:00:24] to everybody?
+[01:00:26] Do you understand what this? Okay. So if
+[01:00:29] I follow this comp create r the other
+[01:00:33] graph with what I what I'm going to call
+[01:00:34] the trellis from this this is what it
+[01:00:37] looks like the initial symbol it's
+[01:00:40] basically there's implicitly vertical
+[01:00:43] arrows going down between every two
+[01:00:46] symbols. Okay. And so this guy is just
+[01:00:50] unrolling
+[01:00:52] this graph over time. And so you have
+[01:00:56] the first at the first time I can have
+[01:00:58] either a blank or an air at the second
+[01:01:01] time. So
+[01:01:04] blank can be followed by a blank. Blank
+[01:01:06] followed can be followed by an air. A
+[01:01:08] air can be followed by an air. A can be
+[01:01:11] followed by a blank but a a air can also
+[01:01:14] be followed by a d. So I also have this
+[01:01:16] arrow.
+[01:01:18] Did this arrow make sense that this
+[01:01:20] arrow is basically reflecting
+[01:01:22] this structure?
+[01:01:25] That make sense? So also duh can only be
+[01:01:29] followed by a blank because there's only
+[01:01:31] one here. Blank can be only followed by
+[01:01:34] a duh because there's only one
+[01:01:38] connection here. that this D can be
+[01:01:40] followed either by a D or by a blank or
+[01:01:46] two because I have the skip connection
+[01:01:48] it can be followed by an E. This make
+[01:01:51] sense to everyone?
+[01:01:55] So the overall path is the first and
+[01:01:58] last columns are also allowed to end at
+[01:01:59] initial and final blanks. And everywhere
+[01:02:02] else in the graph if the symbol two
+[01:02:05] symbols away is not identical to it, you
+[01:02:08] can have a skip connection. It's a very
+[01:02:09] simple rule. If the symbol two symbols
+[01:02:12] away, so this guy and this guy are the
+[01:02:15] same symbol. So you cannot have a skip
+[01:02:17] connection. This guy and this guy are
+[01:02:19] different symbols. So you can have a
+[01:02:21] skip connection. That's it. That's the
+[01:02:23] simple rule. That make sense to
+[01:02:25] everybody
+[01:02:27] over here in the form? Okay. And now
+[01:02:31] subsequently I can use the forward
+[01:02:34] forward algorithm to compute the alphas
+[01:02:35] and betas just as before. The alphas are
+[01:02:38] still going to be following the same
+[01:02:40] rule. Alphas are zeros for all of these
+[01:02:43] guys because the graph can begin in any
+[01:02:45] one of the first two nodes. The alphas
+[01:02:47] for these two nodes are just the node
+[01:02:49] probabilities.
+[01:02:50] Then when you go through the graph as
+[01:02:53] before, the alpha for any node is the
+[01:02:56] sum of the alphas for all of its parents
+[01:03:00] times the node probability.
+[01:03:03] All nodes have at least two parents,
+[01:03:05] right? They all have at least two
+[01:03:07] parents. So if I look at this guy, this
+[01:03:10] has this has two parent, right? Let me
+[01:03:12] clear this picture. So if I look at this
+[01:03:14] guy, this has two parents. And then some
+[01:03:17] nodes
+[01:03:19] have three parents. And these are the
+[01:03:21] nodes for which the the node two nodes
+[01:03:25] away is not the same symbol. So for this
+[01:03:28] guy, this one has this one as a parent.
+[01:03:32] It has this as a parent, but it also has
+[01:03:34] this as a parent. So that's a simple
+[01:03:37] rule. Every node has itself the the
+[01:03:40] horizontal and immediately previous
+[01:03:43] connection as parents. And then if these
+[01:03:46] two symbols are if these two symbols are
+[01:03:48] not identical then the node also has the
+[01:03:50] symbol two nodes away as a parent. That
+[01:03:53] make sense for the sum of alphas?
+[01:03:59] Yes or no?
+[01:04:02] Okay. And so you sum the alphas for all
+[01:04:04] the parents and then multiply the sum of
+[01:04:07] the alphas by the node probability to
+[01:04:09] get the alpha for the node. You do this
+[01:04:11] going forward and you get the alphas for
+[01:04:13] all the nodes.
+[01:04:15] The backward algorithm is much the same.
+[01:04:18] The beta beta hats are going to be zeros
+[01:04:20] for everything but the final two nodes.
+[01:04:23] And then as you go back and the final
+[01:04:24] two nodes are simply get going to have
+[01:04:26] the node probabilities as the beta hats.
+[01:04:28] Then as you go backwards for each node
+[01:04:32] the beta hat is going to be the node
+[01:04:34] probability multiplied by the sum of the
+[01:04:37] beta hats for its children.
+[01:04:40] All nodes will have two children. But if
+[01:04:43] any node and the node two below it are
+[01:04:45] not the same symbol, then it's going to
+[01:04:48] have three children.
+[01:04:50] That make sense to everybody?
+[01:04:54] This formula over here, the beta hat is
+[01:04:56] simply the sum of the betas for all the
+[01:04:58] children times the probability. And
+[01:05:00] there's a very simple rule for
+[01:05:03] which nodes have two children and which
+[01:05:05] have three. And then of course the beta
+[01:05:07] is obtained by dividing beta hat by the
+[01:05:10] node probability.
+[01:05:12] And so here you have it. The rest of the
+[01:05:14] computation posteriors and derivatives
+[01:05:16] are computed exactly as before but using
+[01:05:19] the extended graph with blinks. So the
+[01:05:21] overall training procedure is going to
+[01:05:23] look like this. Given input and output
+[01:05:25] sequences without alignment. You want to
+[01:05:27] train models. You initialize the network
+[01:05:30] set it up typically a many many layer
+[01:05:32] LSTM. You initialize all parameters but
+[01:05:35] now you include a blank in the symbol
+[01:05:37] vocabulary.
+[01:05:39] Then in the forward pass you pass the
+[01:05:41] input through the network. We're going
+[01:05:43] to get a vector of probabilities at each
+[01:05:45] time. And then
+[01:05:49] you go through the uh entire network and
+[01:05:53] use the forward
+[01:05:58] to comput. Then uh
+[01:06:02] you go through it backwards and compute
+[01:06:05] the backward algorithm for all the nodes
+[01:06:07] and then use the alphas and betas to
+[01:06:09] compute the gamas for all the nodes. And
+[01:06:12] once you have the gamas, you can compute
+[01:06:14] the derivatives of the divergence
+[01:06:18] for this training instance with respect
+[01:06:20] to the probability vectors at each time.
+[01:06:24] And then once you have which is of
+[01:06:25] course exactly as we saw before which
+[01:06:28] was
+[01:06:30] A vector of terms where most terms are
+[01:06:32] zero. And the terms which do occur in
+[01:06:35] the symbol sequence will have
+[01:06:39] 1 / the probability of the symbol times
+[01:06:42] the sum of the gamas for all nodes that
+[01:06:45] include the symbol negative.
+[01:06:48] So this divergence derivative is then
+[01:06:50] back propagated to get the diver
+[01:06:53] derivative of the divergence with
+[01:06:54] respect to the output of the network at
+[01:06:56] each time. This is further back
+[01:06:58] propagated to train the network.
+[01:07:01] So any questions?
+[01:07:05] Any questions?
+[01:07:11] No. So this overall framework we saw is
+[01:07:13] what is what is called is a connections
+[01:07:15] temporal classification
+[01:07:17] uh network model. It applies to models
+[01:07:20] that output order align but time
+[01:07:22] asynchronous outputs. The most common
+[01:07:24] uses are speech recognition and
+[01:07:27] character recognition and handwritten
+[01:07:30] character recognition, right? Or text
+[01:07:32] recognition.
+[01:07:34] So now I said that we had only partially
+[01:07:38] solved the gre the decoding problem.
+[01:07:42] That's because
+[01:07:44] the greedy decode which computes its
+[01:07:46] outputs output by finding the most
+[01:07:48] likely symbol at each time and merging
+[01:07:50] repetitions. We did solve the repetition
+[01:07:53] problem by introducing the blame, the
+[01:07:54] blank, but it's still going to be
+[01:07:56] suboptimal that finds the most likely
+[01:07:59] times synchronous output sequence, which
+[01:08:01] is not necessarily the most likely order
+[01:08:04] synchronous sequence. What do I mean by
+[01:08:06] this? Consider this. Suppose I have an
+[01:08:09] input that's six symbols long, six
+[01:08:11] inputs long. And I consider these six
+[01:08:14] alignments.
+[01:08:16] So, RR blank eed has a probability of 7.
+[01:08:19] R R blank blank ED has a probability of
+[01:08:22] 68. R E E D has a probability of 69. All
+[01:08:26] three of them collapse to red. TT ED has
+[01:08:30] a probability of 71. TT blank EED has.3
+[01:08:34] and TT blank blank ED has 29. All of
+[01:08:37] these three collapse to TED. If I were
+[01:08:40] performing the the greedy decode, which
+[01:08:43] would I pick? Would I pick red or would
+[01:08:46] I pick Ted?
+[01:08:49] Which would I pick? Which of the two?
+[01:08:51] Anyone? I'm going to pick 10. This is
+[01:08:54] the highest probability, right? Which
+[01:08:55] makes more sense
+[01:09:00] just looking at these probabilities.
+[01:09:05] Different alignments of red all have
+[01:09:07] high probability. This just happens to
+[01:09:09] be some noisy outlier, right? You should
+[01:09:11] have picked red. Although just the
+[01:09:14] greedy decode ended up picking Ted. So
+[01:09:15] the greedy decode is actually
+[01:09:17] suboptimal.
+[01:09:19] A decode that considers the sum of all
+[01:09:22] alignments of the same final output
+[01:09:24] would select red
+[01:09:26] and which would be more reasonable.
+[01:09:28] Right? Remarkably greedy decoding can be
+[01:09:31] surprisingly effective when using
+[01:09:32] decoding with blanks because what
+[01:09:34] happens this is from the original paper
+[01:09:35] by Graves. When you just perform a
+[01:09:37] greedy decode, you find that the blank
+[01:09:40] ends up being the most probable symbol
+[01:09:42] most of the time and the actual symbols
+[01:09:45] begin appearing only at transition
+[01:09:47] points. And so when you collapse these
+[01:09:49] outputs, more often than not, you
+[01:09:51] actually end up getting a pretty good
+[01:09:55] decode, right? Regardless, it's
+[01:09:57] suboptimal.
+[01:09:59] So how do you make it optimal?
+[01:10:02] We want to find the most likely order
+[01:10:04] aligned symbol sequence.
+[01:10:07] What the greedy decode finds is the most
+[01:10:09] likely times synchronous symbol sequence
+[01:10:12] can be compressed. So our problem is to
+[01:10:15] find the order aligned symbol sequence
+[01:10:18] given an input that is most likely. So
+[01:10:21] we want to find the order aligned symbol
+[01:10:24] sequence which is typically shorter than
+[01:10:26] the input given the input. So to compute
+[01:10:29] the probability for this, you must sum
+[01:10:31] its probability over all possible
+[01:10:34] alignments.
+[01:10:36] How do we compute that? We already saw
+[01:10:39] this when you were looking at the
+[01:10:42] forward algorithm. When you compose this
+[01:10:44] graph, what I call the trellis,
+[01:10:48] the alpha at this bottom right node was
+[01:10:51] the sum of all possible ways of aligning
+[01:10:55] this in this symbol sequence to the
+[01:10:57] input. Do you remember that?
+[01:11:01] Yes. No. Right. So what is this alpha?
+[01:11:06] What is this alpha? It's actually the
+[01:11:09] probability of the simple sequence over
+[01:11:11] all alignments.
+[01:11:13] Right.
+[01:11:16] Yes or no?
+[01:11:20] >> Okay. And so if I want to perform
+[01:11:23] optimal decode,
+[01:11:25] what I want to do is to find the most
+[01:11:27] likely asynchronous symbol sequence,
+[01:11:30] which means that for every possible
+[01:11:33] symbol sequence, I'd have to construct
+[01:11:35] this graph and compute the alpha at this
+[01:11:37] bottom right node and then pick the
+[01:11:39] graph for which this this probability
+[01:11:41] was highest.
+[01:11:43] So that leads us to our fifth and final
+[01:11:46] poll.
+[01:11:58] actual.
+[01:12:01] Guys, can you actually mute yourself if
+[01:12:03] you're not
+[01:12:05] intending to talk to the entire class?
+[01:12:33] Okay, 10 seconds, guys.
+[01:12:47] All right.
+[01:12:50] What is the answer to the first
+[01:12:52] statement for us?
+[01:12:55] True or false?
+[01:12:59] True. Second one.
+[01:13:03] Let's see. Both are true. Right. The
+[01:13:05] actual objective of decoding is to
+[01:13:07] identify the compressed sequence that
+[01:13:09] has the highest probability given the
+[01:13:11] input. This is the same as finding the
+[01:13:13] compressed sequence with the highest
+[01:13:14] forward probability alpha for aligning
+[01:13:17] the final symbol to the the sequence to
+[01:13:19] the final and input. So you want to find
+[01:13:23] the most likely compressed sequence
+[01:13:26] given which means you want to find the
+[01:13:28] sequence s for which the alpha at the
+[01:13:31] bottom right is highest. This means you
+[01:13:34] need to explicitly compute the alpha for
+[01:13:37] every possible symbol sequence and
+[01:13:40] there's infinite of them. So the
+[01:13:43] solution that we will follow is to
+[01:13:44] organize all possible sing symbol
+[01:13:47] sequences as what I call a semi tree.
+[01:13:50] I'm going to use an example with only
+[01:13:52] two symbols S1 and S2.
+[01:13:54] There's the implicit blank symbol as
+[01:13:56] well. So the first any symbol sequence
+[01:13:59] can either begin with an S1 or begin
+[01:14:01] with an S2 or begin with a blank. So
+[01:14:04] this is a symbol sequence that is one
+[01:14:07] symbol long. This making sense that this
+[01:14:10] is a symbol sequence that's one symbol
+[01:14:11] long. It's either going to be S1 or S2
+[01:14:16] or blank S_sub_1 or blank S2 which are
+[01:14:19] just S1 and S2. Right? So now
+[01:14:24] if I want to extend this by one this S1
+[01:14:27] by another symbol, I can extend it
+[01:14:29] directly by S_2
+[01:14:31] or to extend it by S1 I have to
+[01:14:33] introduce a blank in between or I can
+[01:14:36] also have a blank followed by an S2.
+[01:14:38] This two becomes S1 S2.
+[01:14:41] Similarly, s_ub_2 can be extended
+[01:14:43] directly by s_sub_1 or blank s_sub_1 or
+[01:14:46] blank s_ub_2. So this is so this guy
+[01:14:49] over here represents subs.
+[01:14:52] This guy represents s1 s_ub_2. This guy
+[01:14:56] represents s_ub_2 s1 and this guy
+[01:14:59] represents s_ub_2 s2. This make sense to
+[01:15:02] everybody,
+[01:15:05] right? And so
+[01:15:09] I can do this. I can keep extending it
+[01:15:11] in the same manner and this represents
+[01:15:14] all possible symbol sequences in the
+[01:15:16] language which has only two symbols s1
+[01:15:18] and s_ub_2 and each node represents an
+[01:15:22] entire symbol sequence from the root to
+[01:15:25] the node. That make sense?
+[01:15:30] Yes or no?
+[01:15:32] Okay. And so this tree I'm going to lay
+[01:15:35] it out vertically. I've just redrawn the
+[01:15:37] tree as a vertical tree. So you know
+[01:15:39] blank going to S1, blank going to S2 and
+[01:15:42] so on, right? S1 goes to either blank S1
+[01:15:44] or S1 goes directly to S_UB_2. S2 goes
+[01:15:47] either to blank S1 or goes directly to
+[01:15:51] when S blank S2 or goes directly to S1.
+[01:15:55] So you get the idea, right? And then
+[01:15:57] this is time. I can unroll this tree
+[01:16:00] across time and this is going to be my
+[01:16:02] trellis.
+[01:16:04] Each row over here represents a unique
+[01:16:07] symbol sequence. So this row for example
+[01:16:10] represents the symbol sequence that ends
+[01:16:13] at s_ub_2 which is going to be if I
+[01:16:15] follow it back that's going to be s1 s2.
+[01:16:18] This row over here represents this guy
+[01:16:22] which is going to be uh let me see. Let
+[01:16:24] me follow it back. It's going to be
+[01:16:28] s2
+[01:16:29] s2. That make sense that each one of
+[01:16:32] these represents a unique symbol
+[01:16:33] sequence,
+[01:16:37] right? And now I can just use the
+[01:16:39] forward algorithm.
+[01:16:43] You know, every node in the graph
+[01:16:44] represents a unique symbol sequence. So
+[01:16:45] every row represents a unique symbol
+[01:16:47] sequence. As input comes in, I can use a
+[01:16:50] forward algorithm to keep going forward
+[01:16:53] to compute the alphas at all the nodes.
+[01:16:55] And then when I'm finally done and of
+[01:16:57] course uh at the end of in the input I
+[01:17:02] just pick the alpha which has the
+[01:17:04] highest value and the corresponding
+[01:17:06] symbol sequence is my most likely symbol
+[01:17:10] sequence. I have to make one small
+[01:17:12] modification because symbol sequences
+[01:17:14] can end either the sequence itself or
+[01:17:18] also with a blank. So I actually need to
+[01:17:21] if I want to look at the the total
+[01:17:23] probability of just the symbol sequence
+[01:17:25] S1, I have to sum the alpha for S1 as
+[01:17:29] well as alpha S1 blank, right? And so I
+[01:17:33] can compute the alphas for all the
+[01:17:34] possible symbol sequences and pick the
+[01:17:37] symbol sequence that's overall most
+[01:17:39] likely across all possible alignments.
+[01:17:42] That make sense?
+[01:17:45] Yes. No.
+[01:17:47] Right. And what would be the pro problem
+[01:17:49] with this doing this naively?
+[01:17:53] What would the problem with this be?
+[01:17:57] Well, if you can't answer me, it's going
+[01:17:58] to blow up because as you keep going
+[01:18:00] forward, the tree keeps getting larger
+[01:18:02] and larger. And so, how do we solve it?
+[01:18:05] Right? This is the theoretically correct
+[01:18:07] CTC decoder. But in practice, the graph
+[01:18:10] gets exponentially large very quickly.
+[01:18:12] To prevent this, you use pruning
+[01:18:13] strategies to keep the graph manageable.
+[01:18:17] This can cause sub-optimal decodes.
+[01:18:18] However, you know, the fact that the CTC
+[01:18:21] scores peak at symbol terminations
+[01:18:23] minimizes the damage due to pruning. So,
+[01:18:25] here's how you do it. At the first time,
+[01:18:27] you compute the alphas for all the
+[01:18:29] nodes. There's going to be a small
+[01:18:30] number of them. Then, you keep only the
+[01:18:32] top few. Say top four in my example. You
+[01:18:36] only expand the top four at the next
+[01:18:38] time. And then from those you keep only
+[01:18:41] the top four and keep going forward
+[01:18:44] until and so at each time this trellis
+[01:18:47] that you build is going to have no more
+[01:18:48] than four active nodes or whatever n
+[01:18:51] active nodes where n is the width of
+[01:18:53] your beam. And then at the final time
+[01:18:56] you're going to you're going to sum up
+[01:18:57] the alphas uh for the two you're going
+[01:19:01] to determine the most likely symbol
+[01:19:03] sequence as the symbol sequence for
+[01:19:06] which the alpha is largest. Again
+[01:19:08] keeping in mind that each symbol
+[01:19:10] sequences can be represented by up to
+[01:19:12] two alphas.
+[01:19:14] That make sense to everybody?
+[01:19:17] Yes. No.
+[01:19:21] Okay. So I have a huge pseudo code in
+[01:19:25] the slides. Uh but you're also going to
+[01:19:28] be implementing this in your homework.
+[01:19:29] So I'll skip this. Right. So the story
+[01:19:32] so far
+[01:19:34] uh sequenceto-sequence networks which
+[01:19:37] irregularly produce output symbols can
+[01:19:39] be trained by iteratively aligning the
+[01:19:41] target output to the input and times
+[01:19:43] synchronous training or optimizing the
+[01:19:45] expected error over all possible
+[01:19:47] alignments. That's CTC training.
+[01:19:49] Distinct repetition of symbols can be
+[01:19:51] disambiguated from repetitions
+[01:19:53] representing the extended output of a
+[01:19:55] symbol sequence by the introduction of
+[01:19:57] blanks. decoding can be performed by
+[01:20:00] best path decoding which is greedy
+[01:20:01] decoding or optimal CTC decoding based
+[01:20:04] on the application of the forward
+[01:20:06] algorithm to a tree structured
+[01:20:08] representation of all possible output
+[01:20:11] strengths.
+[01:20:12] So the caveat the blank structure is
+[01:20:15] only one way to deal with the problem
+[01:20:16] problem of repeating symbols. There many
+[01:20:18] variants that have been proposed uh I'll
+[01:20:21] skip this. CTC can use birectional
+[01:20:24] recurrent networks. There's nothing
+[01:20:25] stopping it. Uh or even other kinds of
+[01:20:28] models. The most common CTC applications
+[01:20:32] speech recognition speech and phone
+[01:20:34] sequence out speech speech and character
+[01:20:36] sequence out and handwriting
+[01:20:39] recognition. So,
+[01:20:42] uh, anyways,
+[01:20:46] I'll stop right here. Did the lecture
+[01:20:48] make sense to all of you guys?
+[01:20:53] Yes or no? Just give me some thumbs up.
+[01:20:55] I'd like to see 25 thumbs up. I haven't
+[01:20:56] asked for that many today yet.
+[01:21:02] Thank you. Any questions? I'll stop the
+[01:21:05] recording.
