@@ -1,0 +1,5054 @@
+# Reading Input: Lecture 19 - Peer-to-Peeer - Bitcoin
+
+> This is a generated evidence bundle, not a finished study guide.
+> Keep assigned reading ranges and source boundaries when summarizing.
+
+## Video Sessions
+
+- Part 20: Lecture 19 - Peer-to-Peeer - Bitcoin (https://www.bilibili.com/video/BV16f4y1z7kn/?p=20)
+
+## Resources
+
+### paper: Bitcoin (2008)
+
+- URL: http://nil.csail.mit.edu/6.824/2021/papers/bitcoin.pdf
+- Local path: official-materials/papers/bitcoin.pdf
+
+#### Archived Content
+
+
+--- PDF page 1 ---
+Bitcoin: A Peer-to-Peer Electronic Cash System
+Satoshi Nakamoto
+satoshin@gmx.com
+www.bitcoin.org
+Abstract.  A purely peer-to-peer version of electronic cash would allow online 
+payments to be sent directly from one party to another without going through a 
+financial institution.  Digital signatures provide part of the solution, but the main 
+benefits are lost if a trusted third party is still required to prevent double-spending. 
+We propose a solution to the double-spending problem using a peer-to-peer network. 
+The network timestamps transactions by hashing them into an ongoing chain of 
+hash-based proof-of-work, forming a record that cannot be changed without redoing 
+the proof-of-work.  The longest chain not only serves as proof of the sequence of 
+events witnessed, but proof that it came from the largest pool of CPU power.  As 
+long as a majority of CPU power is controlled by nodes that are not cooperating to 
+attack the network, they'll generate the longest chain and outpace attackers.  The 
+network itself requires minimal structure.  Messages are broadcast on a best effort 
+basis, and nodes can leave and rejoin the network at will, accepting the longest 
+proof-of-work chain as proof of what happened while they were gone.
+1.
+Introduction
+Commerce on the Internet has come to rely almost exclusively on financial institutions serving as 
+trusted third parties to process electronic payments.  While the system works well enough for 
+most transactions, it still suffers from the inherent weaknesses of the trust based model. 
+Completely non-reversible transactions are not really possible, since financial institutions cannot 
+avoid mediating disputes.  The cost of mediation increases transaction costs, limiting the 
+minimum practical transaction size and cutting off the possibility for small casual transactions, 
+and there is a broader cost in the loss of ability to make non-reversible payments for non-
+reversible services.  With the possibility of reversal, the need for trust spreads.  Merchants must 
+be wary of their customers, hassling them for more information than they would otherwise need. 
+A certain percentage of fraud is accepted as unavoidable.  These costs and payment uncertainties 
+can be avoided in person by using physical currency, but no mechanism exists to make payments 
+over a communications channel without a trusted party.
+What is needed is an electronic payment system based on cryptographic proof instead of trust, 
+allowing any two willing parties to transact directly with each other without the need for a trusted 
+third party.  Transactions that are computationally impractical to reverse would protect sellers 
+from fraud, and routine escrow mechanisms could easily be implemented to protect buyers.  In 
+this paper, we propose a solution to the double-spending problem using a peer-to-peer distributed 
+timestamp server to generate computational proof of the chronological order of transactions.  The 
+system is secure as long as honest nodes collectively control more CPU power than any 
+cooperating group of attacker nodes.
+1
+
+--- PDF page 2 ---
+2.
+Transactions
+We define an electronic coin as a chain of digital signatures.  Each owner transfers the coin to the 
+next by digitally signing a hash of the previous transaction and the public key of the next owner 
+and adding these to the end of the coin.  A payee can verify the signatures to verify the chain of 
+ownership.
+The problem of course is the payee can't verify that one of the owners did not double-spend 
+the coin.  A common solution is to introduce a trusted central authority, or mint, that checks every 
+transaction for double spending.  After each transaction, the coin must be returned to the mint to 
+issue a new coin, and only coins issued directly from the mint are trusted not to be double-spent. 
+The problem with this solution is that the fate of the entire money system depends on the 
+company running the mint, with every transaction having to go through them, just like a bank.
+We need a way for the payee to know that the previous owners did not sign any earlier 
+transactions.  For our purposes, the earliest transaction is the one that counts, so we don't care 
+about later attempts to double-spend.  The only way to confirm the absence of a transaction is to 
+be aware of all transactions.  In the mint based model, the mint was aware of all transactions and 
+decided which arrived first.  To accomplish this without a trusted party, transactions must be 
+publicly announced [1], and we need a system for participants to agree on a single history of the 
+order in which they were received.  The payee needs proof that at the time of each transaction, the 
+majority of nodes agreed it was the first received. 
+3.
+Timestamp Server
+The solution we propose begins with a timestamp server.  A timestamp server works by taking a 
+hash of a block of items to be timestamped and widely publishing the hash, such as in a 
+newspaper or Usenet post [2-5].  The timestamp proves that the data must have existed at the 
+time, obviously, in order to get into the hash.  Each timestamp includes the previous timestamp in 
+its hash, forming a chain, with each additional timestamp reinforcing the ones before it.
+2
+Block
+Item
+Item
+...
+Hash
+Block
+Item
+Item
+...
+Hash
+Transaction
+Owner 1's
+Public Key
+Owner 0's
+Signature
+Hash
+Transaction
+Owner 2's
+Public Key
+Owner 1's
+Signature
+Hash
+ Verify
+Transaction
+Owner 3's
+Public Key
+Owner 2's
+Signature
+Hash
+ Verify
+Owner 2's
+Private Key
+Owner 1's
+Private Key
+Sign  
+Sign  
+Owner 3's
+Private Key
+
+--- PDF page 3 ---
+4.
+Proof-of-Work
+To implement a distributed timestamp server on a peer-to-peer basis, we will need to use a proof-
+of-work system similar to Adam Back's Hashcash [6], rather than newspaper or Usenet posts. 
+The proof-of-work involves scanning for a value that when hashed, such as with SHA-256, the 
+hash begins with a number of zero bits.  The average work required is exponential in the number 
+of zero bits required and can be verified by executing a single hash.
+For our timestamp network, we implement the proof-of-work by incrementing a nonce in the 
+block until a value is found that gives the block's hash the required zero bits.  Once the CPU 
+effort has been expended to make it satisfy the proof-of-work, the block cannot be changed 
+without redoing the work.  As later blocks are chained after it, the work to change the block 
+would include redoing all the blocks after it.
+The proof-of-work also solves the problem of determining representation in majority decision 
+making.  If the majority were based on one-IP-address-one-vote, it could be subverted by anyone 
+able to allocate many IPs.  Proof-of-work is essentially one-CPU-one-vote.  The majority 
+decision is represented by the longest chain, which has the greatest proof-of-work effort invested 
+in it.  If a majority of CPU power is controlled by honest nodes, the honest chain will grow the 
+fastest and outpace any competing chains.  To modify a past block, an attacker would have to 
+redo the proof-of-work of the block and all blocks after it and then catch up with and surpass the 
+work of the honest nodes.  We will show later that the probability of a slower attacker catching up 
+diminishes exponentially as subsequent blocks are added.
+To compensate for increasing hardware speed and varying interest in running nodes over time, 
+the proof-of-work difficulty is determined by a moving average targeting an average number of 
+blocks per hour.  If they're generated too fast, the difficulty increases.
+5.
+Network
+The steps to run the network are as follows:
+1)
+New transactions are broadcast to all nodes.
+2)
+Each node collects new transactions into a block.  
+3)
+Each node works on finding a difficult proof-of-work for its block.
+4)
+When a node finds a proof-of-work, it broadcasts the block to all nodes.
+5)
+Nodes accept the block only if all transactions in it are valid and not already spent.
+6)
+Nodes express their acceptance of the block by working on creating the next block in the 
+chain, using the hash of the accepted block as the previous hash.
+Nodes always consider the longest chain to be the correct one and will keep working on 
+extending it.  If two nodes broadcast different versions of the next block simultaneously, some 
+nodes may receive one or the other first.  In that case, they work on the first one they received, 
+but save the other branch in case it becomes longer.  The tie will be broken when the next proof-
+of-work is found and one branch becomes longer; the nodes that were working on the other 
+branch will then switch to the longer one.
+3
+Block
+Prev Hash
+Nonce
+Tx
+Tx
+...
+Block
+Prev Hash
+Nonce
+Tx
+Tx
+...
+
+--- PDF page 4 ---
+New transaction broadcasts do not necessarily need to reach all nodes.  As long as they reach 
+many nodes, they will get into a block before long.  Block broadcasts are also tolerant of dropped 
+messages.  If a node does not receive a block, it will request it when it receives the next block and 
+realizes it missed one.
+6.
+Incentive
+By convention, the first transaction in a block is a special transaction that starts a new coin owned 
+by the creator of the block.  This adds an incentive for nodes to support the network, and provides 
+a way to initially distribute coins into circulation, since there is no central authority to issue them. 
+The steady addition of a constant of amount of new coins is analogous to gold miners expending 
+resources to add gold to circulation.  In our case, it is CPU time and electricity that is expended.
+The incentive can also be funded with transaction fees.  If the output value of a transaction is 
+less than its input value, the difference is a transaction fee that is added to the incentive value of 
+the block containing the transaction.  Once a predetermined number of coins have entered 
+circulation, the incentive can transition entirely to transaction fees and be completely inflation 
+free.
+The incentive may help encourage nodes to stay honest.  If a greedy attacker is able to 
+assemble more CPU power than all the honest nodes, he would have to choose between using it 
+to defraud people by stealing back his payments, or using it to generate new coins.  He ought to 
+find it more profitable to play by the rules, such rules that favour him with more new coins than 
+everyone else combined, than to undermine the system and the validity of his own wealth.
+7.
+Reclaiming Disk Space
+Once the latest transaction in a coin is buried under enough blocks, the spent transactions before 
+it can be discarded to save disk space.  To facilitate this without breaking the block's hash, 
+transactions are hashed in a Merkle Tree [7][2][5], with only the root included in the block's hash. 
+Old blocks can then be compacted by stubbing off branches of the tree.  The interior hashes do 
+not need to be stored.
+A block header with no transactions would be about 80 bytes.  If we suppose blocks are 
+generated every 10 minutes, 80 bytes * 6 * 24 * 365 = 4.2MB per year.  With computer systems 
+typically selling with 2GB of RAM as of 2008, and Moore's Law predicting current growth of 
+1.2GB per year, storage should not be a problem even if the block headers must be kept in 
+memory.
+4
+Block
+Block
+Block Header (Block Hash)
+Prev Hash
+Nonce
+Hash01
+Hash0
+Hash1
+Hash2
+Hash3
+Hash23
+Root Hash
+Hash01
+Hash2
+Tx3
+Hash23
+Block Header (Block Hash)
+Root Hash
+Transactions Hashed in a Merkle Tree
+After Pruning Tx0-2 from the Block
+Prev Hash
+Nonce
+Hash3
+Tx0
+Tx1
+Tx2
+Tx3
+
+--- PDF page 5 ---
+8.
+Simplified Payment Verification
+It is possible to verify payments without running a full network node.  A user only needs to keep 
+a copy of the block headers of the longest proof-of-work chain, which he can get by querying 
+network nodes until he's convinced he has the longest chain, and obtain the Merkle branch 
+linking the transaction to the block it's timestamped in.  He can't check the transaction for 
+himself, but by linking it to a place in the chain, he can see that a network node has accepted it, 
+and blocks added after it further confirm the network has accepted it.
+As such, the verification is reliable as long as honest nodes control the network, but is more 
+vulnerable if the network is overpowered by an attacker.  While network nodes can verify 
+transactions for themselves, the simplified method can be fooled by an attacker's fabricated 
+transactions for as long as the attacker can continue to overpower the network.  One strategy to 
+protect against this would be to accept alerts from network nodes when they detect an invalid 
+block, prompting the user's software to download the full block and alerted transactions to 
+confirm the inconsistency.  Businesses that receive frequent payments will probably still want to 
+run their own nodes for more independent security and quicker verification.
+9.
+Combining and Splitting Value
+Although it would be possible to handle coins individually, it would be unwieldy to make a 
+separate transaction for every cent in a transfer.  To allow value to be split and combined, 
+transactions contain multiple inputs and outputs.  Normally there will be either a single input 
+from a larger previous transaction or multiple inputs combining smaller amounts, and at most two 
+outputs: one for the payment, and one returning the change, if any, back to the sender.  
+It should be noted that fan-out, where a transaction depends on several transactions, and those 
+transactions depend on many more, is not a problem here.  There is never the need to extract a 
+complete standalone copy of a transaction's history.
+5
+Transaction
+In
+...
+In
+Out
+...
+Hash01
+Hash2
+Hash3
+Hash23
+Block Header
+Merkle Root
+Prev Hash
+Nonce
+Block Header
+Merkle Root
+Prev Hash
+Nonce
+Block Header
+Merkle Root
+Prev Hash
+Nonce
+Merkle Branch for Tx3
+Longest Proof-of-Work Chain
+Tx3
+
+--- PDF page 6 ---
+10. Privacy
+The traditional banking model achieves a level of privacy by limiting access to information to the 
+parties involved and the trusted third party.  The necessity to announce all transactions publicly 
+precludes this method, but privacy can still be maintained by breaking the flow of information in 
+another place: by keeping public keys anonymous.  The public can see that someone is sending 
+an amount to someone else, but without information linking the transaction to anyone.  This is 
+similar to the level of information released by stock exchanges, where the time and size of 
+individual trades, the "tape", is made public, but without telling who the parties were.
+As an additional firewall, a new key pair should be used for each transaction to keep them 
+from being linked to a common owner.  Some linking is still unavoidable with multi-input 
+transactions, which necessarily reveal that their inputs were owned by the same owner.  The risk 
+is that if the owner of a key is revealed, linking could reveal other transactions that belonged to 
+the same owner.
+11. Calculations
+We consider the scenario of an attacker trying to generate an alternate chain faster than the honest 
+chain.  Even if this is accomplished, it does not throw the system open to arbitrary changes, such 
+as creating value out of thin air or taking money that never belonged to the attacker.  Nodes are 
+not going to accept an invalid transaction as payment, and honest nodes will never accept a block 
+containing them.  An attacker can only try to change one of his own transactions to take back 
+money he recently spent.
+The race between the honest chain and an attacker chain can be characterized as a Binomial 
+Random Walk.  The success event is the honest chain being extended by one block, increasing its 
+lead by +1, and the failure event is the attacker's chain being extended by one block, reducing the 
+gap by -1.
+The probability of an attacker catching up from a given deficit is analogous to a Gambler's 
+Ruin problem.  Suppose a gambler with unlimited credit starts at a deficit and plays potentially an 
+infinite number of trials to try to reach breakeven.  We can calculate the probability he ever 
+reaches breakeven, or that an attacker ever catches up with the honest chain, as follows [8]:
+p = probability an honest node finds the next block
+q = probability the attacker finds the next block
+qz = probability the attacker will ever catch up from z blocks behind
+q z={
+1
+if p≤q
+q/ p
+z
+if pq}
+6
+Identities
+Transactions
+Trusted
+Third Party
+Counterparty
+Public
+Identities
+Transactions
+Public
+New Privacy Model
+Traditional Privacy Model
+
+--- PDF page 7 ---
+Given our assumption that p > q, the probability drops exponentially as the number of blocks the 
+attacker has to catch up with increases.  With the odds against him, if he doesn't make a lucky 
+lunge forward early on, his chances become vanishingly small as he falls further behind.
+We now consider how long the recipient of a new transaction needs to wait before being 
+sufficiently certain the sender can't change the transaction.  We assume the sender is an attacker 
+who wants to make the recipient believe he paid him for a while, then switch it to pay back to 
+himself after some time has passed.  The receiver will be alerted when that happens, but the 
+sender hopes it will be too late.
+The receiver generates a new key pair and gives the public key to the sender shortly before 
+signing.  This prevents the sender from preparing a chain of blocks ahead of time by working on 
+it continuously until he is lucky enough to get far enough ahead, then executing the transaction at 
+that moment.  Once the transaction is sent, the dishonest sender starts working in secret on a 
+parallel chain containing an alternate version of his transaction.
+The recipient waits until the transaction has been added to a block and z blocks have been 
+linked after it.  He doesn't know the exact amount of progress the attacker has made, but 
+assuming the honest blocks took the average expected time per block, the attacker's potential 
+progress will be a Poisson distribution with expected value:
+=z q
+p
+To get the probability the attacker could still catch up now, we multiply the Poisson density for 
+each amount of progress he could have made by the probability he could catch up from that point:
+∑
+k=0
+∞
+ke
+−
+k! ⋅{
+q/ p
+z−k
+if k≤z
+1
+if kz}
+Rearranging to avoid summing the infinite tail of the distribution...
+1−∑
+k=0
+z 
+k e
+−
+k!
+1−q/ p
+z−k
+Converting to C code...
+#include <math.h>
+double AttackerSuccessProbability(double q, int z)
+{
+    double p = 1.0 - q;
+    double lambda = z * (q / p);
+    double sum = 1.0;
+    int i, k;
+    for (k = 0; k <= z; k++)
+    {
+        double poisson = exp(-lambda);
+        for (i = 1; i <= k; i++)
+            poisson *= lambda / i;
+        sum -= poisson * (1 - pow(q / p, z - k));
+    }
+    return sum;
+}
+7
+
+--- PDF page 8 ---
+Running some results, we can see the probability drop off exponentially with z.
+q=0.1
+z=0    P=1.0000000
+z=1    P=0.2045873
+z=2    P=0.0509779
+z=3    P=0.0131722
+z=4    P=0.0034552
+z=5    P=0.0009137
+z=6    P=0.0002428
+z=7    P=0.0000647
+z=8    P=0.0000173
+z=9    P=0.0000046
+z=10   P=0.0000012
+q=0.3
+z=0    P=1.0000000
+z=5    P=0.1773523
+z=10   P=0.0416605
+z=15   P=0.0101008
+z=20   P=0.0024804
+z=25   P=0.0006132
+z=30   P=0.0001522
+z=35   P=0.0000379
+z=40   P=0.0000095
+z=45   P=0.0000024
+z=50   P=0.0000006
+Solving for P less than 0.1%...
+P < 0.001
+q=0.10   z=5
+q=0.15   z=8
+q=0.20   z=11
+q=0.25   z=15
+q=0.30   z=24
+q=0.35   z=41
+q=0.40   z=89
+q=0.45   z=340
+12. Conclusion
+We have proposed a system for electronic transactions without relying on trust.  We started with 
+the usual framework of coins made from digital signatures, which provides strong control of 
+ownership, but is incomplete without a way to prevent double-spending.  To solve this, we 
+proposed a peer-to-peer network using proof-of-work to record a public history of transactions 
+that quickly becomes computationally impractical for an attacker to change if honest nodes 
+control a majority of CPU power.  The network is robust in its unstructured simplicity.  Nodes 
+work all at once with little coordination.  They do not need to be identified, since messages are 
+not routed to any particular place and only need to be delivered on a best effort basis.  Nodes can 
+leave and rejoin the network at will, accepting the proof-of-work chain as proof of what 
+happened while they were gone.  They vote with their CPU power, expressing their acceptance of 
+valid blocks by working on extending them and rejecting invalid blocks by refusing to work on 
+them.  Any needed rules and incentives can be enforced with this consensus mechanism.
+8
+
+--- PDF page 9 ---
+References
+[1]
+W. Dai, "b-money," http://www.weidai.com/bmoney.txt, 1998.
+[2]
+H. Massias, X.S. Avila, and J.-J. Quisquater, "Design of a secure timestamping service with minimal 
+trust requirements," In 20th Symposium on Information Theory in the Benelux, May 1999.
+[3]
+S. Haber, W.S. Stornetta, "How to time-stamp a digital document," In Journal of Cryptology, vol 3, no 
+2, pages 99-111, 1991.
+[4]
+D. Bayer, S. Haber, W.S. Stornetta, "Improving the efficiency and reliability of digital time-stamping," 
+In Sequences II: Methods in Communication, Security and Computer Science, pages 329-334, 1993.
+[5]
+S. Haber, W.S. Stornetta, "Secure names for bit-strings," In Proceedings of the 4th ACM Conference 
+on Computer and Communications Security, pages 28-35, April 1997.
+[6]
+A. Back, "Hashcash - a denial of service counter-measure," 
+http://www.hashcash.org/papers/hashcash.pdf, 2002.
+[7]
+R.C. Merkle, "Protocols for public key cryptosystems," In Proc. 1980 Symposium on Security and 
+Privacy, IEEE Computer Society, pages 122-133, April 1980.
+[8]
+W. Feller, "An introduction to probability theory and its applications," 1957.
+9
+
+### reading: summary
+
+- URL: http://www.michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works
+- Local path: official-materials/readings/how-the-bitcoin-protocol-actually-works
+
+#### Archived Content
+
+<!doctype html>
+<html lang="en-US" >
+<head>
+	<meta charset="UTF-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+	<title>How the Bitcoin protocol actually works &#8211; DDI</title>
+<meta name='robots' content='max-image-preview:large' />
+<link rel="alternate" type="application/rss+xml" title="DDI &raquo; Feed" href="https://michaelnielsen.org/ddi/feed/" />
+<link rel="alternate" type="application/rss+xml" title="DDI &raquo; Comments Feed" href="https://michaelnielsen.org/ddi/comments/feed/" />
+<link rel="alternate" type="application/rss+xml" title="DDI &raquo; How the Bitcoin protocol actually works Comments Feed" href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/feed/" />
+<link rel="alternate" title="oEmbed (JSON)" type="application/json+oembed" href="https://michaelnielsen.org/ddi/wp-json/oembed/1.0/embed?url=https%3A%2F%2Fmichaelnielsen.org%2Fddi%2Fhow-the-bitcoin-protocol-actually-works%2F" />
+<link rel="alternate" title="oEmbed (XML)" type="text/xml+oembed" href="https://michaelnielsen.org/ddi/wp-json/oembed/1.0/embed?url=https%3A%2F%2Fmichaelnielsen.org%2Fddi%2Fhow-the-bitcoin-protocol-actually-works%2F&#038;format=xml" />
+<style id="wp-img-auto-sizes-contain-inline-css">
+img:is([sizes=auto i],[sizes^="auto," i]){contain-intrinsic-size:3000px 1500px}
+/*# sourceURL=wp-img-auto-sizes-contain-inline-css */
+</style>
+<style id="wp-emoji-styles-inline-css">
+
+	img.wp-smiley, img.emoji {
+		display: inline !important;
+		border: none !important;
+		box-shadow: none !important;
+		height: 1em !important;
+		width: 1em !important;
+		margin: 0 0.07em !important;
+		vertical-align: -0.1em !important;
+		background: none !important;
+		padding: 0 !important;
+	}
+/*# sourceURL=wp-emoji-styles-inline-css */
+</style>
+<style id="wp-block-library-inline-css">
+:root{--wp-block-synced-color:#7a00df;--wp-block-synced-color--rgb:122,0,223;--wp-bound-block-color:var(--wp-block-synced-color);--wp-editor-canvas-background:#ddd;--wp-admin-theme-color:#007cba;--wp-admin-theme-color--rgb:0,124,186;--wp-admin-theme-color-darker-10:#006ba1;--wp-admin-theme-color-darker-10--rgb:0,107,160.5;--wp-admin-theme-color-darker-20:#005a87;--wp-admin-theme-color-darker-20--rgb:0,90,135;--wp-admin-border-width-focus:2px}@media (min-resolution:192dpi){:root{--wp-admin-border-width-focus:1.5px}}.wp-element-button{cursor:pointer}:root .has-very-light-gray-background-color{background-color:#eee}:root .has-very-dark-gray-background-color{background-color:#313131}:root .has-very-light-gray-color{color:#eee}:root .has-very-dark-gray-color{color:#313131}:root .has-vivid-green-cyan-to-vivid-cyan-blue-gradient-background{background:linear-gradient(135deg,#00d084,#0693e3)}:root .has-purple-crush-gradient-background{background:linear-gradient(135deg,#34e2e4,#4721fb 50%,#ab1dfe)}:root .has-hazy-dawn-gradient-background{background:linear-gradient(135deg,#faaca8,#dad0ec)}:root .has-subdued-olive-gradient-background{background:linear-gradient(135deg,#fafae1,#67a671)}:root .has-atomic-cream-gradient-background{background:linear-gradient(135deg,#fdd79a,#004a59)}:root .has-nightshade-gradient-background{background:linear-gradient(135deg,#330968,#31cdcf)}:root .has-midnight-gradient-background{background:linear-gradient(135deg,#020381,#2874fc)}:root{--wp--preset--font-size--normal:16px;--wp--preset--font-size--huge:42px}.has-regular-font-size{font-size:1em}.has-larger-font-size{font-size:2.625em}.has-normal-font-size{font-size:var(--wp--preset--font-size--normal)}.has-huge-font-size{font-size:var(--wp--preset--font-size--huge)}:root .has-text-align-center{text-align:center}:root .has-text-align-left{text-align:left}:root .has-text-align-right{text-align:right}.has-fit-text{white-space:nowrap!important}#end-resizable-editor-section{display:none}.aligncenter{clear:both}.items-justified-left{justify-content:flex-start}.items-justified-center{justify-content:center}.items-justified-right{justify-content:flex-end}.items-justified-space-between{justify-content:space-between}.screen-reader-text{word-wrap:normal!important;border:0;clip-path:inset(50%);height:1px;margin:-1px;overflow:hidden;padding:0;position:absolute;width:1px}.screen-reader-text:focus{background-color:#ddd;clip-path:none;color:#444;display:block;font-size:1em;height:auto;left:5px;line-height:normal;padding:15px 23px 14px;text-decoration:none;top:5px;width:auto;z-index:100000}html :where(.has-border-color){border-style:solid}html :where([style*=border-color]){border-style:solid}html :where([style*=border-top-color]){border-top-style:solid}html :where([style*=border-right-color]){border-right-style:solid}html :where([style*=border-bottom-color]){border-bottom-style:solid}html :where([style*=border-left-color]){border-left-style:solid}html :where([style*=border-width]){border-style:solid}html :where([style*=border-top-width]){border-top-style:solid}html :where([style*=border-right-width]){border-right-style:solid}html :where([style*=border-bottom-width]){border-bottom-style:solid}html :where([style*=border-left-width]){border-left-style:solid}html :where(img[class*=wp-image-]){height:auto;max-width:100%}:where(figure){margin:0 0 1em}html :where(.is-position-sticky){--wp-admin--admin-bar--position-offset:var(--wp-admin--admin-bar--height,0px)}@media screen and (max-width:600px){html :where(.is-position-sticky){--wp-admin--admin-bar--position-offset:0px}}
+
+/*# sourceURL=/wp-includes/css/dist/block-library/common.min.css */
+</style>
+<style id="classic-theme-styles-inline-css">
+/*! This file is auto-generated */
+.wp-block-button__link{color:#fff;background-color:#32373c;border-radius:9999px;box-shadow:none;text-decoration:none;padding:calc(.667em + 2px) calc(1.333em + 2px);font-size:1.125em}.wp-block-file__button{background:#32373c;color:#fff;text-decoration:none}
+/*# sourceURL=/wp-includes/css/classic-themes.min.css */
+</style>
+
+<link rel='stylesheet' id='twenty-twenty-one-custom-color-overrides-css' href='https://michaelnielsen.org/ddi/wp-content/themes/twentytwentyone/assets/css/custom-color-overrides.css?ver=2.4' media='all' />
+<style id="twenty-twenty-one-custom-color-overrides-inline-css">
+:root .editor-styles-wrapper{--global--color-background: #eeeadd;--global--color-primary: #000;--global--color-secondary: #000;--button--color-background: #000;--button--color-text-hover: #000;}
+/*# sourceURL=twenty-twenty-one-custom-color-overrides-inline-css */
+</style>
+<style id="global-styles-inline-css">
+:root{--wp--preset--aspect-ratio--square: 1;--wp--preset--aspect-ratio--4-3: 4/3;--wp--preset--aspect-ratio--3-4: 3/4;--wp--preset--aspect-ratio--3-2: 3/2;--wp--preset--aspect-ratio--2-3: 2/3;--wp--preset--aspect-ratio--16-9: 16/9;--wp--preset--aspect-ratio--9-16: 9/16;--wp--preset--color--black: #000000;--wp--preset--color--cyan-bluish-gray: #abb8c3;--wp--preset--color--white: #FFFFFF;--wp--preset--color--pale-pink: #f78da7;--wp--preset--color--vivid-red: #cf2e2e;--wp--preset--color--luminous-vivid-orange: #ff6900;--wp--preset--color--luminous-vivid-amber: #fcb900;--wp--preset--color--light-green-cyan: #7bdcb5;--wp--preset--color--vivid-green-cyan: #00d084;--wp--preset--color--pale-cyan-blue: #8ed1fc;--wp--preset--color--vivid-cyan-blue: #0693e3;--wp--preset--color--vivid-purple: #9b51e0;--wp--preset--color--dark-gray: #28303D;--wp--preset--color--gray: #39414D;--wp--preset--color--green: #D1E4DD;--wp--preset--color--blue: #D1DFE4;--wp--preset--color--purple: #D1D1E4;--wp--preset--color--red: #E4D1D1;--wp--preset--color--orange: #E4DAD1;--wp--preset--color--yellow: #EEEADD;--wp--preset--gradient--vivid-cyan-blue-to-vivid-purple: linear-gradient(135deg,rgb(6,147,227) 0%,rgb(155,81,224) 100%);--wp--preset--gradient--light-green-cyan-to-vivid-green-cyan: linear-gradient(135deg,rgb(122,220,180) 0%,rgb(0,208,130) 100%);--wp--preset--gradient--luminous-vivid-amber-to-luminous-vivid-orange: linear-gradient(135deg,rgb(252,185,0) 0%,rgb(255,105,0) 100%);--wp--preset--gradient--luminous-vivid-orange-to-vivid-red: linear-gradient(135deg,rgb(255,105,0) 0%,rgb(207,46,46) 100%);--wp--preset--gradient--very-light-gray-to-cyan-bluish-gray: linear-gradient(135deg,rgb(238,238,238) 0%,rgb(169,184,195) 100%);--wp--preset--gradient--cool-to-warm-spectrum: linear-gradient(135deg,rgb(74,234,220) 0%,rgb(151,120,209) 20%,rgb(207,42,186) 40%,rgb(238,44,130) 60%,rgb(251,105,98) 80%,rgb(254,248,76) 100%);--wp--preset--gradient--blush-light-purple: linear-gradient(135deg,rgb(255,206,236) 0%,rgb(152,150,240) 100%);--wp--preset--gradient--blush-bordeaux: linear-gradient(135deg,rgb(254,205,165) 0%,rgb(254,45,45) 50%,rgb(107,0,62) 100%);--wp--preset--gradient--luminous-dusk: linear-gradient(135deg,rgb(255,203,112) 0%,rgb(199,81,192) 50%,rgb(65,88,208) 100%);--wp--preset--gradient--pale-ocean: linear-gradient(135deg,rgb(255,245,203) 0%,rgb(182,227,212) 50%,rgb(51,167,181) 100%);--wp--preset--gradient--electric-grass: linear-gradient(135deg,rgb(202,248,128) 0%,rgb(113,206,126) 100%);--wp--preset--gradient--midnight: linear-gradient(135deg,rgb(2,3,129) 0%,rgb(40,116,252) 100%);--wp--preset--gradient--purple-to-yellow: linear-gradient(160deg, #D1D1E4 0%, #EEEADD 100%);--wp--preset--gradient--yellow-to-purple: linear-gradient(160deg, #EEEADD 0%, #D1D1E4 100%);--wp--preset--gradient--green-to-yellow: linear-gradient(160deg, #D1E4DD 0%, #EEEADD 100%);--wp--preset--gradient--yellow-to-green: linear-gradient(160deg, #EEEADD 0%, #D1E4DD 100%);--wp--preset--gradient--red-to-yellow: linear-gradient(160deg, #E4D1D1 0%, #EEEADD 100%);--wp--preset--gradient--yellow-to-red: linear-gradient(160deg, #EEEADD 0%, #E4D1D1 100%);--wp--preset--gradient--purple-to-red: linear-gradient(160deg, #D1D1E4 0%, #E4D1D1 100%);--wp--preset--gradient--red-to-purple: linear-gradient(160deg, #E4D1D1 0%, #D1D1E4 100%);--wp--preset--font-size--small: 18px;--wp--preset--font-size--medium: 20px;--wp--preset--font-size--large: 24px;--wp--preset--font-size--x-large: 42px;--wp--preset--font-size--extra-small: 16px;--wp--preset--font-size--normal: 20px;--wp--preset--font-size--extra-large: 40px;--wp--preset--font-size--huge: 96px;--wp--preset--font-size--gigantic: 144px;--wp--preset--spacing--20: 0.44rem;--wp--preset--spacing--30: 0.67rem;--wp--preset--spacing--40: 1rem;--wp--preset--spacing--50: 1.5rem;--wp--preset--spacing--60: 2.25rem;--wp--preset--spacing--70: 3.38rem;--wp--preset--spacing--80: 5.06rem;--wp--preset--shadow--natural: 6px 6px 9px rgba(0, 0, 0, 0.2);--wp--preset--shadow--deep: 12px 12px 50px rgba(0, 0, 0, 0.4);--wp--preset--shadow--sharp: 6px 6px 0px rgba(0, 0, 0, 0.2);--wp--preset--shadow--outlined: 6px 6px 0px -3px rgb(255, 255, 255), 6px 6px rgb(0, 0, 0);--wp--preset--shadow--crisp: 6px 6px 0px rgb(0, 0, 0);}:where(body) { margin: 0; }:where(.is-layout-flex){gap: 0.5em;}:where(.is-layout-grid){gap: 0.5em;}body .is-layout-flex{display: flex;}.is-layout-flex{flex-wrap: wrap;align-items: center;}.is-layout-flex > :is(*, div){margin: 0;}body .is-layout-grid{display: grid;}.is-layout-grid > :is(*, div){margin: 0;}body{padding-top: 0px;padding-right: 0px;padding-bottom: 0px;padding-left: 0px;}:root :where(.wp-element-button, .wp-block-button__link){background-color: #32373c;border-width: 0;color: #fff;font-family: inherit;font-size: inherit;font-style: inherit;font-weight: inherit;letter-spacing: inherit;line-height: inherit;padding-top: calc(0.667em + 2px);padding-right: calc(1.333em + 2px);padding-bottom: calc(0.667em + 2px);padding-left: calc(1.333em + 2px);text-decoration: none;text-transform: inherit;}.has-black-color{color: var(--wp--preset--color--black) !important;}.has-cyan-bluish-gray-color{color: var(--wp--preset--color--cyan-bluish-gray) !important;}.has-white-color{color: var(--wp--preset--color--white) !important;}.has-pale-pink-color{color: var(--wp--preset--color--pale-pink) !important;}.has-vivid-red-color{color: var(--wp--preset--color--vivid-red) !important;}.has-luminous-vivid-orange-color{color: var(--wp--preset--color--luminous-vivid-orange) !important;}.has-luminous-vivid-amber-color{color: var(--wp--preset--color--luminous-vivid-amber) !important;}.has-light-green-cyan-color{color: var(--wp--preset--color--light-green-cyan) !important;}.has-vivid-green-cyan-color{color: var(--wp--preset--color--vivid-green-cyan) !important;}.has-pale-cyan-blue-color{color: var(--wp--preset--color--pale-cyan-blue) !important;}.has-vivid-cyan-blue-color{color: var(--wp--preset--color--vivid-cyan-blue) !important;}.has-vivid-purple-color{color: var(--wp--preset--color--vivid-purple) !important;}.has-dark-gray-color{color: var(--wp--preset--color--dark-gray) !important;}.has-gray-color{color: var(--wp--preset--color--gray) !important;}.has-green-color{color: var(--wp--preset--color--green) !important;}.has-blue-color{color: var(--wp--preset--color--blue) !important;}.has-purple-color{color: var(--wp--preset--color--purple) !important;}.has-red-color{color: var(--wp--preset--color--red) !important;}.has-orange-color{color: var(--wp--preset--color--orange) !important;}.has-yellow-color{color: var(--wp--preset--color--yellow) !important;}.has-black-background-color{background-color: var(--wp--preset--color--black) !important;}.has-cyan-bluish-gray-background-color{background-color: var(--wp--preset--color--cyan-bluish-gray) !important;}.has-white-background-color{background-color: var(--wp--preset--color--white) !important;}.has-pale-pink-background-color{background-color: var(--wp--preset--color--pale-pink) !important;}.has-vivid-red-background-color{background-color: var(--wp--preset--color--vivid-red) !important;}.has-luminous-vivid-orange-background-color{background-color: var(--wp--preset--color--luminous-vivid-orange) !important;}.has-luminous-vivid-amber-background-color{background-color: var(--wp--preset--color--luminous-vivid-amber) !important;}.has-light-green-cyan-background-color{background-color: var(--wp--preset--color--light-green-cyan) !important;}.has-vivid-green-cyan-background-color{background-color: var(--wp--preset--color--vivid-green-cyan) !important;}.has-pale-cyan-blue-background-color{background-color: var(--wp--preset--color--pale-cyan-blue) !important;}.has-vivid-cyan-blue-background-color{background-color: var(--wp--preset--color--vivid-cyan-blue) !important;}.has-vivid-purple-background-color{background-color: var(--wp--preset--color--vivid-purple) !important;}.has-dark-gray-background-color{background-color: var(--wp--preset--color--dark-gray) !important;}.has-gray-background-color{background-color: var(--wp--preset--color--gray) !important;}.has-green-background-color{background-color: var(--wp--preset--color--green) !important;}.has-blue-background-color{background-color: var(--wp--preset--color--blue) !important;}.has-purple-background-color{background-color: var(--wp--preset--color--purple) !important;}.has-red-background-color{background-color: var(--wp--preset--color--red) !important;}.has-orange-background-color{background-color: var(--wp--preset--color--orange) !important;}.has-yellow-background-color{background-color: var(--wp--preset--color--yellow) !important;}.has-black-border-color{border-color: var(--wp--preset--color--black) !important;}.has-cyan-bluish-gray-border-color{border-color: var(--wp--preset--color--cyan-bluish-gray) !important;}.has-white-border-color{border-color: var(--wp--preset--color--white) !important;}.has-pale-pink-border-color{border-color: var(--wp--preset--color--pale-pink) !important;}.has-vivid-red-border-color{border-color: var(--wp--preset--color--vivid-red) !important;}.has-luminous-vivid-orange-border-color{border-color: var(--wp--preset--color--luminous-vivid-orange) !important;}.has-luminous-vivid-amber-border-color{border-color: var(--wp--preset--color--luminous-vivid-amber) !important;}.has-light-green-cyan-border-color{border-color: var(--wp--preset--color--light-green-cyan) !important;}.has-vivid-green-cyan-border-color{border-color: var(--wp--preset--color--vivid-green-cyan) !important;}.has-pale-cyan-blue-border-color{border-color: var(--wp--preset--color--pale-cyan-blue) !important;}.has-vivid-cyan-blue-border-color{border-color: var(--wp--preset--color--vivid-cyan-blue) !important;}.has-vivid-purple-border-color{border-color: var(--wp--preset--color--vivid-purple) !important;}.has-dark-gray-border-color{border-color: var(--wp--preset--color--dark-gray) !important;}.has-gray-border-color{border-color: var(--wp--preset--color--gray) !important;}.has-green-border-color{border-color: var(--wp--preset--color--green) !important;}.has-blue-border-color{border-color: var(--wp--preset--color--blue) !important;}.has-purple-border-color{border-color: var(--wp--preset--color--purple) !important;}.has-red-border-color{border-color: var(--wp--preset--color--red) !important;}.has-orange-border-color{border-color: var(--wp--preset--color--orange) !important;}.has-yellow-border-color{border-color: var(--wp--preset--color--yellow) !important;}.has-vivid-cyan-blue-to-vivid-purple-gradient-background{background: var(--wp--preset--gradient--vivid-cyan-blue-to-vivid-purple) !important;}.has-light-green-cyan-to-vivid-green-cyan-gradient-background{background: var(--wp--preset--gradient--light-green-cyan-to-vivid-green-cyan) !important;}.has-luminous-vivid-amber-to-luminous-vivid-orange-gradient-background{background: var(--wp--preset--gradient--luminous-vivid-amber-to-luminous-vivid-orange) !important;}.has-luminous-vivid-orange-to-vivid-red-gradient-background{background: var(--wp--preset--gradient--luminous-vivid-orange-to-vivid-red) !important;}.has-very-light-gray-to-cyan-bluish-gray-gradient-background{background: var(--wp--preset--gradient--very-light-gray-to-cyan-bluish-gray) !important;}.has-cool-to-warm-spectrum-gradient-background{background: var(--wp--preset--gradient--cool-to-warm-spectrum) !important;}.has-blush-light-purple-gradient-background{background: var(--wp--preset--gradient--blush-light-purple) !important;}.has-blush-bordeaux-gradient-background{background: var(--wp--preset--gradient--blush-bordeaux) !important;}.has-luminous-dusk-gradient-background{background: var(--wp--preset--gradient--luminous-dusk) !important;}.has-pale-ocean-gradient-background{background: var(--wp--preset--gradient--pale-ocean) !important;}.has-electric-grass-gradient-background{background: var(--wp--preset--gradient--electric-grass) !important;}.has-midnight-gradient-background{background: var(--wp--preset--gradient--midnight) !important;}.has-purple-to-yellow-gradient-background{background: var(--wp--preset--gradient--purple-to-yellow) !important;}.has-yellow-to-purple-gradient-background{background: var(--wp--preset--gradient--yellow-to-purple) !important;}.has-green-to-yellow-gradient-background{background: var(--wp--preset--gradient--green-to-yellow) !important;}.has-yellow-to-green-gradient-background{background: var(--wp--preset--gradient--yellow-to-green) !important;}.has-red-to-yellow-gradient-background{background: var(--wp--preset--gradient--red-to-yellow) !important;}.has-yellow-to-red-gradient-background{background: var(--wp--preset--gradient--yellow-to-red) !important;}.has-purple-to-red-gradient-background{background: var(--wp--preset--gradient--purple-to-red) !important;}.has-red-to-purple-gradient-background{background: var(--wp--preset--gradient--red-to-purple) !important;}.has-small-font-size{font-size: var(--wp--preset--font-size--small) !important;}.has-medium-font-size{font-size: var(--wp--preset--font-size--medium) !important;}.has-large-font-size{font-size: var(--wp--preset--font-size--large) !important;}.has-x-large-font-size{font-size: var(--wp--preset--font-size--x-large) !important;}.has-extra-small-font-size{font-size: var(--wp--preset--font-size--extra-small) !important;}.has-normal-font-size{font-size: var(--wp--preset--font-size--normal) !important;}.has-extra-large-font-size{font-size: var(--wp--preset--font-size--extra-large) !important;}.has-huge-font-size{font-size: var(--wp--preset--font-size--huge) !important;}.has-gigantic-font-size{font-size: var(--wp--preset--font-size--gigantic) !important;}
+/*# sourceURL=global-styles-inline-css */
+</style>
+
+<link rel='stylesheet' id='twenty-twenty-one-style-css' href='https://michaelnielsen.org/ddi/wp-content/themes/twentytwentyone/style.css?ver=2.4' media='all' />
+<style id="twenty-twenty-one-style-inline-css">
+:root{--global--color-background: #eeeadd;--global--color-primary: #000;--global--color-secondary: #000;--button--color-background: #000;--button--color-text-hover: #000;}
+/*# sourceURL=twenty-twenty-one-style-inline-css */
+</style>
+<link rel='stylesheet' id='twenty-twenty-one-print-style-css' href='https://michaelnielsen.org/ddi/wp-content/themes/twentytwentyone/assets/css/print.css?ver=2.4' media='print' />
+<link rel="https://api.w.org/" href="https://michaelnielsen.org/ddi/wp-json/" /><link rel="alternate" title="JSON" type="application/json" href="https://michaelnielsen.org/ddi/wp-json/wp/v2/posts/84" /><link rel="EditURI" type="application/rsd+xml" title="RSD" href="https://michaelnielsen.org/ddi/xmlrpc.php?rsd" />
+<meta name="generator" content="WordPress 7.0.4" />
+<link rel="canonical" href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/" />
+<link rel='shortlink' href='https://michaelnielsen.org/ddi/?p=84' />
+<style>.recentcomments a{display:inline !important;padding:0 !important;margin:0 !important;}</style><style type="text/css">
+/* <![CDATA[ */
+img.latex { vertical-align: middle; border: none; }
+/* ]]> */
+</style>
+<style id="custom-background-css">
+body.custom-background { background-color: #eeeadd; }
+</style>
+<style id="wp-custom-css">
+.latx {display: inline}
+</style>
+</head>
+
+<body class="wp-singular post-template-default single single-post postid-84 single-format-standard custom-background wp-embed-responsive wp-theme-twentytwentyone is-light-theme has-background-white no-js singular">
+<div id="page" class="site">
+	<a class="skip-link screen-reader-text" href="#content">
+		Skip to content	</a>
+
+	
+<header id="masthead" class="site-header has-title-and-tagline">
+
+	
+
+<div class="site-branding">
+
+	
+						<p class="site-title"><a href="https://michaelnielsen.org/ddi/">DDI</a></p>
+			
+			<p class="site-description">
+			Data-driven intelligence		</p>
+	</div><!-- .site-branding -->
+	
+
+</header><!-- #masthead -->
+
+	<div id="content" class="site-content">
+		<div id="primary" class="content-area">
+			<main id="main" class="site-main">
+
+<article id="post-84" class="post-84 post type-post status-publish format-standard hentry category-uncategorized entry">
+
+	<header class="entry-header alignwide">
+		<h1 class="entry-title">How the Bitcoin protocol actually works</h1>			</header><!-- .entry-header -->
+
+	<div class="entry-content">
+		<p>Many thousands of articles have been written purporting to explain Bitcoin, the online, peer-to-peer currency.  Most of those articles give a hand-wavy account of the underlying cryptographic protocol, omitting many details.  Even those articles which delve deeper often gloss over crucial points.  My aim in this post is to explain the major ideas behind the Bitcoin protocol in a clear, easily comprehensible way.  We&#8217;ll start from first principles, build up to a broad theoretical understanding of how the protocol works, and then dig down into the nitty-gritty, examining the raw data in a Bitcoin transaction.</p>
+<p>Understanding the protocol in this detailed way is hard work.  It is tempting instead to take Bitcoin as given, and to engage in speculation about how to get rich with Bitcoin, whether Bitcoin is a bubble, whether Bitcoin might one day mean the end of taxation, and so on.  That&#8217;s fun, but severely limits your understanding. Understanding the details of the Bitcoin protocol opens up otherwise inaccessible vistas.  In particular, it&#8217;s the basis for understanding Bitcoin&#8217;s built-in scripting language, which makes it possible to use Bitcoin to create new types of financial instruments, such as <a href="http://szabo.best.vwh.net/formalize.html">smart contracts</a>. New financial instruments can, in turn, be used to create new markets and to enable new forms of collective human behaviour.  Talk about fun!</p>
+<p>I&#8217;ll describe Bitcoin scripting and concepts such as smart contracts in future posts. This post concentrates on explaining the nuts-and-bolts of the Bitcoin protocol.  To understand the post, you need to be comfortable with <a href="http://en.wikipedia.org/wiki/Public-key_cryptography">public key   cryptography</a>, and with the closely related idea of <a href="https://en.wikipedia.org/wiki/Digital_signature">digital   signatures</a>.  I&#8217;ll also assume you&#8217;re familiar with <a href="https://en.wikipedia.org/wiki/Cryptographic_hash_function">cryptographic   hashing</a>.  None of this is especially difficult.  The basic ideas can be taught in freshman university mathematics or computer science classes.  The ideas are beautiful, so if you&#8217;re not familiar with them, I recommend taking a few hours to get familiar.</p>
+<p>It may seem surprising that Bitcoin&#8217;s basis is cryptography.  Isn&#8217;t Bitcoin a currency, not a way of sending secret messages?  In fact, the problems Bitcoin needs to solve are largely about securing transactions &#8212; making sure people can&#8217;t steal from one another, or impersonate one another, and so on.  In the world of atoms we achieve security with devices such as locks, safes, signatures, and bank vaults.  In the world of bits we achieve this kind of security with cryptography.  And that&#8217;s why Bitcoin is at heart a cryptographic protocol.</p>
+<p>My strategy in the post is to build Bitcoin up in stages.  I&#8217;ll begin by explaining a very simple digital currency, based on ideas that are almost obvious.  We&#8217;ll call that currency <em>Infocoin</em>, to distinguish it from Bitcoin.  Of course, our first version of Infocoin will have many deficiencies, and so we&#8217;ll go through several iterations of Infocoin, with each iteration introducing just one or two simple new ideas. After several such iterations, we&#8217;ll arrive at the full Bitcoin protocol.  We will have reinvented Bitcoin!</p>
+<p>This strategy is slower than if I explained the entire Bitcoin protocol in one shot.  But while you can understand the mechanics of Bitcoin through such a one-shot explanation, it would be difficult to understand <em>why</em> Bitcoin is designed the way it is.  The advantage of the slower iterative explanation is that it gives us a much sharper understanding of each element of Bitcoin.</p>
+<p>Finally, I should mention that I&#8217;m a relative newcomer to Bitcoin. I&#8217;ve been following it loosely since 2011 (and cryptocurrencies since the late 1990s), but only got seriously into the details of the Bitcoin protocol earlier this year.  So I&#8217;d certainly appreciate corrections of any misapprehensions on my part.  Also in the post I&#8217;ve included a number of &#8220;problems for the author&#8221; &#8211; notes to myself about questions that came up during the writing.  You may find these interesting, but you can also skip them entirely without losing track of the main text.</p>
+<h3>First steps: a signed letter of intent</h3>
+<p>So how can we design a digital currency?  </p>
+<p>On the face of it, a digital currency sounds impossible.  Suppose some person &#8211; let&#8217;s call her Alice &#8211; has some digital money which she wants to spend.  If Alice can use a string of bits as money, how can we prevent her from using the same bit string over and over, thus minting an infinite supply of money?  Or, if we can somehow solve that problem, how can we prevent someone else forging such a string of bits, and using that to steal from Alice?</p>
+<p>These are just two of the many problems that must be overcome in order to use information as money.</p>
+<p>As a first version of Infocoin, let&#8217;s find a way that Alice can use a string of bits as a (very primitive and incomplete) form of money, in a way that gives her at least some protection against forgery. Suppose Alice wants to give another person, Bob, an infocoin.  To do this, Alice writes down the message &#8220;I, Alice, am giving Bob one infocoin&#8221;.  She then digitally signs the message using a private cryptographic key, and announces the signed string of bits to the entire world.</p>
+<p>(By the way, I&#8217;m using capitalized &#8220;Infocoin&#8221; to refer to the protocol and general concept, and lowercase &#8220;infocoin&#8221; to refer to specific denominations of the currency.  A similar useage is common, though not universal, in the Bitcoin world.)</p>
+<p>This isn&#8217;t terribly impressive as a prototype digital currency!  But it does have some virtues.  Anyone in the world (including Bob) can use Alice&#8217;s public key to verify that Alice really was the person who signed the message &#8220;I, Alice, am giving Bob one infocoin&#8221;.  No-one else could have created that bit string, and so Alice can&#8217;t turn around and say &#8220;No, I didn&#8217;t mean to give Bob an infocoin&#8221;.  So the protocol establishes that Alice truly intends to give Bob one infocoin.  The same fact &#8211; no-one else could compose such a signed message &#8211; also gives Alice some limited protection from forgery.  Of course, <em>after</em> Alice has published her message it&#8217;s possible for other people to duplicate the message, so in that sense forgery is possible.  But it&#8217;s not possible from scratch.  These two properties &#8211; establishment of intent on Alice&#8217;s part, and the limited protection from forgery &#8211; are genuinely notable features of this protocol.</p>
+<p>I haven&#8217;t (quite) said exactly what digital money <em>is</em> in this protocol.  To make this explicit: it&#8217;s just the message itself, i.e., the string of bits representing the digitally signed message &#8220;I, Alice, am giving Bob one infocoin&#8221;.  Later protocols will be similar, in that all our forms of digital money will be just more and more elaborate messages [1].</p>
+<h3>Using serial numbers to make coins uniquely identifiable</h3>
+<p>A problem with the first version of Infocoin is that Alice could keep sending Bob the same signed message over and over.  Suppose Bob receives ten copies of the signed message &#8220;I, Alice, am giving Bob one infocoin&#8221;.  Does that mean Alice sent Bob ten <em>different</em> infocoins?  Was her message accidentally duplicated?  Perhaps she was trying to trick Bob into believing that she had given him ten different infocoins, when the message only proves to the world that she intends to transfer one infocoin.</p>
+<p>What we&#8217;d like is a way of making infocoins unique.  They need a label or serial number.  Alice would sign the message &#8220;I, Alice, am giving Bob one infocoin, with serial number 8740348&#8221;.  Then, later, Alice could sign the message &#8220;I, Alice, am giving Bob one infocoin, with serial number 8770431&#8221;, and Bob (and everyone else) would know that a different infocoin was being transferred.</p>
+<p>To make this scheme work we need a trusted source of serial numbers for the infocoins.  One way to create such a source is to introduce a <em>bank</em>.  This bank would provide serial numbers for infocoins, keep track of who has which infocoins, and verify that transactions really are legitimate,</p>
+<p>In more detail, let&#8217;s suppose Alice goes into the bank, and says &#8220;I want to withdraw one infocoin from my account&#8221;.  The bank reduces her account balance by one infocoin, and assigns her a new, never-before used serial number, let&#8217;s say 1234567.  Then, when Alice wants to transfer her infocoin to Bob, she signs the message &#8220;I, Alice, am giving Bob one infocoin, with serial number 1234567&#8221;.  But Bob doesn&#8217;t just accept the infocoin.  Instead, he contacts the bank, and verifies that: (a) the infocoin with that serial number belongs to Alice; and (b) Alice hasn&#8217;t already spent the infocoin.  If both those things are true, then Bob tells the bank he wants to accept the infocoin, and the bank updates their records to show that the infocoin with that serial number is now in Bob&#8217;s possession, and no longer belongs to Alice.</p>
+<h3>Making everyone collectively the bank</h3>
+<p>This last solution looks pretty promising.  However, it turns out that we can do something much more ambitious.  We can eliminate the bank entirely from the protocol.  This changes the nature of the currency considerably.  It means that there is no longer any single organization in charge of the currency.  And when you think about the enormous power a central bank has &#8211; control over the money supply &#8211; that&#8217;s a pretty huge change.</p>
+<p>The idea is to make it so <em>everyone</em> (collectively) is the bank. In particular, we&#8217;ll assume that everyone using Infocoin keeps a complete record of which infocoins belong to which person.  You can think of this as a shared public ledger showing all Infocoin transactions.  We&#8217;ll call this ledger the <em>block chain</em>, since that&#8217;s what the complete record will be called in Bitcoin, once we get to it.</p>
+<p>Now, suppose Alice wants to transfer an infocoin to Bob.  She signs the message &#8220;I, Alice, am giving Bob one infocoin, with serial number 1234567&#8221;, and gives the signed message to Bob.  Bob can use his copy of the block chain to check that, indeed, the infocoin is Alice&#8217;s to give.  If that checks out then he broadcasts both Alice&#8217;s message and his acceptance of the transaction to the entire network, and everyone updates their copy of the block chain.</p>
+<p>We still have the &#8220;where do serial number come from&#8221; problem, but that turns out to be pretty easy to solve, and so I will defer it to later, in the discussion of Bitcoin.  A more challenging problem is that this protocol allows Alice to cheat by double spending her infocoin.  She sends the signed message &#8220;I, Alice, am giving Bob one infocoin, with serial number 1234567&#8243; to Bob, and the message&#8221;I, Alice, am giving Charlie one infocoin, with [the same] serial number 1234567&#8221; to Charlie.  Both Bob and Charlie use their copy of the block chain to verify that the infocoin is Alice&#8217;s to spend.  Provided they do this verification at nearly the same time (before they&#8217;ve had a chance to hear from one another), both will find that, yes, the block chain shows the coin belongs to Alice.  And so they will both accept the transaction, and also broadcast their acceptance of the transaction.  Now there&#8217;s a problem.  How should other people update their block chains?  There may be no easy way to achieve a consistent shared ledger of transactions.  And even if everyone can agree on a consistent way to update their block chains, there is still the problem that either Bob or Charlie will be cheated.</p>
+<p>At first glance double spending seems difficult for Alice to pull off. After all, if Alice sends the message first to Bob, then Bob can verify the message, and tell everyone else in the network (including Charlie) to update their block chain.  Once that has happened, Charlie would no longer be fooled by Alice. So there is most likely only a brief period of time in which Alice can double spend.  However, it&#8217;s obviously undesirable to have any such a period of time.  Worse, there are techniques Alice could use to make that period longer.  She could, for example, use network traffic analysis to find times when Bob and Charlie are likely to have a lot of latency in communication.  Or perhaps she could do something to deliberately disrupt their communications.  If she can slow communication even a little that makes her task of double spending much easier.</p>
+<p>How can we address the problem of double spending?  The obvious solution is that when Alice sends Bob an infocoin, Bob shouldn&#8217;t try to verify the transaction alone.  Rather, he should broadcast the possible transaction to the entire network of Infocoin users, and ask them to help determine whether the transaction is legitimate.  If they collectively decide that the transaction is okay, then Bob can accept the infocoin, and everyone will update their block chain.  This type of protocol can help prevent double spending, since if Alice tries to spend her infocoin with both Bob and Charlie, other people on the network will notice, and network users will tell both Bob and Charlie that there is a problem with the transaction, and the transaction shouldn&#8217;t go through.</p>
+<p>In more detail, let&#8217;s suppose Alice wants to give Bob an infocoin.  As before, she signs the message &#8220;I, Alice, am giving Bob one infocoin, with serial number 1234567&#8221;, and gives the signed message to Bob. Also as before, Bob does a sanity check, using his copy of the block chain to check that, indeed, the coin currently belongs to Alice.  But at that point the protocol is modified.  Bob doesn&#8217;t just go ahead and accept the transaction.  Instead, he broadcasts Alice&#8217;s message to the entire network.  Other members of the network check to see whether Alice owns that infocoin.  If so, they broadcast the message &#8220;Yes, Alice owns infocoin 1234567, it can now be transferred to Bob.&#8221;  Once enough people have broadcast that message, everyone updates their block chain to show that infocoin 1234567 now belongs to Bob, and the transaction is complete.</p>
+<p>This protocol has many imprecise elements at present.  For instance, what does it mean to say &#8220;once enough people have broadcast that message&#8221;?  What exactly does &#8220;enough&#8221; mean here?  It can&#8217;t mean everyone in the network, since we don&#8217;t <em>a priori</em> know who is on the Infocoin network.  For the same reason, it can&#8217;t mean some fixed fraction of users in the network.  We won&#8217;t try to make these ideas precise right now.  Instead, in the next section I&#8217;ll point out a serious problem with the approach as described.  Fixing that problem will at the same time have the pleasant side effect of making the ideas above much more precise.</p>
+<h3>Proof-of-work</h3>
+<p>Suppose Alice wants to double spend in the network-based protocol I just described.  She could do this by taking over the Infocoin network.  Let&#8217;s suppose she uses an automated system to set up a large number of separate identities, let&#8217;s say a billion, on the Infocoin network.  As before, she tries to double spend the same infocoin with both Bob and Charlie.  But when Bob and Charlie ask the network to validate their respective transactions, Alice&#8217;s sock puppet identities swamp the network, announcing to Bob that they&#8217;ve validated his transaction, and to Charlie that they&#8217;ve validated his transaction, possibly fooling one or both into accepting the transaction.</p>
+<p>There&#8217;s a clever way of avoiding this problem, using an idea known as <em>proof-of-work</em>.  The idea is counterintuitive and involves a combination of two ideas: (1) to (artificially) make it <em>computationally costly</em> for network users to validate transactions; and (2) to <em>reward</em> them for trying to help validate transactions.  The reward is used so that people on the network will try to help validate transactions, even though that&#8217;s now been made a computationally costly process.  The benefit of making it costly to validate transactions is that validation can no longer be influenced by the number of network identities someone controls, but only by the total computational power they can bring to bear on validation.  As we&#8217;ll see, with some clever design we can make it so a cheater would need enormous computational resources to cheat, making it impractical.</p>
+<p>That&#8217;s the gist of proof-of-work.  But to really understand proof-of-work, we need to go through the details.</p>
+<p>Suppose Alice broadcasts to the network the news that &#8220;I, Alice, am giving Bob one infocoin, with serial number 1234567&#8221;.  </p>
+<p>As other people on the network hear that message, each adds it to a queue of pending transactions that they&#8217;ve been told about, but which haven&#8217;t yet been approved by the network.  For instance, another network user named David might have the following queue of pending transactions:</p>
+<p>I, Tom, am giving Sue one infocoin, with serial number 1201174.</p>
+<p>I, Sydney, am giving Cynthia one infocoin, with serial number 1295618.</p>
+<p>I, Alice, am giving Bob one infocoin, with serial number 1234567.</p>
+<p>David checks his copy of the block chain, and can see that each transaction is valid.  He would like to help out by broadcasting news of that validity to the entire network.</p>
+<p>However, before doing that, as part of the validation protocol David is required to solve a hard computational puzzle &#8211; the proof-of-work.  Without the solution to that puzzle, the rest of the network won&#8217;t accept his validation of the transaction.</p>
+<p>What puzzle does David need to solve?  To explain that, let <img src='https://s0.wp.com/latex.php?latex=h&#038;bg=ffffff&#038;fg=000000&#038;s=0' alt='h' title='h' class='latex' /> be a fixed hash function known by everyone in the network &#8211; it&#8217;s built into the protocol.  Bitcoin uses the well-known <a href="https://en.wikipedia.org/wiki/SHA-2">SHA-256</a> hash function, but any cryptographically secure hash function will do.  Let&#8217;s give David&#8217;s queue of pending transactions a label, <img src='https://s0.wp.com/latex.php?latex=l&#038;bg=ffffff&#038;fg=000000&#038;s=0' alt='l' title='l' class='latex' />, just so it&#8217;s got a name we can refer to.  Suppose David appends a number <img src='https://s0.wp.com/latex.php?latex=x&#038;bg=ffffff&#038;fg=000000&#038;s=0' alt='x' title='x' class='latex' /> (called the <em>nonce</em>) to <img src='https://s0.wp.com/latex.php?latex=l&#038;bg=ffffff&#038;fg=000000&#038;s=0' alt='l' title='l' class='latex' /> and hashes the combination.  For example, if we use <img src='https://s0.wp.com/latex.php?latex=l+%3D+&#038;bg=ffffff&#038;fg=000000&#038;s=0' alt='l = ' title='l = ' class='latex' /> &#8220;Hello, world!&#8221; (obviously this is not a list of transactions, just a string used for illustrative purposes) and the nonce <img src='https://s0.wp.com/latex.php?latex=x+%3D+0&#038;bg=ffffff&#038;fg=000000&#038;s=0' alt='x = 0' title='x = 0' class='latex' /> <a href="https://en.bitcoin.it/wiki/Proof_of_work">then</a> (output is in hexadecimal) </p>
+<pre>
+h("Hello, world!0") = 
+  1312af178c253f84028d480a6adc1e25e81caa44c749ec81976192e2ec934c64
+</pre>
+<p> The puzzle David has to solve &#8211; the proof-of-work &#8211; is to find a nonce <img src='https://s0.wp.com/latex.php?latex=x&#038;bg=ffffff&#038;fg=000000&#038;s=0' alt='x' title='x' class='latex' /> such that when we append <img src='https://s0.wp.com/latex.php?latex=x&#038;bg=ffffff&#038;fg=000000&#038;s=0' alt='x' title='x' class='latex' /> to <img src='https://s0.wp.com/latex.php?latex=l&#038;bg=ffffff&#038;fg=000000&#038;s=0' alt='l' title='l' class='latex' /> and hash the combination the output hash begins with a long run of zeroes.  The puzzle can be made more or less difficult by varying the number of zeroes required to solve the puzzle.  A relatively simple proof-of-work puzzle might require just three or four zeroes at the start of the hash, while a more difficult proof-of-work puzzle might require a much longer run of zeros, say 15 consecutive zeroes. In either case, the above attempt to find a suitable nonce, with <img src='https://s0.wp.com/latex.php?latex=x+%3D+0&#038;bg=ffffff&#038;fg=000000&#038;s=0' alt='x = 0' title='x = 0' class='latex' />, is a failure, since the output doesn&#8217;t begin with any zeroes at all.  Trying <img src='https://s0.wp.com/latex.php?latex=x+%3D+1&#038;bg=ffffff&#038;fg=000000&#038;s=0' alt='x = 1' title='x = 1' class='latex' /> doesn&#8217;t work either: </p>
+<pre>
+h("Hello, world!1") = 
+  e9afc424b79e4f6ab42d99c81156d3a17228d6e1eef4139be78e948a9332a7d8
+</pre>
+<p> We can keep trying different values for the nonce, <img src='https://s0.wp.com/latex.php?latex=x+%3D+2%2C+3%2C%5Cldots&#038;bg=ffffff&#038;fg=000000&#038;s=0' alt='x = 2, 3,\ldots' title='x = 2, 3,\ldots' class='latex' />. Finally, at <img src='https://s0.wp.com/latex.php?latex=x+%3D+4250&#038;bg=ffffff&#038;fg=000000&#038;s=0' alt='x = 4250' title='x = 4250' class='latex' /> we obtain: </p>
+<pre>
+h("Hello, world!4250") = 
+  0000c3af42fc31103f1fdc0151fa747ff87349a4714df7cc52ea464e12dcd4e9
+</pre>
+<p> This nonce gives us a string of four zeroes at the beginning of the output of the hash.  This will be enough to solve a simple proof-of-work puzzle, but not enough to solve a more difficult proof-of-work puzzle.</p>
+<p>What makes this puzzle hard to solve is the fact that the output from a cryptographic hash function behaves like a random number: change the input even a tiny bit and the output from the hash function changes completely, in a way that&#8217;s hard to predict.  So if we want the output hash value to begin with 10 zeroes, say, then David will need, on average, to try <img src='https://s0.wp.com/latex.php?latex=16%5E%7B10%7D+%5Capprox+10%5E%7B12%7D&#038;bg=ffffff&#038;fg=000000&#038;s=0' alt='16^{10} \approx 10^{12}' title='16^{10} \approx 10^{12}' class='latex' /> different values for <img src='https://s0.wp.com/latex.php?latex=x&#038;bg=ffffff&#038;fg=000000&#038;s=0' alt='x' title='x' class='latex' /> before he finds a suitable nonce.  That&#8217;s a pretty challenging task, requiring lots of computational power.</p>
+<p>Obviously, it&#8217;s possible to make this puzzle more or less difficult to solve by requiring more or fewer zeroes in the output from the hash function.  In fact, the Bitcoin protocol gets quite a fine level of control over the difficulty of the puzzle, by using a slight variation on the proof-of-work puzzle described above.  Instead of requiring leading zeroes, the Bitcoin proof-of-work puzzle requires the hash of a block&#8217;s header to be lower than or equal to a number known as the <a href="https://en.bitcoin.it/wiki/Target">target</a>.  This target is automatically adjusted to ensure that a Bitcoin block takes, on average, about ten minutes to validate.  </p>
+<p>(In practice there is a sizeable randomness in how long it takes to validate a block &#8211; sometimes a new block is validated in just a minute or two, other times it may take 20 minutes or even longer. It&#8217;s straightforward to modify the Bitcoin protocol so that the time to validation is much more sharply peaked around ten minutes.  Instead of solving a single puzzle, we can require that multiple puzzles be solved; with some careful design it is possible to considerably reduce the variance in the time to validate a block of transactions.)</p>
+<p>Alright, let&#8217;s suppose David is lucky and finds a suitable nonce, <img src='https://s0.wp.com/latex.php?latex=x&#038;bg=ffffff&#038;fg=000000&#038;s=0' alt='x' title='x' class='latex' />. Celebration!  (He&#8217;ll be rewarded for finding the nonce, as described below).  He broadcasts the block of transactions he&#8217;s approving to the network, together with the value for <img src='https://s0.wp.com/latex.php?latex=x&#038;bg=ffffff&#038;fg=000000&#038;s=0' alt='x' title='x' class='latex' />.  Other participants in the Infocoin network can verify that <img src='https://s0.wp.com/latex.php?latex=x&#038;bg=ffffff&#038;fg=000000&#038;s=0' alt='x' title='x' class='latex' /> is a valid solution to the proof-of-work puzzle.  And they then update their block chains to include the new block of transactions.</p>
+<p>For the proof-of-work idea to have any chance of succeeding, network users need an incentive to help validate transactions.  Without such an incentive, they have no reason to expend valuable computational power, merely to help validate other people&#8217;s transactions.  And if network users are not willing to expend that power, then the whole system won&#8217;t work.  The solution to this problem is to reward people who help validate transactions.  In particular, suppose we reward whoever successfully validates a block of transactions by crediting them with some infocoins.  Provided the infocoin reward is large enough that will give them an incentive to participate in validation.</p>
+<p>In the Bitcoin protocol, this validation process is called <em>mining</em>.  For each block of transactions validated, the successful miner receives a bitcoin reward.  Initially, this was set to be a 50 bitcoin reward.  But for every 210,000 validated blocks (roughly, once every four years) the reward halves.  This has happened just once, to date, and so the current reward for mining a block is 25 bitcoins.  This halving in the rate will continue every four years until the year 2140 CE.  At that point, the reward for mining will drop below <img src='https://s0.wp.com/latex.php?latex=10%5E%7B-8%7D&#038;bg=ffffff&#038;fg=000000&#038;s=0' alt='10^{-8}' title='10^{-8}' class='latex' /> bitcoins per block.  <img src='https://s0.wp.com/latex.php?latex=10%5E%7B-8%7D&#038;bg=ffffff&#038;fg=000000&#038;s=0' alt='10^{-8}' title='10^{-8}' class='latex' /> bitcoins is actually the minimal unit of Bitcoin, and is known as a <em>satoshi</em>.  So in 2140 CE the total supply of bitcoins will cease to increase.  However, that won&#8217;t eliminate the incentive to help validate transactions.  Bitcoin also makes it possible to set aside some currency in a transaction as a <em>transaction fee</em>, which goes to the miner who helps validate it.  In the early days of Bitcoin transaction fees were mostly set to zero, but as Bitcoin has gained in popularity, transaction fees have gradually risen, and are now a substantial additional incentive on top of the 25 bitcoin reward for mining a block.</p>
+<p>You can think of proof-of-work as a competition to approve transactions.  Each entry in the competition costs a little bit of computing power.  A miner&#8217;s chance of winning the competition is (roughly, and with some caveats) equal to the proportion of the total computing power that they control.  So, for instance, if a miner controls one percent of the computing power being used to validate Bitcoin transactions, then they have roughly a one percent chance of winning the competition.  So provided a lot of computing power is being brought to bear on the competition, a dishonest miner is likely to have only a relatively small chance to corrupt the validation process, unless they expend a huge amount of computing resources.</p>
+<p>Of course, while it&#8217;s encouraging that a dishonest party has only a relatively small chance to corrupt the block chain, that&#8217;s not enough to give us confidence in the currency.  In particular, we haven&#8217;t yet conclusively addressed the issue of double spending.</p>
+<p>I&#8217;ll analyse double spending shortly.  Before doing that, I want to fill in an important detail in the description of Infocoin.  We&#8217;d ideally like the Infocoin network to agree upon the <em>order</em> in which transactions have occurred.  If we don&#8217;t have such an ordering then at any given moment it may not be clear who owns which infocoins. To help do this we&#8217;ll require that new blocks always include a pointer to the last block validated in the chain, in addition to the list of transactions in the block.  (The pointer is actually just a hash of the previous block).  So typically the block chain is just a linear chain of blocks of transactions, one after the other, with later blocks each containing a pointer to the immediately prior block:</p>
+<p><img decoding="async" src="https://michaelnielsen.org/ddi/wp-content/uploads/2013/12/block_chain.png" width="310px"></p>
+<p>Occasionally, a fork will appear in the block chain.  This can happen, for instance, if by chance two miners happen to validate a block of transactions near-simultaneously &#8211; both broadcast their newly-validated block out to the network, and some people update their block chain one way, and others update their block chain the other way:</p>
+<p><img decoding="async" src="https://michaelnielsen.org/ddi/wp-content/uploads/2013/12/block_chain_fork.png" width="310px"></p>
+<p>This causes exactly the problem we&#8217;re trying to avoid &#8211; it&#8217;s no longer clear in what order transactions have occurred, and it may not be clear who owns which infocoins.  Fortunately, there&#8217;s a simple idea that can be used to remove any forks.  The rule is this: if a fork occurs, people on the network keep track of both forks.  But at any given time, miners only work to extend whichever fork is longest in their copy of the block chain.  </p>
+<p>Suppose, for example, that we have a fork in which some miners receive block A first, and some miners receive block B first.  Those miners who receive block A first will continue mining along that fork, while the others will mine along fork B.  Let&#8217;s suppose that the miners working on fork B are the next to successfully mine a block:</p>
+<p><img decoding="async" src="https://michaelnielsen.org/ddi/wp-content/uploads/2013/12/block_chain_extended.png" width="390px"></p>
+<p>After they receive news that this has happened, the miners working on fork A will notice that fork B is now longer, and will switch to working on that fork.  Presto, in short order work on fork A will cease, and everyone will be working on the same linear chain, and block A can be ignored.  Of course, any still-pending transactions in A will still be pending in the queues of the miners working on fork B, and so all transactions will eventually be validated.</p>
+<p>Likewise, it may be that the miners working on fork A are the first to extend their fork.  In that case work on fork B will quickly cease, and again we have a single linear chain.</p>
+<p>No matter what the outcome, this process ensures that the block chain has an agreed-upon time ordering of the blocks.  In Bitcoin proper, a transaction is not considered confirmed until: (1) it is part of a block in the longest fork, and (2) at least 5 blocks follow it in the longest fork.  In this case we say that the transaction has &#8220;6 confirmations&#8221;.  This gives the network time to come to an agreed-upon the ordering of the blocks.  We&#8217;ll also use this strategy for Infocoin.</p>
+<p>With the time-ordering now understood, let&#8217;s return to think about what happens if a dishonest party tries to double spend.  Suppose Alice tries to double spend with Bob and Charlie.  One possible approach is for her to try to validate a block that includes both transactions.  Assuming she has one percent of the computing power, she will occasionally get lucky and validate the block by solving the proof-of-work.  Unfortunately for Alice, the double spending will be immediately spotted by other people in the Infocoin network and rejected, despite solving the proof-of-work problem.  So that&#8217;s not something we need to worry about.</p>
+<p>A more serious problem occurs if she broadcasts two separate transactions in which she spends the same infocoin with Bob and Charlie, respectively.  She might, for example, broadcast one transaction to a subset of the miners, and the other transaction to another set of miners, hoping to get both transactions validated in this way.  Fortunately, in this case, as we&#8217;ve seen, the network will eventually confirm one of these transactions, but not both.  So, for instance, Bob&#8217;s transaction might ultimately be confirmed, in which case Bob can go ahead confidently.  Meanwhile, Charlie will see that his transaction has not been confirmed, and so will decline Alice&#8217;s offer.  So this isn&#8217;t a problem either.  In fact, knowing that this will be the case, there is little reason for Alice to try this in the first place.</p>
+<p>An important variant on double spending is if Alice = Bob, i.e., Alice tries to spend a coin with Charlie which she is also &#8220;spending&#8221; with herself (i.e., giving back to herself).  This sounds like it ought to be easy to detect and deal with, but, of course, it&#8217;s easy on a network to set up multiple identities associated with the same person or organization, so this possibility needs to be considered.  In this case, Alice&#8217;s strategy is to wait until Charlie accepts the infocoin, which happens after the transaction has been confirmed 6 times in the longest chain.  She will then attempt to fork the chain before the transaction with Charlie, adding a block which includes a transaction in which she pays herself:</p>
+<p><img decoding="async" src="https://michaelnielsen.org/ddi/wp-content/uploads/2013/12/block_chain_cheating.png" width="473px"></p>
+<p>Unfortunately for Alice, it&#8217;s now very difficult for her to catch up with the longer fork.  Other miners won&#8217;t want to help her out, since they&#8217;ll be working on the longer fork.  And unless Alice is able to solve the proof-of-work at least as fast as everyone else in the network combined &#8211; roughly, that means controlling more than fifty percent of the computing power &#8211; then she will just keep falling further and further behind.  Of course, she might get lucky.  We can, for example, imagine a scenario in which Alice controls one percent of the computing power, but happens to get lucky and finds six extra blocks in a row, before the rest of the network has found any extra blocks.  In this case, she might be able to get ahead, and get control of the block chain.  But this particular event will occur with probability <img src='https://s0.wp.com/latex.php?latex=1%2F100%5E6+%3D+10%5E%7B-12%7D&#038;bg=ffffff&#038;fg=000000&#038;s=0' alt='1/100^6 = 10^{-12}' title='1/100^6 = 10^{-12}' class='latex' />.  A more general analysis along these lines shows that Alice&#8217;s probability of ever catching up is infinitesimal, unless she is able to solve proof-of-work puzzles at a rate approaching all other miners combined.</p>
+<p>Of course, this is not a rigorous security analysis showing that Alice cannot double spend. It&#8217;s merely an informal plausibility argument. The <a href="http://bitcoin.org/bitcoin.pdf">original paper</a> introducing Bitcoin did not, in fact, contain a rigorous security analysis, only informal arguments along the lines I&#8217;ve presented here.  The security community is still analysing Bitcoin, and trying to understand possible vulnerabilities.  You can see some of this research <a href="https://en.bitcoin.it/wiki/Research">listed here</a>, and I mention a few related problems in the &#8220;Problems for the author&#8221; below.  At this point I think it&#8217;s fair to say that the jury is still out on how secure Bitcoin is.</p>
+<p>The proof-of-work and mining ideas give rise to many questions.  How much reward is enough to persuade people to mine?  How does the change in supply of infocoins affect the Infocoin economy?  Will Infocoin mining end up concentrated in the hands of a few, or many?  If it&#8217;s just a few, doesn&#8217;t that endanger the security of the system? Presumably transaction fees will eventually equilibriate &#8211; won&#8217;t this introduce an unwanted source of friction, and make small transactions less desirable?  These are all great questions, but beyond the scope of this post.  I may come back to the questions (in the context of Bitcoin) in a future post.  For now, we&#8217;ll stick to our focus on understanding how the Bitcoin protocol works.</p>
+<h3>Problems for the author</h3>
+<ul>
+<li> I don&#8217;t understand why double spending can&#8217;t be prevented in a   simpler manner using   <a href="http://en.wikipedia.org/wiki/Two-phase_commit_protocol">two-phase     commit</a>.  Suppose Alice tries to double spend an infocoin with   both Bob and Charlie.  The idea is that Bob and Charlie would each   broadcast their respective messages to the Infocoin network, along   with a request: &#8220;Should I accept this?&#8221;  They&#8217;d then wait some   period &#8211; perhaps ten minutes &#8211; to hear any naysayers who could   prove that Alice was trying to double spend.  If no such nays are   heard (and provided there are no signs of attempts to disrupt the   network), they&#8217;d then accept the transaction.  This protocol needs   to be hardened against network attacks, but it seems to me to be the   core of a good alternate idea.  How well does this work?  What   drawbacks and advantages does it have compared to the full Bitcoin   protocol?
+<li> Early in the section I mentioned that there is a natural way of   reducing the variance in time required to validate a block of   transactions.  If that variance is reduced too much, then it creates   an interesting attack possibility.  Suppose Alice tries to fork the   chain in such a way that: (a) one fork starts with a block in which   Alice pays herself, while the other fork starts with a block in   which Alice pays Bob; (b) both blocks are announced nearly   simultaneously, so roughly half the miners will attempt to mine each   fork; (c) Alice uses her mining power to try to keep the forks of   roughly equal length, mining whichever fork is shorter &#8211; this is   ordinarily hard to pull off, but becomes significantly easier if the   standard deviation of the time-to-validation is much shorter than   the network latency; (d) after 5 blocks have been mined on both   forks, Alice throws her mining power into making it more likely that   Charles&#8217;s transaction is confirmed; and (e) after confirmation of   Charles&#8217;s transaction, she then throws her computational power into   the other fork, and attempts to regain the lead.  This balancing   strategy will have only a small chance of success.  But while the   probability is small, it will certainly be much larger than in the   standard protocol, with high variance in the time to validate a   block.  Is there a way of avoiding this problem?
+<li> Suppose Bitcoin mining software always explored nonces starting   with <img src='https://s0.wp.com/latex.php?latex=x+%3D+0&#038;bg=ffffff&#038;fg=000000&#038;s=0' alt='x = 0' title='x = 0' class='latex' />, then <img src='https://s0.wp.com/latex.php?latex=x+%3D+1%2C+x+%3D+2%2C%5Cldots&#038;bg=ffffff&#038;fg=000000&#038;s=0' alt='x = 1, x = 2,\ldots' title='x = 1, x = 2,\ldots' class='latex' />.  If this is done by all   (or even just a substantial fraction) of Bitcoin miners then it   creates a vulnerability.  Namely, it&#8217;s possible for someone to   improve their odds of solving the proof-of-work merely by starting   with some other (much larger) nonce.  More generally, it may be   possible for attackers to exploit any systematic patterns in the way   miners explore the space of nonces.  More generally still, in the   analysis of this section I have implicitly assumed a kind of   symmetry between different miners.  In practice, there will be   asymmetries and a thorough security analysis will need to account for those asymmetries.
+</ul>
+<h3>Bitcoin</h3>
+<p>Let&#8217;s move away from Infocoin, and describe the actual Bitcoin protocol.  There are a few new ideas here, but with one exception (discussed below) they&#8217;re mostly obvious modifications to Infocoin.</p>
+<p>To use Bitcoin in practice, you first install a <a href="http://bitcoin.org/en/choose-your-wallet">wallet</a> program on your computer.  To give you a sense of what that means, here&#8217;s a screenshot of a wallet called <a href="https://multibit.org/">Multbit</a>. You can see the Bitcoin balance on the left &#8212; 0.06555555 Bitcoins, or about 70 dollars at the exchange rate on the day I took this screenshot &#8212; and on the right two recent transactions, which deposited those 0.06555555 Bitcoins:</p>
+<p><img decoding="async" src="https://michaelnielsen.org/ddi/wp-content/uploads/2013/12/wallet_transaction.jpg" width="500px"></p>
+<p>Suppose you&#8217;re a merchant who has set up an online store, and you&#8217;ve decided to allow people to pay using Bitcoin.  What you do is tell your wallet program to generate a <em>Bitcoin address</em>.  In response, it will generate a public / private key pair, and then hash the public key to form your Bitcoin address:</p>
+<p><img decoding="async" src="https://michaelnielsen.org/ddi/wp-content/uploads/2013/12/bitcoin_address.jpg" width="500px"></p>
+<p>You then send your Bitcoin address to the person who wants to buy from you.  You could do this in email, or even put the address up publicly on a webpage.  This is safe, since the address is merely a hash of your public key, which can safely be known by the world anyway.  (I&#8217;ll return later to the question of why the Bitcoin address is a hash, and not just the public key.)</p>
+<p>The person who is going to pay you then generates a <em>transaction</em>.  Let&#8217;s take a look at the data from an <a href="http://blockexplorer.com/tx/7c402505be883276b833d57168a048cfdf306a926484c0b58930f53d89d036f9">actual   transaction</a> transferring <img src='https://s0.wp.com/latex.php?latex=0.31900000&#038;bg=ffffff&#038;fg=000000&#038;s=0' alt='0.31900000' title='0.31900000' class='latex' /> bitcoins.  What&#8217;s shown below is very nearly the raw data.  It&#8217;s changed in three ways: (1) the data has been deserialized; (2) line numbers have been added, for ease of reference; and (3) I&#8217;ve abbreviated various hashes and public keys, just putting in the first six hexadecimal digits of each, when in reality they are much longer.  Here&#8217;s the data: </p>
+<pre>
+1.  {"hash":"7c4025...",
+2.  "ver":1,
+3.  "vin_sz":1,
+4.  "vout_sz":1,
+5.  "lock_time":0,
+6.  "size":224,
+7.  "in":[
+8.    {"prev_out":
+9.      {"hash":"2007ae...",
+10.      "n":0},
+11.    "scriptSig":"304502... 042b2d..."}],
+12. "out":[
+13.   {"value":"0.31900000",
+14.    "scriptPubKey":"OP_DUP OP_HASH160 a7db6f OP_EQUALVERIFY OP_CHECKSIG"}]}
+</pre>
+<p>Let&#8217;s go through this, line by line.</p>
+<p>Line 1 contains the hash of the remainder of the transaction, <tt>7c4025...</tt>, expressed in hexadecimal.  This is used as an identifier for the transaction.</p>
+<p>Line 2 tells us that this is a transaction in version 1 of the Bitcoin protocol.</p>
+<p>Lines 3 and 4 tell us that the transaction has one input and one output, respectively.  I&#8217;ll talk below about transactions with more inputs and outputs, and why that&#8217;s useful. </p>
+<p>Line 5 contains the value for <tt>lock_time</tt>, which can be used to control when a transaction is finalized.  For most Bitcoin transactions being carried out today the <tt>lock_time</tt> is set to 0, which means the transaction is finalized immediately.</p>
+<p>Line 6 tells us the size (in bytes) of the transaction.  Note that it&#8217;s not the monetary amount being transferred!  That comes later.</p>
+<p>Lines 7 through 11 define the input to the transaction.  In particular, lines 8 through 10 tell us that the input is to be taken from the output from an earlier transaction, with the given <tt>hash</tt>, which is expressed in hexadecimal as <tt>2007ae...</tt>. The <tt>n=0</tt> tells us it&#8217;s to be the first output from that transaction; we&#8217;ll see soon how multiple outputs (and inputs) from a transaction work, so don&#8217;t worry too much about this for now.  Line 11 contains the signature of the person sending the money, <tt>304502...</tt>, followed by a space, and then the corresponding public key, <tt>04b2d...</tt>.  Again, these are both in hexadecimal.</p>
+<p>One thing to note about the input is that there&#8217;s nothing explicitly specifying how many bitcoins from the previous transaction should be spent in this transaction.  In fact, <em>all</em> the bitcoins from the <tt>n=0</tt>th output of the previous transaction are spent.  So, for example, if the <tt>n=0</tt>th output of the earlier transaction was 2 bitcoins, then 2 bitcoins will be spent in this transaction.  This seems like an inconvenient restriction &#8211; like trying to buy bread with a 20 dollar note, and not being able to break the note down.  The solution, of course, is to have a mechanism for providing change. This can be done using transactions with multiple inputs and outputs, which we&#8217;ll discuss in the next section.</p>
+<p>Lines 12 through 14 define the output from the transaction.  In particular, line 13 tells us the value of the output, 0.319 bitcoins. Line 14 is somewhat complicated.  The main thing to note is that the string <tt>a7db6f...</tt> is the Bitcoin address of the intended recipient of the funds (written in hexadecimal).  In fact, Line 14 is actually an expression in Bitcoin&#8217;s scripting language.  I&#8217;m not going to describe that language in detail in this post, the important thing to take away now is just that <tt>a7db6f...</tt> is the Bitcoin address.</p>
+<p>You can now see, by the way, how Bitcoin addresses the question I swept under the rug in the last section: where do Bitcoin serial numbers come from?  In fact, the role of the serial number is played by transaction hashes.  In the transaction above, for example, the recipient is receiving 0.319 Bitcoins, which come out of the first output of an earlier transaction with hash <tt>2007ae...</tt> (line 9). If you go and look in the block chain for that transaction, you&#8217;d see that its output comes from a still earlier transaction.  And so on.</p>
+<p>There are two clever things about using transaction hashes instead of serial numbers.  First, in Bitcoin there&#8217;s not really any separate, persistent &#8220;coins&#8221; at all, just a long series of transactions in the block chain.  It&#8217;s a clever idea to realize that you don&#8217;t need persistent coins, and can just get by with a ledger of transactions. Second, by operating in this way we remove the need for any central authority issuing serial numbers.  Instead, the serial numbers can be self-generated, merely by hashing the transaction.</p>
+<p>In fact, it&#8217;s possible to keep following the chain of transactions further back in history.  Ultimately, this process must terminate. This can happen in one of two ways.  The first possibilitty is that you&#8217;ll arrive at the very first Bitcoin transaction, contained in the so-called <a href="https://en.bitcoin.it/wiki/Genesis_block">Genesis   block</a>.  This is a special transaction, having no inputs, but a 50 Bitcoin output.  In other words, this transaction establishes an initial money supply.  The Genesis block is treated separately by Bitcoin clients, and I won&#8217;t get into the details here, although it&#8217;s along similar lines to the transaction above.  You can see the deserialized raw data <a href="http://blockexplorer.com/rawblock/000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f">here</a>, and read about the Genesis block <a href="https://en.bitcoin.it/wiki/Genesis_block">here</a>.</p>
+<p>The second possibility when you follow a chain of transactions back in time is that eventually you&#8217;ll arrive at a so-called <em>coinbase   transaction</em>.  With the exception of the Genesis block, every block of transactions in the block chain starts with a special coinbase transaction.  This is the transaction rewarding the miner who validated that block of transactions.  It uses a similar but not identical format to the transaction above.  I won&#8217;t go through the format in detail, but if you want to see an example, see <a href="http://blockexplorer.com/rawtx/c3facb1e90fdbaf0ee59e342a00e1c82588af138784fabad7398eb9dab3a0e5a">here</a>. You can read a little more about coinbase transactions <a href="https://en.bitcoin.it/wiki/Protocol_specification#Transaction_Verification">here</a>.</p>
+<p>Something I haven&#8217;t been precise about above is what exactly is being signed by the digital signature in line 11.  The obvious thing to do is for the payer to sign the whole transaction (apart from the transaction hash, which, of course, must be generated later). Currently, this is <em>not</em> what is done &#8211; some pieces of the transaction are omitted.  This makes some pieces of the transaction <a href="https://en.bitcoin.it/wiki/Transaction_Malleability">malleable</a>, i.e., they can be changed later.  However, this malleability does not include the amounts being paid out, senders and recipients, which can&#8217;t be changed later.  I must admit I haven&#8217;t dug down into the details here. I gather that this malleability is under discussion in the Bitcoin developer community, and there are efforts afoot to reduce or eliminate this malleability.</p>
+<h3>Transactions with multiple inputs and outputs</h3>
+<p>In the last section I described how a transaction with a single input and a single output works. In practice, it&#8217;s often extremely convenient to create Bitcoin transactions with multiple inputs or multiple outputs.  I&#8217;ll talk below about why this can be useful.  But first let&#8217;s take a look at the data from an <a href="http://blockexplorer.com/tx/99383066a5140b35b93e8f84ef1d40fd720cc201d2aa51915b6c33616587b94f">actual   transaction</a>: </p>
+<pre>
+1. {"hash":"993830...",
+2. "ver":1,
+3. "vin_sz":3,
+4.  "vout_sz":2,
+5.  "lock_time":0,
+6.  "size":552,
+7.  "in":[
+8.    {"prev_out":{
+9.      "hash":"3beabc...",
+10.        "n":0},
+11.     "scriptSig":"304402... 04c7d2..."},
+12.    {"prev_out":{
+13.        "hash":"fdae9b...",
+14.        "n":0},
+15.      "scriptSig":"304502... 026e15..."},
+16.    {"prev_out":{
+17.        "hash":"20c86b...",
+18.        "n":1},
+19.      "scriptSig":"304402... 038a52..."}],
+20.  "out":[
+21.    {"value":"0.01068000",
+22.      "scriptPubKey":"OP_DUP OP_HASH160 e8c306... OP_EQUALVERIFY OP_CHECKSIG"},
+23.    {"value":"4.00000000",
+24.      "scriptPubKey":"OP_DUP OP_HASH160 d644e3... OP_EQUALVERIFY OP_CHECKSIG"}]}
+</pre>
+<p> Let&#8217;s go through the data, line by line.  It&#8217;s very similar to the single-input-single-output transaction, so I&#8217;ll do this pretty quickly.</p>
+<p>Line 1 contains the hash of the remainder of the transaction.  This is used as an identifier for the transaction.</p>
+<p>Line 2 tells us that this is a transaction in version 1 of the Bitcoin protocol.</p>
+<p>Lines 3 and 4 tell us that the transaction has three inputs and two outputs, respectively.</p>
+<p>Line 5 contains the <tt>lock_time</tt>.  As in the single-input-single-output case this is set to 0, which means the transaction is finalized immediately.</p>
+<p>Line 6 tells us the size of the transaction in bytes.</p>
+<p>Lines 7 through 19 define a list of the inputs to the transaction. Each corresponds to an output from a previous Bitcoin transaction.</p>
+<p>The first input is defined in lines 8 through 11.  </p>
+<p>In particular, lines 8 through 10 tell us that the input is to be taken from the <tt>n=0</tt>th output from the transaction with <tt>hash</tt> <tt>3beabc...</tt>.  Line 11 contains the signature, followed by a space, and then the public key of the person sending the bitcoins.</p>
+<p>Lines 12 through 15 define the second input, with a similar format to lines 8 through 11.  And lines 16 through 19 define the third input.</p>
+<p>Lines 20 through 24 define a list containing the two outputs from the transaction.</p>
+<p>The first output is defined in lines 21 and 22.  Line 21 tells us the value of the output, 0.01068000 bitcoins.  As before, line 22 is an expression in Bitcoin&#8217;s scripting language.  The main thing to take away here is that the string <tt>e8c30622...</tt> is the Bitcoin address of the intended recipient of the funds.</p>
+<p>The second output is defined lines 23 and 24, with a similar format to the first output.</p>
+<p>One apparent oddity in this description is that although each output has a Bitcoin value associated to it, the inputs do not.  Of course, the values of the respective inputs can be found by consulting the corresponding outputs in earlier transactions.  In a standard Bitcoin transaction, the sum of all the inputs in the transaction must be at least as much as the sum of all the outputs.  (The only exception to this principle is the Genesis block, and in coinbase transactions, both of which add to the overall Bitcoin supply.)  If the inputs sum up to more than the outputs, then the excess is used as a <em>transaction fee</em>.  This is paid to whichever miner successfully validates the block which the current transaction is a part of.</p>
+<p>That&#8217;s all there is to multiple-input-multiple-output transactions! They&#8217;re a pretty simple variation on single-input-single-output-transactions.</p>
+<p>One nice application of multiple-input-multiple-output transactions is the idea of <em>change</em>.  Suppose, for example, that I want to send you 0.15 bitcoins.  I can do so by spending money from a previous transaction in which I received 0.2 bitcoins.  Of course, I don&#8217;t want to send you the entire 0.2 bitcoins.  The solution is to send you 0.15 bitcoins, and to send 0.05 bitcoins to a Bitcoin address which I own.  Those 0.05 bitcoins are the change.  Of course, it differs a little from the change you might receive in a store, since change in this case is what you pay yourself.  But the broad idea is similar.</p>
+<h3>Conclusion</h3>
+<p>That completes a basic description of the main ideas behind Bitcoin. Of course, I&#8217;ve omitted many details &#8211; this isn&#8217;t a formal specification.  But I have described the main ideas behind the most common use cases for Bitcoin.</p>
+<p>While the rules of Bitcoin are simple and easy to understand, that doesn&#8217;t mean that it&#8217;s easy to understand all the consequences of the rules.  There is vastly more that could be said about Bitcoin, and I&#8217;ll investigate some of these issues in future posts.</p>
+<p>For now, though, I&#8217;ll wrap up by addressing a few loose ends.</p>
+<p><strong>How anonymous is Bitcoin?</strong> Many people claim that Bitcoin can be used anonymously.  This claim has led to the formation of marketplaces such as <a href="http://en.wikipedia.org/wiki/Silk_Road_(marketplace)">Silk   Road</a> (and various successors), which specialize in illegal goods. However, the claim that Bitcoin is anonymous is a myth.  The block chain is public, meaning that it&#8217;s possible for anyone to see every Bitcoin transaction ever.  Although Bitcoin addresses aren&#8217;t immediately associated to real-world identities, computer scientists have done a <a href="http://scholar.google.com/scholar?q=de-anonymization">great deal   of work</a> figuring out how to de-anonymize &#8220;anonymous&#8221; social networks.  The block chain is a marvellous target for these techniques.  I will be extremely surprised if the great majority of Bitcoin users are not identified with relatively high confidence and ease in the near future.  The confidence won&#8217;t be high enough to achieve convictions, but will be high enough to identify likely targets.  Furthermore, identification will be retrospective, meaning that someone who bought drugs on Silk Road in 2011 will still be identifiable on the basis of the block chain in, say, 2020.  These de-anonymization techniques are well known to computer scientists, and, one presumes, therefore to the NSA.  I would not be at all surprised if the NSA and other agencies have already de-anonymized many users.  It is, in fact, ironic that Bitcoin is often touted as anonymous.  It&#8217;s not.  Bitcoin is, instead, perhaps the most open and transparent financial instrument the world has ever seen.</p>
+<p><strong>Can you get rich with Bitcoin?</strong> Well, maybe.  Tim O&#8217;Reilly <a href="http://radar.oreilly.com/2006/05/my-commencement-speech-at-sims.html">once   said</a>: &#8220;Money is like gas in the car &#8211; you need to pay attention or you’ll end up on the side of the road &#8211; but a well-lived life is not a tour of gas stations!&#8221;  Much of the interest in Bitcoin comes from people whose life mission seems to be to find a <em>really big</em> gas station.  I must admit I find this perplexing.  What is, I believe, much more interesting and enjoyable is to think of Bitcoin and other cryptocurrencies as a way of enabling new forms of collective behaviour.  That&#8217;s intellectually fascinating, offers marvellous creative possibilities, is socially valuable, and may just also put some money in the bank.  But if money in the bank is your primary concern, then I believe that other strategies are much more likely to succeed.</p>
+<p><strong>Details I&#8217;ve omitted:</strong> Although this post has described the main ideas behind Bitcoin, there are many details I haven&#8217;t mentioned. One is a nice space-saving trick used by the protocol, based on a data structure known as a <a href="http://en.wikipedia.org/wiki/Merkle_tree">Merkle tree</a>.  It&#8217;s a detail, but a splendid detail, and worth checking out if fun data structures are your thing.  You can get an overview in the <a href="http://bitcoin.org/bitcoin.pdf">original Bitcoin paper</a>. Second, I&#8217;ve said little about the <a href="https://en.bitcoin.it/wiki/Network">Bitcoin network</a> &#8211; questions like how the network deals with denial of service attacks, how nodes <a href="https://en.bitcoin.it/wiki/Satoshi_Client_Node_Discovery">join   and leave the network</a>, and so on.  This is a fascinating topic, but it&#8217;s also something of a mess of details, and so I&#8217;ve omitted it.  You can read more about it at some of the links above.</p>
+<p><strong>Bitcoin scripting:</strong> In this post I&#8217;ve explained Bitcoin as a form of digital, online money.  But this is only a small part of a much bigger and more interesting story.  As we&#8217;ve seen, every Bitcoin transaction is associated to a script in the Bitcoin programming language.  The scripts we&#8217;ve seen in this post describe simple transactions like &#8220;Alice gave Bob 10 bitcoins&#8221;.  But the scripting language can also be used to express far more complicated transactions.  To put it another way, Bitcoin is <em>programmable   money</em>. In later posts I will explain the scripting system, and how it is possible to use Bitcoin scripting as a platform to experiment with all sorts of amazing financial instruments.</p>
+<p><em>Thanks for reading.  Enjoy the essay?  You can tip me with Bitcoin (!) at address: 17ukkKt1bNLAqdJ1QQv8v9Askr6vy3MzTZ.  You may also   enjoy the   <a href="http://neuralnetworksanddeeplearning.com/chap1.html">first     chapter</a> of my forthcoming book on neural networks and deep   learning, and may wish to   <a href="https://twitter.com/michael_nielsen">follow me on Twitter</a>.</em></p>
+<h3>Footnote</h3>
+<p>[1] In the United States the question &#8220;Is money a form of speech?&#8221; is an important legal question, because of the protection afforded speech under the US Constitution.  In my (legally uninformed) opinion digital money may make this issue more complicated.  As we&#8217;ll see, the Bitcoin protocol is really a way of standing up before the rest of the world (or at least the rest of the Bitcoin network) and avowing &#8220;I&#8217;m going to give such-and-such a number of bitcoins to so-and-so a person&#8221; in a way that&#8217;s extremely difficult to repudiate.  At least naively, it looks more like speech than exchanging copper coins, say.</p>
+	</div><!-- .entry-content -->
+
+	<footer class="entry-footer default-max-width">
+		<div class="posted-by"><span class="posted-on">Published <time class="entry-date published updated" datetime="2013-12-06T13:37:10-05:00">December 6, 2013</time></span><span class="byline">By <a href="https://michaelnielsen.org/ddi/author/admin/" rel="author">Michael Nielsen</a></span></div><div class="post-taxonomies"><span class="cat-links">Categorized as <a href="https://michaelnielsen.org/ddi/category/uncategorized/" rel="category tag">Uncategorized</a> </span></div>	</footer><!-- .entry-footer -->
+
+				
+</article><!-- #post-84 -->
+
+<div id="comments" class="comments-area default-max-width show-avatars">
+
+			<h2 class="comments-title">
+							259 comments					</h2><!-- .comments-title -->
+
+		<ol class="comment-list">
+					<li id="comment-4251" class="pingback even thread-even depth-1">
+			<div class="comment-body">
+				Pingback: <a href="http://jeremiahtillman.wordpress.com/2013/12/06/how-the-bitcoin-protocol-actually-works/" class="url" rel="ugc external nofollow">How the Bitcoin protocol actually works | Enjoying The Moment</a> 			</div>
+		</li><!-- #comment-## -->
+		<li id="comment-4252" class="comment odd alt thread-odd thread-alt depth-1 parent">
+			<article id="div-comment-4252" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/371ff320b189044828a7ed07ed7da6dfb710f2e6c06f535bc2180bd973e2e30e?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/371ff320b189044828a7ed07ed7da6dfb710f2e6c06f535bc2180bd973e2e30e?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' decoding='async'/>						<b class="fn">Sumedh</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4252"><time datetime="2013-12-06T14:28:38-05:00">December 6, 2013 at 2:28 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>Thanks, I was always too lazy to look up BTC in detail. Your article cleared most of my questions. </p>
+<p>I wanted to know one thing what if some smart hacker is able to find some vulnerability in the protocol and he uses that to generate new bitcoins for himself. Once that happens then whole confidence in bitcoins would be gone and it would lead to chaos.</p>
+<p>Is the above scenario possible?</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		<ol class="children">
+		<li id="comment-4255" class="comment even depth-2">
+			<article id="div-comment-4255" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/d1accc256df758fea96b5deac8f4043ac9f814486a25a87621ab5604d919fc26?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/d1accc256df758fea96b5deac8f4043ac9f814486a25a87621ab5604d919fc26?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' decoding='async'/>						<b class="fn">Bobby</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4255"><time datetime="2013-12-06T15:15:40-05:00">December 6, 2013 at 3:15 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>Your scenario is possible.  Just like any other popular piece of open source software there are incentives for finding exploits, but there are a lot of benevolent hackers examining the code to uncover and fix them.</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+		<li id="comment-4257" class="comment byuser comment-author-admin bypostauthor odd alt depth-2 parent">
+			<article id="div-comment-4257" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/13c495d08e6d1ccd89f2e90a78840a4332695a2d94a21470307e9f3194f8ec96?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/13c495d08e6d1ccd89f2e90a78840a4332695a2d94a21470307e9f3194f8ec96?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' decoding='async'/>						<b class="fn">Michael Nielsen</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4257"><time datetime="2013-12-06T15:27:25-05:00">December 6, 2013 at 3:27 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>@Bobby: Good point!  Yes, that solves much of the problem neatly.  My broad point about asymmetries is still true, however.  (And is vividly demonstrated by the rise of large mining pools.)</p>
+<p>Edit: This is in response to your comment below.  I must have clicked on the wrong link when I replied.</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		<ol class="children">
+		<li id="comment-6331" class="comment even depth-3">
+			<article id="div-comment-6331" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/1005dd1d72723ac7815ff938fd478802501c7741e4e3b075f0605e64978cb6bd?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/1005dd1d72723ac7815ff938fd478802501c7741e4e3b075f0605e64978cb6bd?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">achil</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-6331"><time datetime="2014-03-11T04:18:42-04:00">March 11, 2014 at 4:18 am</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>each block starts with a coinbase transaction which should give bitcoins to the person who solved it. since this transaction if different for any block (each node working on the network has her bitcoin address as the recipient of that transaction), all block in the network are different, so we should&#8217;nt (at least not likely) see two blocks with the same hashes.</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+</ol><!-- .children -->
+</li><!-- #comment-## -->
+		<li id="comment-4260" class="comment odd alt depth-2 parent">
+			<article id="div-comment-4260" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/de5b8389474ae11cac2718f2c2586f56854aee443a15cf447e43166d44e7cc05?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/de5b8389474ae11cac2718f2c2586f56854aee443a15cf447e43166d44e7cc05?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn"><a href="http://www.gwern.net/Bitcoin%20is%20Worse%20is%20Better" class="url" rel="ugc external nofollow">gwern</a></b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4260"><time datetime="2013-12-06T16:23:21-05:00">December 6, 2013 at 4:23 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>That bug has actually happened before, but Satoshi/Gavin fixed it before anyone else managed to exploit it. (There have been 2 major live flaws in Bitcoin that I know of: one allowed you to generate billions of bitcoins, and the other allowed you to spend anyone&#8217;s bitcoins. Neither was exploited before being patched, and there don&#8217;t seem to have been any big flaws found since.)</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		<ol class="children">
+		<li id="comment-4271" class="comment even depth-3 parent">
+			<article id="div-comment-4271" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/4f789b4c876c8b73198e8c8a24da6a1280a6c9564839f02cb6f78df99c2079a4?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/4f789b4c876c8b73198e8c8a24da6a1280a6c9564839f02cb6f78df99c2079a4?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn"><a href="http://segment6.blogspot.com" class="url" rel="ugc external nofollow">Rena</a></b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4271"><time datetime="2013-12-06T20:58:23-05:00">December 6, 2013 at 8:58 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>Interesting. How did those exploits work?</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		<ol class="children">
+		<li id="comment-4302" class="comment odd alt depth-4">
+			<article id="div-comment-4302" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/de5b8389474ae11cac2718f2c2586f56854aee443a15cf447e43166d44e7cc05?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/de5b8389474ae11cac2718f2c2586f56854aee443a15cf447e43166d44e7cc05?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn"><a href="http://www.gwern.net/Bitcoin%20is%20Worse%20is%20Better" class="url" rel="ugc external nofollow">gwern</a></b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4302"><time datetime="2013-12-07T15:01:29-05:00">December 7, 2013 at 3:01 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>I don&#8217;t know the technical details. Might want to look up the CVEs and the patches. From the sound of them, some validation check was omitted and so bad transactions were allowed.</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+</ol><!-- .children -->
+</li><!-- #comment-## -->
+</ol><!-- .children -->
+</li><!-- #comment-## -->
+</ol><!-- .children -->
+</li><!-- #comment-## -->
+		<li id="comment-4254" class="comment even thread-even depth-1 parent">
+			<article id="div-comment-4254" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/d1accc256df758fea96b5deac8f4043ac9f814486a25a87621ab5604d919fc26?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/d1accc256df758fea96b5deac8f4043ac9f814486a25a87621ab5604d919fc26?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Bobby</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4254"><time datetime="2013-12-06T15:11:49-05:00">December 6, 2013 at 3:11 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>I believe have the answer to your third question.</p>
+<p>The raw block data that each miner is trying to solve contains a generation transaction.  That transaction is where their coins are sent if they solve that block.  Because miners competing against each other want their coins to be sent to different addresses, and those addresses are hashed together with their nonce, it does not matter if everyone starts their nonce from zero.  The added randomness from differing generation transaction addresses prevents each miner from working in the same space as others.</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		<ol class="children">
+		<li id="comment-4299" class="comment odd alt depth-2">
+			<article id="div-comment-4299" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/496013da3c7dc434116c6e49939e23d1e02e54b440f44ca3622217a95d502f62?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/496013da3c7dc434116c6e49939e23d1e02e54b440f44ca3622217a95d502f62?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Michael</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4299"><time datetime="2013-12-07T12:58:29-05:00">December 7, 2013 at 12:58 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>Thanks Bobby. I had wondered about the same question as the author. Your explanation clears it up for me.</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+		<li id="comment-4412" class="comment even depth-2">
+			<article id="div-comment-4412" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/50cfc502be3f020a0f189b8ecb9d25072b748bc871c365b98c72c25cae0cd8c3?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/50cfc502be3f020a0f189b8ecb9d25072b748bc871c365b98c72c25cae0cd8c3?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">JC</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4412"><time datetime="2013-12-09T14:51:37-05:00">December 9, 2013 at 2:51 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>Moreover the nonces need not be enumerable. If randomly picked from a large enough pool it is unlikely that the same nonce gets picked twice.</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+</ol><!-- .children -->
+</li><!-- #comment-## -->
+		<li id="comment-4256" class="comment odd alt thread-odd thread-alt depth-1 parent">
+			<article id="div-comment-4256" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/d49b599ee706e83fa32f293cc4c24225902d1c42fde35286ccef623ccbd6424d?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/d49b599ee706e83fa32f293cc4c24225902d1c42fde35286ccef623ccbd6424d?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn"><a href="http://pintant.cat" class="url" rel="ugc external nofollow">Carles</a></b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4256"><time datetime="2013-12-06T15:24:22-05:00">December 6, 2013 at 3:24 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>Very well written!</p>
+<p>Only one thing to add (on another post): when you launch Multibit (or bitcoin-qt, etc.): where does it connect? a list of IPs? DNS? etc. etc.</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		<ol class="children">
+		<li id="comment-4378" class="comment even depth-2">
+			<article id="div-comment-4378" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/f59dae1ab78b17a637dba372926fafc9f620ce7bb81cd7c636fe2125263d9db9?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/f59dae1ab78b17a637dba372926fafc9f620ce7bb81cd7c636fe2125263d9db9?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Pål Driveklepp</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4378"><time datetime="2013-12-09T07:20:46-05:00">December 9, 2013 at 7:20 am</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>Bitcoin has 3 methods for finding peers:<br />
+<a href="https://en.bitcoin.it/wiki/Network#Bootstrapping" rel="nofollow ugc">https://en.bitcoin.it/wiki/Network#Bootstrapping</a></p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+</ol><!-- .children -->
+</li><!-- #comment-## -->
+		<li id="comment-4258" class="comment odd alt thread-even depth-1 parent">
+			<article id="div-comment-4258" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/dc71e50f41e058df80f6043103a23d04d61e04e6894c11fe79e8d00f47c44e3e?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/dc71e50f41e058df80f6043103a23d04d61e04e6894c11fe79e8d00f47c44e3e?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Benoit</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4258"><time datetime="2013-12-06T16:11:11-05:00">December 6, 2013 at 4:11 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>Thank you for the great write-up! </p>
+<p>You write &#8220;I’ll return later to the question of why the Bitcoin address is a hash, and not just the public key&#8221;. Did I miss it? Does it have anything to do with quantum computing?</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		<ol class="children">
+		<li id="comment-4261" class="comment byuser comment-author-admin bypostauthor even depth-2 parent">
+			<article id="div-comment-4261" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/13c495d08e6d1ccd89f2e90a78840a4332695a2d94a21470307e9f3194f8ec96?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/13c495d08e6d1ccd89f2e90a78840a4332695a2d94a21470307e9f3194f8ec96?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Michael Nielsen</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4261"><time datetime="2013-12-06T17:29:43-05:00">December 6, 2013 at 5:29 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>Oops &#8211; actually, I had an extended discussion of this question, but deleted it just before I posted.  The reason I deleted it is that the discussion was inconclusive.  The separation seems to be a fairly arbitrary design decision &#8211; there are some minor space and security advantages, but not enough (in my opinion) to justify making the Bitcoin address the hash rather than the public key.</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		<ol class="children">
+		<li id="comment-4263" class="comment odd alt depth-3 parent">
+			<article id="div-comment-4263" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/85c92e867cc6feeb73840a8dc109f6c3fb915afebc4cf7da609ff2e4f2500b39?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/85c92e867cc6feeb73840a8dc109f6c3fb915afebc4cf7da609ff2e4f2500b39?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn"><a href="http://utxo.tumblr.com/" class="url" rel="ugc external nofollow">Mark Friedenbach</a></b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4263"><time datetime="2013-12-06T17:45:07-05:00">December 6, 2013 at 5:45 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>There&#8217;s a very serious security advantage &#8211; the public key is not known until the moment it is spent. That reduces the window during which the private key could be derived and used in a double-spend to about 10 minutes. This has significant ramifications for the safe transition to quantum-proof cryptography, if nothing else.</p>
+<p>And space-wise we&#8217;re talking about saving hundreds of megabytes, soon gigabytes of data from the UTXO set. That&#8217;s not insignificant.</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		<ol class="children">
+		<li id="comment-4267" class="comment byuser comment-author-admin bypostauthor even depth-4 parent">
+			<article id="div-comment-4267" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/13c495d08e6d1ccd89f2e90a78840a4332695a2d94a21470307e9f3194f8ec96?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/13c495d08e6d1ccd89f2e90a78840a4332695a2d94a21470307e9f3194f8ec96?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Michael Nielsen</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4267"><time datetime="2013-12-06T19:22:05-05:00">December 6, 2013 at 7:22 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>Mark,</p>
+<p>You&#8217;ve described the two main points in the material I deleted.  To me, both seem like relatively small points.  On the first point, many people reuse addresses, so in practice public keys are often widely known.  This problem could be reduced if Bitcoin enforced a policy that addresses could only ever be used once, but (a) that&#8217;s not going to happen anytime soon; (b) it introduces some other practical problems (it&#8217;s useful to be able to publish an address widely); and (c) it would still leave a window of time when the public key is widely known, but the transaction is not yet confirmed.</p>
+<p>On the second point, I haven&#8217;t computed exactly but I suspect the space savings is less than ten percent of the total transaction size, depending on the type of transaction.   That&#8217;s significant, but it also seems to me that other similar savings could easily have been had, but are not.  So it does seem a bit arbitrary.  Still, as you point out, it&#8217;s not insignificant.</p>
+<p>(Actually, it occurs to me that it&#8217;s pretty easy to modify the standard Bitcoin transaction script so only public keys are used.  This might make a nice example for my post on Bitcoin scripting.)</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		<ol class="children">
+		<li id="comment-5965" class="comment odd alt depth-5">
+			<article id="div-comment-5965" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/7535316a9512a45141e736a433df9c5a2a3b64dd8c448bb3ee8dd2988b88565f?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/7535316a9512a45141e736a433df9c5a2a3b64dd8c448bb3ee8dd2988b88565f?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">David</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-5965"><time datetime="2014-01-12T05:29:35-05:00">January 12, 2014 at 5:29 am</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>I have read that there is no known algorithm that would allow public keys to be derived from public addresses within a practicable timescale, even with quantum computing. However, the same is not true for deriving private keys from public keys. Thus addresses that have not been used to spend, have benefits in terms of being more QC proof. I recall Vitalik Buterin writing on this topic.</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+</ol><!-- .children -->
+</li><!-- #comment-## -->
+		<li id="comment-4279" class="comment even depth-4 parent">
+			<article id="div-comment-4279" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/8e91808cf77b83c02e688a29e9a21bc10931b265c59ee14fdb0fc65b87395dde?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/8e91808cf77b83c02e688a29e9a21bc10931b265c59ee14fdb0fc65b87395dde?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Boldra</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4279"><time datetime="2013-12-07T02:36:51-05:00">December 7, 2013 at 2:36 am</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>Could the protocol save even more space by switching from JSON to YAML? It looks like the protocol version is inside the JSON.</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		<ol class="children">
+		<li id="comment-4884" class="comment odd alt depth-5">
+			<article id="div-comment-4884" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/b39a10387dad419774b44b1887da8e7fb6d8c20c2ab07b19c2693024842eb441?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/b39a10387dad419774b44b1887da8e7fb6d8c20c2ab07b19c2693024842eb441?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">peter</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4884"><time datetime="2013-12-20T07:23:29-05:00">December 20, 2013 at 7:23 am</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>the json shown in this article is just a representation. the blockchain actually lives in files of binary bytes concatenated together (ie neither json nor yaml) on each user&#8217;s computer</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+</ol><!-- .children -->
+</li><!-- #comment-## -->
+</ol><!-- .children -->
+</li><!-- #comment-## -->
+</ol><!-- .children -->
+</li><!-- #comment-## -->
+</ol><!-- .children -->
+</li><!-- #comment-## -->
+		<li id="comment-4259" class="comment even thread-odd thread-alt depth-1 parent">
+			<article id="div-comment-4259" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/dc71e50f41e058df80f6043103a23d04d61e04e6894c11fe79e8d00f47c44e3e?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/dc71e50f41e058df80f6043103a23d04d61e04e6894c11fe79e8d00f47c44e3e?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Benoit</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4259"><time datetime="2013-12-06T16:18:35-05:00">December 6, 2013 at 4:18 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>About your first question:</p>
+<p>What would be the incentive for non-miners to answer your question?<br />
+Why would you trust the answers or lack thereof?</p>
+<p>After all, if I understand correctly, when there is no transaction fee set aside, the miners could very well choose to omit transactions from their blocks?</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		<ol class="children">
+		<li id="comment-4262" class="comment byuser comment-author-admin bypostauthor odd alt depth-2 parent">
+			<article id="div-comment-4262" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/13c495d08e6d1ccd89f2e90a78840a4332695a2d94a21470307e9f3194f8ec96?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/13c495d08e6d1ccd89f2e90a78840a4332695a2d94a21470307e9f3194f8ec96?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Michael Nielsen</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4262"><time datetime="2013-12-06T17:37:50-05:00">December 6, 2013 at 5:37 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>On incentive: such could be built into the protocol.</p>
+<p>On trusting the answers: if someone claims that they see evidence of double spending, you&#8217;d require them to present evidence in the form of a signed transaction.  The requirement of a signature makes this hard to forge by a malicious naysayer.</p>
+<p>On your last point, yes, this is a very interesting question.  At present this all seems to be working okay, but over the long run I suspect will limit the use of Bitcoin for small transactions.</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		<ol class="children">
+		<li id="comment-4441" class="comment even depth-3">
+			<article id="div-comment-4441" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/578e091bf744a956c4d180a1d24548ef17097327348c56b0884c8b8f65bbd7cf?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/578e091bf744a956c4d180a1d24548ef17097327348c56b0884c8b8f65bbd7cf?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Tom</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4441"><time datetime="2013-12-10T09:16:11-05:00">December 10, 2013 at 9:16 am</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>On the last point:  I could see the transaction fee being indirectly related to the time required to confirm a transfer.  If you want your transfer confirmed quicker, then you have to pay.  </p>
+<p>On a related note &#8211; what happens if blocks are validated out of time order?</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+</ol><!-- .children -->
+</li><!-- #comment-## -->
+</ol><!-- .children -->
+</li><!-- #comment-## -->
+		<li id="comment-4264" class="comment odd alt thread-even depth-1 parent">
+			<article id="div-comment-4264" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/47dac05e2c248abca8e0bc24d196db3b6c91c97fbb81e5b4a580d820d1789c12?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/47dac05e2c248abca8e0bc24d196db3b6c91c97fbb81e5b4a580d820d1789c12?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">MG</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4264"><time datetime="2013-12-06T17:45:46-05:00">December 6, 2013 at 5:45 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>I&#8217;m curious what happens if/when the underlying crypto is either undermined or broken? </p>
+<p>Over the years we&#8217;ve seen flaws that reduce the bits (entropy) in many many systems. How would the bitcoin protocol handle, say, a reduction of even 1 bit of difficulty (1 bit reduction == 1/2 as hard to attack) . </p>
+<p>Also could someone with very large resources overwhelm the network with bad data? Eg, if china wanted to use some super computers or a bot net to stop bitcoin from operating by adding all sorts of bad data to the block chains?</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		<ol class="children">
+		<li id="comment-4269" class="comment byuser comment-author-admin bypostauthor even depth-2">
+			<article id="div-comment-4269" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/13c495d08e6d1ccd89f2e90a78840a4332695a2d94a21470307e9f3194f8ec96?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/13c495d08e6d1ccd89f2e90a78840a4332695a2d94a21470307e9f3194f8ec96?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Michael Nielsen</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4269"><time datetime="2013-12-06T19:26:51-05:00">December 6, 2013 at 7:26 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>Denial of service type attacks are a real problem.  See, e.g: <a href="https://en.bitcoin.it/wiki/weaknesses#Denial_of_Service_.28DoS.29_attacks" rel="nofollow ugc">https://en.bitcoin.it/wiki/weaknesses#Denial_of_Service_.28DoS.29_attacks</a></p>
+<p>On the first question, the answer is, I think: &#8220;That&#8217;s really complicated, and depends on the exact scenario of the break&#8221;.</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+		<li id="comment-4294" class="comment odd alt depth-2">
+			<article id="div-comment-4294" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/0e0a3be72304c49f4d81b7d479ef6409ed160fc5a56f14584e5b962dfbaee271?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/0e0a3be72304c49f4d81b7d479ef6409ed160fc5a56f14584e5b962dfbaee271?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">cabin</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4294"><time datetime="2013-12-07T11:23:56-05:00">December 7, 2013 at 11:23 am</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>Android had a bug in their random number api that was successfully exploited. Losing a few bits of entropy won&#8217;t matter, but in this case they lost nearly all of them.</p>
+<p><a href="http://thegenesisblock.com/security-vulnerability-in-all-android-bitcoin-wallets/" rel="nofollow ugc">http://thegenesisblock.com/security-vulnerability-in-all-android-bitcoin-wallets/</a></p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+</ol><!-- .children -->
+</li><!-- #comment-## -->
+		<li id="comment-4266" class="comment even thread-odd thread-alt depth-1 parent">
+			<article id="div-comment-4266" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/47dac05e2c248abca8e0bc24d196db3b6c91c97fbb81e5b4a580d820d1789c12?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/47dac05e2c248abca8e0bc24d196db3b6c91c97fbb81e5b4a580d820d1789c12?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">MG</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4266"><time datetime="2013-12-06T17:48:26-05:00">December 6, 2013 at 5:48 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>One additional question, what happens to bitcoins that are &#8220;lost&#8221; . ie What happens if the FBI refuses to sign over the bitcoins seized from Silk road, or wallets that had some coins but were lost due to hard drive failure (bad backups) or lost passphrases? Or maybe someone dies but the next of kin doesnt know the details? </p>
+<p>The comparison is If I drop $20 on the ground or my next of kin finds it under a mattress, they can use it.</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		<ol class="children">
+		<li id="comment-4268" class="comment byuser comment-author-admin bypostauthor odd alt depth-2 parent">
+			<article id="div-comment-4268" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/13c495d08e6d1ccd89f2e90a78840a4332695a2d94a21470307e9f3194f8ec96?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/13c495d08e6d1ccd89f2e90a78840a4332695a2d94a21470307e9f3194f8ec96?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Michael Nielsen</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4268"><time datetime="2013-12-06T19:23:35-05:00">December 6, 2013 at 7:23 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>Lost bitcoins are just that &#8211; gone from the money supply for good, unless someone manages to either (a) recover the keypair; or (b) breaks the underlying crypto.</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		<ol class="children">
+		<li id="comment-4313" class="comment even depth-3">
+			<article id="div-comment-4313" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/2f299a9643ffdbd95c3987cf5c190413edd447c4ef0a4d96c453d5ae78d97cce?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/2f299a9643ffdbd95c3987cf5c190413edd447c4ef0a4d96c453d5ae78d97cce?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn"><a href="http://mangocats.com" class="url" rel="ugc external nofollow">Mango Cat</a></b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4313"><time datetime="2013-12-07T21:33:22-05:00">December 7, 2013 at 9:33 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>That brings up an interesting scenario, on a long time scale there will have to be some allowance made for replacement of the lost coins, or sub-division of the satoshi.</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+</ol><!-- .children -->
+</li><!-- #comment-## -->
+		<li id="comment-4307" class="comment odd alt depth-2">
+			<article id="div-comment-4307" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/fdf0c183d92f7038713a334affa526a8ee8f8a9b91a2d19932f0907a9143694b?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/fdf0c183d92f7038713a334affa526a8ee8f8a9b91a2d19932f0907a9143694b?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">James H</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4307"><time datetime="2013-12-07T17:49:13-05:00">December 7, 2013 at 5:49 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>With Bitcoin;  losing the private key for good is more like accidentally dropping your coins out of an airplane over the pacific ocean.</p>
+<p>The private key is crucial to recovering those coins.</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+</ol><!-- .children -->
+</li><!-- #comment-## -->
+		<li id="comment-4273" class="comment even thread-even depth-1">
+			<article id="div-comment-4273" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/69fa94d0d0f6f0d8d12e7004c7050a26f0ef427f8e301a02ab9dfe54c1cd6d15?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/69fa94d0d0f6f0d8d12e7004c7050a26f0ef427f8e301a02ab9dfe54c1cd6d15?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn"><a href="http://zen.lk" class="url" rel="ugc external nofollow">Hasitha N. Liyanage</a></b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4273"><time datetime="2013-12-06T22:07:25-05:00">December 6, 2013 at 10:07 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>Looks like we both independently arrived at similar methods of explanation: <a href="http://zen.lk/2013/11/28/how-i-finally-understood-bitcoin/" rel="nofollow ugc">http://zen.lk/2013/11/28/how-i-finally-understood-bitcoin/</a></p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+		<li id="comment-4274" class="pingback odd alt thread-odd thread-alt depth-1">
+			<div class="comment-body">
+				Pingback: <a href="http://minsheng.therisingsea.org/2013/12/07/understanding-the-bitcoin-protocol/" class="url" rel="ugc external nofollow">Understanding the Bitcoin protocol | Minsheng 民生</a> 			</div>
+		</li><!-- #comment-## -->
+		<li id="comment-4276" class="comment even thread-even depth-1 parent">
+			<article id="div-comment-4276" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/acf0012390adf9e52d0fb1da72a986c55aacfe30c373b6cdfb5bdee0a66eacc2?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/acf0012390adf9e52d0fb1da72a986c55aacfe30c373b6cdfb5bdee0a66eacc2?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Amos</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4276"><time datetime="2013-12-06T23:18:40-05:00">December 6, 2013 at 11:18 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>In the second paragraph of the Bitcoin section, seems it should be 0.06555555, not 0.6555555</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		<ol class="children">
+		<li id="comment-4289" class="comment byuser comment-author-admin bypostauthor odd alt depth-2">
+			<article id="div-comment-4289" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/13c495d08e6d1ccd89f2e90a78840a4332695a2d94a21470307e9f3194f8ec96?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/13c495d08e6d1ccd89f2e90a78840a4332695a2d94a21470307e9f3194f8ec96?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Michael Nielsen</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4289"><time datetime="2013-12-07T08:56:31-05:00">December 7, 2013 at 8:56 am</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>Thanks, fixed.</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+</ol><!-- .children -->
+</li><!-- #comment-## -->
+		<li id="comment-4277" class="comment even thread-odd thread-alt depth-1">
+			<article id="div-comment-4277" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/dd4535ed8d27ffa69d2211e249a411533b6152a658beba563629b10032860207?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/dd4535ed8d27ffa69d2211e249a411533b6152a658beba563629b10032860207?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Vidya</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4277"><time datetime="2013-12-07T00:27:02-05:00">December 7, 2013 at 12:27 am</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>Thank you so much !!!! I had wanted an understandable primer on Bitcoin since ages and this was a fabulous read !</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+		<li id="comment-4280" class="comment odd alt thread-even depth-1 parent">
+			<article id="div-comment-4280" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/8e91808cf77b83c02e688a29e9a21bc10931b265c59ee14fdb0fc65b87395dde?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/8e91808cf77b83c02e688a29e9a21bc10931b265c59ee14fdb0fc65b87395dde?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Boldra</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4280"><time datetime="2013-12-07T02:42:49-05:00">December 7, 2013 at 2:42 am</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>I&#8217;m surprised that bitcoins in a transaction are a decimal string. It looks likely to cause floating point approximation errors. </p>
+<p>Have you read about coin-join? It follows on very nicely from what you&#8217;ve described here. </p>
+<p>I&#8217;m looking forward to the next one</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		<ol class="children">
+		<li id="comment-4288" class="comment byuser comment-author-admin bypostauthor even depth-2 parent">
+			<article id="div-comment-4288" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/13c495d08e6d1ccd89f2e90a78840a4332695a2d94a21470307e9f3194f8ec96?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/13c495d08e6d1ccd89f2e90a78840a4332695a2d94a21470307e9f3194f8ec96?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Michael Nielsen</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4288"><time datetime="2013-12-07T08:54:42-05:00">December 7, 2013 at 8:54 am</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>They&#8217;re not actually a float &#8212; as I mention in the article, the minimal unit of Bitcoin is the Satoshi, which is one one hundred millionth of a Bitcoin.  So it&#8217;s really specifying an integer number of Satoshis.</p>
+<p>(I haven&#8217;t checked what type is used in the source code; I&#8217;d be interested to know.)</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		<ol class="children">
+		<li id="comment-4453" class="comment byuser comment-author-admin bypostauthor odd alt depth-3">
+			<article id="div-comment-4453" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/13c495d08e6d1ccd89f2e90a78840a4332695a2d94a21470307e9f3194f8ec96?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/13c495d08e6d1ccd89f2e90a78840a4332695a2d94a21470307e9f3194f8ec96?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Michael Nielsen</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4453"><time datetime="2013-12-10T14:50:24-05:00">December 10, 2013 at 2:50 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>This page says that it is an integer in the original source:</p>
+<p><a href="https://en.bitcoin.it/wiki/Proper_Money_Handling_(JSON-RPC)" rel="nofollow ugc">https://en.bitcoin.it/wiki/Proper_Money_Handling_(JSON-RPC)</a></p>
+<p>However, it sounds as though there can occasionally be some floating point / rounding issues with code used to do remote procedure calls over the Bitcoin network.</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+</ol><!-- .children -->
+</li><!-- #comment-## -->
+</ol><!-- .children -->
+</li><!-- #comment-## -->
+		<li id="comment-4282" class="comment even thread-odd thread-alt depth-1">
+			<article id="div-comment-4282" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/0ccb1e90b2c2a54a848c878dc1b29c14d04cde6368a8f68f13cfbe076e372d3d?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/0ccb1e90b2c2a54a848c878dc1b29c14d04cde6368a8f68f13cfbe076e372d3d?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Uri</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4282"><time datetime="2013-12-07T04:19:16-05:00">December 7, 2013 at 4:19 am</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>Just wanted to say thanks for a really great essay &#8212; the explanation was really clear, and totally fascinating.</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+		<li id="comment-4285" class="pingback odd alt thread-even depth-1">
+			<div class="comment-body">
+				Pingback: <a href="http://www.ofnumbers.com/2013/12/07/science-technology-roundup-3/" class="url" rel="ugc external nofollow">Science &amp; Technology Roundup: #3 | Great Wall of Numbers</a> 			</div>
+		</li><!-- #comment-## -->
+		<li id="comment-4286" class="pingback even thread-odd thread-alt depth-1">
+			<div class="comment-body">
+				Pingback: <a href="http://aharonic.net/blog/mid-day-ish-links-dump/" class="url" rel="ugc external nofollow">mid-day-ish links dump | imagine art -||+ there about?mid-day-ish links dump</a> 			</div>
+		</li><!-- #comment-## -->
+		<li id="comment-4295" class="pingback odd alt thread-even depth-1">
+			<div class="comment-body">
+				Pingback: <a href="http://geistwc.wordpress.com/2013/12/07/how-the-bitcoin-protocol-actually-works-ddi/" class="url" rel="ugc external nofollow">How the Bitcoin protocol actually works | DDI | geistwc</a> 			</div>
+		</li><!-- #comment-## -->
+		<li id="comment-4296" class="comment even thread-odd thread-alt depth-1 parent">
+			<article id="div-comment-4296" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/fad7a67997513f07b4ccccc8ca08df2730f4eaa3427c43058826eb06284a2d86?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/fad7a67997513f07b4ccccc8ca08df2730f4eaa3427c43058826eb06284a2d86?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Jim</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4296"><time datetime="2013-12-07T12:38:35-05:00">December 7, 2013 at 12:38 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>Can quantum computers mine bitcoin faster? Does this boil down to how quickly a quantum computer can find a string that has a specified property for SHA-256? For which we have a quadratic speedup, but probably no more?</p>
+<p>I understand that commonly used digital signatures and public-key cryptosystems are broken by quantum computers, so there&#8217;s not much to be said about that.</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		<ol class="children">
+		<li id="comment-4329" class="comment byuser comment-author-admin bypostauthor odd alt depth-2">
+			<article id="div-comment-4329" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/13c495d08e6d1ccd89f2e90a78840a4332695a2d94a21470307e9f3194f8ec96?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/13c495d08e6d1ccd89f2e90a78840a4332695a2d94a21470307e9f3194f8ec96?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Michael Nielsen</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4329"><time datetime="2013-12-08T09:35:22-05:00">December 8, 2013 at 9:35 am</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>I haven&#8217;t thought much about it.  With that said, I&#8217;m pretty sure both your comments are right &#8211; quadratic speedup for finding hash collisions, and the asymmetric crypto stuff is broken.</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+</ol><!-- .children -->
+</li><!-- #comment-## -->
+		<li id="comment-4298" class="comment even thread-even depth-1">
+			<article id="div-comment-4298" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/d651bf1dddc780adbcfb0c677eabec4e8d962ccfbf0aae250e97d87bf396f996?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/d651bf1dddc780adbcfb0c677eabec4e8d962ccfbf0aae250e97d87bf396f996?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn"><a href="http://captainsallai.com" class="url" rel="ugc external nofollow">A.Sallai</a></b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4298"><time datetime="2013-12-07T12:49:06-05:00">December 7, 2013 at 12:49 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>This is an incredibly well written article and one that i needed so much. Thank you, Michael!</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+		<li id="comment-4303" class="comment odd alt thread-odd thread-alt depth-1">
+			<article id="div-comment-4303" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/957cf20a54554b9c42b74b7100e7f852f8664a1811492c36b15c7520582baeda?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/957cf20a54554b9c42b74b7100e7f852f8664a1811492c36b15c7520582baeda?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Oli Rhys</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4303"><time datetime="2013-12-07T15:40:28-05:00">December 7, 2013 at 3:40 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>Thanks for this, while I understood the majority of it, the coding element was very useful &#8211; especially highlighting where the script goes in conjunction with the transaction.</p>
+<p>While a lot of people know abot bitcoin, there is such a shortage of good quality technical info.</p>
+<p>Thanks again 😉</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+		<li id="comment-4304" class="comment even thread-even depth-1 parent">
+			<article id="div-comment-4304" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/d15f2a0f275fe798f1146961058394f44efc6521ae260c0d0646cc220a8e0941?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/d15f2a0f275fe798f1146961058394f44efc6521ae260c0d0646cc220a8e0941?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Andrew Jaeger</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4304"><time datetime="2013-12-07T16:44:19-05:00">December 7, 2013 at 4:44 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>Great writeup about how bitcoin functions on a technical level, but I had a question about it as it&#8217;s use as a currency.</p>
+<p>Why is bitcoin built to be inherently deflationary?  This seems to be the go-to argument against why it will ever gain widespread adoption as a currency.  Why does the reward for mining bitcoin halve every 210,000 blocks?  Could there be a point in the future where this is reversed?</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		<ol class="children">
+		<li id="comment-4330" class="comment byuser comment-author-admin bypostauthor odd alt depth-2">
+			<article id="div-comment-4330" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/13c495d08e6d1ccd89f2e90a78840a4332695a2d94a21470307e9f3194f8ec96?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/13c495d08e6d1ccd89f2e90a78840a4332695a2d94a21470307e9f3194f8ec96?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Michael Nielsen</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4330"><time datetime="2013-12-08T09:42:04-05:00">December 8, 2013 at 9:42 am</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>Good questions, and I don&#8217;t know.  I certainly suspect (as do you) that these may ultimately turn out to be design flaws.</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+		<li id="comment-4369" class="comment even depth-2 parent">
+			<article id="div-comment-4369" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/b7316d9beab7732582d91144f369278007194b9570c539b812cd6ff083b53be6?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/b7316d9beab7732582d91144f369278007194b9570c539b812cd6ff083b53be6?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn"><a href="http://assafshomer.blogspot.co.il/" class="url" rel="ugc external nofollow">Assaf</a></b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4369"><time datetime="2013-12-09T02:05:22-05:00">December 9, 2013 at 2:05 am</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>Bitcoin is NOT deflationary. It is inflationary with a known and decreasing rate up until around 2140 at which point it will stop being inflationary. The only deflation in Bitcoin may happen through coin loss. The same, by the way, is true for Fiat. The difference is that Fiat can be arbitrarily inflated and with Bitcoin it is not arbitrary.<br />
+As far as why inflation is predetermined, this is so Bitcoin is a better store of value which is one of the defining properties of a good &#8220;money&#8221;.<br />
+Why is it inflationary at all (as in, why not start with a predetermined amount of bitcoins that never change). The is part of Bitcoin&#8217;s decentralized design. Bitcoin designers wanted a way to spread bitcoins around without starting with a central authority that has them all and gives them out (like, say, ripple). The bitcoin generating part of mining does exactly that.</p>
+<p>BTW/ I am yet to see a good argument about why having a monetary system that is a good store of value and does not get diluted over time with inflation is bad.</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		<ol class="children">
+		<li id="comment-4400" class="comment odd alt depth-3 parent">
+			<article id="div-comment-4400" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/364431f1de8da0add3a196eb68f9794ee5c91cc22ad1c8a9f52ce1fa5f761794?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/364431f1de8da0add3a196eb68f9794ee5c91cc22ad1c8a9f52ce1fa5f761794?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">KRG</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4400"><time datetime="2013-12-09T12:21:00-05:00">December 9, 2013 at 12:21 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>Inflationary/Deflationary are properties of currency production relatively to the supply of real goods. Bitcoin is only not deflationary if you assume that real wealth production will gradually slow, and eventually stabilize around 2140 at the same pace as the drop in Bitcoin production. (And that&#8217;s not even accounting for the effective tax pressure of the transaction fee needing to increase to attract the necessary computational power as the system of directly paying for that service phases out. The more that needs to be paid out in each transaction to cover the fees, the lower prices and actual payments will have to fall to make room for that overhead. Lower revenue translates to lower ability to afford a given price level, and so on.</p>
+<p>Bitcoin has already seen hyperdeflation that rewarded early speculators, but the defined limitations in supply are far more likely to encourage more speculation over it as a commodity than less, making it&#8217;s reliability for any predictable future value (never mind usefulness as an accounting measure to reliably store value) rather questionable.</p>
+<p>What actually needs to be demonstrated is that there is any value in allowing any static, nonproductive account to maintain its nominal value, as opposed to using the inherent decline in the value of such accounts provide the baseline motivation to use more productive investments  to store anything beyond cash sufficient to meet immediate needs for liquidity. There&#8217;s no justification to use the monetary system to store value, because value is a property or real assets, not the money that serves to account for them. Trying to store value in money rather than in future production potential is the ultimate perverse incentive, rewarding fraud and financial manipulation far out of proportion to development of real assets.</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		<ol class="children">
+		<li id="comment-4456" class="comment even depth-4">
+			<article id="div-comment-4456" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/ce0b4cdfc5d62953b9a57298fde4d656dc51493bc589e09f815b866291a3e1ff?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/ce0b4cdfc5d62953b9a57298fde4d656dc51493bc589e09f815b866291a3e1ff?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">mellyra</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4456"><time datetime="2013-12-10T16:54:54-05:00">December 10, 2013 at 4:54 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>Assaf is talking about inflation/deflation of the money supply, you are talking about price inflation/deflation.</p>
+<p>Both usages are common in economics.</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+		<li id="comment-5750" class="comment odd alt depth-4">
+			<article id="div-comment-5750" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/feda5f7190ff823eb347f7b9d57c8f35b382b0f8cd0aafdaa7b6a77792804300?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/feda5f7190ff823eb347f7b9d57c8f35b382b0f8cd0aafdaa7b6a77792804300?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Jonathan Goldberg</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-5750"><time datetime="2013-12-29T13:14:40-05:00">December 29, 2013 at 1:14 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>There are excellent reasons for wanting to store value. One obvious one is the desire to save for retirement. </p>
+<p>Back in 1958 Paul Samuelson wrote a classic paper on the utility of money as a store of value:</p>
+<p>An Exact Consumption-Loan Model of Interest with or without the social contrivance of money.<br />
+JPE V66 6 (Dec., 1958), 467-482</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+</ol><!-- .children -->
+</li><!-- #comment-## -->
+		<li id="comment-6212" class="comment even depth-3">
+			<article id="div-comment-6212" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/7e78b2d51f3e96103e3ac3600b126ec35a48e7077e56ce375f03cc2d592a3c78?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/7e78b2d51f3e96103e3ac3600b126ec35a48e7077e56ce375f03cc2d592a3c78?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Dave</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-6212"><time datetime="2014-01-29T14:58:15-05:00">January 29, 2014 at 2:58 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>Actually bitcoin is inherently deflationary if you believe that the size of the bitcoin economy will grow faster than the money supply.  Although not quite intuitive, it does make sense upon reflection that the money supply reflects the value of the economy it represents.  If the money supply is growing faster than the underlying economy then you get inflation.  If the money supply is growing slower than the economy you get deflation.  </p>
+<p>I think all but a few of us expect the bitcoin economy to grow faster than the supply of bitcoins &#8212; hence we have a deflationary currency.</p>
+<p>The wisdom of that choice is another mater, of course.  One could imagine many different scenarios for the amount and timing (and conditions) of new currency entering the system.  If bitcoin doesn&#8217;t take-over-the-world then my bet is that these will be significant dimensions of experimentation among variants.</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+</ol><!-- .children -->
+</li><!-- #comment-## -->
+</ol><!-- .children -->
+</li><!-- #comment-## -->
+		<li id="comment-4305" class="comment odd alt thread-odd thread-alt depth-1 parent">
+			<article id="div-comment-4305" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/9b22bf4e78b174934fb1cc5a6397c930b94fcfdac314a781221779960b0e62d5?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/9b22bf4e78b174934fb1cc5a6397c930b94fcfdac314a781221779960b0e62d5?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Wanton</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4305"><time datetime="2013-12-07T17:14:01-05:00">December 7, 2013 at 5:14 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>I&#8217;m confused about the block chain. Does everyone have their own version of it or do they sync to a master? Does every block chain get updated when validation is completed? Does this mean every person has a record of everyone else&#8217;s transactions for ever? Won&#8217;t this file get really really big?</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		<ol class="children">
+		<li id="comment-4331" class="comment byuser comment-author-admin bypostauthor even depth-2">
+			<article id="div-comment-4331" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/13c495d08e6d1ccd89f2e90a78840a4332695a2d94a21470307e9f3194f8ec96?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/13c495d08e6d1ccd89f2e90a78840a4332695a2d94a21470307e9f3194f8ec96?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Michael Nielsen</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4331"><time datetime="2013-12-08T09:56:25-05:00">December 8, 2013 at 9:56 am</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>In practice, there are thin clients which don&#8217;t keep a full copy of the block chain.  But the way the protocol is designed at present there is a sizeable number of people keeping a full copy of the block chain.  This is currently quite a manageable size (about 12 gig).  If Bitcoin grows rapidly enough this may eventually become a problem.  There&#8217;s a nice discussion of this and related scalability issues here:</p>
+<p><a href="https://en.bitcoin.it/wiki/Scalability" rel="nofollow ugc">https://en.bitcoin.it/wiki/Scalability</a></p>
+<p>The conclusion there, which seems to me believable, is that there are many options for scaling Bitcoin at least up to the level at which credit cards are used today, and perhaps further.</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+</ol><!-- .children -->
+</li><!-- #comment-## -->
+		<li id="comment-4308" class="comment odd alt thread-even depth-1 parent">
+			<article id="div-comment-4308" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/42f7c8fd98e1f4a4ee614d27068a9852665e8d4f3503765f82afdee416c7d21b?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/42f7c8fd98e1f4a4ee614d27068a9852665e8d4f3503765f82afdee416c7d21b?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn"><a href="http://YouDontNeedaCRM.com" class="url" rel="ugc external nofollow">Sunny</a></b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4308"><time datetime="2013-12-07T18:04:21-05:00">December 7, 2013 at 6:04 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>Just about the total amount of bitcoins, if I understand well, new bitcoins are generated each time a transaction is processed? It means the more exchange we have, the more bitcoins in the market there is ?<br />
+So the only way to raise the number of bitcoins is to spend some energy validating transaction (that&#8217;s a little bit wired for me ;-). How were created the first bitcoins ? Is there another way of creating bitcoins that checking transactions ?<br />
+And thanks a lot for this post because it&#8217;s really difficult to get a clear picture of what is it. Regards</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		<ol class="children">
+		<li id="comment-6311" class="comment even depth-2">
+			<article id="div-comment-6311" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/8277ddc2c08eec7d7c6eb84125c86634478899e410dbe57dea5ac9352360484b?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/8277ddc2c08eec7d7c6eb84125c86634478899e410dbe57dea5ac9352360484b?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Marco</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-6311"><time datetime="2014-02-27T21:23:49-05:00">February 27, 2014 at 9:23 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>1. Not per transaction but per block (of transactions).<br />
+2. Exchanges are a bad example. The transactions within the exchange happen outside the network. Only if you deposit or withdrawal BTC to/from an exchange, it goes over the network and therefore show up in the block chain. There are so many trades going on within an exchange, it happens internally. And since trades need to happen fast, the network is not suited for that.<br />
+3. yes<br />
+4. Google for the &#8216;Genesis Block&#8217;. That&#8217;s how it got started.<br />
+5. no</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+</ol><!-- .children -->
+</li><!-- #comment-## -->
+		<li id="comment-4309" class="comment odd alt thread-odd thread-alt depth-1 parent">
+			<article id="div-comment-4309" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/7890b9de745aa68e25b88336145f9fab24585ed4aa8e9dea1d6c73d2e4e9d975?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/7890b9de745aa68e25b88336145f9fab24585ed4aa8e9dea1d6c73d2e4e9d975?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn"><a href="http://dangrayson.com/" class="url" rel="ugc external nofollow">Daniel R. Grayson</a></b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4309"><time datetime="2013-12-07T18:08:43-05:00">December 7, 2013 at 6:08 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>Very nice!</p>
+<p>Comments: you use the concept of mining before defining it.  Change &#8220;possibility vulnerabilities&#8221; to &#8220;possible vulnerabilities&#8221;.  Fix &#8220;spending spending money&#8221;.</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		<ol class="children">
+		<li id="comment-4333" class="comment byuser comment-author-admin bypostauthor even depth-2">
+			<article id="div-comment-4333" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/13c495d08e6d1ccd89f2e90a78840a4332695a2d94a21470307e9f3194f8ec96?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/13c495d08e6d1ccd89f2e90a78840a4332695a2d94a21470307e9f3194f8ec96?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Michael Nielsen</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4333"><time datetime="2013-12-08T09:58:31-05:00">December 8, 2013 at 9:58 am</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>Thanks, typos fixed!</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+</ol><!-- .children -->
+</li><!-- #comment-## -->
+		<li id="comment-4310" class="comment odd alt thread-even depth-1 parent">
+			<article id="div-comment-4310" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/ba032cc8e4a652c75bfe5aaff8733b8f5c000c4471647e1820e219c6a56a3390?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/ba032cc8e4a652c75bfe5aaff8733b8f5c000c4471647e1820e219c6a56a3390?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Greg</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4310"><time datetime="2013-12-07T18:42:35-05:00">December 7, 2013 at 6:42 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>Excellent article!</p>
+<p>I found two typo&#8217;s which you might want to zap:</p>
+<p>&#8220;Bob doesn’t just go ahead and accept the transaction. Instead, he broadcast Alice’s message to the entire network.&#8221; (Change &#8216;broadcast&#8217; to &#8216;broadcasts&#8217;).</p>
+<p>&#8220;Will Infocoin mining end up in concentrated in the hands of a few, or many?&#8221; (Remove first &#8216;in&#8217;).</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		<ol class="children">
+		<li id="comment-4334" class="comment byuser comment-author-admin bypostauthor even depth-2">
+			<article id="div-comment-4334" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/13c495d08e6d1ccd89f2e90a78840a4332695a2d94a21470307e9f3194f8ec96?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/13c495d08e6d1ccd89f2e90a78840a4332695a2d94a21470307e9f3194f8ec96?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Michael Nielsen</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4334"><time datetime="2013-12-08T09:59:43-05:00">December 8, 2013 at 9:59 am</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>Thanks, typos fixed!</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+</ol><!-- .children -->
+</li><!-- #comment-## -->
+		<li id="comment-4311" class="pingback odd alt thread-odd thread-alt depth-1">
+			<div class="comment-body">
+				Pingback: <a href="http://marksolock.wordpress.com/2013/12/07/how-the-bitcoin-protocol-actually-works-ddi/" class="url" rel="ugc external nofollow">How the Bitcoin protocol actually works | DDI | Mark Solock Blog</a> 			</div>
+		</li><!-- #comment-## -->
+		<li id="comment-4312" class="comment even thread-even depth-1 parent">
+			<article id="div-comment-4312" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/2f299a9643ffdbd95c3987cf5c190413edd447c4ef0a4d96c453d5ae78d97cce?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/2f299a9643ffdbd95c3987cf5c190413edd447c4ef0a4d96c453d5ae78d97cce?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn"><a href="http://mangocats.com" class="url" rel="ugc external nofollow">Mango Cat</a></b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4312"><time datetime="2013-12-07T21:29:04-05:00">December 7, 2013 at 9:29 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>Thanks for the great Bitcoin writeup.  I have gleaned most of what you said in bits and pieces from articles and message boards, it&#8217;s nice to see it all described so clearly in one place.</p>
+<p>What I think is more interesting than the cryptography aspect is the social-motivational aspect of Bitcoin and why it seems to be succeeding.  First big mover and branding seem to be in-play, and the &#8220;anonymous cash&#8221; myth also was a big factor, but beyond that, I think the carrot of &#8220;get paid for solving hard problems (often using other people&#8217;s computing resources)&#8221; has drawn in many participants who have helped grow the network by promoting their own self interests.</p>
+<p>I balk every time I hear the bit about &#8220;every transaction for all users for all time is encoded into the block chain&#8221; especially when combined with &#8220;the chain is developed by solving hard problems&#8221;.  Scaling this system to support a billion users transacting multiple times per day seems&#8230;. unlikely.  Your explanation does help to show how the problems don&#8217;t get much harder as transactions scale up &#8211; the blocks themselves get larger, but the hash problem doesn&#8217;t get significantly harder as block size grows, unless you start talking about transacting the world&#8217;s monetary business in such a system, then those blocks would get uncomfortably large in a very short time period, and the forking problem would be much more complex than choosing between two or three chains to follow.  </p>
+<p>I also somewhat disapprove of the concept of encouraging people to &#8220;mine digital space to earn currency&#8221; since that creates an artificial demand for energy which could grow into a significant waste of &#8220;real world&#8221; resources as such a system scales up.</p>
+<p>I have been playing &#8220;trust network&#8221; thought games since the 1980s, I&#8217;d like to see a peer-to-peer digital currency system that is based in the concept of trustworthy digital identities instead of solving hash problems to get paid.  You could still get paid by validating transactions, but it wouldn&#8217;t have that appeal of &#8220;solve more problems, get more paid&#8230;&#8221; plus, a system based on trust would tend to concentrate trust in central authorities that would be quickly perceived as hopeless to surpass in trustworthiness, semi-defeating the incentive to participate as a trusted member of the network, unless some kind of carrot to the underdogs was included &#8211; which would be purely social-motivational instead of a technically required component.</p>
+<p>Anyway, all very interesting to watch.  As usual, I got in late and out early with Bitcoin (bought around 5, sold around 120, seemed like an awesome profit margin at the time&#8230;) that aspect of Bitcoin is a lot like any other speculative investment, and is certainly fueling interest at this stage.</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		<ol class="children">
+		<li id="comment-4335" class="comment byuser comment-author-admin bypostauthor odd alt depth-2">
+			<article id="div-comment-4335" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/13c495d08e6d1ccd89f2e90a78840a4332695a2d94a21470307e9f3194f8ec96?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/13c495d08e6d1ccd89f2e90a78840a4332695a2d94a21470307e9f3194f8ec96?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Michael Nielsen</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4335"><time datetime="2013-12-08T10:09:00-05:00">December 8, 2013 at 10:09 am</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>On scalability, check out <a href="https://en.bitcoin.it/wiki/Scalability" rel="nofollow ugc">https://en.bitcoin.it/wiki/Scalability</a>.  There&#8217;s a lot of useful information there.  Like you, though, I wonder about the long-run economics (and impact) of mining.</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+</ol><!-- .children -->
+</li><!-- #comment-## -->
+		<li id="comment-4314" class="comment even thread-odd thread-alt depth-1 parent">
+			<article id="div-comment-4314" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/0a28e0af437c7a40748aa6384901b1d9fb696fa7c066a6a1b9cb77009a889ea7?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/0a28e0af437c7a40748aa6384901b1d9fb696fa7c066a6a1b9cb77009a889ea7?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn"><a href="http://toastedalmonds.org/" class="url" rel="ugc external nofollow">Michael Newman</a></b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4314"><time datetime="2013-12-07T21:38:33-05:00">December 7, 2013 at 9:38 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>Thanks for writing this great explanation of Bitcoin. I noticed in the first Bitcoin transaction example, you mention 0.39 bitcoins, but the example really deals with 0.32 bitcoins, where 0.319 bitcoins goes to one person, and there is a 0.001 bitcoin transaction fee. In other words, did you mean &#8220;0.319&#8221; instead of &#8220;0.39&#8221;? Also, is there a need to show &#8220;0.31900000&#8221; value as an image?</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		<ol class="children">
+		<li id="comment-4384" class="comment byuser comment-author-admin bypostauthor odd alt depth-2">
+			<article id="div-comment-4384" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/13c495d08e6d1ccd89f2e90a78840a4332695a2d94a21470307e9f3194f8ec96?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/13c495d08e6d1ccd89f2e90a78840a4332695a2d94a21470307e9f3194f8ec96?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Michael Nielsen</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4384"><time datetime="2013-12-09T09:42:02-05:00">December 9, 2013 at 9:42 am</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>Thanks, fixed.</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+</ol><!-- .children -->
+</li><!-- #comment-## -->
+		<li id="comment-4315" class="comment even thread-even depth-1 parent">
+			<article id="div-comment-4315" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/64bfeb139846c443ec5215791018764c1b4892a66ad4bd0047b9b11951b2e4fb?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/64bfeb139846c443ec5215791018764c1b4892a66ad4bd0047b9b11951b2e4fb?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn"><a href="http://reagle.org/joseph/" class="url" rel="ugc external nofollow">Joseph Reagle</a></b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4315"><time datetime="2013-12-07T21:59:47-05:00">December 7, 2013 at 9:59 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>typo: &#8220;trying to understand possibility vulnerabilities&#8221;: possible</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		<ol class="children">
+		<li id="comment-4383" class="comment byuser comment-author-admin bypostauthor odd alt depth-2">
+			<article id="div-comment-4383" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/13c495d08e6d1ccd89f2e90a78840a4332695a2d94a21470307e9f3194f8ec96?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/13c495d08e6d1ccd89f2e90a78840a4332695a2d94a21470307e9f3194f8ec96?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Michael Nielsen</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4383"><time datetime="2013-12-09T09:40:23-05:00">December 9, 2013 at 9:40 am</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>Thanks, fixed.</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+</ol><!-- .children -->
+</li><!-- #comment-## -->
+		<li id="comment-4316" class="comment even thread-odd thread-alt depth-1 parent">
+			<article id="div-comment-4316" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/71c9428e32ea220c20cc5aa1dd7ab41622921f8715fa81ee60a8d070c9543c76?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/71c9428e32ea220c20cc5aa1dd7ab41622921f8715fa81ee60a8d070c9543c76?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Jack L</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4316"><time datetime="2013-12-07T22:31:22-05:00">December 7, 2013 at 10:31 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>Thanks for the excellent writeup. I have a question about one item, hopefully you can explain it. </p>
+<p>It appears the money you send someone is merely chunks of one or more previous transactions. Let&#8217;s say I receive 1 bitcoin at myaddress_123 and I receive 1 bitcoin at myaddress_456. I now want to send you 2 bitcoins from myaddress_789. Those previous transactions are the inputs for my transaction to you. </p>
+<p>How does the transaction message for the 2 bitcoin transaction prove that I was the recipient of those previous transactions when the addresses are all different? Is the hash for each input in the new transaction something that can only be generated by whoever was the recipient in the original transactions (myaddress_123 or myaddress_456)?</p>
+<p>If the answer is yes, then it seems like unique addresses can be easily linked, in which case I don&#8217;t see any anonymity advantage of using new addresses for each transaction. Sorry if I&#8217;m missing something obvious here.</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		<ol class="children">
+		<li id="comment-4385" class="comment byuser comment-author-admin bypostauthor odd alt depth-2 parent">
+			<article id="div-comment-4385" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/13c495d08e6d1ccd89f2e90a78840a4332695a2d94a21470307e9f3194f8ec96?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/13c495d08e6d1ccd89f2e90a78840a4332695a2d94a21470307e9f3194f8ec96?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Michael Nielsen</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4385"><time datetime="2013-12-09T09:45:43-05:00">December 9, 2013 at 9:45 am</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>The proof is in the digital signature.  That signature is generated using a public key which must match (when hashed) the address from the output to the earlier transaction.  That proves that the bitcoins are the payer&#8217;s to spend.</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		<ol class="children">
+		<li id="comment-4406" class="comment even depth-3 parent">
+			<article id="div-comment-4406" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/6ca7222e482b3ec75e197c1c0b1ae3834a3b68e7d19d609882c3748c339ef911?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/6ca7222e482b3ec75e197c1c0b1ae3834a3b68e7d19d609882c3748c339ef911?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">ajay</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4406"><time datetime="2013-12-09T13:14:58-05:00">December 9, 2013 at 1:14 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>But (if I understand correctly) the need for every transaction to be publicly verified means that you are tied to all your transactions. You can&#8217;t maintain a double life. </p>
+<p>If I were a criminal, I might find it very desirable to have two personas &#8211; Stringer, who sells drugs, and Russell Bell, well-known property developer and pillar of the community &#8211; and use the cash that Stringer collects to bankroll Russell&#8217;s legitimate businesses. But there&#8217;s no way to do that with Bitcoin; I can&#8217;t transfer Stringer&#8217;s bitcoins to Russell without everyone else in the world knowing about it. Anyone with a copy of the block chain can notice that the flow of money goes from various drug users, to Stringer, to Russell.</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		<ol class="children">
+		<li id="comment-4410" class="comment odd alt depth-4">
+			<article id="div-comment-4410" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/02e342eaa6271fe6daf05cab11ee13d83f4767ed3ec17c604f44a4fd8052e95a?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/02e342eaa6271fe6daf05cab11ee13d83f4767ed3ec17c604f44a4fd8052e95a?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Jim Lyon</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4410"><time datetime="2013-12-09T14:26:56-05:00">December 9, 2013 at 2:26 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>If you really want to enable money laundering, first create a bank. A bank would let any customer use bitcoin transactions to deposit and/or withdraw value, and the bank would keep its own record of individual customers&#8217; accounts. When withdrawing bitcoins, you would get bitcoins that were the bank&#8217;s to give, but that were unrelated to the ones you originally deposited.</p>
+<p>Such a bank would have more uses than just money laundering. It could pay interest, make loans (charging interest), convert bitcoins to/from more traditional currencies, etc.</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+		<li id="comment-4418" class="comment even depth-4 parent">
+			<article id="div-comment-4418" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/11b68cd605d696c22778480ea3fb137907e83df8e365ee133ef2dcca7c18ceba?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/11b68cd605d696c22778480ea3fb137907e83df8e365ee133ef2dcca7c18ceba?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Space2001</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4418"><time datetime="2013-12-09T17:56:33-05:00">December 9, 2013 at 5:56 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>Extending from J. Lyon&#8217;s answer.. Say you need to send $$ from one or more of your bitcoin addresses to a bad-guy but wish to anonymize this transaction. You will use a trusted middleman that does several transactions each day, some with good-guys and some with bad-guys. In one simple scenario the middle-man sets up a recievables address &#8216;xxx&#8217; into which all the depositors send their bitcoins (i.e., the depositors all use xxx address as their output). The middle-man then transfers out the necessary amounts to intermediate addresses yyy0 &#8230; yyyM that he has set up specifically for this transaction period. After this is done, the middle-man provides the yyy* addresses one to each reciever. Because all the incoming money has gone into the xxx address there is no way to separate out subsequently which money went to which reciever. If ALL the yyyy addresses belong to bad guys then you would be guilty by association. Many bitcoin services perform such mixing by default, based on what I have read. The legal ramifications for the mixing service provider are unclear to me.</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		<ol class="children">
+		<li id="comment-4437" class="comment odd alt depth-5">
+			<article id="div-comment-4437" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/6ca7222e482b3ec75e197c1c0b1ae3834a3b68e7d19d609882c3748c339ef911?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/6ca7222e482b3ec75e197c1c0b1ae3834a3b68e7d19d609882c3748c339ef911?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">ajay</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4437"><time datetime="2013-12-10T07:11:29-05:00">December 10, 2013 at 7:11 am</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>Got it, thanks. But such a bank would have to keep its own records &#8211; both as a practical necessity and as a legal requirement &#8211; and those could be obtained by the authorities. Whereas cash can be laundered tracelessly, through a cash business like a casino or restaurant, which can perfectly innocently be expected to have lots of cash coming in and no way of knowing where it comes from.</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+		<li id="comment-4449" class="comment even depth-5">
+			<article id="div-comment-4449" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/7b51b8d93e06fe9d9de524b9bf906cc8e5ffb51177abe4b02e80dda3f4f0b1a0?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/7b51b8d93e06fe9d9de524b9bf906cc8e5ffb51177abe4b02e80dda3f4f0b1a0?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">avee</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4449"><time datetime="2013-12-10T12:18:33-05:00">December 10, 2013 at 12:18 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>Interestingly this is exactly what was done with silk road. It basically was a bitcoin bank moving bitcoins around in such a way the buyer and seller could not be connected. There&#8217;s a paper which has some details about that: <a href="http://i.cdn.turner.com/money/2013/images/11/25/silk-road-paper.pdf" rel="nofollow ugc">http://i.cdn.turner.com/money/2013/images/11/25/silk-road-paper.pdf</a></p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+</ol><!-- .children -->
+</li><!-- #comment-## -->
+</ol><!-- .children -->
+</li><!-- #comment-## -->
+</ol><!-- .children -->
+</li><!-- #comment-## -->
+</ol><!-- .children -->
+</li><!-- #comment-## -->
+		<li id="comment-4317" class="comment odd alt thread-even depth-1 parent">
+			<article id="div-comment-4317" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/aa3eb68fa93932fe697d01123a2f26ca79e31f3d46cd83d8a252bbc906b99800?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/aa3eb68fa93932fe697d01123a2f26ca79e31f3d46cd83d8a252bbc906b99800?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Con Kolivas</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4317"><time datetime="2013-12-07T22:48:36-05:00">December 7, 2013 at 10:48 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>Nonce starting at zero is not a vulnerability. Shares are stochastically distributed throughout the 2^32 nonce range and it makes no difference where you start. The nonce is simply 32 bits out of the whole 320 bit coinbase that you are hashing and there is no way to design a target solution to be distributed anywhere within the nonce range of those 32 bits. If you start at a higher nonce value you simply will have less possible chances at finding a solution before you&#8217;ll need to get/create a new coinbase to hash.</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		<ol class="children">
+		<li id="comment-4353" class="comment even depth-2 parent">
+			<article id="div-comment-4353" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/fb8c64264eca074473108269dbb166229aafbb51ba5aa3aa8562f44a668f3c96?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/fb8c64264eca074473108269dbb166229aafbb51ba5aa3aa8562f44a668f3c96?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Alex F</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4353"><time datetime="2013-12-08T15:49:55-05:00">December 8, 2013 at 3:49 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>I think maybe you&#8217;re misinterpreting his concern: the danger isn&#8217;t that someone can solve blocks *strictly* faster by starting at a different nonce, because as you say, the correct nonce could be anywhere in the range 0..2^32 so every guess has the same 1/2^32 chance of being correct.</p>
+<p>Instead, the danger is that someone could solve blocks faster *than everyone else* if they start at a higher nonce and everyone else starts at 0. Specifically, assuming (on average) everyone can calculate guesses at the same rate, then any transaction whose correct nonce is higher than X will always be solved first by someone who started at Y, if 0&lt;Y&lt;=X.</p>
+<p>Of course this creates an obvious incentive for all participants to try to guess nonces in a different order than everyone else. So it seems reasonable that most client software would use a random sequence of nonce guesses rather than guessing sequentially from 0. But still, if one were to find a vulnerability in the random number generator of a popular client, then it might be possible to design a competing client which would, in practice, almost always find the correct nonce before the targeted client, by virtue of guessing the same sequence a few steps ahead. That would allow the attacker to successfully validate a share of blocks greater than their actual portion of the collective computational power, at the cost of everyone using the vulnerable client and finding the nonce less often than they should on average.</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		<ol class="children">
+		<li id="comment-4362" class="comment odd alt depth-3">
+			<article id="div-comment-4362" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/5536e670fb56210a7fb7b3b8926cfcaee3868a992a7845f7c458802b4ecb3b5c?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/5536e670fb56210a7fb7b3b8926cfcaee3868a992a7845f7c458802b4ecb3b5c?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn"><a href="https://gergely.imreh.net" class="url" rel="ugc external nofollow">Gergely Imreh</a></b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4362"><time datetime="2013-12-08T22:39:15-05:00">December 8, 2013 at 10:39 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>I think there&#8217;s also a &#8220;time&#8221; field in the part that is hashed, which is also updated every few seconds. Thus in practice it&#8217;s not the case that everyone has the same message and they just run the nonces &#8211; but everyone has a different message, regardless of the nonces. See <a href="https://en.bitcoin.it/wiki/Block_hashing_algorithm" rel="nofollow ugc">https://en.bitcoin.it/wiki/Block_hashing_algorithm</a></p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+		<li id="comment-4386" class="comment byuser comment-author-admin bypostauthor even depth-3">
+			<article id="div-comment-4386" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/13c495d08e6d1ccd89f2e90a78840a4332695a2d94a21470307e9f3194f8ec96?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/13c495d08e6d1ccd89f2e90a78840a4332695a2d94a21470307e9f3194f8ec96?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Michael Nielsen</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4386"><time datetime="2013-12-09T09:48:31-05:00">December 9, 2013 at 9:48 am</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>Alex has explained my concern well.  However, as a number of people have pointed out  (including Gergely) in fact there are in any case small differences in the blocks being hashed by different miners, and that&#8217;s sufficient to make this a non-issue.</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+</ol><!-- .children -->
+</li><!-- #comment-## -->
+</ol><!-- .children -->
+</li><!-- #comment-## -->
+		<li id="comment-4318" class="comment odd alt thread-odd thread-alt depth-1">
+			<article id="div-comment-4318" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/243f5dec14c68bcc771284d77d8acadfcbc7539b621dbb10815fdc0b2ab21d6b?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/243f5dec14c68bcc771284d77d8acadfcbc7539b621dbb10815fdc0b2ab21d6b?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Rubberman</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4318"><time datetime="2013-12-07T23:16:19-05:00">December 7, 2013 at 11:16 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>A most excellent and well written article! I look forward to more!  Thanks.</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+		<li id="comment-4319" class="pingback even thread-even depth-1">
+			<div class="comment-body">
+				Pingback: <a href="http://www.adafruit.com/blog/2013/12/08/how-the-bitcoin-protocol-actually-works/" class="url" rel="ugc external nofollow">How the Bitcoin protocol actually works &laquo; adafruit industries blog</a> 			</div>
+		</li><!-- #comment-## -->
+		<li id="comment-4321" class="comment odd alt thread-odd thread-alt depth-1">
+			<article id="div-comment-4321" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/339ff6f461aa9b35458a105fb7b57446f4c75cce8e1fdf601796535f1d77c75f?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/339ff6f461aa9b35458a105fb7b57446f4c75cce8e1fdf601796535f1d77c75f?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn"><a href="http://stolk.org" class="url" rel="ugc external nofollow">Bram Stolk</a></b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4321"><time datetime="2013-12-08T02:01:13-05:00">December 8, 2013 at 2:01 am</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>As people make transactions, the public ledger grows.<br />
+Will it not grow to an unmanageable size at some time?</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+		<li id="comment-4322" class="comment even thread-even depth-1 parent">
+			<article id="div-comment-4322" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/a1d26ea9dbf4f6b0ddc325e82b6b6692ac522f785ced16704eec60d161949ca8?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/a1d26ea9dbf4f6b0ddc325e82b6b6692ac522f785ced16704eec60d161949ca8?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Julian</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4322"><time datetime="2013-12-08T02:54:26-05:00">December 8, 2013 at 2:54 am</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>I have a couple questions, possibly a subject for a future article.</p>
+<p>1. If the block chain forks, do the miners on both sides of the fork keep their rewards? If so, doesn&#8217;t it allow someone to continue executing the proof of work even when it is known that someone else has solved the proof of work?</p>
+<p>2. I am puzzled by transactions in blocks. Is it not possible for two miners to be working on different blocks which contain mostly, although not all, the same transactions? Then, the first one to solve the proof of work will have validated some of the transactions in the second miner&#8217;s block. Does the second miner restart by taking his unverified transactions and putting them in a new block?</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		<ol class="children">
+		<li id="comment-4388" class="comment byuser comment-author-admin bypostauthor odd alt depth-2">
+			<article id="div-comment-4388" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/13c495d08e6d1ccd89f2e90a78840a4332695a2d94a21470307e9f3194f8ec96?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/13c495d08e6d1ccd89f2e90a78840a4332695a2d94a21470307e9f3194f8ec96?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Michael Nielsen</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4388"><time datetime="2013-12-09T09:55:41-05:00">December 9, 2013 at 9:55 am</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>On 2, yes: if you&#8217;re mining and someone else validates some of the transactions you are working on, then you remove them from your queue, but continue working with the unvalidated transactions.</p>
+<p>On 1, it&#8217;s true that in different forks, different miners will have been rewarded.  However, over time only one of the forks will become the accepted consensus for confirmed transactions.  And so only the miners from one fork will be able to redeem their transactions.</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+</ol><!-- .children -->
+</li><!-- #comment-## -->
+		<li id="comment-4323" class="comment even thread-odd thread-alt depth-1 parent">
+			<article id="div-comment-4323" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/d680c22500387345e06693d99e21aee963a2b8468e47b659d0aed59af10e4be0?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/d680c22500387345e06693d99e21aee963a2b8468e47b659d0aed59af10e4be0?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Rob</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4323"><time datetime="2013-12-08T04:14:03-05:00">December 8, 2013 at 4:14 am</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>Fascinating read, thank you!</p>
+<p>One thing I&#8217;m having difficulty with is block chain integrity. What will happen when an owner loses his wallet restores a backup from a few weeks back. He may have spent some coins, and he may have received some. Those transactions are no longer in his block chain. How would the block chain get back in sync?</p>
+<p>On your question-to-yourself about using two phase commit, I think the major issue would be vulnerability to denial-of-service attack. A malicious user could set up a swarm of identities to act as nay-sayers and therewith deny some or all others from performing transactions.</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		<ol class="children">
+		<li id="comment-4338" class="comment odd alt depth-2">
+			<article id="div-comment-4338" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/ff1325a5f0e4ca8f28dd7aaa0d55d4a597d6a96a60cf3a115873d4e7ae3aa1cd?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/ff1325a5f0e4ca8f28dd7aaa0d55d4a597d6a96a60cf3a115873d4e7ae3aa1cd?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Benjamin Marty</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4338"><time datetime="2013-12-08T11:54:59-05:00">December 8, 2013 at 11:54 am</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>In my experience using the bitcoin client, you are not allowed to do anything on the bitcoin network until your block chain is in sync with the latest transactions. It somehow recognizes how far behind your block chain is and starts downloading blocks and tells you how old your block chain is and how much left you have to update as it downloads more. BTW, I un-installed the bitcoin client because over the 1 year span that I had it installed, the block chain went from about 2 GB to about 25 GB, and the novelty of having my own copy of the block chain wore off in comparison to its cost. It would be nice if there were some kind of &#8220;reset block&#8221; that could be generated that flattened the tree into a single block enumerating the value stored at each address.</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+		<li id="comment-4389" class="comment byuser comment-author-admin bypostauthor even depth-2">
+			<article id="div-comment-4389" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/13c495d08e6d1ccd89f2e90a78840a4332695a2d94a21470307e9f3194f8ec96?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/13c495d08e6d1ccd89f2e90a78840a4332695a2d94a21470307e9f3194f8ec96?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Michael Nielsen</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4389"><time datetime="2013-12-09T09:57:42-05:00">December 9, 2013 at 9:57 am</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>On the naysayer DDoS attack on two-phase commit: if someone claims that they see evidence of double spending, you’d require them to present evidence in the form of a signed transaction. The requirement of a signature makes this hard to forge by a malicious naysayer.</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+</ol><!-- .children -->
+</li><!-- #comment-## -->
+		<li id="comment-4325" class="pingback odd alt thread-even depth-1">
+			<div class="comment-body">
+				Pingback: <a href="http://iamronen.com/2013/12/the-bitcoin-protocol/" class="url" rel="ugc external nofollow">The Bitcoin Protocol - iamronen</a> 			</div>
+		</li><!-- #comment-## -->
+		<li id="comment-4326" class="pingback even thread-odd thread-alt depth-1">
+			<div class="comment-body">
+				Pingback: <a href="http://www.nakedcapitalism.com/2013/12/links-12813.html" class="url" rel="ugc external nofollow">Links 12/8/13 &laquo; naked capitalism</a> 			</div>
+		</li><!-- #comment-## -->
+		<li id="comment-4336" class="comment odd alt thread-even depth-1">
+			<article id="div-comment-4336" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/e09c1486ebaea84cf08ef05eb86545669825f32f55427c794f605d16a4081fa2?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/e09c1486ebaea84cf08ef05eb86545669825f32f55427c794f605d16a4081fa2?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn"><a href="http://www.bringhurst.org/2013/04/03/how-does-bitcoin-crypto-work.html" class="url" rel="ugc external nofollow">uez</a></b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4336"><time datetime="2013-12-08T10:49:57-05:00">December 8, 2013 at 10:49 am</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>Here is a very entertaining rational explanation<br />
+<a href="http://www.bringhurst.org/2013/04/03/how-does-bitcoin-crypto-work.html" rel="nofollow ugc">http://www.bringhurst.org/2013/04/03/how-does-bitcoin-crypto-work.html</a></p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+		<li id="comment-4337" class="pingback even thread-odd thread-alt depth-1">
+			<div class="comment-body">
+				Pingback: <a href="http://test94032.wordpress.com/2013/12/08/bitcoin-for-dummies-author-walks-users-through-how-bitcoin-actually-works/" class="url" rel="ugc external nofollow">Bitcoin for dummies &#8211; Author walks users through how Bitcoin actually works | My Blog</a> 			</div>
+		</li><!-- #comment-## -->
+		<li id="comment-4339" class="comment odd alt thread-even depth-1 parent">
+			<article id="div-comment-4339" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/ff1325a5f0e4ca8f28dd7aaa0d55d4a597d6a96a60cf3a115873d4e7ae3aa1cd?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/ff1325a5f0e4ca8f28dd7aaa0d55d4a597d6a96a60cf3a115873d4e7ae3aa1cd?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Benjamin Marty</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4339"><time datetime="2013-12-08T12:00:52-05:00">December 8, 2013 at 12:00 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>One thing I still don&#8217;t fully understand is how the bitcoin reward size is decided and awarded. Who enforces the rules that 25 bitcoins are awarded for validating a block, and a few years hence, it&#8217;ll be 12.5 bitcoins? If we were to decide that the rewards should be different (remaining at 25 indefinitely, for example), what exactly would have to change? Is it the bitcoin mining clients that are hardwired to only validate transactions that award 25 coins to other miners when they validate their blocks, and the date of the validated block indicates that the award should be 25 BTC?</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		<ol class="children">
+		<li id="comment-4390" class="comment byuser comment-author-admin bypostauthor even depth-2 parent">
+			<article id="div-comment-4390" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/13c495d08e6d1ccd89f2e90a78840a4332695a2d94a21470307e9f3194f8ec96?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/13c495d08e6d1ccd89f2e90a78840a4332695a2d94a21470307e9f3194f8ec96?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Michael Nielsen</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4390"><time datetime="2013-12-09T09:59:00-05:00">December 9, 2013 at 9:59 am</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>It&#8217;s hardcoded, based on the number of blocks in the blockchain.  Every 210,000 blocks the rate halves.  No need to keep track of the date, simply count blocks.</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		<ol class="children">
+		<li id="comment-5412" class="comment odd alt depth-3 parent">
+			<article id="div-comment-5412" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/cf56ae3d6c9392b0f713c8d00e6f1536cd6f038e408680324ef39561886c4e22?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/cf56ae3d6c9392b0f713c8d00e6f1536cd6f038e408680324ef39561886c4e22?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Michal</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-5412"><time datetime="2013-12-23T14:26:22-05:00">December 23, 2013 at 2:26 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>Hi,</p>
+<p>And cannot miners just continue to validating the the transaction with adding 25 bitcoins?</p>
+<p>As the chain is just validated list of transactions, how there can be any cap on transactions?<br />
+What does hardcoded mean practically?</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		<ol class="children">
+		<li id="comment-6261" class="comment even depth-4 parent">
+			<article id="div-comment-6261" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/eafa9a8954da1b355b136b6651c360dff07e0ce4202b8b4fcd91b3522c6819e6?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/eafa9a8954da1b355b136b6651c360dff07e0ce4202b8b4fcd91b3522c6819e6?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Jozef</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-6261"><time datetime="2014-02-12T19:33:58-05:00">February 12, 2014 at 7:33 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>You only own that much of bitcoins as others agree you own. So, hardcoded here means it is the original protocol suggested (and supposed) to be honored by all the users. There&#8217;s no use for miner to continue giving himself 25 BTC when it&#8217;s already time for lowering the reward to 12.5, because this reward would not be considered valid by others who respect the original protocol.</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		<ol class="children">
+		<li id="comment-13607" class="comment odd alt depth-5">
+			<article id="div-comment-13607" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/7f0fb43a4d7c202d4301590c4ce22cb8f14f7abebb4fac54ed04fae4e8ff6bf8?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/7f0fb43a4d7c202d4301590c4ce22cb8f14f7abebb4fac54ed04fae4e8ff6bf8?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Anton D</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-13607"><time datetime="2014-05-04T12:10:30-04:00">May 4, 2014 at 12:10 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>Would it be, in principle, possible for all miners to agree on not lowering the reward at all? For example to continue to reward 25 per block for all eternity.</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+</ol><!-- .children -->
+</li><!-- #comment-## -->
+</ol><!-- .children -->
+</li><!-- #comment-## -->
+</ol><!-- .children -->
+</li><!-- #comment-## -->
+</ol><!-- .children -->
+</li><!-- #comment-## -->
+		<li id="comment-4340" class="comment even thread-odd thread-alt depth-1">
+			<article id="div-comment-4340" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/17582932b8c1d707041a2ecbb134d248421e15874213cea3fafeecae035a54ad?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/17582932b8c1d707041a2ecbb134d248421e15874213cea3fafeecae035a54ad?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Nick P</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4340"><time datetime="2013-12-08T12:30:15-05:00">December 8, 2013 at 12:30 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>I hadn&#8217;t had time to thoroughly delve into the protocol and your excellent writeup is the exact piece by piece, what/why I needed. The &#8220;why&#8217;s&#8221; are extremely important to people who might want to build on top of the protocol as it helps them understand what they should or shouldn&#8217;t modify.</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+		<li id="comment-4341" class="comment odd alt thread-even depth-1 parent">
+			<article id="div-comment-4341" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/2979f1d56ad99e1903e464b20da4108131bff008ad90fba44123d151225a0b4e?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/2979f1d56ad99e1903e464b20da4108131bff008ad90fba44123d151225a0b4e?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">pebird</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4341"><time datetime="2013-12-08T12:45:58-05:00">December 8, 2013 at 12:45 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>I was thinking about how the blockchain is managed as more transactions are processed, thanks for the link <a href="https://en.bitcoin.it/wiki/Scalability" rel="nofollow ugc">https://en.bitcoin.it/wiki/Scalability</a></p>
+<p>Interesting, one of the potential solutions discussed is the use of dedicated servers instead of lightweight clients to increase transaction rates, reduce latency, handle increasing blockchain size (via techniques such as &#8220;pruning&#8221; the chain), etc. </p>
+<p>What this implies of course is an evolution into &#8220;banks&#8221;, a group of entities with sufficient resources and staying power to dedicate specialized BTC infrastructure for transaction handling. </p>
+<p>In a way, Bitcoin is replicating a history of money evolution in an accelerated manner. I wonder what will take place in the protocol to allow the peer-to-peer nature to continue while scaling the project to allow the transaction capacity necessary for a true currency.</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		<ol class="children">
+		<li id="comment-4391" class="comment byuser comment-author-admin bypostauthor even depth-2">
+			<article id="div-comment-4391" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/13c495d08e6d1ccd89f2e90a78840a4332695a2d94a21470307e9f3194f8ec96?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/13c495d08e6d1ccd89f2e90a78840a4332695a2d94a21470307e9f3194f8ec96?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Michael Nielsen</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4391"><time datetime="2013-12-09T10:01:05-05:00">December 9, 2013 at 10:01 am</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>Yeah, that is very interesting.  I don&#8217;t run a full client myself, I use a thin client that doesn&#8217;t have a full copy of the block chain.   And you do already see a lot of signs of centralization with the big mining pools:</p>
+<p><a href="https://blockchain.info/pools" rel="nofollow ugc">https://blockchain.info/pools</a></p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+</ol><!-- .children -->
+</li><!-- #comment-## -->
+		<li id="comment-4342" class="comment odd alt thread-odd thread-alt depth-1">
+			<article id="div-comment-4342" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/73dc0985863ec4de22404d2e3eb2630f05039e4499901a05952bee8938f3ef67?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/73dc0985863ec4de22404d2e3eb2630f05039e4499901a05952bee8938f3ef67?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Jeremy</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4342"><time datetime="2013-12-08T13:11:32-05:00">December 8, 2013 at 1:11 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>Great article. Thanks very much for writing it.</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+		<li id="comment-4343" class="pingback even thread-even depth-1">
+			<div class="comment-body">
+				Pingback: <a href="http://www.french-news-online.com/wordpress/?p=32337" class="url" rel="ugc external nofollow">Want to Spend Bitcoin in France? (Caveat Emptor) | FrenchNewsOnline</a> 			</div>
+		</li><!-- #comment-## -->
+		<li id="comment-4344" class="comment odd alt thread-odd thread-alt depth-1">
+			<article id="div-comment-4344" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/c84f190ac6e9a8620aa3c79a8e2b72c8958a6a4ce8116d124e301f4bdde7d97d?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/c84f190ac6e9a8620aa3c79a8e2b72c8958a6a4ce8116d124e301f4bdde7d97d?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Reader</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4344"><time datetime="2013-12-08T14:13:30-05:00">December 8, 2013 at 2:13 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>Typo: requring = requiring</p>
+<p><em>[MN: Thanks, fixed.]</em></p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+		<li id="comment-4345" class="pingback even thread-even depth-1">
+			<div class="comment-body">
+				Pingback: <a href="http://robertmcghee.co.uk/2013/december-8th-2/" class="url" rel="ugc external nofollow">Robert McGhee &raquo; December 8th</a> 			</div>
+		</li><!-- #comment-## -->
+		<li id="comment-4346" class="comment odd alt thread-odd thread-alt depth-1">
+			<article id="div-comment-4346" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/c84f190ac6e9a8620aa3c79a8e2b72c8958a6a4ce8116d124e301f4bdde7d97d?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/c84f190ac6e9a8620aa3c79a8e2b72c8958a6a4ce8116d124e301f4bdde7d97d?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Reader</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4346"><time datetime="2013-12-08T14:21:49-05:00">December 8, 2013 at 2:21 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>The concept of &#8216;block&#8217; (and/or a definition) is not introduced before it is used.  This makes the concept difficult to grasp.</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+		<li id="comment-4347" class="pingback even thread-even depth-1">
+			<div class="comment-body">
+				Pingback: <a href="http://www.meneame.net/story/como-funciona-realmente-protocolo-bitcoin-eng" class="url" rel="ugc external nofollow">¿Cómo funciona realmente el protocolo del Bitcoin? [ENG]</a> 			</div>
+		</li><!-- #comment-## -->
+		<li id="comment-4349" class="comment odd alt thread-odd thread-alt depth-1 parent">
+			<article id="div-comment-4349" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/c84f190ac6e9a8620aa3c79a8e2b72c8958a6a4ce8116d124e301f4bdde7d97d?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/c84f190ac6e9a8620aa3c79a8e2b72c8958a6a4ce8116d124e301f4bdde7d97d?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Reader</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4349"><time datetime="2013-12-08T14:40:10-05:00">December 8, 2013 at 2:40 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>Wouldn&#8217;t three phase commit be more appropriate than two phase commits ?</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		<ol class="children">
+		<li id="comment-4392" class="comment byuser comment-author-admin bypostauthor even depth-2">
+			<article id="div-comment-4392" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/13c495d08e6d1ccd89f2e90a78840a4332695a2d94a21470307e9f3194f8ec96?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/13c495d08e6d1ccd89f2e90a78840a4332695a2d94a21470307e9f3194f8ec96?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Michael Nielsen</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4392"><time datetime="2013-12-09T10:04:48-05:00">December 9, 2013 at 10:04 am</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>That would likely be even better, although I haven&#8217;t thought about it in a lot of detail.</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+</ol><!-- .children -->
+</li><!-- #comment-## -->
+		<li id="comment-4350" class="comment odd alt thread-even depth-1">
+			<article id="div-comment-4350" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/c84f190ac6e9a8620aa3c79a8e2b72c8958a6a4ce8116d124e301f4bdde7d97d?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/c84f190ac6e9a8620aa3c79a8e2b72c8958a6a4ce8116d124e301f4bdde7d97d?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Reader</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4350"><time datetime="2013-12-08T14:48:12-05:00">December 8, 2013 at 2:48 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>Grammar:</p>
+<p>to take account of those asymmetries =&gt; to take into account these asymmetries.</p>
+<p><em>[MN: Not sure that was ungrammatical, but in any case I&#8217;ve improved it: &#8220;to account for those asymmetries.&#8221;]</em></p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+		<li id="comment-4351" class="comment even thread-odd thread-alt depth-1">
+			<article id="div-comment-4351" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/c84f190ac6e9a8620aa3c79a8e2b72c8958a6a4ce8116d124e301f4bdde7d97d?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/c84f190ac6e9a8620aa3c79a8e2b72c8958a6a4ce8116d124e301f4bdde7d97d?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Reader</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4351"><time datetime="2013-12-08T15:00:11-05:00">December 8, 2013 at 3:00 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>Multiple typos with &#8216;&#8230;the recipient is receiving 0.39 Bitcoins&#8230;&#8217; -&gt; 0.319</p>
+<p><em>[MN: As noted earlier, fixed.]</em></p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+		<li id="comment-4354" class="comment odd alt thread-even depth-1">
+			<article id="div-comment-4354" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/c93a2079181dd6a7dcfedfc4bf539ad9116b2a5fb4a8f38d068c21f6c585b928?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/c93a2079181dd6a7dcfedfc4bf539ad9116b2a5fb4a8f38d068c21f6c585b928?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn"><a href="http://stuartquimby.com" class="url" rel="ugc external nofollow">Stuart Quimby</a></b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4354"><time datetime="2013-12-08T16:04:12-05:00">December 8, 2013 at 4:04 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>Thanks for such a generous and informative post.  There is so much babble on Bitcoin that it often seems to operate socially as more of a rorschach test on currency than an actual means of exchange.  I quite agree that the details are considerably more interesting than yet another pundit&#8217;s babble about what it all means.  The devil, and the delight, are in the details.</p>
+<p>Stuart Quimby</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+		<li id="comment-4359" class="comment even thread-odd thread-alt depth-1 parent">
+			<article id="div-comment-4359" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/7ad494ef25b31e40062365378f3c1270cee5a4bc8a239e7302ff2624c1598c50?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/7ad494ef25b31e40062365378f3c1270cee5a4bc8a239e7302ff2624c1598c50?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn"><a href="http://mimictrading.com" class="url" rel="ugc external nofollow">Terikan</a></b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4359"><time datetime="2013-12-08T21:07:45-05:00">December 8, 2013 at 9:07 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>Bitcoin has fascinated me recently.  I admit to not being able to fully wrap my head around it, but I took what I could and wrote a little here: <a href="http://mimictrading.com/viewtopic.php?f=4&#038;t=293" rel="nofollow ugc">http://mimictrading.com/viewtopic.php?f=4&#038;t=293</a></p>
+<p>Maybe you can help me out with one part of this I don&#8217;t quite get.  The signature.  How does the block chain know that the address sending the coins is correct?  The sender sends their sig to go with it, I assume paired up with the hash of the address allows the various nodes to validate right?</p>
+<p>But if you are sending your sig out then can&#8217;t any node have access to that private info.  They would need to in order to validate.  So can a sig only be used once, and if so how is it generated and what prevents it from being faked?</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		<ol class="children">
+		<li id="comment-4445" class="comment odd alt depth-2">
+			<article id="div-comment-4445" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/ec6dc740cc21b34552f2f89e634fc5dc1a66db4409a79cc58f2c3a434b5b3b50?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/ec6dc740cc21b34552f2f89e634fc5dc1a66db4409a79cc58f2c3a434b5b3b50?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">cryptograffre</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4445"><time datetime="2013-12-10T10:48:59-05:00">December 10, 2013 at 10:48 am</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p><a href="https://en.wikipedia.org/wiki/Digital_signature" rel="nofollow ugc">https://en.wikipedia.org/wiki/Digital_signature</a></p>
+<p>Public key cryptography is a remarkable and beautiful thing. Each client using Bitcoin has keypairs &#8211; one key in each pair is public, the other private. The nature of asymmetric cryptographic digital signatures is that I can sign any piece of data using my private key, and anyone else with only my public key can verify that the person who signed that data holds the private key. There&#8217;s some fascinating mathematics involved, exploiting a simple numerical relationship between the public and private keys.</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+</ol><!-- .children -->
+</li><!-- #comment-## -->
+		<li id="comment-4360" class="comment even thread-even depth-1 parent">
+			<article id="div-comment-4360" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/122c864292d9ead9b1a463088ea16fcf04b70f9482fa27e579e606185bb7e71f?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/122c864292d9ead9b1a463088ea16fcf04b70f9482fa27e579e606185bb7e71f?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">richnormand</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4360"><time datetime="2013-12-08T21:50:26-05:00">December 8, 2013 at 9:50 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>Very nicely done write-up.</p>
+<p>Makes me wonder about the news at various times about a major &#8220;theft&#8221; of bitcoins, mostly in exchanges. In order to benefit they would have to be converted or be re-introduced later on. </p>
+<p>Some of these were for large amounts and not really easy to hide, unless you just &#8220;sit&#8221; on them?</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		<ol class="children">
+		<li id="comment-4393" class="comment byuser comment-author-admin bypostauthor odd alt depth-2">
+			<article id="div-comment-4393" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/13c495d08e6d1ccd89f2e90a78840a4332695a2d94a21470307e9f3194f8ec96?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/13c495d08e6d1ccd89f2e90a78840a4332695a2d94a21470307e9f3194f8ec96?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Michael Nielsen</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4393"><time datetime="2013-12-09T10:11:14-05:00">December 9, 2013 at 10:11 am</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>I&#8217;ve wondered the same thing.  Some observations: if you copy someone&#8217;s private key, and then erase their copy, there is no way for them to prove that it was ever truly their key.  And if two people both have a copy of the private key, how do you determine who &#8220;truly&#8221; owns it?</p>
+<p>The situation is complicated further by the possibility of laundering.  If you quickly spend some stolen bitcoins on, then it becomes very different to later recover those bitcoins, since now they may be in possession of honest parties.</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+</ol><!-- .children -->
+</li><!-- #comment-## -->
+		<li id="comment-4363" class="pingback even thread-odd thread-alt depth-1">
+			<div class="comment-body">
+				Pingback: <a href="http://www.fencing.net/forums/thread71606.html#post1031577" class="url" rel="ugc external nofollow">BitCoins</a> 			</div>
+		</li><!-- #comment-## -->
+		<li id="comment-4364" class="comment odd alt thread-even depth-1">
+			<article id="div-comment-4364" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/18b00daf6b092b2a2b3dc5b5b7a739d2dd012d0d87ff302d892cf2a2dde58c75?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/18b00daf6b092b2a2b3dc5b5b7a739d2dd012d0d87ff302d892cf2a2dde58c75?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn"><a href="http://www.faqspedia.com" class="url" rel="ugc external nofollow">shyam jos</a></b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4364"><time datetime="2013-12-08T23:13:25-05:00">December 8, 2013 at 11:13 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>the best explanation ever , thank you Michael 🙂</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+		<li id="comment-4366" class="comment even thread-odd thread-alt depth-1">
+			<article id="div-comment-4366" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/0061e6a58edbcf5be19b9b29aba06af040f927c7234e59ff73e5103d92c705e4?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/0061e6a58edbcf5be19b9b29aba06af040f927c7234e59ff73e5103d92c705e4?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Austin</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4366"><time datetime="2013-12-09T00:30:54-05:00">December 9, 2013 at 12:30 am</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>This was a fantastic article and answered all my questions about bitcoins.</p>
+<p>Thanks!</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+		<li id="comment-4367" class="pingback odd alt thread-even depth-1">
+			<div class="comment-body">
+				Pingback: <a href="http://bubblecoin.biz/bitcoinizzle-for-shizzle/" class="url" rel="ugc external nofollow">Bitcoinizzle For Shizzle | BubbleCoin</a> 			</div>
+		</li><!-- #comment-## -->
+		<li id="comment-4374" class="comment even thread-odd thread-alt depth-1 parent">
+			<article id="div-comment-4374" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/681fdb3230d826104280100102212e00353f079b55cbe8083bb45bd9ff19d025?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/681fdb3230d826104280100102212e00353f079b55cbe8083bb45bd9ff19d025?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">someone</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4374"><time datetime="2013-12-09T03:27:56-05:00">December 9, 2013 at 3:27 am</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>What about the actual code? How many miners are using same piece of software?</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		<ol class="children">
+		<li id="comment-4440" class="comment odd alt depth-2">
+			<article id="div-comment-4440" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/c84f190ac6e9a8620aa3c79a8e2b72c8958a6a4ce8116d124e301f4bdde7d97d?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/c84f190ac6e9a8620aa3c79a8e2b72c8958a6a4ce8116d124e301f4bdde7d97d?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Reader</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4440"><time datetime="2013-12-10T08:19:13-05:00">December 10, 2013 at 8:19 am</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>Indeed, this is a critical question.<br />
+The more implementations there is, the stronger Bitcoin would be, as it would not be dependent on the &#8220;features&#8221;or flaws of one particular implementation.<br />
+The apparent lack of unambiguous protocol documentation makes me think that alternative implementations are difficult to achieve.  </p>
+<p>Certainly, it would greatly help if there was some form of &#8220;RFC&#8221;, or &#8220;ISO Standard&#8221;, or &#8220;W3C spec&#8221; for Bitcoin.</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+</ol><!-- .children -->
+</li><!-- #comment-## -->
+		<li id="comment-4376" class="pingback even thread-even depth-1">
+			<div class="comment-body">
+				Pingback: <a href="http://mamchenkov.net/wordpress/2013/12/09/how-the-bitcoin-protocol-actually-works/" class="url" rel="ugc external nofollow">How the Bitcoin protocol actually works | Blog of Leonid Mamchenkov</a> 			</div>
+		</li><!-- #comment-## -->
+		<li id="comment-4377" class="comment odd alt thread-odd thread-alt depth-1">
+			<article id="div-comment-4377" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/098d4f2ce752ab3c77e0342e52b78a85192f8bea177fe37f1607412ba7414a70?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/098d4f2ce752ab3c77e0342e52b78a85192f8bea177fe37f1607412ba7414a70?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Besmir</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4377"><time datetime="2013-12-09T06:17:45-05:00">December 9, 2013 at 6:17 am</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>HI,<br />
+Your article was very interesting and detailed, so I learned a lot more from BTC. I have one question or doubt: What is done with all these hashes? are they gonna be used for cracking/decrypting encoded data?<br />
+what is the real benefit behind generating hash tables?</p>
+<p>thank you</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+		<li id="comment-4379" class="comment even thread-even depth-1 parent">
+			<article id="div-comment-4379" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/95dc9910f5f2f784ddcdda23b47de60475b0ff734eb79f331cb18df5ea9b0a22?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/95dc9910f5f2f784ddcdda23b47de60475b0ff734eb79f331cb18df5ea9b0a22?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn"><a href="http://www.periyakaruppan.com" class="url" rel="ugc external nofollow">muthuveerappan</a></b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4379"><time datetime="2013-12-09T07:26:24-05:00">December 9, 2013 at 7:26 am</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>Did you do this video or is this video inspired by this post !! ? <a href="http://youtu.be/Lx9zgZCMqXE" rel="nofollow ugc">http://youtu.be/Lx9zgZCMqXE</a> &#8211; this too is good&#8230;</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		<ol class="children">
+		<li id="comment-4394" class="comment byuser comment-author-admin bypostauthor odd alt depth-2">
+			<article id="div-comment-4394" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/13c495d08e6d1ccd89f2e90a78840a4332695a2d94a21470307e9f3194f8ec96?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/13c495d08e6d1ccd89f2e90a78840a4332695a2d94a21470307e9f3194f8ec96?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Michael Nielsen</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4394"><time datetime="2013-12-09T10:12:27-05:00">December 9, 2013 at 10:12 am</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>I didn&#8217;t make  that.  I just watched a few minutes &#8211; it looks pretty good, certainly much more detailed and accurate than most of what&#8217;s out there!</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+</ol><!-- .children -->
+</li><!-- #comment-## -->
+		<li id="comment-4387" class="comment byuser comment-author-admin bypostauthor even thread-odd thread-alt depth-1">
+			<article id="div-comment-4387" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/13c495d08e6d1ccd89f2e90a78840a4332695a2d94a21470307e9f3194f8ec96?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/13c495d08e6d1ccd89f2e90a78840a4332695a2d94a21470307e9f3194f8ec96?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Michael Nielsen</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4387"><time datetime="2013-12-09T09:50:17-05:00">December 9, 2013 at 9:50 am</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>Many people have asked about scalability, so let me just leave this here: <a href="https://en.bitcoin.it/wiki/Scalability" rel="nofollow ugc">https://en.bitcoin.it/wiki/Scalability</a></p>
+<p>It doesn&#8217;t address every possible concern, but I think the upshot is that there&#8217;s a lot of room for Bitcoin to grow.</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+		<li id="comment-4395" class="pingback odd alt thread-even depth-1">
+			<div class="comment-body">
+				Pingback: <a href="http://alramacciotti.wordpress.com/2013/12/08/starting-of-gift-economy-reputation-based/" class="url" rel="ugc external nofollow">Starting of &#8220;Gift Economy (reputation based)&#8221; | l&#039;ambizione dell&#039;artigiano</a> 			</div>
+		</li><!-- #comment-## -->
+		<li id="comment-4396" class="pingback even thread-odd thread-alt depth-1">
+			<div class="comment-body">
+				Pingback: <a href="http://residualmarketplace.com/headline-news-from-paymentsnews-com-december-9-2013/" class="url" rel="ugc external nofollow">Headline News from PaymentsNews.com &#8211; December 9, 2013 - ResidualMarketplace.Com &#8211; Submit Residual Listings for Free</a> 			</div>
+		</li><!-- #comment-## -->
+		<li id="comment-4397" class="comment odd alt thread-even depth-1">
+			<article id="div-comment-4397" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/39c8dd110981e6256f438fea1a2dac03606494db4cb2f8f4e73f3de2f440f042?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/39c8dd110981e6256f438fea1a2dac03606494db4cb2f8f4e73f3de2f440f042?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn"><a href="http://harounkola.com" class="url" rel="ugc external nofollow">Haroun Kola</a></b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4397"><time datetime="2013-12-09T10:48:59-05:00">December 9, 2013 at 10:48 am</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>Thanks. There&#8217;s so much to learn about this currency and I&#8217;m loving all the attention that its getting.</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+		<li id="comment-4399" class="comment even thread-odd thread-alt depth-1 parent">
+			<article id="div-comment-4399" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/1c8e6b903ea95cdc4777f1a641f0334b3616ce83d1c2adfb20d6fcc1b710365a?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/1c8e6b903ea95cdc4777f1a641f0334b3616ce83d1c2adfb20d6fcc1b710365a?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Diogo</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4399"><time datetime="2013-12-09T12:02:10-05:00">December 9, 2013 at 12:02 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>Great article! I have a question: Could miners run a modified version of the software to choose not to publish a transaction in the blockchain? I mean, like a small group of powerful miners controlling the entire network?</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		<ol class="children">
+		<li id="comment-4459" class="comment odd alt depth-2">
+			<article id="div-comment-4459" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/e788ea2014693dcdb86767aceb3860a432fc626c6477a6c53016aff40726842b?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/e788ea2014693dcdb86767aceb3860a432fc626c6477a6c53016aff40726842b?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Mark</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4459"><time datetime="2013-12-10T21:02:25-05:00">December 10, 2013 at 9:02 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>If you control half or more of the total mining power in the network, you can keep a transaction out of the blockchain by solving blocks faster (on average) than the miners who are trying to include that transaction.  If you control less than half, you can delay the transaction, but sooner or later the rest of the miners will get ahead of you and your version of the blockchain will lose out.</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+</ol><!-- .children -->
+</li><!-- #comment-## -->
+		<li id="comment-4402" class="pingback even thread-even depth-1">
+			<div class="comment-body">
+				Pingback: <a href="http://www.thebitcoinchannel.com/archives/29327" class="url" rel="ugc external nofollow">How the Bitcoin protocol actually works &laquo; The Bitcoin Channel</a> 			</div>
+		</li><!-- #comment-## -->
+		<li id="comment-4403" class="pingback odd alt thread-odd thread-alt depth-1">
+			<div class="comment-body">
+				Pingback: <a href="http://electronicpadlock.com/?p=703" class="url" rel="ugc external nofollow">Bitcoin Explanation &laquo; Electronic Padlock</a> 			</div>
+		</li><!-- #comment-## -->
+		<li id="comment-4404" class="pingback even thread-even depth-1">
+			<div class="comment-body">
+				Pingback: <a href="http://www.varanoid.com/security-bloggers/bruce-schneier/bitcoin-explanation/" class="url" rel="ugc external nofollow">Bitcoin Explanation</a> 			</div>
+		</li><!-- #comment-## -->
+		<li id="comment-4407" class="comment odd alt thread-odd thread-alt depth-1 parent">
+			<article id="div-comment-4407" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/54e741ae6556298e4b6d228c152eebeb64a632a75224a409402cff8252e49517?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/54e741ae6556298e4b6d228c152eebeb64a632a75224a409402cff8252e49517?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">jshell</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4407"><time datetime="2013-12-09T13:37:44-05:00">December 9, 2013 at 1:37 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>Great explanation &#8212; but doesn&#8217;t solve this problem:</p>
+<p>Bitcoins aren&#8217;t actually backed by anything other than server time.</p>
+<p>There was a time in this country when you can go to the bank and trade in your 20 dollar bill for an oz of gold. You can&#8217;t do that anymore, b/c today dollars are back by debt not gold.</p>
+<p>But bitcoins are backed by server time. That almost makes less sense than backed by debt.</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		<ol class="children">
+		<li id="comment-4431" class="comment even depth-2 parent">
+			<article id="div-comment-4431" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/54fc07576044f60f385ad409f2a23d50393a3e1c5fb33027471ad58efd5a3c01?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/54fc07576044f60f385ad409f2a23d50393a3e1c5fb33027471ad58efd5a3c01?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Thomas Mahoney</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4431"><time datetime="2013-12-09T23:53:15-05:00">December 9, 2013 at 11:53 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>I think you&#8217;re confusing an investment with a medium of exchange. An investment should be &#8220;backed up&#8221; by something, in the sense that it should give the holder a claim future cash flows or other real assets. But a medium of exchange is just that, something used to facilitate trade, an accounting device. It should have scarcity value and be resistant to counterfeiting.  Fiat currencies have scarcity value to the extent that they are usually printed in finite amounts. Gold is generally scarce.  And bitcoin is scarce as well. </p>
+<p>Gold has been used as a medium of exchange for centuries. What is it &#8220;backed up&#8221; by?  Nothing. It&#8217;s just scarce, and therefore suitable as a medium of exchange.</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		<ol class="children">
+		<li id="comment-4538" class="comment odd alt depth-3">
+			<article id="div-comment-4538" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/712927e2a637bb7fc269a149cc33d0e8d86fd33e7f4c4abab8736cb483c3a172?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/712927e2a637bb7fc269a149cc33d0e8d86fd33e7f4c4abab8736cb483c3a172?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Miksa</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4538"><time datetime="2013-12-14T13:26:59-05:00">December 14, 2013 at 1:26 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>BBC had an interesting article called &#8220;Why do we value gold?&#8221; few days ago.<br />
+<a href="http://www.bbc.co.uk/news/magazine-25255957" rel="nofollow ugc">http://www.bbc.co.uk/news/magazine-25255957</a></p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+</ol><!-- .children -->
+</li><!-- #comment-## -->
+		<li id="comment-6312" class="comment even depth-2">
+			<article id="div-comment-6312" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/8277ddc2c08eec7d7c6eb84125c86634478899e410dbe57dea5ac9352360484b?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/8277ddc2c08eec7d7c6eb84125c86634478899e410dbe57dea5ac9352360484b?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Marco</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-6312"><time datetime="2014-02-27T21:50:50-05:00">February 27, 2014 at 9:50 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>If people are willing to pay for something that is rare or unique, it has a value.<br />
+A Ford Mustang &#8217;65, first issue Marvel Comic books, baseball cards, Gold, Bitcoins all have value because they&#8217;re scarce and people are willing to pay for them. The demand for it defines the price.</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+</ol><!-- .children -->
+</li><!-- #comment-## -->
+		<li id="comment-4408" class="comment odd alt thread-even depth-1 parent">
+			<article id="div-comment-4408" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/1e4bff435d3ef082b13dadcba65ec3bc3195b318560a7407ee708f9c0c2f1e49?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/1e4bff435d3ef082b13dadcba65ec3bc3195b318560a7407ee708f9c0c2f1e49?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Marc</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4408"><time datetime="2013-12-09T13:52:56-05:00">December 9, 2013 at 1:52 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>Excellent write-up, and I look forward to further installments &#8211; which leads me to ask: are you no longer updating your RSS feed(s)?  I came here from Bruce Schneier&#8217;s blog, and I like what I see so I subscribed (in goread.io), but neither of your feeds has anything newer than the beginning of 2013.</p>
+<p>I&#8217;d like to clarify: I&#8217;m grateful for your posts, and I&#8217;m not complaining if you&#8217;ve dumped the whole RSS thing (Google did, why shouldn&#8217;t you?).  But if you _haven&#8217;t_ dumped RSS, but it was supposed to be getting updated automatically&#8230; it isn&#8217;t.</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		<ol class="children">
+		<li id="comment-4409" class="comment byuser comment-author-admin bypostauthor even depth-2 parent">
+			<article id="div-comment-4409" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/13c495d08e6d1ccd89f2e90a78840a4332695a2d94a21470307e9f3194f8ec96?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/13c495d08e6d1ccd89f2e90a78840a4332695a2d94a21470307e9f3194f8ec96?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Michael Nielsen</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4409"><time datetime="2013-12-09T14:05:04-05:00">December 9, 2013 at 2:05 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>Thanks for pointing this out.</p>
+<p>I just checked both RSS feeds, and they seem to be fine.  I typically post longer essays, often in the 3,000-20,000 word range, which is why I only update my blogs a few times a year.  You may enjoy looking through some of my past articles.  This blog carries my more technical stuff, while my other blog (<a href="https://michaelnielsen.org/blog" rel="ugc">https://michaelnielsen.org/blog</a> ) is more general.</p>
+<p>Your comment did make me notice and fix some mistaken links in my sidebar, so thanks for that!</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		<ol class="children">
+		<li id="comment-4416" class="comment odd alt depth-3 parent">
+			<article id="div-comment-4416" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/1e4bff435d3ef082b13dadcba65ec3bc3195b318560a7407ee708f9c0c2f1e49?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/1e4bff435d3ef082b13dadcba65ec3bc3195b318560a7407ee708f9c0c2f1e49?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Marc</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4416"><time datetime="2013-12-09T15:06:25-05:00">December 9, 2013 at 3:06 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>Huh.  I clicked through to the Feedburner page, and indeed the new stuff is there.  Perhaps the problem is on the go read side?  I&#8217;ve been happy with it so far, but&#8230;  Maybe later I&#8217;ll try again with a different reader.</p>
+<p>Here&#8217;s what I see for the DDI feed: <a href="http://i.imgur.com/6T3TLN7.png" rel="nofollow ugc">http://i.imgur.com/6T3TLN7.png</a><br />
+and here&#8217;s what I see for your main feed: <a href="http://i.imgur.com/76XV1Ks.png" rel="nofollow ugc">http://i.imgur.com/76XV1Ks.png</a></p>
+<p>I&#8217;ve tried refreshing multiple times, but no joy.</p>
+<p>I&#8217;ve bookmarked your pages and I can certainly come back here periodically to see if you&#8217;ve got anything new, but I thought you might like to know that (at least for some of us) RSS ain&#8217;t Sing.</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		<ol class="children">
+		<li id="comment-4429" class="comment byuser comment-author-admin bypostauthor even depth-4 parent">
+			<article id="div-comment-4429" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/13c495d08e6d1ccd89f2e90a78840a4332695a2d94a21470307e9f3194f8ec96?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/13c495d08e6d1ccd89f2e90a78840a4332695a2d94a21470307e9f3194f8ec96?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Michael Nielsen</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4429"><time datetime="2013-12-09T22:12:04-05:00">December 9, 2013 at 10:12 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>I checked in my RSS reader (&#8220;The Old Reader&#8221;), and both blogs seem to come through fine.  Odd.</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		<ol class="children">
+		<li id="comment-4586" class="comment odd alt depth-5">
+			<article id="div-comment-4586" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/1e4bff435d3ef082b13dadcba65ec3bc3195b318560a7407ee708f9c0c2f1e49?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/1e4bff435d3ef082b13dadcba65ec3bc3195b318560a7407ee708f9c0c2f1e49?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Marc</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4586"><time datetime="2013-12-18T00:05:16-05:00">December 18, 2013 at 12:05 am</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>It JUST NOW showed up in my feed (17 December, 21:00 Pacific time).  Where it&#8217;s been all this time, I may never know.<br />
+Just thought I&#8217;d let you know.</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+</ol><!-- .children -->
+</li><!-- #comment-## -->
+</ol><!-- .children -->
+</li><!-- #comment-## -->
+</ol><!-- .children -->
+</li><!-- #comment-## -->
+</ol><!-- .children -->
+</li><!-- #comment-## -->
+		<li id="comment-4413" class="comment even thread-odd thread-alt depth-1 parent">
+			<article id="div-comment-4413" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/3930dcb97db3781ae9ecd64039bf7a692eadd5d3cb1334cdc2460ae87150e3c5?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/3930dcb97db3781ae9ecd64039bf7a692eadd5d3cb1334cdc2460ae87150e3c5?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Joseph</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4413"><time datetime="2013-12-09T14:52:58-05:00">December 9, 2013 at 2:52 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>Am I to understand that it takes about 60 minutes to pay somebody through the Bitcoin network? I reached this conclusion based on the 10 minute average block confirmation and the requirement of it being 6 back in the chain before it is considered confirmed. </p>
+<p>Thanks,<br />
+-Joseph</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		<ol class="children">
+		<li id="comment-4414" class="comment byuser comment-author-admin bypostauthor odd alt depth-2">
+			<article id="div-comment-4414" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/13c495d08e6d1ccd89f2e90a78840a4332695a2d94a21470307e9f3194f8ec96?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/13c495d08e6d1ccd89f2e90a78840a4332695a2d94a21470307e9f3194f8ec96?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Michael Nielsen</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4414"><time datetime="2013-12-09T14:56:33-05:00">December 9, 2013 at 2:56 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>Full confirmation requires about 60 minutes.  Many people are willing to accept payment on more trust, though, say after just a single confirmation (~10 mins).</p>
+<p>Yes, this is a significant disadvantage of the protocol in its present architecture.</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+		<li id="comment-6313" class="comment even depth-2">
+			<article id="div-comment-6313" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/8277ddc2c08eec7d7c6eb84125c86634478899e410dbe57dea5ac9352360484b?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/8277ddc2c08eec7d7c6eb84125c86634478899e410dbe57dea5ac9352360484b?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Marco</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-6313"><time datetime="2014-02-27T22:04:49-05:00">February 27, 2014 at 10:04 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>Transactions are instant. Confirmations are not.<br />
+A confirmation takes 10 minutes. If you want full confirmation, then yes, on average it takes an hour (6 confirmations).<br />
+For eCommerce, this will probably work in most cases.<br />
+For retail, this can be an issue.<br />
+However, there are a few points:<br />
+&#8211; If you try to double spend, it doesn&#8217;t mean you will succeed.<br />
+&#8211; It is not easy to double spend in front of the cash register (unless you have build some app and are all prepared)<br />
+&#8211; The merchant (I think BitPay is doing this) can listen on the network to see if there was a double spend attempt. Those are easily detected.<br />
+&#8211; Don&#8217;t forget that a Credit Card payment can be charged back 6 months later. Just saying. 🙂</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+</ol><!-- .children -->
+</li><!-- #comment-## -->
+		<li id="comment-4425" class="comment odd alt thread-even depth-1 parent">
+			<article id="div-comment-4425" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/571fe8091ba347e45b622b31f78f3d9155bb54f5bb22674df007ca3715c89fd9?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/571fe8091ba347e45b622b31f78f3d9155bb54f5bb22674df007ca3715c89fd9?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Gregory Johnson</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4425"><time datetime="2013-12-09T18:56:43-05:00">December 9, 2013 at 6:56 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>Love the article.  It is the first article that I have been able to understand on this topic, and I have been reading a few on it.  And a comment to style, I really appreciated the higher-principled discussion on the topic.  I am so annoyed with the internet&#8217;s constant barrage of get-rich-quick articles on this, or the excitement of the exchange rate.  I have yet to read before now any intelligent comments to the social value, in particular your link to <a href="http://szabo.best.vwh.net/formalize.html" rel="nofollow ugc">http://szabo.best.vwh.net/formalize.html</a> was appreciated.</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		<ol class="children">
+		<li id="comment-4426" class="comment byuser comment-author-admin bypostauthor even depth-2 parent">
+			<article id="div-comment-4426" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/13c495d08e6d1ccd89f2e90a78840a4332695a2d94a21470307e9f3194f8ec96?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/13c495d08e6d1ccd89f2e90a78840a4332695a2d94a21470307e9f3194f8ec96?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Michael Nielsen</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4426"><time datetime="2013-12-09T18:58:49-05:00">December 9, 2013 at 6:58 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>Thanks.  All of Szabo&#8217;s writing is worth reading, incidentally, his site is a treasure trove.</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		<ol class="children">
+		<li id="comment-6350" class="comment odd alt depth-3">
+			<article id="div-comment-6350" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/9353630736ec16f703699fd2f5911ad1727701eb9e59d344d3ea90ad1225e8bf?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/9353630736ec16f703699fd2f5911ad1727701eb9e59d344d3ea90ad1225e8bf?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Steffen</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-6350"><time datetime="2014-03-22T23:30:51-04:00">March 22, 2014 at 11:30 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>You know that there are some hints that Nick Szabo == Satoshi Nakamoto?</p>
+<p><a href="https://likeinamirror.wordpress.com/2013/12/01/satoshi-nakamoto-is-probably-nick-szabo/" rel="nofollow ugc">https://likeinamirror.wordpress.com/2013/12/01/satoshi-nakamoto-is-probably-nick-szabo/</a></p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+</ol><!-- .children -->
+</li><!-- #comment-## -->
+</ol><!-- .children -->
+</li><!-- #comment-## -->
+		<li id="comment-4432" class="pingback even thread-odd thread-alt depth-1">
+			<div class="comment-body">
+				Pingback: <a href="http://nwrickert2.wordpress.com/2013/12/10/bitcoin/" class="url" rel="ugc external nofollow">Bitcoin | Thoughts on computing</a> 			</div>
+		</li><!-- #comment-## -->
+		<li id="comment-4439" class="pingback odd alt thread-even depth-1">
+			<div class="comment-body">
+				Pingback: <a href="http://irblog.eu/links-27-mandela-leaders-wto-money/" class="url" rel="ugc external nofollow">Links: Mandela and Great Leaders; WTO deal in Bali; How Money Works</a> 			</div>
+		</li><!-- #comment-## -->
+		<li id="comment-4443" class="pingback even thread-odd thread-alt depth-1">
+			<div class="comment-body">
+				Pingback: <a href="http://www.clintonpavlovic.co.za/how-does-bitcoin-work/" class="url" rel="ugc external nofollow">How Does Bitcoin Work? &larr; Clinton Pavlovic</a> 			</div>
+		</li><!-- #comment-## -->
+		<li id="comment-4450" class="pingback odd alt thread-even depth-1">
+			<div class="comment-body">
+				Pingback: <a href="http://www.digitaltrends.com/opinion/everyone-planet-invest-bitcoin/" class="url" rel="ugc external nofollow">Following Bitcoin Believers is still an act of faith | Digital Trends</a> 			</div>
+		</li><!-- #comment-## -->
+		<li id="comment-4452" class="pingback even thread-odd thread-alt depth-1">
+			<div class="comment-body">
+				Pingback: <a href="http://virtualmining.com/bitcoin-believers-arent-wrong-but-dont-mistake-their-faith-for-fact/" class="url" rel="ugc external nofollow">Virtual Mining Bitcoin News &raquo; Bitcoin Believers aren’t wrong, but don’t mistake their faith for fact</a> 			</div>
+		</li><!-- #comment-## -->
+		<li id="comment-4457" class="comment odd alt thread-even depth-1">
+			<article id="div-comment-4457" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/b11ab864bbd90e768d3f6beaa8c7c9ea4b2994949513a4db06eaca60f8975c07?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/b11ab864bbd90e768d3f6beaa8c7c9ea4b2994949513a4db06eaca60f8975c07?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Bart</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4457"><time datetime="2013-12-10T17:00:59-05:00">December 10, 2013 at 5:00 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>great article.</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+		<li id="comment-4462" class="comment even thread-odd thread-alt depth-1">
+			<article id="div-comment-4462" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/56a20d3b24a6d6581de76d26b11212b9d7d47dffc7362a79badee50660e273c4?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/56a20d3b24a6d6581de76d26b11212b9d7d47dffc7362a79badee50660e273c4?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn"><a href="http://ianso.blogspot.com" class="url" rel="ugc external nofollow">Ian</a></b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4462"><time datetime="2013-12-11T04:24:37-05:00">December 11, 2013 at 4:24 am</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>Re: why BT doesn&#8217;t use 2PC, as I understand it, it&#8217;s because 2PC becomes exponentially more complex/unreliable with an increased number of parties.</p>
+<p>2PC is a collapsed version of the byzantine / paxos protocols (which is 2PC with n in place of 2), and the basic problem is that a lot of nodes have to be online and swap a lot of messages in order for it to be workable. In any case it&#8217;s more complex than &#8216;longest blockchain wins&#8217;.</p>
+<p>That&#8217;s my amateur understanding anyway.</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+		<li id="comment-4472" class="comment odd alt thread-even depth-1">
+			<article id="div-comment-4472" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/22953353cbb27a1f51fb58cd021c20cb34dea0578c00324422f9c029455e4621?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/22953353cbb27a1f51fb58cd021c20cb34dea0578c00324422f9c029455e4621?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn"><a href="http://hpublius.blogspot.com" class="url" rel="ugc external nofollow">HPublius</a></b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4472"><time datetime="2013-12-11T07:58:17-05:00">December 11, 2013 at 7:58 am</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>Great article and great discussion!  This is a very good overview of the technical aspects around the bitcoin protocol.  The fact remains that bitcoins have no intrinsic value and the promise of a peer-to-peer payment network (medium of exchange) will not be fulfilled unless the bitcoin is transformed into a true digital currency.  Here are my thoughts on how to accomplish that: <a href="http://tinyurl.com/m57hd2z" rel="nofollow ugc">http://tinyurl.com/m57hd2z</a></p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+		<li id="comment-4477" class="pingback even thread-odd thread-alt depth-1">
+			<div class="comment-body">
+				Pingback: <a href="https://www.sindark.com/2013/12/11/open-thread-bitcoin-and-similar-currencies/" class="url" rel="ugc external nofollow">Open thread: Bitcoin and similar currencies</a> 			</div>
+		</li><!-- #comment-## -->
+		<li id="comment-4480" class="pingback odd alt thread-even depth-1">
+			<div class="comment-body">
+				Pingback: <a href="http://www.patriotmajority.org/news_and_events/2013-12-how-bitcoin-actually-works" class="url" rel="ugc external nofollow">How Bitcoin Actually Works</a> 			</div>
+		</li><!-- #comment-## -->
+		<li id="comment-4481" class="pingback even thread-odd thread-alt depth-1">
+			<div class="comment-body">
+				Pingback: <a href="http://aleph.vc/bitcoin-speculations/" class="url" rel="ugc external nofollow">Bitcoin Speculations | Aleph</a> 			</div>
+		</li><!-- #comment-## -->
+		<li id="comment-4483" class="pingback odd alt thread-even depth-1">
+			<div class="comment-body">
+				Pingback: <a href="http://freedomwat.ch/2013/12/12/how-the-bitcoin-protocol-actually-works/" class="url" rel="ugc external nofollow">How the Bitcoin protocol actually works | The Freedom Watch</a> 			</div>
+		</li><!-- #comment-## -->
+		<li id="comment-4484" class="pingback even thread-odd thread-alt depth-1">
+			<div class="comment-body">
+				Pingback: <a href="http://www.ripegroup.com/how-the-bitcoin-protocol-actually-works-ddi/" class="url" rel="ugc external nofollow">How the Bitcoin protocol actually works | DDI - The Ripe Group</a> 			</div>
+		</li><!-- #comment-## -->
+		<li id="comment-4486" class="comment odd alt thread-even depth-1 parent">
+			<article id="div-comment-4486" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/f0ac5ee9be9a9329b488be72a699a6a29554ff41cd080d9a08aa000beaa23b6a?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/f0ac5ee9be9a9329b488be72a699a6a29554ff41cd080d9a08aa000beaa23b6a?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">OnlyMe</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4486"><time datetime="2013-12-11T21:00:37-05:00">December 11, 2013 at 9:00 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>Hi,<br />
+first of all great explanation on Bitcoin, I love it!<br />
+I guess my question is simple to answer.<br />
+How can I verify that a transaction is signed by a certain address if all I got is the hash of the public key? Don´t I need the full public key for that instead of only the hash? What am I missing guys??</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		<ol class="children">
+		<li id="comment-4487" class="comment byuser comment-author-admin bypostauthor even depth-2">
+			<article id="div-comment-4487" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/13c495d08e6d1ccd89f2e90a78840a4332695a2d94a21470307e9f3194f8ec96?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/13c495d08e6d1ccd89f2e90a78840a4332695a2d94a21470307e9f3194f8ec96?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Michael Nielsen</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4487"><time datetime="2013-12-11T22:15:15-05:00">December 11, 2013 at 10:15 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>The transaction contains the Bitcoin address of the payee (or payees, if there are multiple outputs) in the output fields, and the public key(s) and signature(s) of the payer(s) in the input fields.  So there&#8217;s no problem &#8212; you do have the full public key of the payer.</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+</ol><!-- .children -->
+</li><!-- #comment-## -->
+		<li id="comment-4491" class="pingback odd alt thread-odd thread-alt depth-1">
+			<div class="comment-body">
+				Pingback: <a href="http://www.fullmotion.de/blog/2013/explaining-bitcoins/" class="url" rel="ugc external nofollow">Explaining Bitcoins | kef&#039;s blog</a> 			</div>
+		</li><!-- #comment-## -->
+		<li id="comment-4499" class="pingback even thread-even depth-1">
+			<div class="comment-body">
+				Pingback: <a href="http://jsharf.com/glimpse/?p=1561" class="url" rel="ugc external nofollow">A Detailed Explanation of the Bitcoin Protocol &#8211; Glimpse From a Height</a> 			</div>
+		</li><!-- #comment-## -->
+		<li id="comment-4501" class="comment odd alt thread-odd thread-alt depth-1 parent">
+			<article id="div-comment-4501" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/e1b852a592e9e3064f86d6e5751f2a58c932c9a50ec3f9bdc7e98b191b7d484b?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/e1b852a592e9e3064f86d6e5751f2a58c932c9a50ec3f9bdc7e98b191b7d484b?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">kgb</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4501"><time datetime="2013-12-12T13:21:57-05:00">December 12, 2013 at 1:21 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>Silly question from a non technical person: how will transactions be approved and verified subsequent to 2140 when there are no more rewards for mining?</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		<ol class="children">
+		<li id="comment-4502" class="comment byuser comment-author-admin bypostauthor even depth-2">
+			<article id="div-comment-4502" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/13c495d08e6d1ccd89f2e90a78840a4332695a2d94a21470307e9f3194f8ec96?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/13c495d08e6d1ccd89f2e90a78840a4332695a2d94a21470307e9f3194f8ec96?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Michael Nielsen</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4502"><time datetime="2013-12-12T13:23:13-05:00">December 12, 2013 at 1:23 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>Transaction fees (which I briefly describe in a couple of places in the article).</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+</ol><!-- .children -->
+</li><!-- #comment-## -->
+		<li id="comment-4506" class="comment odd alt thread-even depth-1 parent">
+			<article id="div-comment-4506" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/64df195f8f00ba35ad4c09dc129baa5baf9f9fadf016d4867c0d41c04d3269fc?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/64df195f8f00ba35ad4c09dc129baa5baf9f9fadf016d4867c0d41c04d3269fc?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Tom Hatcher</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4506"><time datetime="2013-12-12T13:54:27-05:00">December 12, 2013 at 1:54 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>Thank you. Best explanation I&#8217;ve seen so far! I still don&#8217;t understand it completely, but it&#8217;s slowly becoming clearer. One question, though. I hear that it&#8217;s open source, and we can look at the source code. I&#8217;d like to do that. It&#8217;s written in C++? Where can I find the code and look at it? Thank you.</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		<ol class="children">
+		<li id="comment-5788" class="comment even depth-2">
+			<article id="div-comment-5788" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/64df195f8f00ba35ad4c09dc129baa5baf9f9fadf016d4867c0d41c04d3269fc?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/64df195f8f00ba35ad4c09dc129baa5baf9f9fadf016d4867c0d41c04d3269fc?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Tom Hatcher</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-5788"><time datetime="2013-12-31T11:28:59-05:00">December 31, 2013 at 11:28 am</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>I answer my own question. It&#8217;s at github.com</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+</ol><!-- .children -->
+</li><!-- #comment-## -->
+		<li id="comment-4507" class="comment odd alt thread-odd thread-alt depth-1">
+			<article id="div-comment-4507" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/728d0fe52a8313cc3b0335c109828ad479c402393480787a9fb9cf915db13fed?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/728d0fe52a8313cc3b0335c109828ad479c402393480787a9fb9cf915db13fed?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Fee Fi Fo Fum</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4507"><time datetime="2013-12-12T16:50:02-05:00">December 12, 2013 at 4:50 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>I would love to see you discuss tumblers and the effectiveness and possibility of anonymizing your bitcoins</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+		<li id="comment-4513" class="pingback even thread-even depth-1">
+			<div class="comment-body">
+				Pingback: <a href="http://metarabbit.wordpress.com/2013/12/13/friday-links-18/" class="url" rel="ugc external nofollow">Friday Links | Meta Rabbit</a> 			</div>
+		</li><!-- #comment-## -->
+		<li id="comment-4514" class="pingback odd alt thread-odd thread-alt depth-1">
+			<div class="comment-body">
+				Pingback: <a href="http://www.pakkotoisto.com/talous-politiikka-uskonto/116346-bitcoin/#post4414147" class="url" rel="ugc external nofollow">Bitcoin</a> 			</div>
+		</li><!-- #comment-## -->
+		<li id="comment-4516" class="pingback even thread-even depth-1">
+			<div class="comment-body">
+				Pingback: <a href="http://virtualmining.com/bitcoin-open-source-money-whose-time-has-come/" class="url" rel="ugc external nofollow">Virtual Mining Bitcoin News &raquo; Bitcoin: Open source money whose time has come</a> 			</div>
+		</li><!-- #comment-## -->
+		<li id="comment-4518" class="comment odd alt thread-odd thread-alt depth-1 parent">
+			<article id="div-comment-4518" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/7459fba5c790bd5b1bf5dc6d6f9aa835d1c1b5e9bab54a3ab9e6a35651f5d1c3?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/7459fba5c790bd5b1bf5dc6d6f9aa835d1c1b5e9bab54a3ab9e6a35651f5d1c3?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Cb</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4518"><time datetime="2013-12-13T08:43:51-05:00">December 13, 2013 at 8:43 am</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>In your anonymous section you speak of debunking a fairly huge myth without really backing it up. You just state the equivalent of &#8220;actually it&#8217;s not anonymous&#8221; without going into detail.</p>
+<p>I don&#8217;t believe that to be true unless you are implying that various ways of using the internet anonymously are breakable. </p>
+<p>For instance if TOR is compromised versus if it is not, or if other methods of obscuring traffic surrounding use of bitcoins are insufficient</p>
+<p>Your assertion that bitcoin is open and transparent has nothing to do with its ability to use it anonymously, and the claim that it wouldn&#8217;t be able to &#8216;achieve convictions&#8217; but will narrow the pool of suspects down sound closer to a statement of successful anonymity rather than unsuccessful.</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		<ol class="children">
+		<li id="comment-4519" class="comment byuser comment-author-admin bypostauthor even depth-2 parent">
+			<article id="div-comment-4519" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/13c495d08e6d1ccd89f2e90a78840a4332695a2d94a21470307e9f3194f8ec96?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/13c495d08e6d1ccd89f2e90a78840a4332695a2d94a21470307e9f3194f8ec96?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Michael Nielsen</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4519"><time datetime="2013-12-13T09:00:21-05:00">December 13, 2013 at 9:00 am</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>&#8220;You just state the equivalent of “actually it’s not anonymous” without going into detail.&#8221;</p>
+<p>It&#8217;s certainly not meant to be a proof!  I do, however, go a great deal further than just saying &#8220;it&#8217;s not anonymous&#8221; &#8212; I reference a large and growing body of academic literature that takes supposedly anonymous data sets and then de-anonymizes them.  I believe techniques similar to those used in those papers will be very useful for attacking Bitcoin.  There are complications in Bitcoin, notably that some people (though far from all) routinely use new addresses for each transaction.  That makes an interesting challenge, and (I think) is different than in earlier work on de-anonymization.  I&#8217;ll be most curious to hear what the de-anonymizers have to say after making a sustained attempt at Bitcoin.</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		<ol class="children">
+		<li id="comment-4545" class="comment odd alt depth-3 parent">
+			<article id="div-comment-4545" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/4927c00b8f91494de07d36c7ef64575227b2744549b66e23525d9940e62d5520?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/4927c00b8f91494de07d36c7ef64575227b2744549b66e23525d9940e62d5520?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Magnus Sorenson</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4545"><time datetime="2013-12-14T23:52:30-05:00">December 14, 2013 at 11:52 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>Linking bitcoin addresses to a real identity requires that a real identity is somehow associated with an address in the first place. If I buy bitcoin on the street with cash &#8211; without revealing any personal information, using a public network, and a device with a mac address that can&#8217;t be linked to me, then I can spend that bitcoin with absolute anonymity unless I reveal personal info to whoever I send that bitcoin to. In the case of Silk Road, the guy who sends me the drugs would need my mailing address, but that can be fudged as well. If he does not store my mailing address, nothing gets linked to me if the drugs arrive safely. Throw in a mixing service, and on that transaction, not even the NSA can ID me from the blockchain. Now if i do the same thing many times, it may be possible to ID me using other vectors &#8211; but explain how anyone could ID me using the blockchain if I buy the bitcoin with cash on the street, and spend it leaving no permanent record.  I assert that bitcoin can be 100% anonymous &#8211; forever- if you do it right.</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		<ol class="children">
+		<li id="comment-5746" class="comment even depth-4">
+			<article id="div-comment-5746" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/cea517bd122b91f223d86a17532f912aa3cea43f54541970bf62e809ee6d64c5?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/cea517bd122b91f223d86a17532f912aa3cea43f54541970bf62e809ee6d64c5?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">MerkleTree</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-5746"><time datetime="2013-12-29T08:01:21-05:00">December 29, 2013 at 8:01 am</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>The system is anonymous, but traceable. If you receive bit coins from somewhere and never spend them that&#8217;s fine, but it becomes  possible to track addresses back to wallets via &#8220;change addresses&#8221; that are created during man transactions.<br />
+There are several other methods as well.</p>
+<p>I suggest you look up &#8220;BitIodine&#8221; . <a href="http://ow.ly/s2yZv" rel="nofollow ugc">http://ow.ly/s2yZv</a></p>
+<p>You will find that many Addresses can be identified with a bit of heuristic effort.</p>
+<p>To remain anonymous, you have to take pretty extreme measures.<br />
+This includes the use of tumblers and foggers, but you cannot guarantee they will work.</p>
+<p>This leads to the interesting  point that  if you steal bit coins, they are dangerous to spend.</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+</ol><!-- .children -->
+</li><!-- #comment-## -->
+</ol><!-- .children -->
+</li><!-- #comment-## -->
+</ol><!-- .children -->
+</li><!-- #comment-## -->
+		<li id="comment-4533" class="comment odd alt thread-even depth-1 parent">
+			<article id="div-comment-4533" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/bbb5d46fa678ab9b72ca2f601482de730f8eed89a7827c16164bbd595eb18386?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/bbb5d46fa678ab9b72ca2f601482de730f8eed89a7827c16164bbd595eb18386?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Adam Back</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4533"><time datetime="2013-12-14T08:12:15-05:00">December 14, 2013 at 8:12 am</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>You mention using multiple sub-puzzles to reduce variance.  This is a bad idea as it introduces progress.  Because bitcoin is a first-past-the-post race, progress gives an unfair advantage to more powerful miners (&gt;2x reward for 2x power).</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		<ol class="children">
+		<li id="comment-4536" class="comment byuser comment-author-admin bypostauthor even depth-2">
+			<article id="div-comment-4536" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/13c495d08e6d1ccd89f2e90a78840a4332695a2d94a21470307e9f3194f8ec96?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/13c495d08e6d1ccd89f2e90a78840a4332695a2d94a21470307e9f3194f8ec96?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Michael Nielsen</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4536"><time datetime="2013-12-14T08:31:35-05:00">December 14, 2013 at 8:31 am</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>You&#8217;re presuming a particular design (in which people solve a set of puzzles privately).  There is no necessity to make that presumption; this is why I make the first part of the statement &#8220;with some careful design it is possible to considerably reduce the variance in the time to validate a block of transactions&#8221;.  I haven&#8217;t worked out the best possible design, however, I have found a design whose distribution is quite a bit more sharply peaked around 10 minutes than the current puzzle.  Unfortunately, the details are more complex than I want to write out right now; I may come back to it in a future post.</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+</ol><!-- .children -->
+</li><!-- #comment-## -->
+		<li id="comment-4534" class="comment odd alt thread-odd thread-alt depth-1">
+			<article id="div-comment-4534" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/bbb5d46fa678ab9b72ca2f601482de730f8eed89a7827c16164bbd595eb18386?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/bbb5d46fa678ab9b72ca2f601482de730f8eed89a7827c16164bbd595eb18386?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Adam Back</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4534"><time datetime="2013-12-14T08:21:32-05:00">December 14, 2013 at 8:21 am</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>Also you talk about risk of nonce reuse.  This wont happen because people mine for their own reward address, so even if the nonce is reused the work proof wont be.</p>
+<p>Further in the case of pool mining the pools hand out work, specifically to avoid nonce re-use (which is somewhat insecure as others could guess the work range of other users and race them to produce it).</p>
+<p>And finally the secure way is pooled miners use getblocktemplate and use a large random counter start extranonce.  If extranonce is large enough and random the probability of nonce collision is pratically 0.  You can read about this in the hashcash paper <a href="http://hashcash.org/papers/hashcash.pdf" rel="nofollow ugc">http://hashcash.org/papers/hashcash.pdf</a>  or <a href="https://en.bitcoin.it/wiki/Hashcash" rel="nofollow ugc">https://en.bitcoin.it/wiki/Hashcash</a></p>
+<p>For decentralization miners should also choose their own blocks by running as a full node and filling in the details into the coinbase provided by getblocktemplate.</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+		<li id="comment-4535" class="comment even thread-even depth-1">
+			<article id="div-comment-4535" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/bbb5d46fa678ab9b72ca2f601482de730f8eed89a7827c16164bbd595eb18386?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/bbb5d46fa678ab9b72ca2f601482de730f8eed89a7827c16164bbd595eb18386?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Adam Back</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4535"><time datetime="2013-12-14T08:27:48-05:00">December 14, 2013 at 8:27 am</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>two-phase commit: if you are willing to wait 10 minutes, bitcoin already does that.</p>
+<p>I presume the form it would take is the proof of double spend would be (one of) the double spends.</p>
+<p>There have been proposals to forward double-spends with a double-spent marker (currently the first only is received).</p>
+<p>Maybe just an api to ask if there are any transactions conflicting with a given transaction a user could ask a few random nodes to gain confidence.</p>
+<p>You also have to bear in mind preserving the 0-confirmation spend functionality.  Many people rely on that for low value point of sale transactions.</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+		<li id="comment-4540" class="comment odd alt thread-odd thread-alt depth-1 parent">
+			<article id="div-comment-4540" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/eb819761855b38e4990f4e43132f86fa21093b8c40da3c34e927508a61c22db9?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/eb819761855b38e4990f4e43132f86fa21093b8c40da3c34e927508a61c22db9?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">SRM</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4540"><time datetime="2013-12-14T18:20:05-05:00">December 14, 2013 at 6:20 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>&#8220;I’ll return later to the question of why the Bitcoin address is a hash, and not just the public key.&#8221;</p>
+<p>I don&#8217;t think you ever come back to this topic.</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		<ol class="children">
+		<li id="comment-4542" class="comment byuser comment-author-admin bypostauthor even depth-2">
+			<article id="div-comment-4542" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/13c495d08e6d1ccd89f2e90a78840a4332695a2d94a21470307e9f3194f8ec96?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/13c495d08e6d1ccd89f2e90a78840a4332695a2d94a21470307e9f3194f8ec96?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Michael Nielsen</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4542"><time datetime="2013-12-14T19:32:54-05:00">December 14, 2013 at 7:32 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>See the discussion above, in reply to Benoit Mason.</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+</ol><!-- .children -->
+</li><!-- #comment-## -->
+		<li id="comment-4553" class="pingback odd alt thread-even depth-1">
+			<div class="comment-body">
+				Pingback: <a href="http://guscost.com/2013/12/15/bitcoins-cash-and-gold/" class="url" rel="ugc external nofollow">Bitcoins, Cash and Gold | GusBook</a> 			</div>
+		</li><!-- #comment-## -->
+		<li id="comment-4558" class="comment even thread-odd thread-alt depth-1">
+			<article id="div-comment-4558" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/461667990ea5e6d4881f81919b1a28da958a1a55e94dcd30a153bd4134dc881b?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/461667990ea5e6d4881f81919b1a28da958a1a55e94dcd30a153bd4134dc881b?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">JohnT</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4558"><time datetime="2013-12-15T15:48:39-05:00">December 15, 2013 at 3:48 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>Thank you for the primer.</p>
+<p>You might consider removing the footnote. IMO, Bitcoin cannot be successfully defended as free speech. Free speech is not a full blown unlimited right, as yelling fire in a crowded theater reminds us. </p>
+<p>But Article I, Section 8, subparagraph ? does grant Congress full power to &#8220;coin money and declare [its] value.&#8221;  And a subsequent subparagraph grants Congress full power to outlaw any currency it wishes for citizen uses as legal tender.</p>
+<p>Thus, IMO, the Supreme Court could never allow free speech to prevail over Congress&#8217;s unfettered Constitutional authority.</p>
+<p>I hope this comment does not derail a great discussion of  Bitcoin. Please delete my comment if it becomes a red herring.</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+		<li id="comment-4559" class="pingback odd alt thread-even depth-1">
+			<div class="comment-body">
+				Pingback: <a href="http://www.scilogs.fr/complexites/plaidoyer-pour-le-bitcoin/" class="url" rel="ugc external nofollow">Plaidoyer pour le Bitcoin | ComplexitésComplexités</a> 			</div>
+		</li><!-- #comment-## -->
+		<li id="comment-4562" class="pingback even thread-odd thread-alt depth-1">
+			<div class="comment-body">
+				Pingback: <a href="http://www.ingenesist.com/general-info/occupy-bitcoin.html" class="url" rel="ugc external nofollow">Occupy BitCoin</a> 			</div>
+		</li><!-- #comment-## -->
+		<li id="comment-4567" class="pingback odd alt thread-even depth-1">
+			<div class="comment-body">
+				Pingback: <a href="http://agtb.wordpress.com/2013/12/16/how-to-not-get-rich-from-bitcoin/" class="url" rel="ugc external nofollow">How to not get rich from bitcoin | Turing&#039;s Invisible Hand</a> 			</div>
+		</li><!-- #comment-## -->
+		<li id="comment-4572" class="pingback even thread-odd thread-alt depth-1">
+			<div class="comment-body">
+				Pingback: <a href="http://TheAmericanStatesmen.com/2013/12/bitcoin-the-economic-frontier-of-a-digital-age/" class="url" rel="ugc external nofollow">Bitcoin: The Economic Frontier of a Digital Age | The American Statesmen</a> 			</div>
+		</li><!-- #comment-## -->
+		<li id="comment-4573" class="pingback odd alt thread-even depth-1">
+			<div class="comment-body">
+				Pingback: <a href="http://winningbitcoin.wordpress.com/2013/12/17/why-you-need-to-own-bitcoin/" class="url" rel="ugc external nofollow">Why You Need to Own Bitcoin | Winning Bitcoin</a> 			</div>
+		</li><!-- #comment-## -->
+		<li id="comment-4585" class="comment even thread-odd thread-alt depth-1 parent">
+			<article id="div-comment-4585" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/aa02682998ea1db54b7e335a2576bdf9250346c6449bf3995af161d150c5f22c?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/aa02682998ea1db54b7e335a2576bdf9250346c6449bf3995af161d150c5f22c?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">johnp</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4585"><time datetime="2013-12-17T22:50:08-05:00">December 17, 2013 at 10:50 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>a question<br />
+re the part about<br />
+&#8220;&#8221;<br />
+everyone (collectively) is the bank. In particular, we’ll assume that everyone using Infocoin keeps a complete record of which infocoins belong to which person<br />
+&#8220;&#8221;<br />
+assuming millions and perhaps eventually billions are using bitcoins<br />
+so for example billions of transactions could take place daily<br />
+times this by the qty of bitcoins (each single one being unique)<br />
+times this by the billions using bitcoins<br />
+then what affect would that have on the network ?</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		<ol class="children">
+		<li id="comment-4606" class="comment byuser comment-author-admin bypostauthor odd alt depth-2">
+			<article id="div-comment-4606" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/13c495d08e6d1ccd89f2e90a78840a4332695a2d94a21470307e9f3194f8ec96?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/13c495d08e6d1ccd89f2e90a78840a4332695a2d94a21470307e9f3194f8ec96?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Michael Nielsen</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4606"><time datetime="2013-12-18T15:32:30-05:00">December 18, 2013 at 3:32 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>Already addressed in comments above.</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+</ol><!-- .children -->
+</li><!-- #comment-## -->
+		<li id="comment-4600" class="pingback even thread-even depth-1">
+			<div class="comment-body">
+				Pingback: <a href="http://learnfinancecareers.com/bitcoin-a-bit-risky/" class="url" rel="ugc external nofollow">Bitcoin: a bit risky | Learn About Finance Careers</a> 			</div>
+		</li><!-- #comment-## -->
+		<li id="comment-4605" class="comment odd alt thread-odd thread-alt depth-1 parent">
+			<article id="div-comment-4605" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/1c2911044dc8762809e9c7eb45497e6f21490d6073cca0a91f0f4143d1b5e375?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/1c2911044dc8762809e9c7eb45497e6f21490d6073cca0a91f0f4143d1b5e375?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Pavel Masyuk</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4605"><time datetime="2013-12-18T15:29:17-05:00">December 18, 2013 at 3:29 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>That question about a nounce&#8230; I think that the parametres of the puzzle differs for every single miner. Everyone&#8217;s desired block contains a unique transaction that no other miner has &#8211; a transation of giving a reward to himself. So there is no point in trying to trick others &#8211; parametres of their puzzles are different. Its OK for everyone to just try 0,1,2 etc&#8230;</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		<ol class="children">
+		<li id="comment-4607" class="comment byuser comment-author-admin bypostauthor even depth-2">
+			<article id="div-comment-4607" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/13c495d08e6d1ccd89f2e90a78840a4332695a2d94a21470307e9f3194f8ec96?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/13c495d08e6d1ccd89f2e90a78840a4332695a2d94a21470307e9f3194f8ec96?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Michael Nielsen</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4607"><time datetime="2013-12-18T15:32:43-05:00">December 18, 2013 at 3:32 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>Already addressed in comments above.</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+</ol><!-- .children -->
+</li><!-- #comment-## -->
+		<li id="comment-4612" class="comment odd alt thread-even depth-1 parent">
+			<article id="div-comment-4612" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/3a3cd6e59420f0aa0615ff87b7f5f61f6a61fc7f6618db99d594773bd024c315?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/3a3cd6e59420f0aa0615ff87b7f5f61f6a61fc7f6618db99d594773bd024c315?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn"><a href="http://www.rose-hulman.edu/~holden" class="url" rel="ugc external nofollow">Joshua Holden</a></b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-4612"><time datetime="2013-12-18T16:36:32-05:00">December 18, 2013 at 4:36 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>So if I&#8217;ve got this right, one proof-of-work computation takes about 10 minutes, and you you (currently) get 25 Bitcoins for doing it, and each Bitcoin is (currently) worth about 1000 USD.  Right?  If so, this only makes sense if most proof-of-work computations don&#8217;t get finished and/or don&#8217;t get rewarded.  Is that usually because someone else got there first?  Do you know about what fraction of proof-of-work computations get rewarded?  </p>
+<p>This was really useful; thanks!</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		<ol class="children">
+		<li id="comment-6351" class="comment even depth-2">
+			<article id="div-comment-6351" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/9353630736ec16f703699fd2f5911ad1727701eb9e59d344d3ea90ad1225e8bf?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/9353630736ec16f703699fd2f5911ad1727701eb9e59d344d3ea90ad1225e8bf?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Steffen</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-6351"><time datetime="2014-03-22T23:41:06-04:00">March 22, 2014 at 11:41 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>Joshua,</p>
+<p>yes. It&#8217;s a race. Whoever finds the hash that is smaller than the currently defined difficulty, they will gain the reward for the block. The difficulty is adapted every two weeks or so to reflect the changing (now growing) power of the network.<br />
+The power is growing so fast and so much that some already call it an &#8220;arms race&#8221;.</p>
+<p>-st</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+</ol><!-- .children -->
+</li><!-- #comment-## -->
+		<li id="comment-4678" class="pingback odd alt thread-odd thread-alt depth-1">
+			<div class="comment-body">
+				Pingback: <a href="https://gsr8.ch/blog/?p=160" class="url" rel="ugc external nofollow">Various well written articles/sites &#124; GSR8 Blog</a> 			</div>
+		</li><!-- #comment-## -->
+		<li id="comment-4783" class="pingback even thread-even depth-1">
+			<div class="comment-body">
+				Pingback: <a href="http://bitcoinrazor.com/bitcoin-transactions-explained-how-the-commodore-128-was/" class="url" rel="ugc external nofollow">Bitcoin transactions explained; How the Commodore 128 was &#8230; | BitCoin Razor</a> 			</div>
+		</li><!-- #comment-## -->
+		<li id="comment-5373" class="comment odd alt thread-odd thread-alt depth-1 parent">
+			<article id="div-comment-5373" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/30cb872837660ad8910d2d86bad312417e1f8c06cf37b6a9fbc2c9830bb607c8?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/30cb872837660ad8910d2d86bad312417e1f8c06cf37b6a9fbc2c9830bb607c8?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Chris Crozier</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-5373"><time datetime="2013-12-23T08:04:33-05:00">December 23, 2013 at 8:04 am</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>Thanks for the article, very interesting, but I don&#8217;t see any mechanism for re-combining fractional bitcoins.</p>
+<p>I&#8217;m puzzled by what seems to be an ever-increasing fragmentation. It seems that over time you would accumulate a large number of coins of varying fractional values, and to make a payment you would have to lump together a collection of fractional coins to equal or exceed the transaction required, then typically end up with paying yourself your change. This one-way process of cutting off pieces of a bitcoin would continue steadily. A holding of one bitcoin would end up being constituted of maybe hundred or thousands of differently-sized fractions.</p>
+<p>If that&#8217;s the case, that will make transactions increasingly messy: you may have to consolidate a large number of inputs for one payment. In turn, that will lead to the block chain file growing faster and faster.</p>
+<p>Did I miss something?</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		<ol class="children">
+		<li id="comment-5388" class="comment byuser comment-author-admin bypostauthor even depth-2">
+			<article id="div-comment-5388" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/13c495d08e6d1ccd89f2e90a78840a4332695a2d94a21470307e9f3194f8ec96?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/13c495d08e6d1ccd89f2e90a78840a4332695a2d94a21470307e9f3194f8ec96?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Michael Nielsen</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-5388"><time datetime="2013-12-23T10:33:31-05:00">December 23, 2013 at 10:33 am</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>This is not a problem.  Yes, some transactions will &#8220;fragment&#8221; bitcoins.  But other transactions undo fragmentation.  For example, a 5-input, 2-output transaction will reduce fragmentation. </p>
+<p>This sounds a little complex for the user, but in practice, good client software will make this invisible.  You simply say &#8220;I want to send such-and-such bitcoins to so-and-so address&#8221;, and all the details of combining transactions will be taken care of.  In this sense it&#8217;s actually easier than cash, where we deal with the fragmentation / de-fragmentation problem all the time (i.e., finding the right combination of bills and coins to pay for a service, and then dealing with the resulting change).</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+</ol><!-- .children -->
+</li><!-- #comment-## -->
+		<li id="comment-5501" class="pingback odd alt thread-even depth-1">
+			<div class="comment-body">
+				Pingback: <a href="http://www.digitopoly.org/2013/12/24/time-for-a-little-bitcoin-discussion/" class="url" rel="ugc external nofollow">Digitopoly | Time for a little Bitcoin discussion</a> 			</div>
+		</li><!-- #comment-## -->
+		<li id="comment-5611" class="comment even thread-odd thread-alt depth-1">
+			<article id="div-comment-5611" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/fa3d70f48b8597df73bcc114d60458604ed4b9637c7bf6e23bfdf97a9a86e37d?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/fa3d70f48b8597df73bcc114d60458604ed4b9637c7bf6e23bfdf97a9a86e37d?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Amit Prakash</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-5611"><time datetime="2013-12-25T10:32:36-05:00">December 25, 2013 at 10:32 am</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>Amazing article. Looking forward for more on similar topics &#8211; may b someday you&#8217;ll explain for tor.</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+		<li id="comment-5756" class="pingback odd alt thread-even depth-1">
+			<div class="comment-body">
+				Pingback: <a href="http://marginalrevolution.com/marginalrevolution/2013/12/how-and-why-bitcoin-will-plummet-in-price.html" class="url" rel="ugc external nofollow">How and why BitCoin will plummet in price</a> 			</div>
+		</li><!-- #comment-## -->
+		<li id="comment-5757" class="pingback even thread-odd thread-alt depth-1">
+			<div class="comment-body">
+				Pingback: <a href="http://darlenewolnik.com/2013/12/30/how-the-bitcoin-protocol-actually-works-ddi/" class="url" rel="ugc external nofollow">How the Bitcoin protocol actually works and what that means for us | Helping Public Markets Grow</a> 			</div>
+		</li><!-- #comment-## -->
+		<li id="comment-5764" class="comment odd alt thread-even depth-1 parent">
+			<article id="div-comment-5764" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/e17499d5f89018b5d758e205188abd811224e394966c6f08bb5d57ddd4828bb6?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/e17499d5f89018b5d758e205188abd811224e394966c6f08bb5d57ddd4828bb6?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Edward</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-5764"><time datetime="2013-12-30T15:56:37-05:00">December 30, 2013 at 3:56 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>Very informative article; thank you.  I was wondering:</p>
+<p>1) With regard to transaction fees, I assume it is up to the first miner to successfully validate a block to determine if your offered fee is large enough to be included in the next iteration of the block chain.  Additionally, I assume you have to determine what fee you&#8217;re willing to pay well in advance of the next chain being verified.  If this is the case and we fast-forward to 2140, won&#8217;t all miners (assuming the computing power isn&#8217;t concentrated) be incentivized to take ANY transaction fee no matter how small?  For instance, if I have .001% of the computing power I should, on average, validate a block once every 2 years (hopefully the math&#8217;s right, it would be infrequent in any regard) and, considering (assuming?) there would be no marginal cost to include a transaction (or 1,000 transactions) offering me only $.1 equivalent in transaction fees I can&#8217;t think of why I wouldn&#8217;t validate that transaction.  As such, even if there were a few big players who controlled say 2/3 of the computing power, on average one in 3 blocks would be validated by a smaller player who wouldn&#8217;t care about pricing; since people already wait nearly an hour to finalize a transaction likely they&#8217;d be willing to wait an extra ~30 minutes and, as such, the big miners would likely just lower their fee thresholds pretty substantially; Wouldn&#8217;t this create an odd prisoners&#8217; dilemmaesque situation?  Maybe I&#8217;m missing something but it strikes me that this would end with low fees forcing people out of business until computing power concentrated amongst an oligo(mono)poly of miners who could exercise sufficient pricing control which, as you pointed out, would probably create integrity concerns.</p>
+<p>2) I believe I&#8217;ve previously read somewhere that there was a price threshold required to incentivize mining at different levels of complexity &#8211; for instance, if bitcoin were $1 tomorrow, would miners continue to mine or would the marginal cost of running the equipment outweigh the reward (ignoring fees)?  If that&#8217;s the case and a scenario like that occurs, does bitcoin grind to a halt or will some miners shut down or start running less expensive equipment as they did when bitcoin was in that price range?  I guess this sort of boils down to whether the use of high cost computing equipment is a function of competition (and price) or problem complexity?</p>
+<p>Both are hypothetical but I was curious to know if you (or anyone) had considered these questions.</p>
+<p>Thanks again for the article.</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		<ol class="children">
+		<li id="comment-5787" class="comment even depth-2">
+			<article id="div-comment-5787" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/e17499d5f89018b5d758e205188abd811224e394966c6f08bb5d57ddd4828bb6?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/e17499d5f89018b5d758e205188abd811224e394966c6f08bb5d57ddd4828bb6?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Edward</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-5787"><time datetime="2013-12-31T11:25:40-05:00">December 31, 2013 at 11:25 am</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>(I think) I figured out the answer to #2 &#8211; I was unaware of how difficulty was calculated.</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+</ol><!-- .children -->
+</li><!-- #comment-## -->
+		<li id="comment-5771" class="pingback odd alt thread-odd thread-alt depth-1">
+			<div class="comment-body">
+				Pingback: <a href="http://raymondcolletti.com/explaining-bitcoin-in-a-bar/" class="url" rel="ugc external nofollow">| Explaining bitcoin in a bar</a> 			</div>
+		</li><!-- #comment-## -->
+		<li id="comment-5854" class="pingback even thread-even depth-1">
+			<div class="comment-body">
+				Pingback: <a href="http://www.ofnumbers.com/2014/01/05/cryptocurrency-cat-and-mouse-games-in-china/" class="url" rel="ugc external nofollow">Cryptocurrency Cat-and-Mouse games in China | Great Wall of Numbers</a> 			</div>
+		</li><!-- #comment-## -->
+		<li id="comment-5875" class="pingback odd alt thread-odd thread-alt depth-1">
+			<div class="comment-body">
+				Pingback: <a href="http://ashishb.net/security/random-thoughts-on-bitcoin/" class="url" rel="ugc external nofollow">Random thoughts: Bitcoin</a> 			</div>
+		</li><!-- #comment-## -->
+		<li id="comment-5896" class="comment even thread-even depth-1">
+			<article id="div-comment-5896" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/9c72c4a038575a11fcec79801c60dd9d17cfa55c079599b8e6a129eff1430c8d?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/9c72c4a038575a11fcec79801c60dd9d17cfa55c079599b8e6a129eff1430c8d?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn"><a href="http://JustAskWeg.com" class="url" rel="ugc external nofollow">JimmyWeg</a></b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-5896"><time datetime="2014-01-09T18:14:55-05:00">January 9, 2014 at 6:14 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>Great article!  I&#8217;m working on a case and see that the bitcoin user employed more than a dozen different applications: Anoncoin, Phenixcoin, Primecoin, etc.  I take it that the protocol is the same among the clients, though hash algorithms, proofs of concept, and the like may differ.  From what I understand, if I use XPMs and want to buy something from a vendor who accepts BTCs, I have to go through some broker or exchange facility to complete the transaction.  If that&#8217;s correct, and considering the U.S. in a vacuum, isn&#8217;t it like we&#8217;re all carrying around a different brand of currency (USDs, Yen, Pounds, etc.) and have to exchange them almost every time we want to buy something?  It&#8217;s easy with credit cards, but I don&#8217;t see a similar approach with bitcoins. Thanks!</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+		<li id="comment-5966" class="comment odd alt thread-odd thread-alt depth-1">
+			<article id="div-comment-5966" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/7535316a9512a45141e736a433df9c5a2a3b64dd8c448bb3ee8dd2988b88565f?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/7535316a9512a45141e736a433df9c5a2a3b64dd8c448bb3ee8dd2988b88565f?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">David</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-5966"><time datetime="2014-01-12T05:36:10-05:00">January 12, 2014 at 5:36 am</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>&#8220;I don’t understand why double spending can’t be prevented in a simpler manner using two-phase commit. Suppose Alice tries to double spend an infocoin with both Bob and Charlie. The idea is that Bob and Charlie would each broadcast their respective messages to the Infocoin network, along with a request: “Should I accept this?” They’d then wait some period – perhaps ten minutes – to hear any naysayers who could prove that Alice was trying to double spend. If no such nays are heard (and provided there are no signs of attempts to disrupt the network), they’d then accept the transaction. This protocol needs to be hardened against network attacks, but it seems to me to be the core of a good alternate idea. How well does this work? What drawbacks and advantages does it have compared to the full Bitcoin protocol?&#8221;</p>
+<p>I think something along these lines  is planned:</p>
+<p>&#8220;On top of all that is a long list of new features and improvements I’d like to see get into a 0.9 release; the highest priorities on my wish list are:<br />
+1.“First double-spend” relay and detection. Detecting attempted double-spends as soon as possible is great for low-value, in-person transactions, and we should do more to support that use case.&#8221;</p>
+<p><a href="https://bitcoinfoundation.org/blog/?p=204" rel="nofollow ugc">https://bitcoinfoundation.org/blog/?p=204</a></p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+		<li id="comment-5967" class="comment even thread-even depth-1">
+			<article id="div-comment-5967" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/7535316a9512a45141e736a433df9c5a2a3b64dd8c448bb3ee8dd2988b88565f?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/7535316a9512a45141e736a433df9c5a2a3b64dd8c448bb3ee8dd2988b88565f?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">David</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-5967"><time datetime="2014-01-12T05:40:26-05:00">January 12, 2014 at 5:40 am</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>Great article. I will use it as a self-study tutorial.</p>
+<p>In your next instalment, could you give a broad description of where the protocol is actually to be found (is it a particular piece of software?),  how can it be changed, who can change it and indeed to what extent is it capable of being changed? These are important questions because they go to the ability of Bitcoin to evolve and develop, but it is very hard to find any good general account of these issues.</p>
+<p>Best regards</p>
+<p>David</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+		<li id="comment-5968" class="comment odd alt thread-odd thread-alt depth-1">
+			<article id="div-comment-5968" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/6d18b8aac0a58e2806919acfbc44a859fff7de73eca652bc21847f3a919c5922?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/6d18b8aac0a58e2806919acfbc44a859fff7de73eca652bc21847f3a919c5922?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Nitan Shalon</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-5968"><time datetime="2014-01-12T12:22:21-05:00">January 12, 2014 at 12:22 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>If Satoshi Nakamoto already made two patches to Bitcoin, what&#8217;s stopping him/her from making another patch right now that destroys Bitcoin?</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+		<li id="comment-6013" class="pingback even thread-even depth-1">
+			<div class="comment-body">
+				Pingback: <a href="http://kcheprav.wordpress.com/2014/01/06/info-on-bitcoin/" class="url" rel="ugc external nofollow">Info On Bitcoin | Curly&#039;s Blog</a> 			</div>
+		</li><!-- #comment-## -->
+		<li id="comment-6059" class="pingback odd alt thread-odd thread-alt depth-1">
+			<div class="comment-body">
+				Pingback: <a href="http://www.webswonder.co.uk/my-favourite-bitcoin-bookmarks" class="url" rel="ugc external nofollow">My Favourite Bitcoin Bookmarks | Webs Wonder Design - Webs Wonder Design</a> 			</div>
+		</li><!-- #comment-## -->
+		<li id="comment-6118" class="pingback even thread-even depth-1">
+			<div class="comment-body">
+				Pingback: <a href="http://robmyers.org/2014/01/19/facecoin-in-more-detail/" class="url" rel="ugc external nofollow">Facecoin In More Detail &#124; Rob Myers</a> 			</div>
+		</li><!-- #comment-## -->
+		<li id="comment-6128" class="pingback odd alt thread-odd thread-alt depth-1">
+			<div class="comment-body">
+				Pingback: <a href="http://bitcoinmagazine.com/9549/fed-banker-tries-criticizing-bitcoin-ends-perfectly-describing-fed/" class="url" rel="ugc external nofollow">Fed Banker Tries Criticizing Bitcoin, Ends Up Perfectly Describing The Fed &#8211; Bitcoin Magazine</a> 			</div>
+		</li><!-- #comment-## -->
+		<li id="comment-6151" class="pingback even thread-even depth-1">
+			<div class="comment-body">
+				Pingback: <a href="http://theumlaut.com/2014/01/21/bitcoin-2-0-decentralized-corporations-derivatives-and-information-markets/" class="url" rel="ugc external nofollow">Bitcoin 2.0: Distributed Corporations, Derivatives, and Information Markets | The Ümlaut</a> 			</div>
+		</li><!-- #comment-## -->
+		<li id="comment-6174" class="pingback odd alt thread-odd thread-alt depth-1">
+			<div class="comment-body">
+				Pingback: <a href="http://blog.opensourcecurrency.org/2014/01/21/the-difference-between-bitcoin-and-opentransact/" class="url" rel="ugc external nofollow">The Difference between Bitcoin and OpenTransact | OSCurrency</a> 			</div>
+		</li><!-- #comment-## -->
+		<li id="comment-6188" class="pingback even thread-even depth-1">
+			<div class="comment-body">
+				Pingback: <a href="http://jrmchale.net/2013/12/the-nuts-and-bolts-of-the-bitcoin-protocol/" class="url" rel="ugc external nofollow">j.r.mchale : The Nuts-and-Bolts of the Bitcoin Protocol</a> 			</div>
+		</li><!-- #comment-## -->
+		<li id="comment-6193" class="pingback odd alt thread-odd thread-alt depth-1">
+			<div class="comment-body">
+				Pingback: <a href="http://sexandthestate.com/fed-banker-tries-criticizing-bitcoin-ends-up-perfectly-describing-the-fed/" class="url" rel="ugc external nofollow">Fed Banker Tries Criticizing Bitcoin, Ends Up Perfectly Describing The Fed</a> 			</div>
+		</li><!-- #comment-## -->
+		<li id="comment-6206" class="pingback even thread-even depth-1">
+			<div class="comment-body">
+				Pingback: <a href="http://www.comptoirsecu.fr/2014/01/securite-bitcoin-1-introduction/" class="url" rel="ugc external nofollow">Sécurité Bitcoin #1 : Introduction | Le Comptoir Sécu</a> 			</div>
+		</li><!-- #comment-## -->
+		<li id="comment-6209" class="comment odd alt thread-odd thread-alt depth-1">
+			<article id="div-comment-6209" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/63c381840d6bc043a32f54ad39a1efa389647635d292631c37b635ad993091cb?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/63c381840d6bc043a32f54ad39a1efa389647635d292631c37b635ad993091cb?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn"><a href="http://facebook.com/arthur.colle" class="url" rel="ugc external nofollow">Arthur Colle</a></b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-6209"><time datetime="2014-01-25T16:14:24-05:00">January 25, 2014 at 4:14 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>&#8220;Of course, after Alice has published her message it’s possible for other people to duplicate the message, so in that sense forgery is possible. &#8221;</p>
+<p>How can someone forge the message without Alice&#8217;s private cryptographic key?</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+		<li id="comment-6210" class="pingback even thread-even depth-1">
+			<div class="comment-body">
+				Pingback: <a href="https://www.bof.nl/2013/12/14/de-week-in-375-woorden/" class="url" rel="ugc external nofollow">De week in 375 woorden &laquo; Bits of Freedom</a> 			</div>
+		</li><!-- #comment-## -->
+		<li id="comment-6213" class="comment odd alt thread-odd thread-alt depth-1 parent">
+			<article id="div-comment-6213" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/7e78b2d51f3e96103e3ac3600b126ec35a48e7077e56ce375f03cc2d592a3c78?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/7e78b2d51f3e96103e3ac3600b126ec35a48e7077e56ce375f03cc2d592a3c78?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Dave</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-6213"><time datetime="2014-01-29T15:15:22-05:00">January 29, 2014 at 3:15 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>Hi.  Great article.  Thanks for putting it together.</p>
+<p>I am still having one big problem &#8212; and I feel like I must be missing something obvious.  You wrote:</p>
+<p>&#8220;Suppose Alice tries to double spend with Bob and Charlie. One possible approach is for her to try to validate a block that includes both transactions. Assuming she has one percent of the computing power, she will occasionally get lucky and validate the block by solving the proof-of-work. Unfortunately for Alice, the double spending will be immediately spotted by other people in the Infocoin network and rejected, despite solving the proof-of-work problem. So that’s not something we need to worry about.&#8221;</p>
+<p>Who is going to be looking to reject it, and what does that even mean?  If a malicious party (Alice) manages to complete a block that contains transactions that are not, in fact, valid  then what?  Do other miners check them before building on top of her faulty block? And, if not, then what does it mean for others to &#8216;spot&#8217; them.</p>
+<p>This has been bugging me for days!  Your thoughts would be greatly appreciated.</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		<ol class="children">
+		<li id="comment-6214" class="comment byuser comment-author-admin bypostauthor even depth-2 parent">
+			<article id="div-comment-6214" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/13c495d08e6d1ccd89f2e90a78840a4332695a2d94a21470307e9f3194f8ec96?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/13c495d08e6d1ccd89f2e90a78840a4332695a2d94a21470307e9f3194f8ec96?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Michael Nielsen</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-6214"><time datetime="2014-01-29T15:34:42-05:00">January 29, 2014 at 3:34 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>Anyone with a copy of the block chain is not going to accept an additional block which has an obvious attempt to double spend in it.</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		<ol class="children">
+		<li id="comment-6215" class="comment odd alt depth-3 parent">
+			<article id="div-comment-6215" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/7e78b2d51f3e96103e3ac3600b126ec35a48e7077e56ce375f03cc2d592a3c78?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/7e78b2d51f3e96103e3ac3600b126ec35a48e7077e56ce375f03cc2d592a3c78?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Dave</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-6215"><time datetime="2014-01-29T16:01:42-05:00">January 29, 2014 at 4:01 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>Thanks! </p>
+<p>So that means that miners examine each block for conflicts before they choose to build on it&#8230;? And, if that&#8217;s true, how is the overhead of that inspection built into the incentive structure?  Will their block (if they solve it) become invalidated if down the line someone points out that they built on a block with  a double spend? (That would make sense, but it isn&#8217;t a step that I have seen described.)</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		<ol class="children">
+		<li id="comment-6216" class="comment byuser comment-author-admin bypostauthor even depth-4">
+			<article id="div-comment-6216" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/13c495d08e6d1ccd89f2e90a78840a4332695a2d94a21470307e9f3194f8ec96?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/13c495d08e6d1ccd89f2e90a78840a4332695a2d94a21470307e9f3194f8ec96?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Michael Nielsen</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-6216"><time datetime="2014-01-29T16:06:41-05:00">January 29, 2014 at 4:06 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>Checking for a double spend within a block is computationally negligible.</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+</ol><!-- .children -->
+</li><!-- #comment-## -->
+</ol><!-- .children -->
+</li><!-- #comment-## -->
+</ol><!-- .children -->
+</li><!-- #comment-## -->
+		<li id="comment-6232" class="pingback odd alt thread-even depth-1">
+			<div class="comment-body">
+				Pingback: <a href="http://bitcoinvista.com/2014/02/03/bitcoins-the-hard-way-using-the-raw-bitcoin-protocol/" class="url" rel="ugc external nofollow">Bitcoins the hard way: Using the raw Bitcoin protocol | Bitcoin</a> 			</div>
+		</li><!-- #comment-## -->
+		<li id="comment-6233" class="comment even thread-odd thread-alt depth-1 parent">
+			<article id="div-comment-6233" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/414a8e1c1cd76ef3118356bfe5b867f74c1b1bb470cc5e1d8f1572130acc0d71?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/414a8e1c1cd76ef3118356bfe5b867f74c1b1bb470cc5e1d8f1572130acc0d71?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Daniel Park</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-6233"><time datetime="2014-02-04T01:44:33-05:00">February 4, 2014 at 1:44 am</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>That&#8217;s a long detailed process of bitcoin above which was a great read. I don&#8217;t quite understand near the end, but I definitely get the gist of it.<br />
+I don&#8217;t perfectly understand the relationship between transactions and blocks (is this only required when ppl try to cheat the system?) If so, the money earned by Miner essentially is imaginary and something that only exists within trust that bitcoin is going to continue to work. I guess there are two cases:<br />
+1. as miners get bitcoins, the value of bitcoin comparison to other currencies drop. (This is probably the case)<br />
+OR<br />
+2 as miners get bitcoins, if it comes to a point where everyone wants to convert their bitcoins to real currency, it&#8217;s not going to equal each other; bitcoins -&gt; conversion via bitcoin exchange rate -&gt; not enough real money.</p>
+<p>Also, why assume every 210,000 blocks is occurs every 4 years? is this an assumption based on bitcoin flow so far? Wouldn&#8217;t every 210,000 blocks occur more often if there is more flow?</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		<ol class="children">
+		<li id="comment-6352" class="comment odd alt depth-2">
+			<article id="div-comment-6352" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/9353630736ec16f703699fd2f5911ad1727701eb9e59d344d3ea90ad1225e8bf?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/9353630736ec16f703699fd2f5911ad1727701eb9e59d344d3ea90ad1225e8bf?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Steffen</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-6352"><time datetime="2014-03-22T23:51:26-04:00">March 22, 2014 at 11:51 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>If everybody would like to exit Bitcoin at the same time the price would collapse. The current speculation is though, that the opposite is true. Many people try to buy bitcoins for the fiat money. How many? Please see here <a href="http://fiatleak.com" rel="nofollow ugc">http://fiatleak.com</a>.</p>
+<p>With regards to why 210,000 blocks are created in roughly four years:<br />
+The network difficulty is set so that only six blocks per hour can be created. Roughly every 10 minutes a new block enters the blockchain.</p>
+<p>Let&#8217;s do the math: 4 years -&gt;1461 days * 24 hours  -&gt; 35,064 hours * 6 blocks -&gt; 210,384</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+</ol><!-- .children -->
+</li><!-- #comment-## -->
+		<li id="comment-6239" class="pingback even thread-even depth-1">
+			<div class="comment-body">
+				Pingback: <a href="http://emergentchaos.com/archives/2014/02/on-bitcoin.html" class="url" rel="ugc external nofollow">On Bitcoin | Emergent Chaos</a> 			</div>
+		</li><!-- #comment-## -->
+		<li id="comment-6245" class="pingback odd alt thread-odd thread-alt depth-1">
+			<div class="comment-body">
+				Pingback: <a href="http://vzn1.wordpress.com/2014/02/07/bitcoin-critical-massexplosion-wheres-it-going/" class="url" rel="ugc external nofollow">bitcoin critical mass/explosion, wheres it going? | Turing Machine</a> 			</div>
+		</li><!-- #comment-## -->
+		<li id="comment-6247" class="pingback even thread-even depth-1">
+			<div class="comment-body">
+				Pingback: <a href="http://soshitech.com/2014/02/09/bitcoin-beyond-money/" class="url" rel="ugc external nofollow">Bitcoin Beyond Money | SoshiTech &#8211; Social Media Technology &#8211; Soshitech.com</a> 			</div>
+		</li><!-- #comment-## -->
+		<li id="comment-6251" class="pingback odd alt thread-odd thread-alt depth-1">
+			<div class="comment-body">
+				Pingback: <a href="http://brooklynoptimist.com/2014/02/10/bitcoin-reading-for-developers/" class="url" rel="ugc external nofollow">Bitcoin reading for developers | Coffee Spoons of Code</a> 			</div>
+		</li><!-- #comment-## -->
+		<li id="comment-6262" class="comment even thread-even depth-1 parent">
+			<article id="div-comment-6262" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/eafa9a8954da1b355b136b6651c360dff07e0ce4202b8b4fcd91b3522c6819e6?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/eafa9a8954da1b355b136b6651c360dff07e0ce4202b8b4fcd91b3522c6819e6?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Jozef</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-6262"><time datetime="2014-02-12T20:05:12-05:00">February 12, 2014 at 8:05 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>Fairly good explanation although some important things missing. One mistake though:</p>
+<p>&#8220;So if we want the output hash value to begin with 10 zeroes, say, then David will need, on average, to try 16^10 (approx 10^12) different values for x before he finds a suitable nonce.&#8221;</p>
+<p>I think it should be 16^9 on average. At worst it is 16^10.</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		<ol class="children">
+		<li id="comment-6304" class="comment byuser comment-author-admin bypostauthor odd alt depth-2">
+			<article id="div-comment-6304" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/13c495d08e6d1ccd89f2e90a78840a4332695a2d94a21470307e9f3194f8ec96?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/13c495d08e6d1ccd89f2e90a78840a4332695a2d94a21470307e9f3194f8ec96?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Michael Nielsen</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-6304"><time datetime="2014-02-25T15:32:33-05:00">February 25, 2014 at 3:32 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>No, the average number of trials is 16^10.  </p>
+<p>(If we repeatedly sample from a Bernoulli random variable with probability p of a success, then the expected number of trials to success is \sum_{n=1}^\infty n p (1-p)^{n-1}, which is easily shown to be 1/p.  The probability p in the proof-of-work is 16^{-10}, so the expected number of trials to success is 16^{10}.)</p>
+<p>What important things are missing from the explanation?</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+</ol><!-- .children -->
+</li><!-- #comment-## -->
+		<li id="comment-6268" class="pingback even thread-odd thread-alt depth-1">
+			<div class="comment-body">
+				Pingback: <a href="http://qukuai.io/?p=104" class="url" rel="ugc external nofollow">The Homebrew Litecoin Mining Project | Record important events of digital currencies</a> 			</div>
+		</li><!-- #comment-## -->
+		<li id="comment-6294" class="pingback odd alt thread-even depth-1">
+			<div class="comment-body">
+				Pingback: <a href="http://everythingdoge.com/2014/02/complete-dogecoin-guide-introduction-mining/" class="url" rel="ugc external nofollow">Complete Dogecoin Guide - Introduction into Mining - Everything Doge!</a> 			</div>
+		</li><!-- #comment-## -->
+		<li id="comment-6296" class="comment even thread-odd thread-alt depth-1">
+			<article id="div-comment-6296" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/def7bed05a521827654a7c5d12dc26e8910398250a6b0cee611da2f3b464cef7?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/def7bed05a521827654a7c5d12dc26e8910398250a6b0cee611da2f3b464cef7?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Lex</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-6296"><time datetime="2014-02-23T00:23:01-05:00">February 23, 2014 at 12:23 am</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>i have alot of questions about bitcoin and ive done alot of searching, this explanation has to be the one that has got me the closest to the answers ive been looking for, unfortunately im still falling short of understanding alot of the basic, i do want to ask 1 question here which seems to be the most important question for me. In computer science terms what is a &#8220;bitcoin&#8221; there were points in this article where it seemed close to specifying this, although i may have actually missed the answer, so, what is a &#8220;bitcoin&#8221;?? is it a unique value? if i have 100 bitcoins what is it that i really have ? 100 unique values ? or is it simply a value that was &#8220;said&#8221; to be giving to me and simply assigned a value, sort of like the 5th entry in a ledger, in the genesis block it was &#8220;said&#8221; 50 bitcoin was givin to whom ever,50 bitcoin was given to bill and we will call that 50 1234567.. ??? overall im still searching for clarity on the fundamental idea of a bitcoin from a computer science view</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+		<li id="comment-6301" class="pingback odd alt thread-even depth-1">
+			<div class="comment-body">
+				Pingback: <a href="https://network23.org/arca/how-the-bitcoin-protocol-actually-works-ddi/" class="url" rel="ugc external nofollow">How the Bitcoin protocol actually works | DDI | Arca</a> 			</div>
+		</li><!-- #comment-## -->
+		<li id="comment-6307" class="comment even thread-odd thread-alt depth-1">
+			<article id="div-comment-6307" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/ab93d3713e01880fb11c5d07aa41651457c84a533153ad256c6271aca2073458?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/ab93d3713e01880fb11c5d07aa41651457c84a533153ad256c6271aca2073458?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn"><a href="http://www.events-actually.com.sg/wbc2014.php" class="url" rel="ugc external nofollow">david lee</a></b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-6307"><time datetime="2014-02-26T16:49:46-05:00">February 26, 2014 at 4:49 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>Michael,<br />
+We are organising World Bitcoin Conference on 24 &amp; 25 March 2014 in Malaysia. Would like to invite you to speak on Bitcoin protocol. Could we have your email address to send the invitation.</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+		<li id="comment-6323" class="pingback odd alt thread-even depth-1">
+			<div class="comment-body">
+				Pingback: <a href="http://jamesmath.wordpress.com/2014/03/02/bitcoin/" class="url" rel="ugc external nofollow">bitcoin | jamesmath</a> 			</div>
+		</li><!-- #comment-## -->
+		<li id="comment-6326" class="pingback even thread-odd thread-alt depth-1">
+			<div class="comment-body">
+				Pingback: <a href="http://www.muddyhorse.com/2014/03/fun-economic-reading/" class="url" rel="ugc external nofollow">Fun economic reading | MuddyHorse Farm and Tech</a> 			</div>
+		</li><!-- #comment-## -->
+		<li id="comment-6330" class="pingback odd alt thread-even depth-1">
+			<div class="comment-body">
+				Pingback: <a href="http://jim-bennett.ca/?p=1042" class="url" rel="ugc external nofollow">Bitcoin: have some of us been had? | Jim Bennett</a> 			</div>
+		</li><!-- #comment-## -->
+		<li id="comment-6332" class="pingback even thread-odd thread-alt depth-1">
+			<div class="comment-body">
+				Pingback: <a href="http://itp.briancliftonstudio.com/2-spring-2014/experiments-in-digital-economies/the-bitcoin-protocol-infographic/" class="url" rel="ugc external nofollow">&#8220;The Bitcoin Protocol&#8221; Infographic |</a> 			</div>
+		</li><!-- #comment-## -->
+		<li id="comment-6339" class="pingback odd alt thread-even depth-1">
+			<div class="comment-body">
+				Pingback: <a href="http://startupcafe.co.uk/2014/03/18/i-dont-get-bitcoin-but-i-want-to/" class="url" rel="ugc external nofollow">I don&#8217;t get Bitcoin&#8230; but I want to&#8230; | StartupCafe</a> 			</div>
+		</li><!-- #comment-## -->
+		<li id="comment-6341" class="comment even thread-odd thread-alt depth-1">
+			<article id="div-comment-6341" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/8d0515d9dc9d39b397a9b311411b1b71b00ee08b33dbde635105a916be5644bc?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/8d0515d9dc9d39b397a9b311411b1b71b00ee08b33dbde635105a916be5644bc?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">David</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-6341"><time datetime="2014-03-19T13:31:58-04:00">March 19, 2014 at 1:31 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>Hi &#8211; what a great write-up!  As for your first Author&#8217;s question &#8211; There are probably several less complex methods for confirmation but there is inherent security in the current approach which appears to organically solve the problem without risky reliance on factors and layers outside the network itself.</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+		<li id="comment-6343" class="pingback odd alt thread-even depth-1">
+			<div class="comment-body">
+				Pingback: <a href="http://www.tokenintelligence.com/daily-btc-pboc-edition/" class="url" rel="ugc external nofollow">Daily BTC &#8211; PBOC edition : Token Intelligence</a> 			</div>
+		</li><!-- #comment-## -->
+		<li id="comment-6344" class="pingback even thread-odd thread-alt depth-1">
+			<div class="comment-body">
+				Pingback: <a href="http://techcrunch.com/2014/03/22/enter-the-blockchain-how-bitcoin-can-turn-the-cloud-inside-out/" class="url" rel="ugc external nofollow">Enter The Blockchain: How Bitcoin Can Turn The Cloud Inside Out | TechCrunch</a> 			</div>
+		</li><!-- #comment-## -->
+		<li id="comment-6349" class="comment odd alt thread-even depth-1">
+			<article id="div-comment-6349" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/78391a5fa517d40eb06bf3b0828b5e09d4b4ff27fccd290f4ce88f15235db2e1?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/78391a5fa517d40eb06bf3b0828b5e09d4b4ff27fccd290f4ce88f15235db2e1?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn"><a href="http://momingle.com" class="url" rel="ugc external nofollow">momingle</a></b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-6349"><time datetime="2014-03-22T15:33:38-04:00">March 22, 2014 at 3:33 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>There is one part that I am not sure I understand.   For example, let say miner A has on his queue transaction A, B, and C to validated on a new block.  Is it possible miner B will have transaction  B, C and D in his queue (but not A) that he will validate in his new block?  Assuming both solve the puzzle.  Now both transactions B and C are in two different blocks.  Will both blocks got accepted?</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+		<li id="comment-6353" class="trackback even thread-odd thread-alt depth-1">
+			<div class="comment-body">
+				Pingback: <a href="http://www.quora.com/Does-bitcoin-have-any-builtin-mechanism-for-storing-noting-debt#ans4513515" class="url" rel="ugc external nofollow">Quora</a> 			</div>
+		</li><!-- #comment-## -->
+		<li id="comment-6355" class="comment odd alt thread-even depth-1">
+			<article id="div-comment-6355" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/6d6ba46ae40329c022ee81405d29a95ae346c183d1fe945c15566318a71bc8af?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/6d6ba46ae40329c022ee81405d29a95ae346c183d1fe945c15566318a71bc8af?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Nagaraj Hubli</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-6355"><time datetime="2014-03-24T14:43:13-04:00">March 24, 2014 at 2:43 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>Thanks for the write-up, it helped my a lot in understanding the underlying tech of the Bitcoin protocol. Can&#8217;t wait for the next in series.</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+		<li id="comment-8063" class="comment even thread-odd thread-alt depth-1 parent">
+			<article id="div-comment-8063" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/714f1c57beb65b24d97a8e30986a4e16d6c599102a681bd8d93cfaf13b5cf58e?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/714f1c57beb65b24d97a8e30986a4e16d6c599102a681bd8d93cfaf13b5cf58e?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">elvin</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-8063"><time datetime="2014-04-21T07:39:05-04:00">April 21, 2014 at 7:39 am</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>The protocol rules in the bitcoin wiki are ambiguous<br />
+when an incoming block designates as its predecessor a block somewhere down in the main branch, what happens exactly ?<br />
+the wiki can be interpreted in two ways :<br />
+1. nothing at all &#8211; the incoming block is NOT added as the beginning of a side branch<br />
+2. the incoming block IS added as the possible beginning of a side branch, but without any verification for the moment. If that is the case, then most blocks in the main branch should have many &#8220;brothers&#8221;</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		<ol class="children">
+		<li id="comment-8367" class="comment odd alt depth-2">
+			<article id="div-comment-8367" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/714f1c57beb65b24d97a8e30986a4e16d6c599102a681bd8d93cfaf13b5cf58e?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/714f1c57beb65b24d97a8e30986a4e16d6c599102a681bd8d93cfaf13b5cf58e?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">elvin</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-8367"><time datetime="2014-04-22T02:38:15-04:00">April 22, 2014 at 2:38 am</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>I have verified that the correct answer is 2.<br />
+I have also found what limits the number of &#8220;brothers&#8221; for a block<br />
+1. miners stop mining as soon as they receive a valid node and therefore no new blocks are sent<br />
+2. their neighbours do not relay the blocks they might have sent in the meantime<br />
+Sorry for asking</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+</ol><!-- .children -->
+</li><!-- #comment-## -->
+		<li id="comment-13358" class="comment even thread-even depth-1">
+			<article id="div-comment-13358" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/fb8c5b9a4952f7778dd4a292acc72738f05907a4c278458a678b1f6d2c58969c?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/fb8c5b9a4952f7778dd4a292acc72738f05907a4c278458a678b1f6d2c58969c?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">fivebuckchuck</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-13358"><time datetime="2014-05-03T17:09:21-04:00">May 3, 2014 at 5:09 pm</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>Thanks for the write up ..</p>
+<p>How do transactions get organized into blocks ? Are nodes broadcasting transacations or blocks ?</p>
+<p>Number of transactions in a block ;  is that hardcoded in the protocol ?  </p>
+<p>in your example of h(&#8220;hello world&#8221;|nonce) , is &#8220;hello world&#8221; a unique transaction or the whole block ?</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+		<li id="comment-16522" class="pingback odd alt thread-odd thread-alt depth-1">
+			<div class="comment-body">
+				Pingback: <a href="http://takakoizumi.com/blog/?p=38" class="url" rel="ugc external nofollow">Bitcoin Family Tree | Randolog</a> 			</div>
+		</li><!-- #comment-## -->
+		<li id="comment-20571" class="comment even thread-even depth-1">
+			<article id="div-comment-20571" class="comment-body">
+				<footer class="comment-meta">
+					<div class="comment-author vcard">
+						<img alt='' src='https://secure.gravatar.com/avatar/1963de680377ecd9f8594a6802fb288c519666e0b9c2d6b690c079da1c0fa857?s=60&#038;d=mm&#038;r=g' srcset='https://secure.gravatar.com/avatar/1963de680377ecd9f8594a6802fb288c519666e0b9c2d6b690c079da1c0fa857?s=120&#038;d=mm&#038;r=g 2x' class='avatar avatar-60 photo' height='60' width='60' loading='lazy' decoding='async'/>						<b class="fn">Rich</b> <span class="says">says:</span>					</div><!-- .comment-author -->
+
+					<div class="comment-metadata">
+						<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-20571"><time datetime="2014-05-20T07:37:31-04:00">May 20, 2014 at 7:37 am</time></a>					</div><!-- .comment-metadata -->
+
+									</footer><!-- .comment-meta -->
+
+				<div class="comment-content">
+					<p>&#8220;Suppose Bitcoin mining software always explored nonces starting with x = 0, then x = 1, x = 2,\ldots. If this is done by all (or even just a substantial fraction) of Bitcoin miners then it creates a vulnerability. Namely, it’s possible for someone to improve their odds of solving the proof-of-work merely by starting with some other (much larger) nonce. More generally, it may be possible for attackers to exploit any systematic patterns in the way miners explore the space of nonces&#8230;.&#8221;</p>
+<p>This is incorrect:<br />
+Because the block hash is dependant on the contents of the block. For there to be any possibility of a miner improving his odds through this method the miner must be mining the exact same block as someone else including not using his own address for coinbase and transaction fees to go to. Removing the entire incentive for mining.</p>
+				</div><!-- .comment-content -->
+
+							</article><!-- .comment-body -->
+		</li><!-- #comment-## -->
+		</ol><!-- .comment-list -->
+
+		
+					<p class="no-comments">Comments are closed.</p>
+			
+	
+</div><!-- #comments -->
+
+	<nav class="navigation post-navigation" aria-label="Posts">
+		<h2 class="screen-reader-text">Post navigation</h2>
+		<div class="nav-links"><div class="nav-previous"><a href="https://michaelnielsen.org/ddi/neural-networks-and-deep-learning-first-chapter-now-live/" rel="prev"><p class="meta-nav"><svg class="svg-icon" width="24" height="24" aria-hidden="true" role="img" focusable="false" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" clip-rule="evenodd" d="M20 13v-2H8l4-4-1-2-7 7 7 7 1-2-4-4z" fill="currentColor"/></svg>Previous post</p><p class="post-title">Neural Networks and Deep Learning: first chapter now live</p></a></div><div class="nav-next"><a href="https://michaelnielsen.org/ddi/reinventing-explanation/" rel="next"><p class="meta-nav">Next post<svg class="svg-icon" width="24" height="24" aria-hidden="true" role="img" focusable="false" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" clip-rule="evenodd" d="m4 13v-2h12l-4-4 1-2 7 7-7 7-1-2 4-4z" fill="currentColor"/></svg></p><p class="post-title">Reinventing Explanation</p></a></div></div>
+	</nav>			</main><!-- #main -->
+		</div><!-- #primary -->
+	</div><!-- #content -->
+
+	
+	<aside class="widget-area">
+		<section id="text-7" class="widget widget_text"><h2 class="widget-title">Follow Michael</h2>			<div class="textwidget"><ul>
+<li><a href="https://michaelnielsen.org/ddi/feed/"><img src="https://michaelnielsen.org/blog/wp-content/themes/titan_pro/images/flw-rss.png"> Subscribe to this blog</a>
+<li><a href="https://michaelnielsen.org/blog">Michael's main blog</a>
+<li><a href="http://twitter.com/#!/michael_nielsen"><img src="https://michaelnielsen.org/blog/wp-content/themes/titan_pro/images/flw-twitter.png"> Follow Michael on Twitter</a>
+</ul> </div>
+		</section><section id="text-8" class="widget widget_text"><h2 class="widget-title">Other places on the web</h2>			<div class="textwidget"><ul>
+<li><a href="https://github.com/mnielsen">GitHub</a>
+<li><a href="http://delicious.com/nielsen">Delicious</a>
+<li><a href="http://delicious.com/nielsen/nnftd">Delicious research links for book project</a>
+<li><a href="http://delicious.com/nielsen/tfos">Delicious research links for last book</a>
+<li><a href="https://plus.google.com/116973436260300431929/posts">Google Plus</a>
+</ul> </div>
+		</section><section id="text-9" class="widget widget_text"><h2 class="widget-title">Books</h2>			<div class="textwidget"><a href="http://www.amazon.com/gp/product/0691148902/ref=as_li_tf_il?ie=UTF8&tag=michaniels-20&linkCode=as2&camp=217145&creative=399373&creativeASIN=0691148902"><img border="0" src="http://ws.assoc-amazon.com/widgets/q?_encoding=UTF8&Format=_SL110_&ASIN=0691148902&MarketPlace=US&ID=AsinImage&WS=1&tag=michaniels-20&ServiceVersion=20070822" ></a><img src="http://www.assoc-amazon.com/e/ir?t=michaniels-20&l=as2&o=1&a=0691148902&camp=217145&creative=399373" width="1" height="1" border="0" alt="" style="border:none !important; margin:0px !important;" />
+<br>
+<a href="http://www.amazon.com/gp/product/0691148902/ref=as_li_tf_tl?ie=UTF8&tag=michaniels-20&linkCode=as2&camp=217145&creative=399373&creativeASIN=0691148902">Reinventing Discovery: The New Era of Networked Science</a><img src="http://www.assoc-amazon.com/e/ir?t=michaniels-20&l=as2&o=1&a=0691148902&camp=217145&creative=399373" width="1" height="1" border="0" alt="" style="border:none !important; margin:0px !important;" /> 
+<a href="https://michaelnielsen.org/blog/errata-for-reinventing-discovery/">(Errata)</a>
+<br>
+<br>
+<a href="http://www.amazon.com/gp/product/1107002176/ref=as_li_tf_il?ie=UTF8&camp=1789&creative=9325&creativeASIN=1107002176&linkCode=as2&tag=michaniels-20"><img border="0" src="http://ws.assoc-amazon.com/widgets/q?_encoding=UTF8&ASIN=1107002176&Format=_SL110_&ID=AsinImage&MarketPlace=US&ServiceVersion=20070822&WS=1&tag=michaniels-20" ></a><img src="http://www.assoc-amazon.com/e/ir?t=michaniels-20&l=as2&o=1&a=1107002176" width="1" height="1" border="0" alt="" style="border:none !important; margin:0px !important;" />
+<br>
+<a href="http://www.amazon.com/gp/product/1107002176/ref=as_li_tf_tl?ie=UTF8&camp=1789&creative=9325&creativeASIN=1107002176&linkCode=as2&tag=michaniels-20">Quantum Computation and Quantum Information</a><img src="http://www.assoc-amazon.com/e/ir?t=michaniels-20&l=as2&o=1&a=1107002176" width="1" height="1" border="0" alt="" style="border:none !important; margin:0px !important;" />
+</div>
+		</section><section id="text-10" class="widget widget_text"><h2 class="widget-title">Other projects</h2>			<div class="textwidget"><ul>
+<li><a href="https://michaelnielsen.org/blog/essays/">Essays</a>
+<li><a href="http://www.youtube.com/watch?v=DnWocYKqvhw&feature=player_embedded">TEDxWaterloo video about open science</a>
+<li><a href="https://michaelnielsen.org/blog/quantum-computing-for-the-determined/">Quantum computing for the determined</a>
+<li><a href="https://michaelnielsen.org/polymath1/index.php?title=Main_Page">Polymath wiki</a>
+</ul></div>
+		</section>
+		<section id="recent-posts-3" class="widget widget_recent_entries">
+		<h2 class="widget-title">Recent Posts</h2><nav aria-label="Recent Posts">
+		<ul>
+											<li>
+					<a href="https://michaelnielsen.org/ddi/how-the-backpropagation-algorithm-works/">How the backpropagation algorithm works</a>
+									</li>
+											<li>
+					<a href="https://michaelnielsen.org/ddi/reinventing-explanation/">Reinventing Explanation</a>
+									</li>
+											<li>
+					<a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/" aria-current="page">How the Bitcoin protocol actually works</a>
+									</li>
+											<li>
+					<a href="https://michaelnielsen.org/ddi/neural-networks-and-deep-learning-first-chapter-now-live/">Neural Networks and Deep Learning: first chapter now live</a>
+									</li>
+											<li>
+					<a href="https://michaelnielsen.org/ddi/why-bloom-filters-work-the-way-they-do/">Why Bloom filters work the way they do</a>
+									</li>
+					</ul>
+
+		</nav></section><section id="recent-comments-3" class="widget widget_recent_comments"><h2 class="widget-title">Recent Comments</h2><nav aria-label="Recent Comments"><ul id="recentcomments"><li class="recentcomments"><span class="comment-author-link">Rich</span> on <a href="https://michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/#comment-20571">How the Bitcoin protocol actually works</a></li><li class="recentcomments"><span class="comment-author-link">Kaitlyn</span> on <a href="https://michaelnielsen.org/ddi/if-correlation-doesnt-imply-causation-then-what-does/#comment-17373">If correlation doesn&#8217;t imply causation, then what does?</a></li><li class="recentcomments"><span class="comment-author-link">Kaitlyn</span> on <a href="https://michaelnielsen.org/ddi/if-correlation-doesnt-imply-causation-then-what-does/#comment-17370">If correlation doesn&#8217;t imply causation, then what does?</a></li><li class="recentcomments"><span class="comment-author-link"><a href="http://projects.rodrigodavies.com/htbp/jonathanstray/" class="url" rel="ugc external nofollow">What I learned at Build Peace (by Jonathan Stray) | Build Peace</a></span> on <a href="https://michaelnielsen.org/ddi/if-correlation-doesnt-imply-causation-then-what-does/#comment-17193">If correlation doesn&#8217;t imply causation, then what does?</a></li><li class="recentcomments"><span class="comment-author-link"><a href="http://projects.rodrigodavies.com/htbp/hello-world/" class="url" rel="ugc external nofollow">What I learned at Build Peace (Jonathan Stray) | Build Peace</a></span> on <a href="https://michaelnielsen.org/ddi/if-correlation-doesnt-imply-causation-then-what-does/#comment-17192">If correlation doesn&#8217;t imply causation, then what does?</a></li></ul></nav></section><section id="rss-3" class="widget widget_rss"><h2 class="widget-title"><a class="rsswidget rss-widget-title" href="">Linklog</a></h2><nav aria-label="Linklog"></nav></section><section id="rss-4" class="widget widget_rss"><h2 class="widget-title"><a class="rsswidget rss-widget-title" href="">Documentaries</a></h2><nav aria-label="Documentaries"></nav></section><section id="search-3" class="widget widget_search"><h2 class="widget-title">Search</h2><form role="search"  method="get" class="search-form" action="https://michaelnielsen.org/ddi/">
+	<label for="search-form-1">Search&hellip;</label>
+	<input type="search" id="search-form-1" class="search-field" value="" name="s" />
+	<input type="submit" class="search-submit" value="Search" />
+</form>
+</section><section id="archives-3" class="widget widget_archive"><h2 class="widget-title">Archives</h2><nav aria-label="Archives">
+			<ul>
+					<li><a href='https://michaelnielsen.org/ddi/2014/04/'>April 2014</a></li>
+	<li><a href='https://michaelnielsen.org/ddi/2014/01/'>January 2014</a></li>
+	<li><a href='https://michaelnielsen.org/ddi/2013/12/'>December 2013</a></li>
+	<li><a href='https://michaelnielsen.org/ddi/2013/11/'>November 2013</a></li>
+	<li><a href='https://michaelnielsen.org/ddi/2012/09/'>September 2012</a></li>
+	<li><a href='https://michaelnielsen.org/ddi/2012/08/'>August 2012</a></li>
+	<li><a href='https://michaelnielsen.org/ddi/2012/06/'>June 2012</a></li>
+	<li><a href='https://michaelnielsen.org/ddi/2012/04/'>April 2012</a></li>
+	<li><a href='https://michaelnielsen.org/ddi/2012/03/'>March 2012</a></li>
+	<li><a href='https://michaelnielsen.org/ddi/2012/02/'>February 2012</a></li>
+	<li><a href='https://michaelnielsen.org/ddi/2012/01/'>January 2012</a></li>
+	<li><a href='https://michaelnielsen.org/ddi/2011/07/'>July 2011</a></li>
+	<li><a href='https://michaelnielsen.org/ddi/2011/06/'>June 2011</a></li>
+			</ul>
+
+			</nav></section>	</aside><!-- .widget-area -->
+
+	
+	<footer id="colophon" class="site-footer">
+
+				<div class="site-info">
+			<div class="site-name">
+																						<a href="https://michaelnielsen.org/ddi/">DDI</a>
+																		</div><!-- .site-name -->
+
+			
+			<div class="powered-by">
+				Proudly powered by <a href="https://wordpress.org/">WordPress</a>.			</div><!-- .powered-by -->
+
+		</div><!-- .site-info -->
+	</footer><!-- #colophon -->
+
+</div><!-- #page -->
+
+<script type="speculationrules">
+{"prefetch":[{"source":"document","where":{"and":[{"href_matches":"/ddi/*"},{"not":{"href_matches":["/ddi/wp-*.php","/ddi/wp-admin/*","/ddi/wp-content/uploads/*","/ddi/wp-content/*","/ddi/wp-content/plugins/*","/ddi/wp-content/themes/twentytwentyone/*","/ddi/*\\?(.+)"]}},{"not":{"selector_matches":"a[rel~=\"nofollow\"]"}},{"not":{"selector_matches":".no-prefetch, .no-prefetch a"}}]},"eagerness":"conservative"}]}
+</script>
+<script>document.body.classList.remove("no-js");</script>	<script>
+	if ( -1 !== navigator.userAgent.indexOf( 'MSIE' ) || -1 !== navigator.appVersion.indexOf( 'Trident/' ) ) {
+		document.body.classList.add( 'is-IE' );
+	}
+	</script>
+	<script id="twenty-twenty-one-ie11-polyfills-js-after">
+( Element.prototype.matches && Element.prototype.closest && window.NodeList && NodeList.prototype.forEach ) || document.write( '<\u0073cript src="https://michaelnielsen.org/ddi/wp-content/themes/twentytwentyone/assets/js/polyfills.js?ver=2.4"></scr' + 'ipt>' );
+//# sourceURL=twenty-twenty-one-ie11-polyfills-js-after
+</script>
+<script id="twenty-twenty-one-responsive-embeds-script-js" src="https://michaelnielsen.org/ddi/wp-content/themes/twentytwentyone/assets/js/responsive-embeds.js?ver=2.4"></script>
+<script id="wp-emoji-settings" type="application/json">
+{"baseUrl":"https://s.w.org/images/core/emoji/17.0.2/72x72/","ext":".png","svgUrl":"https://s.w.org/images/core/emoji/17.0.2/svg/","svgExt":".svg","source":{"concatemoji":"https://michaelnielsen.org/ddi/wp-includes/js/wp-emoji-release.min.js?ver=7.0.4"}}
+</script>
+<script type="module">
+/*! This file is auto-generated */
+var e="script#wp-emoji-settings",t=document.querySelector(e);if(!(t instanceof HTMLScriptElement))throw new Error("Element missing: "+e);const r=JSON.parse(t.text),s=(window._wpemojiSettings=r,"wpEmojiSettingsSupports"),o=["flag","emoji"];function i(e){try{var t={supportTests:e,timestamp:(new Date).valueOf()};sessionStorage.setItem(s,JSON.stringify(t))}catch(e){}}function c(e,t,n){e.clearRect(0,0,e.canvas.width,e.canvas.height),e.fillText(t,0,0);t=new Uint32Array(e.getImageData(0,0,e.canvas.width,e.canvas.height).data);e.clearRect(0,0,e.canvas.width,e.canvas.height),e.fillText(n,0,0);const r=new Uint32Array(e.getImageData(0,0,e.canvas.width,e.canvas.height).data);return t.every((e,t)=>e===r[t])}function p(e,t){e.clearRect(0,0,e.canvas.width,e.canvas.height),e.fillText(t,0,0);var n=e.getImageData(16,16,1,1);for(let e=0;e<n.data.length;e++)if(0!==n.data[e])return!1;return!0}function u(e,t,n,r){switch(t){case"flag":return n(e,"\ud83c\udff3\ufe0f\u200d\u26a7\ufe0f","\ud83c\udff3\ufe0f\u200b\u26a7\ufe0f")?!1:!n(e,"\ud83c\udde8\ud83c\uddf6","\ud83c\udde8\u200b\ud83c\uddf6")&&!n(e,"\ud83c\udff4\udb40\udc67\udb40\udc62\udb40\udc65\udb40\udc6e\udb40\udc67\udb40\udc7f","\ud83c\udff4\u200b\udb40\udc67\u200b\udb40\udc62\u200b\udb40\udc65\u200b\udb40\udc6e\u200b\udb40\udc67\u200b\udb40\udc7f");case"emoji":return!r(e,"\ud83e\u1fac8")}return!1}function f(e,t,n,r){let a;const s=(a="undefined"!=typeof WorkerGlobalScope&&self instanceof WorkerGlobalScope?new OffscreenCanvas(300,150):document.createElement("canvas")).getContext("2d",{willReadFrequently:!0}),o=(s.textBaseline="top",s.font="600 32px Arial",{});return e.forEach(e=>{o[e]=t(s,e,n,r)}),o}function a(e){var t=document.createElement("script");t.src=e,t.defer=!0,document.head.appendChild(t)}r.supports={everything:!0,everythingExceptFlag:!0},new Promise(t=>{let n=function(){try{var e=JSON.parse(sessionStorage.getItem(s));if("object"==typeof e&&"number"==typeof e.timestamp&&(new Date).valueOf()<e.timestamp+604800&&"object"==typeof e.supportTests)return e.supportTests}catch(e){}return null}();if(!n){if("undefined"!=typeof Worker&&"undefined"!=typeof OffscreenCanvas&&"undefined"!=typeof URL&&URL.createObjectURL&&"undefined"!=typeof Blob)try{var e="postMessage("+f.toString()+"("+[JSON.stringify(o),u.toString(),c.toString(),p.toString()].join(",")+"));",r=new Blob([e],{type:"text/javascript"});const a=new Worker(URL.createObjectURL(r),{name:"wpTestEmojiSupports"});return void(a.onmessage=e=>{i(n=e.data),a.terminate(),t(n)})}catch(e){}i(n=f(o,u,c,p))}t(n)}).then(e=>{for(const n in e)r.supports[n]=e[n],r.supports.everything=r.supports.everything&&r.supports[n],"flag"!==n&&(r.supports.everythingExceptFlag=r.supports.everythingExceptFlag&&r.supports[n]);var t;r.supports.everythingExceptFlag=r.supports.everythingExceptFlag&&!r.supports.flag,r.supports.everything||((t=r.source||{}).concatemoji?a(t.concatemoji):t.wpemoji&&t.twemoji&&(a(t.twemoji),a(t.wpemoji)))});
+//# sourceURL=https://michaelnielsen.org/ddi/wp-includes/js/wp-emoji-loader.min.js
+</script>
+
+</body>
+</html>
+
+<!-- Dynamic page generated in 1.380 seconds. -->
+<!-- Cached page generated by WP-Super-Cache on 2026-08-13 22:24:10 -->
+
+<!-- super cache -->
+
+### faq: FAQ
+
+- URL: http://nil.csail.mit.edu/6.824/2021/papers/bitcoin-faq.txt
+- Local path: official-materials/faqs/bitcoin-faq.txt
+
+#### Archived Content
+
+6.824 Bitcoin FAQ
+
+Q: I don't understand why the blockchain is so important. Isn't the
+requirement for the owner's signature on each transaction enough to
+prevent bitcoins from being stolen?
+
+A: The signature is not enough, because it doesn't prevent the owner
+from spending money twice: signing two transactions that transfer the
+same bitcoin to different recipients. The blockchain acts as a
+publishing system to try to ensure that once a bitcoin has been spent
+once, lots of participants will know, and will be able to reject a
+second spend.
+
+Q: Why does Bitcoin need to define a new currency? Wouldn't it be more
+convenient to use an existing currency like dollars?
+
+A: The new currency (Bitcoins) allows the system to reward miners with
+freshly created money; this would be harder with dollars because it's
+illegal for ordinary people to create fresh dollars. And using dollars
+would require a separate settlement system: if I used the blockchain
+to record a payment to someone, I still need to send the recipient
+dollars via a bank transfer or physical cash.
+
+Q: Why is the purpose of proof-of-work?
+
+A: It makes it hard for an attacker to convince the system to switch
+to a blockchain fork in which a coin is spent in a different way than
+in the main fork. You can view proof-of-work as making a random choice
+over the participating CPUs of who gets to choose which fork to
+extend. If the attacker controls only a few CPUs, the attacker won't
+be able to work hard enough to extend a new malicious fork fast enough
+to overtake the main blockchain.
+
+Q: Could a Bitcoin-like system use something less wasteful than
+proof-of-work?
+
+A: Proof-of-work is hard to fake or simulate, a nice property in a
+totally open system like Bitcoin where you cannot trust anyone to
+follow rules. There are some alternate schemes; search the web for
+proof-of-stake or look at Algorand and Byzcoin, for example. In a
+smallish closed system, in which the participants are known though not
+entirely trusted, Byzantine agreement protocols could be used, as in
+Hyperledger, or variants of it as in Stellar.  There seems to be an
+interest in general to move to proof-of-stake; ethereum is moving to
+PoS
+(https://ethereum.org/en/developers/docs/consensus-mechanisms/pos/)
+
+
+Q: Can Alice spend the same coin twice by sending "pay Bob" and "pay
+Charlie" to different subsets of miners?
+
+A: Suppose Alice does that. One of the two subsets of miners is likely
+to find the nonce for a new block first. Let's assume the first block
+to be found is B50 and it contains "pay Bob". This block will be
+flooded to all miners, so the miners working on "pay Charlie" will
+switch to mining a successor block to B50. These miners validate
+transactions they place in blocks, so they will notice that the "pay
+Charlie" coin was spent in B50, and they will ignore the "pay Charlie"
+transaction. Thus, in this scenario, double-spend won't work.
+
+There's a small chance that two miners find blocks at the same time,
+perhaps B50' containing "pay Bob" and B50'' containing "pay Charlie".
+At this point there's a fork in the block chain. These two blocks will
+be flooded to all the nodes. Each node will start mining a successor
+to one of them (the first it hears). Again the most likely outcome is
+that a single miner will finish significantly before any other miner,
+and flood the successor, and most peers will switch to that winning
+fork. The chance of repeatedly having two miners simultaneously find
+blocks gets very small as the forks get longer. So eventually all the
+peers will switch to the same fork, and in that fork there will be
+only one spend of the coin.
+
+The possibility of accidentally having a short-lived fork is the
+reason that careful clients wait until there are a few successor
+blocks before believing a transaction.
+
+Q: It takes an average of 10 minutes for a Bitcoin block to be
+validated. Does this mean that the parties involved aren't sure if the
+transaction really happened until 10 minutes later?
+
+A: Yes. The 10 minutes is awkward. But it's not always a problem. For
+example, suppose you buy a toaster oven with Bitcoin from a web site.
+The web site can check that the transaction is known by a few servers,
+though not yet in a block, and show you a "purchase completed" page.
+Before shipping it to you, they should check that the transaction is
+in a block. For low-value in-person transactions, such as buying a cup
+of coffee, it's probably enough for the seller to ask a few peers to
+check that the bitcoins haven't already been spent (i.e. it's
+reasonably safe to not bother waiting for the transaction to appear in
+the blockchain at all). For a large in-person purchase (e.g., a car),
+it is important to wait for sufficiently long to be assured that the
+block will stay in the block chain before handing over the goods.
+
+Q: What can be done to speed up transactions on the blockchain?
+
+A: I think the constraint here is that 10 minutes needs to be much
+larger (i.e. >= 10x) than the time to broadcast a newly found block to
+all peers. The point of that is to minimize the chances of two peers
+finding new blocks at about the same time, before hearing about the
+other peer's block. Two new blocks at the same time is a fork; forks
+are bad since they cause disagreement about which transactions are
+real, and they waste miners' time. Since blocks can be pretty big (up
+to a megabyte), and peers could have slow Internet links, and the
+diameter of the peer network might be large, it could easily take a
+minute to flood a new block. If one could reduce the flooding time,
+then the 10 minutes could also be reduced.
+
+Q: The entire blockchain needs to be downloaded before a node can
+participate in the network. Won't that take an impractically long time
+as the blockchain grows?
+
+A: It's true that it takes a while for a new node to get all the
+transactions. But once a given server has done this work, it can save
+the block chain, and doesn't need to fetch it again. It only needs to
+know about new blocks, which is not a huge burden. On the other hand
+most ordinary users of Bitcoin don't run full Bitcoin nodes; instead
+they trust a few full nodes to answer questions about whether coins
+have already been spent.
+
+Q: Is it feasible for an attacker to gain a majority of the computing
+power among peers? What are the implications for bitcoin if this happens?
+
+A: It may be feasible; some people think that big cooperative groups
+of miners have been close to a majority at times:
+http://www.coindesk.com/51-attacks-real-threat-bitcoin/
+
+If >50% of compute power is controlled by a single entity, they can
+double-spend bitcoins: transfer a coin to one payee, and then generate
+a new fork from before that transaction in which the transaction
+doesn't exist. Bitcoin's security would be broken if this happened.
+
+Q: From some news stories, I have heard that a large number of bitcoin
+miners are controlled by a small number of companies.
+
+A: True. See here: https://blockchain.info/pools. It looks like
+three mining pools together hold >51% of the compute power today, and
+two come to 40%.
+
+Q: Are there any ways for Bitcoin mining to do useful work, beyond simply
+brute-force calculating SHA-256 hashes?
+
+A: Maybe -- here are two attempts to do what you suggest:
+https://www.cs.umd.edu/~elaine/docs/permacoin.pdf
+http://primecoin.io/
+
+Q: There is hardware specifically designed to mine Bitcoin. How does
+this type of hardware differ from the type of hardware in a laptop?
+
+A: Mining hardware has a lot of transistors dedicated to computing
+SHA256 quickly, but is not particularly fast for other operations.
+Ordinary server and laptop CPUs can do many things (e.g. floating
+point division) reasonably quickly, but don't have so much hardware
+dedicated to SHA256 specifically. Some Intel CPUs do have instructions
+specifically for SHA256; however, they aren't competitive with
+specialized Bitcoin hardware that massively parallelizes the hashing
+using lots of dedicated transistors.
+
+Q: The paper estimates that the disk space required to store the block
+chain will by 4.2 megabytes per year. That seems very low!
+
+A: The 4.2 MB/year is for just the block headers, and is still the
+actual rate of growth. The current 60+GB is for full blocks.
+
+Q: Would the advent of quantum computing break the bitcoin system?
+
+A: Here's a plausible-looking article:
+http://www.bitcoinnotbombs.com/bitcoin-vs-the-nsas-quantum-computer/
+Quantum computers might be able to forge bitcoin's digital signatures
+(ECDSA). That is, once you send out a transaction with your public key
+in it, someone with a quantum computer could probably sign a different
+transaction for your money, and there's a reasonable chance that the
+bitcoin system would see the attacker's transaction before your
+transaction.
+
+Q: Bitcoin uses the hash of the transaction record to identify the
+transaction, so it can be named in future transactions. Is this
+guaranteed to lead to unique IDs?
+
+A: The hashes are technically not guaranteed to be unique. But in
+practice the hash function (SHA-256) is believed to produce different
+outputs for different inputs with fantastically high probability.
+
+Q: It sounds like anyone can create new Bitcoins. Why is that OK?
+Won't it lead to forgery or inflation?
+
+A: Only the person who first computes a proper nonce for the current
+last block in the chain gets the 12.5-bitcoin reward for "mining" it. It
+takes a huge amount of computation to do this. If you buy a computer
+and have it spend all its time attempting to mine bitcoin blocks, you
+will not make enough bitcoins to pay for the computer.
+
+Q: The paper mentions that some amount of fraud is admissible; where
+does this fraud come from?
+
+A: This part of the paper is about problems with the current way of
+paying for things, e.g. credit cards. Fraud occurs when you buy
+something on the Internet, but the seller keeps the money and doesn't
+send you the item. Or if a merchant remembers your credit card number,
+and buys things with it without your permission. Or if someone buys
+something with a credit card, but never pays the credit card bill.
+
+Q: Has there been fraudulent use of Bitcoin?
+
+A: Yes. I think most of the problems have been at web sites that act
+as wallets to store peoples' bitcoin private keys. Such web sites,
+since they have access to the private keys, can transfer their
+customers' money to anyone. So someone who works at (or breaks into)
+such a web site can steal the customers' Bitcoins.
+
+Q: Satoshi's paper mentions that each transaction has its own
+transaction fees that are given to whoever mined the block. Why would
+a miner not simply try to mine blocks with transactions with the
+highest transaction fees?
+
+A: Miners do favor transactions with higher fees. You can read about
+typical approaches here:
+https://en.bitcoin.it/wiki/Transaction_fees
+And here's a graph (the red line) of how long your transaction waits
+as a function of how high a fee you offer:
+https://bitcoinfees.github.io/misc/profile/
+
+Q: Why would a miner bother including transactions that yield no fee?
+
+A: I think many don't mine no-fee transactions any more.
+
+Q: How are transaction fees determined/advertised?
+
+A: Have a look here:
+https://en.bitcoin.it/wiki/Transaction_fees
+It sounds like (by default) wallets look in the block chain at the
+recent correlation between fee and time until a transaction is
+included in a mined block, and choose a fee that correlates with
+relatively quick inclusion. I think the underlying difficulty is that
+it's hard to know what algorithms the miners use to pick which
+transactions to include in a block; different miners probably do
+different things.
+
+Q: What are some techniques for storing my personal bitcoins, in
+particular the private keys needed to spend my bitcoins? I've heard of
+people printing out the keys, replicating them on USB, etc. Does a
+secure online repository exist?
+
+A: Any scheme that keeps the private keys on a computer attached to
+the Internet is a tempting target for thieves. On the other hand, it's
+a pain to use your bitcoins if the private keys are on a sheet of
+paper. So my guess is that careful people store the private keys for
+small amounts on their computer, but for large balances they store the
+keys offline.
+
+Q: What other kinds of virtual currency were there before and after
+Bitcoin (I know the paper mentioned hashcash)? What was different
+about Bitcoin that led it to have more success than its predecessors?
+
+A: There were many previous proposals for digital cash systems, none
+with any noticeable success. It's tempting to think that Bitcoin has
+succeeded because its design is more clever than others: that it has
+just the right blend of incentives and decentralization and ease of
+use. But there are too many failed yet apparently well-designed
+technologies out there for me to believe that.
+
+Q: What happens when more (or fewer) people mine Bitcoin?
+
+A: Bitcoin adjusts the difficulty to match the measured compute power
+devoted to mining. So if more and more computers mine, the mining
+difficulty will get harder, but only hard enough to maintain the
+inter-block interval at 10 minutes. If lots of people stop mining, the
+difficulty will decrease. This mechanism won't prevent new blocks from
+being created, it will just ensure that it takes about 10 minutes to
+create each one.
+
+Q: Is there any way to make Bitcoin completely anonymous?
+
+A: Have a look here: https://en.wikipedia.org/wiki/Zerocoin
+
+Q: If I lose the private key(s) associated with the bitcoins I own,
+how can I get my money back?
+
+A: You can't.
+
+Q: What do people buy and sell with bitcoins?
+
+A: There seems to be a fair amount of illegal activity that exploits
+Bitcoin's relative anonymity (buying illegal drugs, demanding ransom).
+You can buy some ordinary (legal) stuff on the Internet with Bitcoin
+too; have a look here:
+http://www.coindesk.com/information/what-can-you-buy-with-bitcoins/
+It's a bit of a pain, though, so I don't imagine many non-enthusiasts
+would use bitcoin in preference to a credit card, given the choice.
+
+Q: Why is bitcoin illegal in some countries?
+
+A: Here are some guesses.
+
+Many governments adjust the supply of money in order to achieve
+certain economic goals, such as low inflation, high employment, and
+stable exchange rates. Widespread use of bitcoin may make that harder.
+
+Many governments regulate banks (and things that function as banks) in
+order to prevent problems, e.g. banks going out of business and
+thereby causing their customers to lose deposits. This has happened to
+some bitcoin exchanges. Since bitcoin can't easily be regulated, maybe
+the next best thing is to outlaw it.
+
+Bitcoin seems particularly suited to certain illegal transactions
+because it is fairly anonymous. Governments regulate big transfers of
+conventional money (banks must report big transfers) in order to track
+illegal activity; but you can't easily do this with bitcoin.
+
+Q: Why do bitcoins have any value at all? Why do people accept it as
+money?
+
+Because other people are willing to sell things in return for
+bitcoins, and are willing to exchange bitcoins for ordinary currency
+such as dollars. This is a circular argument, but has worked many
+times in the past; consider why people view baseball trading cards as
+having value, or why they think paper money has value.
+
+Q: How is the price of Bitcoin determined?
+
+A: The price of Bitcoin in other currencies (e.g. euros or dollars) is
+determined by supply and demand. If more people want to buy Bitcoins
+than sell them, the price will go up. If the opposite, then the price
+will go down. There is no single price; instead, there is just recent
+history of what prices people have been willing to buy and sell at on
+public exchanges. The public exchanges bring buyers and sellers
+together, and publish the prices they agree to:
+
+  https://bitcoin.org/en/exchanges
+
+Q: Why is the price of bitcoin so volatile?
+
+A: The price is driven partially by people's hopes and fears. When
+they are optimistic about Bitcoin, or see that the price is rising,
+they buy so as not to miss out, and thus bid the price up further.
+When they read negative news stories about Bitcoin or the economy in
+general, they sell out of fear that the price will drop and cause them
+to lose money. This kind of speculation happens with many goods;
+there's nothing special about Bitcoin in this respect. For example:
+
+  https://en.wikipedia.org/wiki/Tulip_mania
+
+### homework: Question
+
+- URL: http://nil.csail.mit.edu/6.824/2021/questions.html?q=q-bitcoin&lec=19
+- Local path: official-materials/questions/19-q-bitcoin.html
+
+#### Assigned Question
+
+Bitcoin Try to buy something with Bitcoin. It may help to cooperate with some 6.824 class-mates, and it may help to start a few days early. If you decide to give up, that's OK. Briefly describe your experience.

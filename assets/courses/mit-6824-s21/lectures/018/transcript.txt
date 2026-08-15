@@ -1,0 +1,1646 @@
+[00:00:00] So I want to talk today about the memcache,
+[00:00:03] this is a paper from Facebook from 2013,
+[00:00:09] memcache are still widely used in many websites
+[00:00:13] or big Internet websites [] use
+[00:00:15] have ideas or architecture is very similar to it.
+[00:00:19] The paper is an experience paper,
+[00:00:30] so the goal of the paper is not so much
+[00:00:32] to introduce new ideas or new concepts or new innovative ways of building systems,
+[00:00:38] there's more to report on actual practical experience in trying to build systems,
+[00:00:44] that in this particular case,
+[00:00:45] can have support a billion requests per seconds or multiple billion requests per seconds.
+[00:00:51] And so there are three lessons,
+[00:00:54] you know you can take away from this particular paper.
+[00:01:01] One is they got very impressive performance,
+[00:01:06] out of building, out of building system with off the shelf component,
+[00:01:16] so the system consist of standard open software packages,
+[00:01:20] like MySQL memcached,
+[00:01:23] and they combine that together
+[00:01:25] to actually build a system
+[00:01:27] or scale that out to a system,
+[00:01:28] that actually support a billion requests per seconds.
+[00:01:31] As you can see, as we see in this lecture,
+[00:01:34] there's sort of continuously in tension between performance and consistency,
+[00:01:49] and as you'll see in this paper,
+[00:01:50] the design is mostly driven by performance,
+[00:01:54] you know they want to find some degree of consistency,
+[00:02:00] is sort of added to,
+[00:02:02] you know make the system at least be usable for the application that actually Facebook has,
+[00:02:07] in fact, you know the consistency model
+[00:02:09] is quite different from the consistency models that we've seen before,
+[00:02:13] most of the system we talked about so far
+[00:02:15] actually provides either external consistency or linearizability,
+[00:02:19] they're very strong for consistency,
+[00:02:22] and then in the case of Facebook,
+[00:02:25] their applications don't really need linearizability,
+[00:02:29] if the user is reading news articles,
+[00:02:32] and the news feed is a couple of seconds behind,
+[00:02:34] it doesn't really matter,
+[00:02:36] and so they are, they have absolutely not the goal
+[00:02:39] of providing sort of linearizability or strict consistency,
+[00:02:44] so that's an important thing to keep in mind.
+[00:02:48] Despite that they're not shooting for strong you know consistency,
+[00:02:51] there are some sort of cautionary tales in the paper,
+[00:02:56] that you know adding consistency measures is not easy,
+[00:03:01] and you should not have, prepared for it to start,
+[00:03:06] but nevertheless, you know the you really can't argue with the success of the system,
+[00:03:13] it really very successful,
+[00:03:15] and allows Facebook websites you know follower,
+[00:03:20] there is a couple the follow similar strategies
+[00:03:22] to actually scaled a large large number of users.
+[00:03:28] So my plan for this lecture basically first to talk about performance,
+[00:03:31] because really the performance is the driving force behind this design,
+[00:03:35] and then at the end you know talk more about consistency.
+[00:03:40] Before jumping into,
+[00:03:41] let me know if there's any questions?
+[00:03:50] Okay, so, let me start with a little bit of [] introduction to performance,
+[00:03:56] and basically talk about website evolution.
+[00:04:06] I'm sure many of you actually have built websites,
+[00:04:09] and you know if you sort of start out,
+[00:04:11] and you don't have any users,
+[00:04:13] you know that's pretty straightforward,
+[00:04:15] buy a machine or run a machine on Amazon or anywhere else,
+[00:04:19] and you just basically need three components,
+[00:04:22] you need web server, let's say Apache,
+[00:04:27] you need an application framework to build your website in,
+[00:04:32] maybe PHP, maybe Python,
+[00:04:34] you know in case of Facebook, I think they use PHP,
+[00:04:40] and you need a database that actually stores the data of your website,
+[00:04:45] you know for example use whatever MySQL,
+[00:04:49] that's you know Facebook is doing.
+[00:04:51] And so you know clients you know connect to your website,
+[00:04:54] run you know the whatever application code
+[00:04:58] or whatever application service the website provides,
+[00:05:02] and store and retrieve data using the database,
+[00:05:05] the database provides transactions,
+[00:05:08] it has SQL,
+[00:05:10] so it's easy to query over the data in different ways,
+[00:05:15] and all the persistent state you know store in the database,
+[00:05:18] so you know to backup the database,
+[00:05:20] and you basically have a good sort of fault tolerance plan.
+[00:05:24] And that's sort of, and for any website,
+[00:05:27] that's small number of users is completely sufficient,
+[00:05:29] and the way many websites are built,
+[00:05:32] however you know when the, the number of users increases,
+[00:05:37] you probably need to go to a little bit more sophisticated design.
+[00:05:41] So this is sort of step one in the evolution.
+[00:05:43] In step two,
+[00:05:51] sort of trying to address getting the first bottleneck that we're run into,
+[00:05:55] when you have a larger number of users,
+[00:05:56] and typically the bottleneck you are run into
+[00:05:59] is basically the computation of cycles being used by the application,
+[00:06:03] so if you have thousands of users running at the website at the same time
+[00:06:07] or 10,000 or whatever number of users it is,
+[00:06:10] and you know just running you know the application code
+[00:06:13] on a single CPU or a single computer,
+[00:06:15] gets to drive basically CPU you know load up 200%,
+[00:06:22] then you can't support more.
+[00:06:24] And so, fortunately this is actually straightforwardly solved,
+[00:06:28] because the database actually has all the persistent state,
+[00:06:32] so typically way you solve this is,
+[00:06:34] you know you keep the one machine with the database run,
+[00:06:37] keep the machine on the database,
+[00:06:38] and then just buy a bunch of different machines for the frontends,
+[00:06:41] I'm just going to talk about the frontend, that is one thing,
+[00:06:44] which is you know typically the website Apache plus you know some application code,
+[00:06:49] if you get more users, you'll buy more machines,
+[00:07:00] you know they all connect to the database you know to get their data,
+[00:07:04] and and actually this design works out extremely well,
+[00:07:08] because basically the frontends are stateless,
+[00:07:13] you know all this data again is in the database,
+[00:07:16] and so adding a new server, it's pretty trivial,
+[00:07:19] all the frontends actually will see the latest writes,
+[00:07:22] because all the data is actually stored in the database,
+[00:07:25] so there's no consistency issues,
+[00:07:26] in terms of fault tolerance is easy,
+[00:07:28] if one of these machines fails,
+[00:07:30] you know no problem at all,
+[00:07:31] and maybe the machines have to take over the load,
+[00:07:34] or you have to bring on a new machine of frontend,
+[00:07:37] but you don't actually have to do anything
+[00:07:38] in terms of complicated data restoration or restoration,
+[00:07:43] because all the data is actually in the database.
+[00:07:47] And so this is,
+[00:07:48] good, typically does the first thing that happens
+[00:07:51] and as a website you know scales.
+[00:07:55] Of course, as your website scales further,
+[00:08:00] and you need to support more than say,
+[00:08:03] you know for example a simple MySQL setup
+[00:08:06] can probably support hundred thousand you know simple read transactions or simple read queries you know per second,
+[00:08:14] probably you know thousands you know write transactions,
+[00:08:18] and so if the total number requests from your users actually goes over hundred thousand,
+[00:08:24] then you need a different plan.
+[00:08:27] And so, then the next plan is typically is sharding.
+[00:08:38] And you know so far this is all pretty standard,
+[00:08:41] and so what you do is
+[00:08:42] actually take the storage machine be split in multiple machines,
+[00:08:50] the frontends basically stay the same,
+[00:08:52] we still have are many frontend machines,
+[00:09:02] and you know here we have are sharded database,
+[00:09:08] and basically you know some range of keys lives on,
+[00:09:12] whatever maybe 1 to 40 live on you know shard 1,
+[00:09:17] might from 40 to whatever 70 live on shard 2,
+[00:09:22] and 70 to 100, you know just to make step up, live on shard 3,
+[00:09:26] so basically you take the tables in the database or the rows in the database
+[00:09:30] and sharded by key.
+[00:09:32] And so when the frontend needs to know,
+[00:09:35] of course, which database there are
+[00:09:36] and you know that it needs to get you know key 32, you know it will go to shard 1,
+[00:09:42] it needs to get you know to key 50, it will go to shard 2.
+[00:09:46] And so this gives us database parallelism,
+[00:09:56] so like every, in most request actually are on two different shards,
+[00:10:03] you know basically instead of actually limited by the one machine,
+[00:10:07] we're actually getting the throughput
+[00:10:08] of one machine, say a hundred thousand
+[00:10:10] times you know the number of machines that we have.
+[00:10:14] And so that is typically the next step,
+[00:10:18] and of course this actually has,
+[00:10:20] this step is a little bit more painful than the first step,
+[00:10:24] because now you might actually have cross-shard transactions,
+[00:10:28] if you need them,
+[00:10:29] or if you want to avoid them,
+[00:10:30] you got group the keys you know that go go together on the same machine,
+[00:10:36] otherwise, you know you need some two-phase commit protocol,
+[00:10:41] if you do transaction cross-shard,
+[00:10:43] so, this, this step [] you know design two to design three,
+[00:10:48] is a significant, a significant step.
+[00:10:54] Now, if you grow further and further,
+[00:10:58] you might say well,
+[00:10:59] you know you could just shard the database further and further,
+[00:11:02] sort of fewer key, keys per server,
+[00:11:04] but that actually increases you know the risk,
+[00:11:08] that you actually have to do cross-shard transactions.
+[00:11:13] So there's another way of going,
+[00:11:15] which is observed like well,
+[00:11:17] maybe it's not really important,
+[00:11:19] that the database actually supports the reads,
+[00:11:23] you know we can offload the reads you know from the database,
+[00:11:26] and basically the database only does the writes,
+[00:11:29] then maybe we can get a big performance gain.
+[00:11:32] And so that's basically the next common step that the websites take,
+[00:11:37] if they scale up,
+[00:11:38] is you know add cache,
+[00:11:52] and you know it could be in the form of memcached or redis,
+[00:11:55] you know sort of popular you know open-source packages for caching.
+[00:12:00] And and then the basic plan is,
+[00:12:02] you know so is roughly as follows,
+[00:12:05] you have a lot of frontends as before,
+[00:12:14] and we have a set of caches on the side,
+[00:12:17] we'll talk a little bit about that in a second bit more,
+[00:12:20] in case case, we get here caches, cache layer,
+[00:12:27] cache 1, cache 2, cache 3,
+[00:12:29] and in the case of Facebook, these are called,
+[00:12:32] each individual server is called memcached daemon,
+[00:12:35] and the whole cluster or the collection of cache is called memcache.
+[00:12:44] And you know there's still our database
+[00:12:46] you know sharded across maybe multiple machines,
+[00:12:53] there's sort of a storage layer.
+[00:12:58] And so the idea is you know pretty straightforward,
+[00:13:02] if you know frontend needs to, want to read a particular key,
+[00:13:06] you know first read to cache,
+[00:13:10] and hopefully you know will hit in the cache,
+[00:13:12] so basically get a quick response back you know from the cache,
+[00:13:17] if it's not in the cache,
+[00:13:19] and it can retrieve it you know from the storage system,
+[00:13:23] and then install you know the data in the cache,
+[00:13:26] writes you know basically go straight to the storage server.
+[00:13:36] And, this, you know this sort of kind of design,
+[00:13:40] we'll talk about it much more in the details in a second,
+[00:13:42] but this sort of design where you have a caching layer
+[00:13:44] works extremely well for read heavy workloads,
+[00:13:47] and so if you think about Facebook,
+[00:13:49] it is going to be you know a whole lot of users,
+[00:13:52] and what they're doing is reading out of people's posts,
+[00:13:56] you know looking at the timelines,
+[00:13:57] you know maybe watching looking at pictures,
+[00:14:01] reading the news, articles etc etc,
+[00:14:05] so it's very heavily oriented, workload oriented to read,
+[00:14:15] and you know in this case,
+[00:14:17] you know the read to be almost served from these caches,
+[00:14:19] and these caches can be like dirt simple.
+[00:14:23] And think about like the caching,
+[00:14:27] the key value server you built in lab 3,
+[00:14:29] you know the key value server itself is actually nothing more than a hash table,
+[00:14:33] maybe you know you want to be a little bit smart about,
+[00:14:36] having locks for [],
+[00:14:37] and so you have a bunch of concurrency within the cache server itself
+[00:14:42] or the key value server itself,
+[00:14:44] but it is basically pretty straightforward.
+[00:14:50] There are two challenges that come along with this,
+[00:14:55] where the main challenge basically is
+[00:14:57] how to keep the database and the cache consistent.
+[00:15:09] That's sort of challenge one,
+[00:15:11] you know a lot of the paper is devoted to talking about that.
+[00:15:16] And the second challenge,
+[00:15:21] which is also the main theme from the paper
+[00:15:23] is how to make sure that the database doesn't get overloaded.
+[00:15:36] And the the issue here is that,
+[00:15:39] once you know you scale up
+[00:15:41] say to a billion requests per second you know by using caches,,
+[00:15:45] if any of the caches fail,
+[00:15:47] that load will shift you know from the frontend you know perhaps the database,
+[00:15:52] and of course you know the database is completely not designed
+[00:15:57] to support that kind of workload,
+[00:15:58] basically will fall over.
+[00:16:00] And so a key challenge in the whole set of lessons,
+[00:16:05] that you learn from this particular paper
+[00:16:08] is that techniques to basically avoid going to the database,
+[00:16:12] so there's no risk that actually you overload the database.
+[00:16:20] Okay, any other questions so far?
+[00:16:27] Let me say a little bit about consistency,
+[00:16:30] because that will be,
+[00:16:31] although I'm going to talk mostly about performance,
+[00:16:33] you know it's gonna be important to keep in mind,
+[00:16:36] even in the sort of section about consistency, about performance.
+[00:16:40] Oh, I have a quick question, sorry,
+[00:16:43] goes back to, like having this state, like the clients be stateless,
+[00:16:50] so what,
+[00:16:51] yeah, there we go, on the second part of website solution,
+[00:16:53] why is it important for the clients to be stateless?
+[00:16:57] That makes the replication easy, right,
+[00:16:59] the clients don't actually, you don't replicate the data,
+[00:17:02] so you don't have to keep the data consistent,
+[00:17:04] you know all data lives in one place,
+[00:17:07] maybe there is a database server.
+[00:17:09] Okay, yeah, so the idea is,
+[00:17:11] like any any client can fail and it doesn't matter.
+[00:17:15] Yeah, it doesn't matter,
+[00:17:16] you know keep going computing,
+[00:17:19] and you don't have to worry about actually keeping data consistent,
+[00:17:22] because data is only in one place,
+[00:17:25] like a lot of the things we've been talking about this semester,
+[00:17:27] doesn't show up in this particular design.
+[00:17:33] Okay?
+[00:17:36] Okay, so getting back to sort of,
+[00:17:38] once you do actually cache data,
+[00:17:41] you do have this consistency issue, right,
+[00:17:43] and and so you know the instant question is,
+[00:17:47] like what database, what is Facebook shooting for.
+[00:17:50] And something is typically called almost,
+[00:17:52] like it's called eventual consistency,
+[00:17:54] which a pretty vague term,
+[00:17:56] but basically you know maybe to contrast it is,
+[00:17:59] to say it actually does not shoot for linearizability,
+[00:18:03] and in fact what they sort of shooting for is,
+[00:18:08] you know they do want write ordering,
+[00:18:15] writes are all applies in some consistent you know total order,
+[00:18:18] so that you don't get weird going back in time problems,
+[00:18:22] and that is all done basically by the database,
+[00:18:28] so not really a big concern you know for the memcache layer itself.
+[00:18:34] In terms of reads, it's okay, if reads are behind,
+[00:18:49] and that is really the property of the applications,
+[00:18:51] that you know Facebook wants to support,
+[00:18:53] again you know the data that's in these caches,
+[00:18:58] the data that the user actually consume,
+[00:19:00] web pages, post timelines, friend lists and all that kind of stuff, and or status,
+[00:19:08] and none of that actually is really that important for users to see,
+[00:19:13] very, you know update your picture,
+[00:19:17] you know it is behind a little bit one or two seconds,
+[00:19:20] no problem at all,
+[00:19:21] certainly left behind for hundreds of milliseconds,
+[00:19:24] you know user won't even notice,
+[00:19:26] you know there's not perceptible,
+[00:19:27] and so it's okay to behind,
+[00:19:29] you know of course you don't want to be behind for hours,
+[00:19:32] you know user might actually notice,
+[00:19:34] but you know for a little while behind,
+[00:19:36] this actually are not a particular big deal.
+[00:19:39] So they're not really shoot you know for serializability linearizability,
+[00:19:43] where read observe the last write,
+[00:19:46] you know [] some [] write, you know that's fine.
+[00:19:49] There's one exception to that,
+[00:19:51] which is that they do want to arrange that,
+[00:19:54] you know sort of clients read their own writes,
+[00:20:07] and and meaning that you know if one client updates key k
+[00:20:14] and then immediately read that at key k,
+[00:20:16] it's very desirable that client actually does observe its own write,
+[00:20:22] because actually makes it more complicated to,
+[00:20:24] otherwise maybe [] would be even more complicated.
+[00:20:28] So this is roughly what they're shooting for,
+[00:20:31] and you know just quite a bit weaker
+[00:20:34] than some of the models that we've seen before,
+[00:20:36] and remind me a little bit from the Zookeeper
+[00:20:40] sort of style of contract you know it can provide.
+[00:20:48] Okay, so one other thing that I want to say,
+[00:20:51] go back a little bit,
+[00:20:52] so we need to keep the databases in caches
+[00:20:55] and cache consistency in some manner.
+[00:20:58] Okay, so the basic plan that Facebook follows,
+[00:21:05] is an invalidation plan or cache invalidation plan.
+[00:21:17] And we'll see later in the lecture why that's the case,
+[00:21:20] basically what happens, if the frontend does write,
+[00:21:26] you know it goes actually to the database,
+[00:21:30] here's MySQL,
+[00:21:35] but they run on next to the database you know another program,
+[00:21:40] whatever called squeal,
+[00:21:45] and basically it looks at the transaction log,
+[00:21:49] so MySQL maintains transaction log you know to implement transactions,
+[00:21:53] and you know squeal looks like this transaction log, sees what things get modified,
+[00:21:58] and basically if there's a key gets modified,
+[00:22:05] so it seems like key k gets modified,
+[00:22:07] it will send an invalidation message to the cache,
+[00:22:09] basically deleting, actually it just issues a delete of that key k,
+[00:22:16] you know to the appropriate cache,
+[00:22:18] and that way you know the data will be removed,
+[00:22:20] and then at some point later,
+[00:22:22] when a client comes along, does a read,
+[00:22:27] it will get a miss in the cache,
+[00:22:33] read retrieves the data from and read from there,
+[00:22:39] so here it does get,
+[00:22:40] let me call this a get,
+[00:22:42] there's a reed, gets the data from the read,
+[00:22:44] and then actually installs it in the cache.
+[00:22:48] And so one thing you might wonder,
+[00:22:49] like why actually does the application itself installed the data into the cache,
+[00:22:55] so it does put,
+[00:22:57] and this has to do with actually these caches,
+[00:23:00] you know what they call are look-aside caches,
+[00:23:05] and the reason they're sort of look-aside is that,
+[00:23:07] because typically what the application will do
+[00:23:09] with the data that actually read from the database,
+[00:23:11] it's maybe [] a little bit,
+[00:23:12] there's some computation on it,
+[00:23:14] and it'll take the text of the page,
+[00:23:16] and actually turn it into an HTML page or HTML5,
+[00:23:19] and then store the result of that HTML version of the page actually into the cache,
+[00:23:25] or maybe you know reads a bunch of different records
+[00:23:27] aggregates you know some data
+[00:23:29] and you know puts the aggregated result into cache.
+[00:23:32] So the application is sort of in control,
+[00:23:34] in this design,
+[00:23:36] what to put in the cache,
+[00:23:37] and it puts a little bit more burden on the frontend or in the application
+[00:23:42] or the client, in this case,
+[00:23:44] but it has the advantage,
+[00:23:46] you know that you can sort of do some pre processing,
+[00:23:48] before actually sticking something in the cache.
+[00:23:51] And this sort of contrast, where the cache would be transparent,
+[00:23:53] where the cache would be sitting between the frontend and the storage server,
+[00:23:57] and if you're missing the cache,
+[00:23:58] then the cache will choose the data,
+[00:24:00] but of course the cache in the database
+[00:24:02] don't really know what the application exactly what's stored in the cache,
+[00:24:05] and so in the look-aside design,
+[00:24:07] this is the application is sort of control the cache.
+[00:24:15] So a little bit more detail,
+[00:24:16] we can look at this picture,
+[00:24:19] that looks like how actually read or write implemented.
+[00:24:23] So here's read,
+[00:24:25] oops, sorry,
+[00:24:40] so this is a figure 2 from the paper,
+[00:24:47] and so here's our web servers or clients,
+[00:24:52] you know the clients to retrieve k for memcache,
+[00:24:56] as we'll see in a second,
+[00:24:57] they are typically actually will ask for a whole bunch of keys,
+[00:25:00] there's not uncommon,
+[00:25:01] that you know the web server will ask for 20 to 100 of keys,
+[00:25:06] you know presumably and starting to compute some web page,
+[00:25:08] the web page contains aggregates data from lots of different places,
+[00:25:12] and for every piece of data,
+[00:25:13] that needs to be put into that web page,
+[00:25:16] the client issues,
+[00:25:18] the get request we've made perhaps with many many, many keys,
+[00:25:24] that goes to memcache,
+[00:25:26] it gets results back,
+[00:25:27] and when sending that get to memcache,
+[00:25:30] you know might contact many memcached servers,
+[00:25:34] the results come back to the web server,
+[00:25:36] if if anything's missing,
+[00:25:39] you know can process the ones,
+[00:25:40] that actually returns a [] result,
+[00:25:42] you know we can get nil back,
+[00:25:44] then the client you know goes does select the database,
+[00:25:51] runs a SQL query,
+[00:25:52] that returns some data and the results,
+[00:25:56] you know that clients might do some computation,
+[00:26:00] and then actually install you know the process
+[00:26:02] and values that came back from the SELECT into memcache,
+[00:26:06] that's sort of the read side.
+[00:26:08] Again and again here you can see the,
+[00:26:10] look look-aside property or aspect of this design,
+[00:26:14] where memcache is not really sitting straight between the web server and database,
+[00:26:18] but sits on this side,
+[00:26:19] is managed by the client.
+[00:26:22] So here's the write side,
+[00:26:28] so, for example, if the web server or the application needs to whatever add a post,
+[00:26:35] or you know put a picture in the post or whatever,
+[00:26:40] the server does updates,
+[00:26:43] you know sends basically the update to the database,
+[00:26:47] this is just performed like a normal transaction,
+[00:26:50] and then of course the database on the side,
+[00:26:53] you know as we saw before,
+[00:26:55] will do invalidation,
+[00:26:56] using you know the squeal demon,
+[00:27:02] and with that squeal daemon, you know operate asynchronously,
+[00:27:13] oops, sorry,
+[00:27:19] and so the client, the writers really wait until that invalidation is happen,
+[00:27:23] once the update in the transaction,
+[00:27:25] once the update is done in the database,
+[00:27:27] transaction is completely completed and returned to the client,
+[00:27:31] and then in parallel, the squeal actually, squeal will see the invalidation,
+[00:27:36] and and because you know the squeal does the invalidation asynchronously,
+[00:27:42] the web server just do [],
+[00:27:46] does delete of the key in the cache immediately,
+[00:27:50] and so when the reason for that delete is
+[00:27:53] only because we want to read our own writes.
+[00:28:08] So when the web server for example look for that key k,
+[00:28:11] right after it did the update,
+[00:28:14] then it will miss in memcached
+[00:28:16] and it will go and actually retrieve new value and then install it,
+[00:28:21] and but just a case,
+[00:28:23] where web server immediately reads its own, reads,
+[00:28:26] that reads the key k that just actually updated a little while ago.
+[00:28:33] Okay?
+[00:28:34] Where in principal is not necessary to do this delete,
+[00:28:37] the invalidation at some point will happen,
+[00:28:41] and will kick out you know that key k out of cache,
+[00:28:44] and that's fine for basically other clients,
+[00:28:47] but just with this client,
+[00:28:48] we want to make sure that actually reads its own its own writes.
+[00:28:53] I have a question,
+[00:28:55] so why doesn't it set after the delete?
+[00:29:00] Yeah, that's a very good question,
+[00:29:02] like why doesn't do update immediately, right,
+[00:29:05] and I think that so that's called update scheme,
+[00:29:10] and that's in principle possible here too,
+[00:29:13] but I think it's a little bit tricky for them to make work,
+[00:29:15] because I think it was going to require some cooperation
+[00:29:17] between the database, the cache and the client.
+[00:29:21] And I think the issue is follows,
+[00:29:23] let's say we have a client C1,
+[00:29:27] we have a client C2,
+[00:29:30] and we'll see similar type [] showing up,
+[00:29:33] let's say client x 1,
+[00:29:36] sets x to 1 and sends that to the database,
+[00:29:42] and then, so like you know,
+[00:29:44] like so this is a hypothetical update scheme,
+[00:29:50] it's, the main point of this slide will be,
+[00:29:54] or this board will be sort of talk about
+[00:29:56] like doing actually update is not completely trivial,
+[00:29:59] let's say client 2 at the same time,
+[00:30:01] we're running after it,
+[00:30:02] says x to 2, sends that to the database,
+[00:30:07] and let's say the client 1 has got a little bit delayed,
+[00:30:10] and so we're implement your scheme, correct,
+[00:30:12] then we immediately do set of k to 2,
+[00:30:18] and let me say k with 0 at the end in the beginning,
+[00:30:21] so this will update memcached, correct,
+[00:30:24] cache is now going to have a value of you know whatever k to 2,
+[00:30:29] then you know client 1 actually you know comes around to do actually it's set,
+[00:30:34] so it will do set here or put,
+[00:30:38] set, put, oops set k to 1,
+[00:30:44] and so this will overwrite the 2,
+[00:30:46] and now we have a stale value in the cache,
+[00:30:54] and worse you know this value is there sort of persistently stale,
+[00:31:01] you know any you know get later on will see actually the stale value.
+[00:31:06] And so this is not so desirable,
+[00:31:08] and so you want to avoid that,
+[00:31:10] and then of course you can make maybe update scheme work,
+[00:31:13] by for example you know ordering time stamping
+[00:31:17] or assigning a sequence number to the updates,
+[00:31:20] and then by the database,
+[00:31:21] and then the key value server or memcached
+[00:31:25] could basically not perform updates that are out of order,
+[00:31:30] but a scheme like that was going to require some participation of the database,
+[00:31:34] I mean required modifications to MySQL,
+[00:31:37] and one of their goals was to actually build everything from off the shelf components,
+[00:31:41] and so you know they prefer to go this invalidation scheme,
+[00:31:45] which I think is just simpler to implement,
+[00:31:47] because basically you know your database, the only thing it has to do
+[00:31:52] is this additional process that sits on the side,
+[00:31:55] and uses the standard you know delete the operation,
+[00:31:59] that memcached already supports.
+[00:32:05] Thank you.
+[00:32:06] Does that make sense?
+[00:32:09] And we'll see similar issue like this one show up later again, correct,
+[00:32:12] because there's, you remember from the paper,
+[00:32:16] there's some discussion about these tokens or leases,
+[00:32:19] to deal with stale values,
+[00:32:20] but that's going to be,
+[00:32:21] as we'll see stale values on the read side,
+[00:32:24] or stale values that sort of have interaction between readers or writers,
+[00:32:31] but can be solved totally in the context of memcached
+[00:32:35] without actually making any database modifications.
+[00:32:38] So why do we have a separate process to basically issue the invalidation,
+[00:32:43] so this squeal, I think it was called,
+[00:32:46] so why so why do we have this process,
+[00:32:48] if the frontend itself will issue a delete k anyway?
+[00:32:53] We'll see you later on,
+[00:32:56] why this is going to be very useful,
+[00:32:58] particularly what we're gonna do is,
+[00:33:00] we'll see is that the cache is going to be replicated,
+[00:33:03] and we need to set invalidation to every replica.
+[00:33:05] Okay, I see, thank you.
+[00:33:08] Okay, squeal it's not gonna send a delete to every memcache replica?
+[00:33:14] The squeal, yeah,
+[00:33:15] we'll see in a second,
+[00:33:16] hold on and we'll see that in a second.
+[00:33:19] In fact, I'm gonna go talk about it right now.
+[00:33:25] So so so far actually most of the story is pretty standard,
+[00:33:30] you know small changes here,
+[00:33:34] and what you know we've talked about so far,
+[00:33:37] nothing really too exceptional,
+[00:33:39] things get more interesting right after this,
+[00:33:42] and and so we get more into
+[00:33:45] sort of Facebook specific optimization or performance tricks.
+[00:33:50] And, one first thing that we're going to see,
+[00:33:55] let me get this in order, [] to go back,
+[00:34:00] the first thing is actually sort of,
+[00:34:02] becomes usual is that,
+[00:34:04] actually Facebook basically replicates a complete data center,
+[00:34:08] at the time of the writing of this paper,
+[00:34:10] there were basically two data centers,
+[00:34:12] one on the west coast,
+[00:34:14] we switch back to blue,
+[00:34:17] so data center 1,
+[00:34:18] they called regions,
+[00:34:23] here's data center 2,
+[00:34:26] and they basically have you know, they're all have a client layer,
+[00:34:35] so a lot of frontends,
+[00:34:43] and maybe this is the one on the west coast,
+[00:34:49] and then you know this is the memcached or a memcache layer,
+[00:34:53] they both have their own memcache layer,
+[00:34:56] so here there are frontends again, a lot of frontends,
+[00:35:01] so here are a lot of memcacheds,
+[00:35:05] a lot of memcacheds,
+[00:35:06] a lot of memcached here,
+[00:35:09] and then you know there's the storage layer,
+[00:35:12] which are sort of sharded databases,
+[00:35:18] so a lot of machines here too,
+[00:35:22] and basically the data center 2, the one on the east coast,
+[00:35:27] is a direct replica of the one on the west coast,
+[00:35:31] and, and the scheme that they use for write,
+[00:35:36] because now we have two replica of the data, correct,
+[00:35:39] data of the database stored in two places,
+[00:35:41] so we need to keep in some way you know these two copies up to date,
+[00:35:45] and the basic plan at least on the right side is to
+[00:35:49] all the writes are going through the primary,
+[00:35:51] and one of the regions is primary, the other is a backup region,
+[00:35:54] so this is region 2,
+[00:35:56] the fact, I think the paper says the west coast is the primary,
+[00:36:02] and the east coast is the backup,
+[00:36:06] and so all write actually go you know through the storage layer on the primary,
+[00:36:13] so even writes you know issued by the frontends on the east coast,
+[00:36:18] you know go to the database here,
+[00:36:20] so the database there on the primary just runs the transaction,
+[00:36:24] and you know and basically propagates you know these invalidation message,
+[00:36:29] well, first of all, takes the log that actually sits at this side
+[00:36:33] and basically copies or transmitted over to the other side,
+[00:36:38] and so this is the squeal process,
+[00:36:40] that basically does that in,
+[00:36:42] you know that process basically applies the log
+[00:36:46] to storage in the database on the other side,
+[00:36:48] so keeping the two databases in sync,
+[00:36:51] and as a side effect,
+[00:36:52] it might actually send invalidation messages or delete messages to like k,
+[00:37:01] and so you might wonder like,
+[00:37:03] why do it this way,
+[00:37:04] you know why not keep for example everything on the west coast,
+[00:37:06] and basically double the number of you know memcaches and all that kind of stuff.
+[00:37:12] You know the one primary reason to do this is,
+[00:37:14] this good read performance for users,
+[00:37:22] good read performance for users actually sitting on east coast,
+[00:37:25] you know the, they they will connect you know to one of these guys,
+[00:37:29] they will look up the data in the cache,
+[00:37:32] their memcache on the east coast,
+[00:37:35] and basically return the data straight out of the memcache,
+[00:37:37] so we're basically going to get really good,
+[00:37:39] you know one we still get a good read performance,
+[00:37:41] in fact, we can also get low latency,
+[00:37:43] because we're basically reading from a replica that's close by,
+[00:37:48] of course, you know the these caches you might get a little bit more out of sync,
+[00:37:53] than for example that in the same data center,
+[00:37:55] because like this whole updates and invalidation,
+[00:37:58] you know all happens asynchronously,
+[00:38:05] but, that's more or less a little bit okay, correct,
+[00:38:07] because we already said,
+[00:38:09] that we're actually not looking for you know strict consistency or or serializability.
+[00:38:15] I have a question,
+[00:38:18] so, if, so, if someone in the east coast,
+[00:38:23] or client in the east coast write,
+[00:38:25] it writes directly to to storage on west, right?
+[00:38:31] Yeah.
+[00:38:32] Which, it doesn't invalidate.
+[00:38:36] Okay, this guy also goes invalidate to each cache.
+[00:38:42] Oh, but we said, right,
+[00:38:44] but we said,
+[00:38:44] like the client itself to read its own write, its own write.
+[00:38:49] Yeah, so where does that where does this go that,
+[00:38:51] of course goes to here, right.
+[00:38:52] Yeah, yeah, that makes sense, okay.
+[00:38:57] Okay.
+[00:38:59] Okay?
+[00:39:00] I got a question too,
+[00:39:03] do clients always talk,
+[00:39:07] said, will given client always talk to the same memcache server?
+[00:39:12] No, because I'll go back a little bit earlier,
+[00:39:17] and we'll talk about this in a second,
+[00:39:18] because actually is a a problem as we'll see,
+[00:39:22] so if a frontend basically talks,
+[00:39:24] the the keys are sharded across the memcache servers, right,
+[00:39:29] and so like whatever key k1,
+[00:39:31] k1 lives in C1,
+[00:39:32] k2 lives in C2, etc etc,
+[00:39:35] and typically from then, when it needs to construct a web page,
+[00:39:38] it needs to get a whole bunch of keys,
+[00:39:40] and so sends actually these requests basically parallel to the different memcacheds,
+[00:39:47] and gets all the responses back,
+[00:39:50] and the, and so in fact,
+[00:39:53] you know the frontends are very likely to talk to every memcached in the system.
+[00:40:00] I see, but for, but for a given key,
+[00:40:02] would always talk to the same server.
+[00:40:04] Yes, yeah, they they actually happened to use consistent hashing,
+[00:40:09] so if we'll talk a little bit about second a little bit more,
+[00:40:12] like one of the one memcached server goes down, correct,
+[00:40:15] it can't talk to that one anymore,
+[00:40:17] and so it might be over time,
+[00:40:19] that the assignment from shards to servers will change a little bit.
+[00:40:26] Sorry, actually just to follow up on that,
+[00:40:28] so the requirement for clients to read their own writes,
+[00:40:32] is is kind of like a weak guarantee, right,
+[00:40:36] because if the server that it deletes from goes down,
+[00:40:39] and then it has to read from a different replica,
+[00:40:41] it might end up not reading its write,
+[00:40:44] if in the presence of a failure.
+[00:40:45] Hold on, hold on, hold that for a little while, okay,
+[00:40:49] you know we'll see there's a number of [] or races,
+[00:40:52] if you will and they have different techniques for solving those races.
+[00:40:55] Oh, sorry, final question.
+[00:40:58] Yeah, final, go ahead.
+[00:41:02] Oh, so we're doing,
+[00:41:07] we like for read for read our own writes,
+[00:41:10] we make sure that we go directly to the storage servers,
+[00:41:13] right after, right, correct?
+[00:41:15] Yes.
+[00:41:16] Not in the cache,
+[00:41:17] but you also said the.
+[00:41:21] No, hold on hold on,
+[00:41:22] when you do write,
+[00:41:23] you do the update in the database.
+[00:41:25] Right.
+[00:41:26] Then you delete the key from your system,
+[00:41:29] so for example in this particular case,
+[00:41:32] you know you would you do a write you know to the primary,
+[00:41:37] delete the key k from your local cache,
+[00:41:40] so when the next time you do get,
+[00:41:42] you're gonna read from the storage server again.
+[00:41:46] Right, exactly, yeah, but I was curious,
+[00:41:51] so that you also said,
+[00:41:53] the write to storage happen asynchronously, right?
+[00:41:57] The the, this this replication happens asynchronously
+[00:42:02] and the invalidation happens asynchronously,
+[00:42:04] not the write.
+[00:42:05] Okay, the writes are synchronous.
+[00:42:08] So, you do the delete after you finish the write.
+[00:42:10] Okay, great, thanks.
+[00:42:13] A question here,
+[00:42:15] so if you do a write,
+[00:42:18] and you're from the,
+[00:42:20] so you're not, you're not from the primary region,
+[00:42:23] you do a write to the primary storage,
+[00:42:26] and then you invalidate your memcache,
+[00:42:28] and then do a read,
+[00:42:30] but read from your storage,
+[00:42:32] and maybe your storage isn't up to date yet.
+[00:42:35] Yeah, so you gotta risk,
+[00:42:36] so we'll see how they solve that.
+[00:42:38] Okay.
+[00:42:41] That's correct,
+[00:42:42] but first let's talk more about performance,
+[00:42:43] because it's not good enough for them yet,
+[00:42:45] they want more performance.
+[00:42:48] And so you know if you sort of broadly speaking,
+[00:42:52] there are two strategies to getting performance.
+[00:42:56] I'm just stepping back a little bit,
+[00:43:06] we already seen them a little bit, in a very high level.
+[00:43:10] So there are two basically plan,
+[00:43:11] one is to partition or shard,
+[00:43:23] and that's very cool,
+[00:43:24] because in fact we see this being use basically
+[00:43:26] both on the storage layer and the memcache layer,
+[00:43:29] and so if you you need more capacity,
+[00:43:32] you should buy another server,
+[00:43:34] change the hashing function,
+[00:43:37] and so you've got more capacity in your memcached,
+[00:43:40] and you can hold more data, right,
+[00:43:42] and that data can be accessed in parallel,
+[00:43:45] so you know we've got a lot of capacity,
+[00:43:53] lots of capacity, lots of parallelism side,
+[00:43:59] but you know if you have particular key that's extremely hot,
+[00:44:03] a lot of clients actually need to get that key,
+[00:44:08] you know whatever a particular person on Facebook
+[00:44:10] who has a timeline that everybody is you know following,
+[00:44:13] then you know that that key is going to hit a lot,
+[00:44:17] and it is being served,
+[00:44:19] [] in this case, being served maybe by two different servers,
+[00:44:21] one in the west coast, one on the east coast,
+[00:44:24] but you know presumably a lot of clients on the east coast and the west coast,
+[00:44:27] will gonna hit the same,
+[00:44:28] or the two,
+[00:44:29] the memcached server on the west coast
+[00:44:31] and memcached server east coast,
+[00:44:33] hold that key,
+[00:44:34] and so that's not gonna be that good, right,
+[00:44:37] because like you know that single server might actually get overloaded
+[00:44:40] and it turns out the key distribution varies widely,
+[00:44:45] and so that's not so good.
+[00:44:46] And so to solve problems like that,
+[00:44:48] and the second sort of approach is to replicate, replicate data,
+[00:44:54] so here is partition data and then is replicate data,
+[00:44:59] that's great you know for hot keys,
+[00:45:04] if you can take the same key propagated on a bunch of different memcached servers,
+[00:45:08] then the clients that all hit that key
+[00:45:10] can be spread across you know those memcached servers
+[00:45:12] and get the keys basically in parallel,
+[00:45:14] and so that it works actually good for hot keys.
+[00:45:20] It doesn't really increase you know capacity,
+[00:45:22] so you just just takes more,
+[00:45:27] and in some ways we can see this in the previous picture,
+[00:45:30] we have replication in action here,
+[00:45:31] we have replicated one data center,
+[00:45:34] you know from the west coast completely to the east coast,
+[00:45:36] that hasn't increase the total capacity for the memcached,
+[00:45:41] because both memcache the memcache layers store store the same amount of data,
+[00:45:47] and didn't increase the capacity of the memcache layer,
+[00:45:50] but you know you're allowed to you know read from these two different and memcache layers
+[00:45:55] on the east and west coast in parallel.
+[00:45:58] Okay?
+[00:45:59] So we see a little form of replication going on
+[00:46:02] and you might wonder like what else is left to be done?
+[00:46:06] And this comes to a question was asked a little bit earlier,
+[00:46:09] let's say you need more capacity, right,
+[00:46:12] so well, one solution to you know more capacity,
+[00:46:15] even in a single data center,
+[00:46:16] so forget that there's two data centers,
+[00:46:17] just look for things from the perspective of a single data center,
+[00:46:20] we want more capacity,
+[00:46:22] one option correct would be to
+[00:46:24] whatever you buy more memcached servers,
+[00:46:27] and just keep buying more of them,
+[00:46:29] and that turns out to be slightly problematic,
+[00:46:34] and one reason that that is problematic is,
+[00:46:37] because these frontends talk to basically every memcache server,
+[00:46:46] and so they,
+[00:46:47] you know almost at least for writes,
+[00:46:50] you know we know that TCP connections open,
+[00:46:52] and so there's a large number of TCP connections,
+[00:46:56] and furthermore, as we, as I said before
+[00:47:00] is actually a particular key hard, hit hard,
+[00:47:03] then the, that doesn't really solved by shard,
+[00:47:10] so you can buy more machines,
+[00:47:12] but there's that one keys hot and lives in one machine,
+[00:47:14] that actually is not going to improve your performance.
+[00:47:17] So their next step in terms of performance improvement
+[00:47:22] is to actually replicate with inside a single data center.
+[00:47:27] So, more performance, so this is this idea of clusters,
+[00:47:36] and this is really a story about replication.
+[00:47:41] And so what they actually do is like,
+[00:47:43] if we look at a single data center,
+[00:47:47] we got our storage layer,
+[00:47:53] and then within the storage layer,
+[00:47:56] basically we're gonna replicate a set of frontends,
+[00:48:00] so here's frontend layer,
+[00:48:02] and here's our memcache layer,
+[00:48:08] I'm gonna take that and just replicate multiple times,
+[00:48:16] and they call this a cluster.
+[00:48:21] And the reason this is good you know is,
+[00:48:24] this actually deals deal well with, its good for popular keys,
+[00:48:32] popular key, it will now be replicated you know potentially multiple clusters,
+[00:48:36] and so that is nice,
+[00:48:39] second, it reduces the number of connections,
+[00:48:48] and this is actually particularly there are multiple reasons why this important,
+[00:48:52] it avoids what they call the,
+[00:48:57] avoids incast problems incast congestion,
+[00:49:05] as I said before,
+[00:49:06] one of these frontends may have to retrieve 500,
+[00:49:10] you know whatever hundred you know tens to hundreds of keys,
+[00:49:14] and so it will send them in parallel
+[00:49:17] to all the particular memcache there important,
+[00:49:20] they all respond,
+[00:49:22] and of course you know we have many, many more memcaches,
+[00:49:27] we're going to have much more parallelism,
+[00:49:29] a lot of packets will come back exactly at the same time,
+[00:49:32] they can easily into queue,
+[00:49:35] queues being overloaded or queues being full,
+[00:49:38] and therefore packets getting dropped,
+[00:49:40] and so by reducing the number of connections,
+[00:49:43] not actually every frontend talks to,
+[00:49:44] you know reduces where responses are going to come back,
+[00:49:47] and we avoid this incast congestion problem,
+[00:49:51] and in general, sort of reduce the pressure of the network,
+[00:49:56] it's actually hard to build networks that have bi section bandwidth,
+[00:49:59] that could sustain a huge load,
+[00:50:02] and here by sort of making using replication,
+[00:50:05] basically network for one cluster really has to support that one cluster well.
+[00:50:17] Now, now this is all good,
+[00:50:20] of course you know this is the downside of a design,
+[00:50:22] like this is that,
+[00:50:23] if you have unpopular keys,
+[00:50:25] there's unpopular keys is gonna get stored in multiple regions,
+[00:50:30] and basically you know do nothing,
+[00:50:32] or [] contribute to improvement in performance,
+[00:50:36] and so in fact what they do is,
+[00:50:38] they have one additional sort of pool that they have,
+[00:50:42] and they call this the regional pool,
+[00:50:46] and applications can decide
+[00:50:51] to store you know not so popular keys into the regional pool,
+[00:50:56] to stick it inside,
+[00:50:58] and so the these,
+[00:51:00] so they, they don't are replicated in times across all clusters,
+[00:51:06] so you can think about the regional pool being shared among multiple clusters,
+[00:51:10] and used for the less popular keys or less frequently used keys.
+[00:51:15] Okay?
+[00:51:18] So is this going to help with popular keys,
+[00:51:21] because each cluster is gonna have its own memcache.
+[00:51:26] Yeah, every cluster has its own memcache,
+[00:51:32] has his own frontends,
+[00:51:33] has his own memcache,
+[00:51:38] and basically users you know
+[00:51:39] the users are basically load balance across all these clusters.
+[00:51:46] But this still does not increase capacity, right?
+[00:51:49] This not increase capacity,
+[00:51:51] if you want to increase capacity,
+[00:51:55] the you,
+[00:51:58] well, it increase capacity a little bit, correct,
+[00:52:00] because all the unpopular stuff is not being extra cache,
+[00:52:03] and stuck in the regional pool,
+[00:52:06] and so that space is now free to actually store other keys.
+[00:52:14] So to avoid incast congestion,
+[00:52:17] they would also reduce the number of shards per cluster, right?
+[00:52:21] Yeah, don't increase, they don't grow it,
+[00:52:25] the alternative plan correct was not introduce clusters,
+[00:52:28] but basically keep growing the memcache's shards,
+[00:52:32] with the number of shards in a single memcache,
+[00:52:36] and you know that has its own limitations.
+[00:52:40] Makes sense, thank you.
+[00:52:47] Okay, well, so this sort of the base design,
+[00:52:53] except there are all kinds of performance challenges, that they had to resolve,
+[00:52:57] most of these performance challenges really had to do with,
+[00:53:01] I think the way to think about is protecting the database.
+[00:53:22] So, like go back to this picture, correct,
+[00:53:24] we have now design apparently to support billions requests per second,
+[00:53:29] and but the storage layer itself you know is sharded,
+[00:53:34] because certainly not you know sustain billions requests per second,
+[00:53:39] and it would be a disaster,
+[00:53:41] if for example, let's say all the memcaches failed in some way or another
+[00:53:45] or whole cluster failed,
+[00:53:46] and all the frontends you know would hit the storage servers,
+[00:53:49] then you know the storage servers would fail over,
+[00:53:52] you know couldn't handle that kind of load,
+[00:53:54] and so they got to be very very careful with actually putting, doing anything,
+[00:54:00] that requires more load on the storage servers.
+[00:54:04] So, so one for example challenge,
+[00:54:06] I'm going to talk about the number of them
+[00:54:08] is to bring up a new cluster,
+[00:54:15] you know easy way to bring up a new cluster
+[00:54:17] would be just to you know build a cluster,
+[00:54:21] turn the machines on, installed the software and then be done,
+[00:54:26] and basically rely on the fact,
+[00:54:28] that you know if the data is not in the cache,
+[00:54:31] you'll have miss
+[00:54:33] and the miss will go to the database,
+[00:54:34] actually you know collect the necessary data,
+[00:54:37] and you know what's the problem about the kind of design?
+[00:54:46] It's gonna have a lot of cache misses,
+[00:54:47] because there's nothing in the cache.
+[00:54:50] Yeah, for example, let's say you have you had one cluster,
+[00:54:53] and you had the second cluster, right,
+[00:54:55] you move half of your users to the second cluster, right,
+[00:54:58] then 50% of your requests are going to miss in the cache,
+[00:55:02] and they're gonna hit the database,
+[00:55:04] and the database will fall over, correct.
+[00:55:07] So how do they deal with this?
+[00:55:12] Gutter?
+[00:55:13] No, not the Gutter, this is the.
+[00:55:17] I think they were making the new cluster
+[00:55:21] read some entries from the cache of an old cluster.
+[00:55:25] Yeah, gets in the new cluster,
+[00:55:28] if they miss in the new cluster,
+[00:55:29] they go to the old cluster from an existing one,
+[00:55:36] and then they set in the new cluster,
+[00:55:42] so basically one way to think about is,
+[00:55:44] they fill up a new cluster or warm up a new cluster,
+[00:55:48] by reading from an existing cluster,
+[00:55:52] and so that maybe increase the load on an existing cluster a little bit,
+[00:55:56] but at least don't actually put a lot of pressure on the database,
+[00:56:00] as we see is the second,
+[00:56:02] that also introduces again some consistency issues,
+[00:56:05] and you know we'll see that a little bit later.
+[00:56:09] Okay?
+[00:56:10] So that's one you know example of performance challenge the the address,
+[00:56:15] the other performance is popular term,
+[00:56:19] used in many contexts, that are called the thundering herd problem,
+[00:56:25] what's the thundering herd problem?
+[00:56:31] I guess when there are a lot of writes and reads
+[00:56:35] approximately at the same time,
+[00:56:38] and because there are a lot of writes,
+[00:56:40] the data will be invalidated many times,
+[00:56:44] and the database will be assaulted with request.
+[00:56:48] Yeah, you can make it simpler,
+[00:56:50] like a single write cause an invalidation of a key, right,
+[00:56:55] and anybody, any client that reads key right after it,
+[00:56:59] so you could have the following situation,
+[00:57:01] you have a very very popular key,
+[00:57:03] the you invalidate the key,
+[00:57:06] so you delete the key from the cache,
+[00:57:07] all the machines are on the frontends that meet popular key
+[00:57:13] will do a get on that key,
+[00:57:15] all get back nil,
+[00:57:16] and then they're all want to like read SELECT from the database, correct,
+[00:57:21] and that you know might cost you know they put a lot of pressure on the database,
+[00:57:26] so, they want to avoid that problem,
+[00:57:29] so how do they do that,
+[00:57:30] how do they avoid that problem?
+[00:57:33] They used leases.
+[00:57:35] Yeah, exactly, go ahead, say more.
+[00:57:39] Yeah, I think they give like a time,
+[00:57:41] like for key specific for for the user,
+[00:57:45] and then like some like sometime,
+[00:57:47] what I understood, it was like kind of a lock,
+[00:57:49] and then like if another user tries to to use it,
+[00:57:54] they would like wait
+[00:57:55] and then hopefully it will be updated fast enough,
+[00:57:58] so that in the next retry, they'll get it.
+[00:58:03] If you do a get, you get nil back,
+[00:58:06] you get two situations,
+[00:58:07] either you've got a lease, right,
+[00:58:11] the first line basically that doesn't get and misses,
+[00:58:14] you know gets release from memcached,
+[00:58:16] and that memcached at least gives you the right to update
+[00:58:20] or tells the clients,
+[00:58:21] like you know you're responsible for doing the update,
+[00:58:23] and if you don't,
+[00:58:26] you know the first one,
+[00:58:27] then you get a basically a retry message or result,
+[00:58:33] and that basically tells the client like oh you should retry it soon,
+[00:58:36] not immediately and maybe spread around a little bit,
+[00:58:39] they probably do some binary backup type style thing,
+[00:58:42] and we try to get,
+[00:58:44] and in most cases the clients,
+[00:58:48] that you know the first line that missed
+[00:58:50] will have updated the key k you know reasonably soon,
+[00:58:54] like in the order of milliseconds,
+[00:58:56] and then these retries actual will succeed, right,
+[00:59:00] and and there's no really and there's no explosion
+[00:59:03] on the number of requests to the database
+[00:59:05] with this scheme.
+[00:59:06] Of course, it introduces,
+[00:59:07] as we'll see in a second more you know race conditions,
+[00:59:11] but you know first let's keep focusing on performance.
+[00:59:18] There was another thing about leases, right,
+[00:59:20] where where they fit, like address still sets.
+[00:59:26] Yeah, so that leases form two roles,
+[00:59:29] as we'll see in a second,
+[00:59:30] one for consistency and one for performance,
+[00:59:33] this one is for performance,
+[00:59:36] and so we'll talk about consistency in a second,
+[00:59:37] and I will see the second reviews,
+[00:59:39] as one way to solve one of these race conditions.
+[00:59:46] Okay, one more, there are many more in the paper,
+[00:59:49] but just one more that's sort of interesting,
+[00:59:51] at least I find interesting,
+[00:59:54] you know what happens if they have a memcached or memcache server failure?
+[01:00:09] It depends,
+[01:00:10] if it's the whole data center that,
+[01:00:12] the whole collection of memcache servers that failed.
+[01:00:17] Just consider a handful, I want to do.
+[01:00:20] These kind that someone mentioned before,
+[01:00:24] that the memcache the failed memcache,
+[01:00:27] but they don't delete them.
+[01:00:30] Yeah, so look at the scenario, correct,
+[01:00:33] problematic scenario is like a memcached server fails,
+[01:00:36] that will result in a bunch of misses,
+[01:00:39] those misses will hit the database,
+[01:00:41] and they want to avoid hitting the database, right,
+[01:00:44] any client that actually has a couple keys in those servers
+[01:00:47] and is gonna try to retrieve the key will fail,
+[01:00:51] and then you know have to do something.
+[01:00:53] So when it get fails,
+[01:00:57] you know the easy solution is to go to the database,
+[01:01:00] but we want to protect the database,
+[01:01:03] and so that doesn't seem to be a great idea,
+[01:01:05] and so what they do is
+[01:01:06] actually have a small other cluster or another pool,
+[01:01:09] like the regional pool or they called the Gutter pool,
+[01:01:15] and the Gutter pool is basically sort of handful memcached machines,
+[01:01:20] that is just available,
+[01:01:21] and they're available for a short period of time,
+[01:01:26] the system sort of reconfigures and repairs itself,
+[01:01:28] and adds new memcached servers,
+[01:01:30] you know to to replace the one that failed.
+[01:01:33] But in that period of time,
+[01:01:34] you know there's a new order of minutes or maybe a little bit more,
+[01:01:37] they don't want to get requests
+[01:01:41] or SELECT to go to the database,
+[01:01:43] instead of what they do when they get fails,
+[01:01:45] you go try first the Gutter pool,
+[01:01:48] and you know the Gutter pool will,
+[01:01:50] you know the first one that hits the Gutter pool you know will fail or will miss,
+[01:01:56] do SELECT the database,
+[01:01:58] get results stick into the Gutter pool,
+[01:02:00] and then subsequent request or gets will actually then be answered from the Gutter pool,
+[01:02:05] and at some point, you know the memcached machine [] scaled,
+[01:02:09] it has either been replaced or replaced with another machine or recovered,
+[01:02:13] and then you know the loads shift back to this memcached server and the Gutter pool,
+[01:02:17] so it's again in the side
+[01:02:18] to sort of carry over between these sort of transition periods.
+[01:02:24] Okay?
+[01:02:25] So this sort of gets us to the reading question for today,
+[01:02:29] as you just mentioned,
+[01:02:30] the Gutter pools you don't do a delete from the Gutter pool,
+[01:02:35] and invalidation is actually also not sent to the Gutter pool,
+[01:02:39] and the question is like why or can we speculate on why,
+[01:02:44] so maybe this is a good time for a quick breakout room,
+[01:02:46] couple minutes,
+[01:02:47] you know to either discuss other aspects from the memcached design,
+[01:02:51] or you want to discuss [] trying to figure out the answer to that question is.
+[01:02:56] So maybe we're gonna break up,
+[01:02:57] yes, thank you, Lily.
+[01:09:03] Okay, so is everybody back?
+[01:09:10] Yep, it looks like it.
+[01:09:12] Yep, okay good.
+[01:09:13] Okay, so anybody,
+[01:09:15] you know the paper doesn't answer this question very precisely,
+[01:09:18] but anybody want to dare to speculate
+[01:09:20] what the answer is on the deletes,
+[01:09:24] no delete, you know no invalidation to the Gutter cluster.
+[01:09:28] Oh, what are.
+[01:09:30] Go ahead.
+[01:09:32] Oh, what we said was something like,
+[01:09:34] if you do,
+[01:09:35] then you would have a lot of pressure on the Gutter pool,
+[01:09:38] because there are so few machines,
+[01:09:40] and for every cache miss,
+[01:09:42] there are two requests for cache [] are just one,
+[01:09:46] so if you do that,
+[01:09:47] after every write, you have an extra request,
+[01:09:51] on the Gutter pool, it's so small,
+[01:09:52] so you don't want to do that,
+[01:09:54] and also you would protect the database as well,
+[01:09:57] because you would constantly query it after a write request.
+[01:10:03] Yeah, in general the delete messages also have to go to two pools, correct,
+[01:10:07] the original memcached pool,
+[01:10:09] all the memcached pools and invalidate it into the Gutter,
+[01:10:12] and so you also double the delete traffic,
+[01:10:14] so I think that's a perfectly,
+[01:10:16] I think that's the reason,
+[01:10:18] it's a small set of machines,
+[01:10:20] just there to sort of over
+[01:10:22] basically get through that transformation from a deleted memcached server,
+[01:10:28] failed memcached server to a new memcached server.
+[01:10:32] Good.
+[01:10:33] Okay, so it's all I want to say about performance,
+[01:10:37] even though there's more in the paper about performance,
+[01:10:39] instead I want to talk a little bit about sort of these races,
+[01:10:44] and sort of come about,
+[01:10:46] because of this trying to achieve high performance,
+[01:10:49] that I've been talking about.
+[01:10:51] They're gonna be three races I want to talk about,
+[01:10:54] and in fact I think all three you already identified,
+[01:10:57] and so [] most discussions presumably gonna be about,
+[01:11:01] how you know how do they avoid them.
+[01:11:05] And so race 1 is what they call stale sets,
+[01:11:09] and scenario as follows,
+[01:11:12] we have client 1, use one region,
+[01:11:15] nothing, one cluster nothing a particular special setup,
+[01:11:20] so client 1 does get of k,
+[01:11:24] you know that turns out to get a nil in the scenario,
+[01:11:28] it will read the value from the database,
+[01:11:32] maybe this is the client that actually got the token, correct,
+[01:11:36] and it's the one that actually is allowed to set it,
+[01:11:40] but before it actually gets to set,
+[01:11:42] another client you know comes in,
+[01:11:44] and writes you know k is 2 to the database,
+[01:11:50] and then there's a put of k on 2
+[01:11:56] and then you know the other clients,
+[01:12:00] you know actually finally gets around to doing actual puts,
+[01:12:02] you know that puts you know k comma and this is like maybe v1,
+[01:12:08] okay, comma v1,
+[01:12:10] and now can we have a stale value in the cache,
+[01:12:15] and that you know stale value is sort of permanent there,
+[01:12:19] until somebody else does an update,
+[01:12:21] okay,
+[01:12:22] and that sort of undesirable,
+[01:12:24] that really breaks their contract with the applications,
+[01:12:27] and they don't want to go back in time,
+[01:12:29] you know would be [], actually user could observe that,
+[01:12:33] so want to try to avoid that.
+[01:12:36] So what they do, how do they solve this problem?
+[01:12:43] Would use lease?
+[01:12:45] Yeah, great, some says it's the lease help out here,
+[01:12:47] they already have a lease, correct,
+[01:12:48] because this guy got a lease for,
+[01:12:51] must have gotten lease,
+[01:12:52] because otherwise it's not reading from the database,
+[01:12:55] and so at the client 1 presents this lease at the put,
+[01:13:02] or can put present to lease at the put,
+[01:13:05] and in fact, it will
+[01:13:07] and what is the additional step basically?
+[01:13:15] To check that the this hasn't expired or something,
+[01:13:19] because if the other client was able to.
+[01:13:23] Sorry, I I mean I just realized I made a mistake,
+[01:13:26] so this is why the question is also not so good,
+[01:13:29] let me see the client 2 doesn't do put, correct,
+[01:13:32] that was invalidation consistency,
+[01:13:34] I got myself confused here,
+[01:13:35] so what does the client actually the client 2 do,
+[01:13:39] after it sets the database.
+[01:13:44] Go back.
+[01:13:45] Delete?
+[01:13:46] Yeah, it does delete,
+[01:13:48] for the reason that we talked about earlier, correct,
+[01:13:50] so it does delete of k,
+[01:13:52] and what's the side effect,
+[01:13:53] of what happens with the lease of the k being deleted?
+[01:13:59] But it doesn't like verify or it doesn't.
+[01:14:03] Yeah, actually what happens is a side effect of the delete,
+[01:14:06] the lease is invalidated,
+[01:14:12] so it invalidates the lease,
+[01:14:18] and so when the put comes along,
+[01:14:19] so my timeline is a little bit,
+[01:14:21] you know this happens quite well before, right,
+[01:14:25] so the put happens after the delete,
+[01:14:28] the put will present the lease that gotta get,
+[01:14:31] but that lease has been invalidated by the delete,
+[01:14:34] and so this put gets rejected.
+[01:14:42] So basically one way to think about this is that,
+[01:14:44] they leverage you know the lease mechanism to avoid the thundering herd problem,
+[01:14:49] they extended to basically also avoid this stale set problem.
+[01:14:58] Right, does that make sense?
+[01:15:01] So, even if we don't have this lease invalidation mechanism,
+[01:15:08] we would still obey the weak consistency,
+[01:15:10] that you would have ordered writes that happened at some point in the past,
+[01:15:15] but I believe that,
+[01:15:16] the thing of this thing ensures that you observe your own writes, right?
+[01:15:20] You're sure, you're right,
+[01:15:21] they also ensures that you don't go back in time,
+[01:15:24] like if you read something,
+[01:15:26] and like everybody else that comes you know after this client 2,
+[01:15:32] will see you know the old v1
+[01:15:34] and so a client might get well behind
+[01:15:36] and not see that new write for long, long periods of time,
+[01:15:39] in fact, might seen not at all.
+[01:15:41] Yeah, but, I mean would this be actually going back in time,
+[01:15:45] because clients did not read anything after.
+[01:15:48] Maybe maybe back in time is the wrong word,
+[01:15:50] but it won't observe v2 for a long, long time.
+[01:15:54] I see, okay.
+[01:15:55] That was not something that we wanted to happen,
+[01:15:58] it's okay to be a little bit,
+[01:16:00] but not you know for a long, long time.
+[01:16:03] Okay, second race which you know guys already mentioned,
+[01:16:08] already identified too,
+[01:16:11] because advantage of many I guess lab debugging,
+[01:16:15] you know all about the races,
+[01:16:18] race 2 and this is the cold cluster race,
+[01:16:25] and sort of in a similar style,
+[01:16:27] we have two clients,
+[01:16:31] client 1, client 2.
+[01:16:37] And, let's say k is v1 originally
+[01:16:41] and so [] both clients are in the cold cluster,
+[01:16:45] client 1 sets the k to a new value in the database,
+[01:16:53] delete the k in the cold cluster, correct,
+[01:16:59] current cluster actually in,
+[01:17:01] and then this client does get in the cold cluster,
+[01:17:11] sees that it actually is not there,
+[01:17:16] and what is gonna do,
+[01:17:18] get from the warm cluster, get the value back,
+[01:17:27] I mean that like you know get actually gets there,
+[01:17:29] before actually the the cold cluster or the warm cluster actually has been updated.
+[01:17:36] And so now it will do a set of you know this key to v1
+[01:17:42] or put sorry, let me be consistent,
+[01:17:44] put k to v1 in the cold cluster
+[01:17:51] and now we have to sort of the same situation as before,
+[01:17:54] and where you know we have sort of a permanent stale value in the cold cluster.
+[01:18:07] And how do they solve that problem?
+[01:18:16] Anybody remember?
+[01:18:28] So they have a small extension that avoids this problem,
+[01:18:32] and guess what it could be, if you.
+[01:18:39] Whether C1 is the warm cluster or cold cluster?
+[01:18:42] Both the cold clusters.
+[01:18:47] And they're different, they're in different cold clusters, right?
+[01:18:51] I'm not sure that matters.
+[01:18:55] Yeah, actually, it doesn't.
+[01:19:30] Anybody?
+[01:19:52] I think they mentioned like hold-off for two seconds,
+[01:19:55] though [entirely] shared all the details of that.
+[01:20:02] Yeah, the basically the, this actually causes they put hold-off,
+[01:20:09] they call this a hold-off, of two-second hold-off,
+[01:20:16] on any set to that key,
+[01:20:18] so this particular after you do a delete in the cold cluster,
+[01:20:23] you can't do any sets to that key for two seconds,
+[01:20:26] and so this particular put will be rejected,
+[01:20:32] and this is only during the warm up to their phase, right,
+[01:20:34] so when the cluster comes up, it's cold,
+[01:20:37] you know for a couple hours it runs,
+[01:20:39] you know to start warming up,
+[01:20:41] and get its content in place,
+[01:20:42] and once you know sort of warmed up,
+[01:20:45] then you know they stopped doing this trick,
+[01:20:48] but basically sort of you know just [] this problem over,
+[01:20:53] they think two seconds is sufficient,
+[01:20:56] and that sufficient for basically that write to propagate to the cold database too.
+[01:21:05] Okay?
+[01:21:09] But there's one more write the problem is,
+[01:21:12] let me quickly mention that,
+[01:21:13] because again you already mentioned it,
+[01:21:15] so race number 3 that they talked about in the paper,
+[01:21:19] and I'm sure there's more,
+[01:21:20] but you know the one they say,
+[01:21:21] that the one they talk to the paper about,
+[01:21:23] and this is between regions,
+[01:21:27] it has to do with the primary backup problem,
+[01:21:30] primary backup.
+[01:21:32] It's sort of a similar problem,
+[01:21:37] and where you know the client 1 does write to the database,
+[01:21:45] the database,
+[01:21:47] and this is a client in the backup,
+[01:21:49] so this is a backup clients in the backup region,
+[01:21:51] so that's write to the database in the primary region,
+[01:21:56] that sort of goes off and then this delete of the key,
+[01:22:04] in of course the backup region,
+[01:22:06] from it's cache,
+[01:22:08] and then in principle it would do immediately,
+[01:22:12] and this is like one of you mentioned this,
+[01:22:14] like you can either do get that particular k, right,
+[01:22:17] then, and and won't see the, will fetch on the,
+[01:22:27] yeah, you know it won't see actually the result of that write,
+[01:22:31] so we won't see its own write,
+[01:22:35] because of write is still on the way to the backup or to the primary,
+[01:22:39] the primary will send through the sql thing, squeal thing,
+[01:22:45] propagate update to the database in the backup area,
+[01:22:50] and so only then you know again the backup will actually in the backup area,
+[01:22:54] in the backup region will actually see the k change,
+[01:22:56] so we're sort of, we have a problem here, right,
+[01:22:58] where if this k would proceed without any modifications,
+[01:23:04] then, we would see not our own writes.
+[01:23:08] And anybody remember how they solve this problem?
+[01:23:14] Was this remote marker?
+[01:23:16] Yeah, absolutely, it is,
+[01:23:18] so when they delete k key k,
+[01:23:21] and they are they may, they, they keep it in the memcached of the backup,
+[01:23:26] and mark it as remote,
+[01:23:30] and so when this the client 1 does get,
+[01:23:34] they'll see, hey, I'm gonna get,
+[01:23:37] basically gets remote back from its local memcache,
+[01:23:42] and then goes basically to fetch it from the primary, from primary region.
+[01:23:55] Okay?
+[01:23:59] But then the the remote marker will be removed,
+[01:24:03] when it's safe to read from the backup.
+[01:24:06] Yes, I think one of the database,
+[01:24:08] the backup database gets the data from the primary,
+[01:24:12] that can remove the marker,
+[01:24:18] because then it's safe to read from the primary database, from the backup database.
+[01:24:24] Does that make sense?
+[01:24:28] Okay, so let me do a quick summary,
+[01:24:32] and because I'm running a little bit over time,
+[01:24:35] so quick summaries, you know caching is vital,
+[01:24:42] basically get in capacity that we're talking about this paper,
+[01:24:46] like billions of operations per second,
+[01:24:49] there are two strategies to sort of get this high capacity,
+[01:24:53] one is partitioning,
+[01:24:58] which gives you parallelism or sharding,
+[01:25:04] and the other strategy is you know replication,
+[01:25:06] is really good for hot keys,
+[01:25:09] keys are being requested by lots and lots of clients,
+[01:25:12] so that's the keys get replicated on multiple machines.
+[01:25:16] And you know we also see you know there's a bunch of almost adhoc techniques
+[01:25:24] to sort of get around some of the serious consistency issues, that are pop up,
+[01:25:30] even if the systems are designed to give weak consistency,
+[01:25:34] and so this whole sort of consistency
+[01:25:36] between the database, between db and caches or memcache is tricky,
+[01:25:46] maybe much more tricky than you might thought,
+[01:25:49] because of memcache, the cache you know what could be the problem,
+[01:25:53] but you know as you can see, it's actually pretty tricky,
+[01:25:56] in fact there's a more quite a bit of research going on,
+[01:26:00] trying to figure out how could you do better.
+[01:26:03] Okay, with that I want to conclude,
+[01:26:05] that people that need to run, can run,
+[01:26:07] you know go to their next Zoom meeting,
+[01:26:09] and I'll see you around,
+[01:26:11] or answer any questions, if you have any questions remaining,
+[01:26:15] and otherwise, I'll see you on Thursday, thank you.
+[01:26:22] Sorry, I have a question about,
+[01:26:25] so, for example, for the last thing we talked about with the remote marker,
+[01:26:31] how did they know that this is gonna be a relevant data race,
+[01:26:37] or how did they decide that,
+[01:26:38] it is going to be more useful to do this additional stuffs of remote marker
+[01:26:46] versus just getting stale data.
+[01:26:48] Well, I think there is because they have this requirement right up front,
+[01:26:51] although the paper didn't really stipulate very clearly,
+[01:26:55] they really want this,
+[01:27:00] like, for example you do, a user adds something to their timeline,
+[01:27:05] read it again, and it's not there,
+[01:27:08] and so that is a thing that could be observed directly by users
+[01:27:12] and strange inconsistency,
+[01:27:14] and they they they want to avoid that.
+[01:27:20] Okay, that makes sense, that makes sense.
+[01:27:22] And my other question was,
+[01:27:23] on the one of the first slides where you had invalidation of the memcache.
+[01:27:30] Let me find where I had that.
+[01:27:34] Oh, here.
+[01:27:37] Well, yeah, this is the slide like a little bit wild now, but.
+[01:27:42] Oh, no, it was one of the later ones.
+[01:27:46] Also have some invalidation on it or it doesn't.
+[01:27:51] Maybe the next one.
+[01:27:52] Yes.
+[01:27:53] Yeah, yeah, so the client is going to set the invalidation only for its local region,
+[01:28:03] and the squeal is going to do it,
+[01:28:06] what the transfer and for the non-local.
+[01:28:10] Yeah.
+[01:28:11] Okay, make sense, thank you so much.
+[01:28:14] You're welcome.
+[01:28:17] Professor, I had two.
+[01:28:19] You had your final question,
+[01:28:22] sorry sorry sorry, go ahead, please ask your questions.
+[01:28:29] These after class.
+[01:28:31] They don't count.
+[01:28:33] So for servers servers in in a region are assigned,
+[01:28:39] when we have clusters, each one are assigned to a cluster, right?
+[01:28:43] Yeah yeah yeah, every clusters really replicate.
+[01:28:48] Okay, nice, yeah.
+[01:28:50] I mean like like servers are assigned to one single replica.
+[01:28:56] Nice, and then the second one was like straight from the paper and very precise,
+[01:29:02] but it says, like okay here,
+[01:29:07] in I think generic cache page two,
+[01:29:11] it says like use memcache as more general key-value store,
+[01:29:18] and particularly say,
+[01:29:19] it takes little effort for new services to leverage the existing marcher infrastructure
+[01:29:24] without the burden of tuning optimizing provisioning and maintaining a large server fleet,
+[01:29:29] so I wasn't sure and I looked up,
+[01:29:31] and I couldn't find what like what's existing marcher infrastructure.
+[01:29:35] I don't actually know exactly what they're referring to, so.
+[01:29:37] Okay, all right, cool, thanks.
+[01:29:42] [].
+[01:29:43] See you.
+[01:29:49] I wanted to pull up on a question,
+[01:29:51] that I think well you master about a certain failure mode,
+[01:29:55] if memcached server fails,
+[01:29:59] I think there's,
+[01:30:01] I'm trying to think which slide would be helpful to look at,
+[01:30:05] was earlier,
+[01:30:08] maybe that one you just,
+[01:30:11] just anything that kind of shows memcached,
+[01:30:13] the the overall system diagram I guess.
+[01:30:15] Okay, well, the multiple [],
+[01:30:18] but this is the one basically if you think about as a single cluster, if you will.
+[01:30:22] Yeah, okay.
+[01:30:24] Yeah.
+[01:30:26] Look at another one,
+[01:30:27] but I think this is sort of probably good enough.
+[01:30:29] Yeah, I think this is, this is good,
+[01:30:33] yeah, I think this question was,
+[01:30:36] so, try to,
+[01:30:40] but it was something about like,
+[01:30:42] if a client frontend writes,
+[01:30:49] yeah, if a client writes to its memcached server,
+[01:30:52] and that memcached server crashes,
+[01:30:55] and then the client immediately tries,
+[01:30:57] then which is presumably switches to another memcached server,
+[01:31:01] and then read it again,
+[01:31:03] what mechanism makes sure it doesn't see that it's a result of its previous write.
+[01:31:07] I I think what happens is we probably go to the Gutter,
+[01:31:12] when the memcached fails, correct,
+[01:31:15] client will get no response back,
+[01:31:18] and when that no response comes back,
+[01:31:21] it actually goes to the Gutter,
+[01:31:23] which has nothing in it,
+[01:31:24] probably in the first try,
+[01:31:27] and will read it from whatever database.
+[01:31:31] Oh, okay, okay, that that makes sense.
+[01:31:35] And yeah, it's a little bit unclear,
+[01:31:37] exactly what happens when a new machine gets added,
+[01:31:39] you know they don't really talk much about in the paper,
+[01:31:42] I presume this is actually consistent [action] part,
+[01:31:45] where keys will be automatically shifted from one machine to another.
+[01:31:52] I guess, what if there were multiple clusters,
+[01:31:57] wouldn't it not,
+[01:31:59] maybe I just need to read about the Gutter,
+[01:32:00] but wouldn't it potentially shift to another memcached,
+[01:32:03] and oh actually, yeah.
+[01:32:05] I think it always when get fails,
+[01:32:09] the client goes to the Gutter.
+[01:32:10] Right.
+[01:32:12] Okay, yeah, these clusters are kind of self-contained,
+[01:32:15] each have a the memcached.
+[01:32:17] Okay, okay, that makes, yeah that makes sort of sense, thank you.
+[01:32:21] You're welcome.
+[01:32:21] Follow follow up on that,
+[01:32:23] when it falls back to the Gutter,
+[01:32:25] or what is like two different clusters,
+[01:32:28] their memcache server fails at the same time,
+[01:32:31] and so they both go to the Gutter,
+[01:32:33] and now doing like concurrent writes to the Gutter,
+[01:32:36] how do we ensure that those writes don't go out of order?
+[01:32:41] You know they do sets, correct,
+[01:32:44] and the the writes always go to the database to the primary,
+[01:32:51] the primary orders all of them,
+[01:32:55] so I think writes are always ordered,
+[01:32:59] the only thing that you know the clients might do is
+[01:33:03] you know set a value in or put a value into the kv server,
+[01:33:08] but then they have done that after they read from the database.
+[01:33:13] Right, so what if someone is like doing a, they do a read,
+[01:33:18] and then they're setting it into the database,
+[01:33:20] but like let's say two different clusters fail,
+[01:33:24] and then I'm not sure if this possible actually,
+[01:33:27] but let's say like one, cluster one first reads from the key, gets back the value,
+[01:33:33] and then there's a write in between,
+[01:33:35] and then the second cluster then reads,
+[01:33:38] and then they both try to put into their memcache servers,
+[01:33:41] but, but let's say those servers failed.
+[01:33:45] Yeah, maybe, maybe,
+[01:33:46] yeah, it's a good question,
+[01:33:48] I think there's all kinds of little corner cases,
+[01:33:50] that actually not describe the case,
+[01:33:51] I I think maybe leases will help out,
+[01:33:53] because that server you're gonna set to does have the lease,
+[01:33:58] for, the first one we did get a lease back correct to the set,
+[01:34:04] and if in the meantime,
+[01:34:09] the servers gets replaced,
+[01:34:11] the replacement server does not know that actually the lease was granted,
+[01:34:15] and so will reject the set,
+[01:34:18] I'm just speculating, correct.
+[01:34:20] Okay, yeah, so for the Gutter,
+[01:34:23] how does it control leases there?
+[01:34:25] I don't know.
+[01:34:27] Okay, I see.
+[01:34:29] Sorry, I can speculate,
+[01:34:32] but you know you know certainly I don't know.
+[01:34:36] What would you say, if you had to speculate?
+[01:34:39] Well, I would first have to go sit down
+[01:34:41] and think a little bit about it.
+[01:34:43] Okay, makes sense, yeah, thank you.
+[01:34:49] I have a bit of a tangential question,
+[01:34:51] which is, I thought it was really cool,
+[01:34:53] that they were using UDP for the get request and TCP for the others,
+[01:34:57] and I was wondering how common that is,
+[01:34:59] is that like a very standard thing to do?
+[01:35:02] Yes, yes and no,
+[01:35:06] it is, you know I think people prefer generally to use TCP
+[01:35:11] provides reliability ordering and all the good great stuff,
+[01:35:14] but there's real overheads with it,
+[01:35:16] you know like the you know the state that needs to be maintained for connections,
+[01:35:20] for connection,
+[01:35:21] and so there's always a little bit of struggle,
+[01:35:23] when machines a lot of incoming TCP connection,
+[01:35:26] a lot of outbound connections,
+[01:35:28] that always causes problems,
+[01:35:30] and in the default, you know if you run into that problem is
+[01:35:34] to basically do UDP type stuff.
+[01:35:39] Sometimes.
+[01:35:39] Like normal from this paper?
+[01:35:42] No, not from this paper.
+[01:35:46] Some people like to roll their own sort of like reliably transport protocol over UDP.
+[01:35:51] Like QUIC?
+[01:35:52] Yep, for example.
+[01:35:56] Because they mentioned they also do like sequence numbers UDP connections done.
+[01:36:03] But persumably [] congestion windows and all the other scaling
+[01:36:07] and all the other TCP features that TCP has.
+[01:36:11] Thank you.
+[01:36:12] You're welcome.
+[01:36:18] So, another, oops, sorry, go ahead.
+[01:36:25] Okay, I guess, I just wanted to quickly ask about
+[01:36:30] kind of the replication between the different clusters,
+[01:36:33] but basically they don't do any formal replication.
+[01:36:36] Yeah, that correctly,
+[01:36:37] well, yeah, no, well, yes or no, right,
+[01:36:42] because you know the database need to be updated,
+[01:36:45] hold on, hold on,
+[01:36:46] let me actually go back
+[01:36:47] and make sure you know what you're talking about.
+[01:36:51] Let's see clusters,
+[01:36:54] yeah, we have multiple clusters,
+[01:36:56] yeah there's no real replication going on between the clusters, right,
+[01:36:58] because there's one single storage in there.
+[01:37:02] Right, and so there are kind of like depending on these leases
+[01:37:07] to keep the cache is up-to-date or.
+[01:37:10] The the every cluster is completely independent,
+[01:37:13] they have nothing to do with each other,
+[01:37:16] and users are divided over these [],
+[01:37:20] and so one user talks to one cluster,
+[01:37:22] and and then you know within the cluster, you know they use leases or,
+[01:37:32] and this database invalidates leases and keys.
+[01:37:37] Right, got it, okay,
+[01:37:38] yeah, so it's like the squeal and the storage.
+[01:37:42] Yeah, all the writes basically in just go through this storage, correct,
+[01:37:46] all writes go through here,
+[01:37:49] they get ordered,
+[01:37:51] and you know they pop out invalidation messages.
+[01:37:58] Got it [], thank you.
+[01:38:03] Yeah, go ahead.
+[01:38:05] Yeah, so tangential question,
+[01:38:10] I guess I'm not sure this is,
+[01:38:12] because of the way we've kind of presented papers in the class,
+[01:38:15] but it kind of seems like,
+[01:38:19] the way these systems are developed is,
+[01:38:22] like okay, we have like these these systems,
+[01:38:25] like our needs are continuing to scale,
+[01:38:27] so let's like maybe this is also not an accurate representation,
+[01:38:31] but it sounds like, let's add another layer to kind of handle this load,
+[01:38:35] or that kind of you know cache something
+[01:38:37] or add another layer of complexity on top of it,
+[01:38:41] is it fair to say that,
+[01:38:43] like system development has generally been like,
+[01:38:46] let's just add another layer to kind of deal with.
+[01:38:49] Yes or no,
+[01:38:51] I think the designer took a very pragmatic approach,
+[01:38:54] you know figure out like run into a real problem and solve the real problem,
+[01:38:58] and in basically you think about it not a lot of additional mechanism
+[01:39:04] to actually make it all work,
+[01:39:06] so in terms of,
+[01:39:08] I mean I mean I think it's pretty impressive and this kind of performance,
+[01:39:12] with off shelf components,
+[01:39:14] the absolute people also go back once in a while,
+[01:39:19] said okay, how would I design a system to get better performance
+[01:39:23] and don't for example have this inconsistency between the database and caches,
+[01:39:27] and you know it actually turns out to be a research problem,
+[01:39:32] because people figured out how to do that,
+[01:39:35] and so you'll see recent research papers that describe alternative solutions,
+[01:39:40] or new components of the solution,
+[01:39:42] because like you know any of the [] I know of,
+[01:39:45] you know cannot support a billion operations per second.
+[01:39:48] Yeah, right.
+[01:39:51] Okay, that's interesting, thank you.
+[01:39:53] Yeah, this is fascinating stuff,
+[01:39:55] it's like a real world system design.
+[01:39:59] I have one more question, if you don't mind.
+[01:40:01] Yeah, go ahead.
+[01:40:02] So in the design here,
+[01:40:05] where they replicate across different regions,
+[01:40:07] so sorry, just to clarify when the first clarification question I have is,
+[01:40:11] when they were okay against different regions,
+[01:40:13] each region has a bunch of internal clusters, right.
+[01:40:18] And then, my follow-up question to that is,
+[01:40:21] it seems like everything is,
+[01:40:23] yeah everything is hitting the primary storage,
+[01:40:26] if let's say we wanted to scale up,
+[01:40:28] so that we didn't have all the writes hitting the primary storage,
+[01:40:32] how would you go about designing.
+[01:40:34] Yeah, my suspicion is that,
+[01:40:36] they're actually a design describe,
+[01:40:40] okay, so there's a bunch of points,
+[01:40:42] there's a whole other paper on this topic
+[01:40:44] about actually how to do the replication,
+[01:40:46] so this is not the only Facebook paper on scaling things up
+[01:40:50] and there's a system was published in 2015 or [],
+[01:40:54] were you know they have a scalable design to propagate these writes,
+[01:40:59] my suspicion is also that
+[01:41:02] they will have a shard the users to a particular regions,
+[01:41:09] and make some regions the primary for those users.
+[01:41:16] I see, so they assigned different regions primaries for different shards.
+[01:41:21] Yeah, I think so,
+[01:41:22] that's why I would do, we're trying to do,
+[01:41:24] and I'm speculating here.
+[01:41:28] Would it be a wise decision to do like consensus protocol across the storage layers,
+[01:41:33] or would that just be like too high you know.
+[01:41:36] You could do that, like Spanner does that, correct.
+[01:41:39] Right.
+[01:41:40] And how fast is Spanner?
+[01:41:43] Pretty fast.
+[01:41:45] You look back into it back into the table,
+[01:41:48] how many transactions per second could do?
+[01:41:51] I do not remember the exact number.
+[01:41:55] I think about a hundred.
+[01:41:58] Oh, oh.
+[01:41:58] In fact, for I think write [] 10.
+[01:42:01] Right, this is for write transactions, right.
+[01:42:04] Right, the write, the write transactions are very slow.
+[01:42:12] Sorry, I think I realized that
+[01:42:15] I do not understand race 1.
+[01:42:18] Okay, let me see if I can replicate it,
+[01:42:23] now, let's see where we race 1.
+[01:42:27] I think I'm just confused what is v2.
+[01:42:32] Um, v2 is this right,
+[01:42:36] hold on, I'll mark it.
+[01:42:39] Okay.
+[01:42:42] And the problem is that,
+[01:42:44] it is like wedged in between the first one.
+[01:42:52] Okay.
+[01:42:55] Okay, so like, we wanted it to be deleted,
+[01:43:00] so that the next person can read,
+[01:43:03] refresh it from the database,
+[01:43:05] but now it's there with the old value.
+[01:43:07] Yeah, so basically we have a permanent stable value,
+[01:43:09] really the issue is this permanent [business],
+[01:43:13] or you know permanent between quotes, correct,
+[01:43:15] because it's a cache,
+[01:43:16] but like you know this, this put,
+[01:43:20] that came after you know basically the k be k the k being updated to v2,
+[01:43:29] so we have k 2 here really, correct,
+[01:43:31] that's what the right value should be,
+[01:43:33] and here actually this is v1,
+[01:43:35] so let's say there's just 1,
+[01:43:36] what we've done here is,
+[01:43:37] we put a k 1 in after,
+[01:43:43] and that's just not the right thing,
+[01:43:47] everybody that comes after now and does a get on k, correct,
+[01:43:52] is gonna get 1 back instead of 2.
+[01:43:55] Okay, that makes sense, okay.
+[01:43:56] Including client 2, which is going to be bizarre.
+[01:44:00] Right, right, okay, that makes sense, thank you so much.
+[01:44:04] You're welcome.
+[01:44:05] I think the part in the beginning about the evolution
+[01:44:08] was also pretty helpful, I think.
+[01:44:10] Okay, good good.
+[01:44:12] Thank you so much.
+[01:44:13] You're welcome.

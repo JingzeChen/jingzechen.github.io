@@ -1,0 +1,1441 @@
+[00:00:00] Good afternoon, good evening, good night, good morning,
+[00:00:02] wherever you are or whenever you're watching this.
+[00:00:06] So today I wanna talk about Spanner,
+[00:00:12] is a paper from 2012,
+[00:00:14] but the Spanner system is in active use,
+[00:00:17] and also still continuously under development,
+[00:00:21] so it's a real system.
+[00:00:23] The main topic and why you know Spanner is really interesting,
+[00:00:27] is supports [wide-area] transactions,
+[00:00:38] and this is a really powerful programming model,
+[00:00:43] so even though the data,
+[00:00:45] maybe the data sharded across multiple servers,
+[00:00:48] and the servers being in different data centers
+[00:00:50] and different place on on the planet,
+[00:00:53] you can just run transactions,
+[00:00:55] and they have ACID semantics,
+[00:00:59] and there atomic you know respect failure,
+[00:01:01] that all the writes happen or none of them,
+[00:01:02] and they provide serializability.
+[00:01:05] And so that's an incredibly powerful programming abstraction,
+[00:01:10] and of course the challenge is to implement it efficiently,
+[00:01:14] and one big challenge is
+[00:01:17] like the law of physics you know the speed of light,
+[00:01:19] you know sending a packet from one end
+[00:01:21] in one part of the US to the other part of the US
+[00:01:23] or to another continent,
+[00:01:24] and it takes a lot of time,
+[00:01:25] you know we're talking about tens of milliseconds.
+[00:01:29] So, what we see in this paper is that,
+[00:01:32] read-write transactions are actually, are indeed quite expensive,
+[00:01:37] but they work very hard to make read-only transactions very inexpensive.
+[00:01:44] And so the read-write transactions are are implemented using 2-phase commit,
+[00:01:54] as we talked about last week,
+[00:01:56] and 2-phase locking,
+[00:01:57] and one of the things that is interesting about it is that,
+[00:02:01] the participants in this protocol are just basically Paxos groups.
+[00:02:11] The read-only transactions can execute at any data center,
+[00:02:20] and they're going to run very fast,
+[00:02:21] in fact you look at the table six in the back of the paper,
+[00:02:24] you'll see that read-only transaction
+[00:02:26] somewhere like ten times faster read-write transactions.
+[00:02:30] And there are two key ideas there,
+[00:02:32] and we'll talk about this lecture,
+[00:02:33] one is snapshot isolation,
+[00:02:37] which actually is a standard database idea,
+[00:02:39] but use it here to make the read fast,
+[00:02:43] in particular you know to make it actually work well
+[00:02:46] in a distributed wide-area setting,
+[00:02:48] they rely on synchronized clocks or,
+[00:02:54] you know those clocks are perfectly synchronized,
+[00:02:57] and so, their transaction scheme must deal with
+[00:03:01] a little bit of [] or drift or error margin,
+[00:03:05] in exactly know what the TrueTime is.
+[00:03:10] As I said is widely used,
+[00:03:14] both in internal Google,
+[00:03:16] but also as a Google customer, you can use it,
+[00:03:20] Spanner is basically a cloud service,
+[00:03:22] that you can use as a Google customer,
+[00:03:25] if you use Gmail,
+[00:03:27] probably your email or parts of the email system actually go through Spanner.
+[00:03:33] Maybe before diving into more detail,
+[00:03:37] I want to make one logistic comment,
+[00:03:40] not related to Spanner,
+[00:03:42] as you may already have seen,
+[00:03:45] we made some adjustments for the long weekend, long upcoming weekend,
+[00:03:50] first of all, lab 4a is not as heavy duty as the other labs,
+[00:03:56] and hopefully take them less time,
+[00:03:58] we also cancelled next week's lecture,
+[00:04:00] so that you can actually use that as time to work on 4a,
+[00:04:05] and we made the deadline for 4a more flexible,
+[00:04:08] so next Friday is now convenient for you,
+[00:04:11] you can actually choose to have another extra late hours
+[00:04:14] to submit it later,
+[00:04:17] and hopefully that will allow you to enjoy the long weekend,
+[00:04:21] and perhaps get some sleep
+[00:04:23] and maybe do something else than debugging your labs.
+[00:04:29] The second point I want to make is directly related to Spanner,
+[00:04:33] you know some of you noticed this
+[00:04:35] and came through the questions,
+[00:04:38] this paper is quite complicated,
+[00:04:41] and there are many reasons why it's complicated,
+[00:04:43] but one reason is that,
+[00:04:44] actually there's a lot of things going on,
+[00:04:47] that's a powerful system,
+[00:04:49] has a lot of different components to it,
+[00:04:51] and you know the interaction between different components is important,
+[00:04:55] and so there's a lot of material in this paper,
+[00:04:59] and so although I'll try to do in this lecture,
+[00:05:02] is try to to make that more clear,
+[00:05:03] by focusing on a couple aspects of the paper,
+[00:05:06] and I'm not going to do a full treatment of the paper,
+[00:05:09] but you know of course I think what are the most important ideas
+[00:05:13] and why we're reading it in 6.824,
+[00:05:16] that took me actually a little bit of time
+[00:05:19] or few years to figure out actually how to present this paper,
+[00:05:24] or explain it in a way that I think it's a maybe easier to understand,
+[00:05:29] you know if you are for the concept of 6.824.
+[00:05:32] Okay, but ask questions as always.
+[00:05:37] Okay, so let's dive in and talk a little bit of the high-level organization.
+[00:05:49] And more from the point of view
+[00:05:52] from the way I want to talk about this Spanner in this lecture.
+[00:05:56] So there's multiple data centers,
+[00:05:57] and you know for convenience for simplicity,
+[00:06:01] you know just think about there 3 data centers, A B and C,
+[00:06:09] I mean it can be anywhere in the world,
+[00:06:12] and the goal is that,
+[00:06:15] basically you know data will be like,
+[00:06:16] we have data like like a shard,
+[00:06:19] you know that you know contains some database rows or some key value pairs,
+[00:06:24] so at the shard,
+[00:06:27] maybe it has the keys a to you know m,
+[00:06:31] and the basic idea is actually going to replicate that shard across data centers,
+[00:06:37] and with the goal that like even if complete data center goes down,
+[00:06:42] then you know we can proceed,
+[00:06:44] you know the way we're going to arrange,
+[00:06:46] that we're going to be able to proceed is that,
+[00:06:48] basically these shards you're going to form,
+[00:06:52] these replicas that are sitting in different data center will form one Paxos group,
+[00:07:04] so if you're thinking about this,
+[00:07:05] we're trying to think about this in terms of lab 3,
+[00:07:08] then you can think about that,
+[00:07:09] you know we have a key value store,
+[00:07:11] where the key value servers are spread around different data centers,
+[00:07:16] and the keys are updated,
+[00:07:18] the [] Raft writes, you know through the Raft log,
+[00:07:24] and then we go to the individual key kvs,
+[00:07:27] you know update their state,
+[00:07:29] and so you can think about you know lab 3 being here,
+[00:07:32] instead of running you know 3 kv servers on your machine,
+[00:07:35] you're going to run one kv server in different data centers.
+[00:07:42] Okay?
+[00:07:44] So we, then there's gonna be a Paxos group per shard,
+[00:07:49] so there,
+[00:07:55] it might be other shards
+[00:07:56] that hold other parts of the, the key-value space or database rows,
+[00:08:03] so let's say you know we have only two shards,
+[00:08:05] you know for this particular database,
+[00:08:06] you know shards containing a to m,
+[00:08:09] and then another shard containing n to z,
+[00:08:11] then they have form their own Paxos group.
+[00:08:17] And the reason we want to get multiple shards is to get parallelism,
+[00:08:31] so that we can you know if the transaction involve different shards,
+[00:08:35] you know disjoint set of shards,
+[00:08:39] you know they can be used disjoint,
+[00:08:40] can actually proceed completely in parallel.
+[00:08:43] So, as mentioned earlier,
+[00:08:44] we have Paxos group per shard you know for replication,
+[00:08:54] but you know Paxos actually provides us you know additional sort of benefit,
+[00:09:00] you know the communication cost, right,
+[00:09:02] from a to b or from b to c might be very expensive,
+[00:09:05] and seems you know Paxos allows to proceed,
+[00:09:08] or Raft allows us to proceed with just majority,
+[00:09:10] you know the slow machine might actually have not that much performance impact,
+[00:09:15] and so we can sort of easily tolerate either slow machines
+[00:09:19] or actually one you know data center being down,
+[00:09:23] so the majority rule helps us in two ways,
+[00:09:28] you know we get data center fault tolerance,
+[00:09:36] and [through] slowness.
+[00:09:41] The final goal, as we'll see in a little bit more detail is that,
+[00:09:47] a client of Spanner,
+[00:09:52] so let's say here's some server that uses Spanner,
+[00:09:56] would like it to be the case,
+[00:09:57] that you know this server can actually use a close replica,
+[00:10:01] and so the replica you know typically are placed closed,
+[00:10:07] close to the clients that actually use them.
+[00:10:12] In fact, we'll see that,
+[00:10:13] read-only transactions can be executed basically by the local replica,
+[00:10:18] without any communication to the other data centers.
+[00:10:22] And when I talk about client,
+[00:10:24] here,
+[00:10:25] this is typically sort of the backend servers of some Google service,
+[00:10:31] for example, this might be the Gmail server,
+[00:10:34] that's sitting also in some data center,
+[00:10:37] and maybe the same data center,
+[00:10:39] and talks to the replica in that particular data centers,
+[00:10:42] and of course outside are real clients,
+[00:10:44] like users you know read or write email.
+[00:10:49] Okay, any sort of questions about this high-level organization?
+[00:11:01] Okay, let me sort of layout the challenges,
+[00:11:06] that I wanna focus on in this lecture,
+[00:11:11] I really sort of three main challenges.
+[00:11:17] One is, the way is it like I said,
+[00:11:21] we want to actually read-only transactions
+[00:11:23] without actually having to communicate with any other server,
+[00:11:27] but you know we got to make sure that the reads sees the latest write,
+[00:11:48] this sort of classic challenge that we've seen before,
+[00:11:51] you know zookeeper,
+[00:11:52] zookeeper sort of avoid, doesn't really address the challenge direct head on,
+[00:11:56] and just like weaken consistency,
+[00:11:58] but here in this design,
+[00:12:00] we'd like to arrange in a way,
+[00:12:02] that actually we still keep linearizability,
+[00:12:05] in fact, you know Spanner shoot for [] stronger property than linearizability.
+[00:12:11] Second thing is,
+[00:12:12] we want to support,
+[00:12:13] Spanner wants to support transactions across shards,
+[00:12:21] so even this is actually like we do a bank transfer,
+[00:12:24] and one account in one shard,
+[00:12:26] the other account, the destination account, there's another shard,
+[00:12:29] we want to arrange that,
+[00:12:30] you know it still can be executed like a transaction and have ACID semantics.
+[00:12:37] Finally, you know the transactions both read-only ones and read-write ones must be serializable,
+[00:12:45] in fact, a little bit stronger than serializable.
+[00:12:53] And you know we'll see that,
+[00:12:56] you know for this, you know for basically for the read-write transactions,
+[00:13:01] we're going to use 2-phase locking, 2-phase commit,
+[00:13:03] and the protocol, basically two protocol, that we talked about in the last lecture.
+[00:13:10] And so what I'd like to do first is talk about read-write transactions
+[00:13:15] and then talk in more detail how read-only transactions are executed,
+[00:13:21] so that they can run very efficiently.
+[00:13:27] Okay, so read-write transactions
+[00:13:29] you know basically 2-phase locking and 2-phase commit.
+[00:13:33] So hopefully this is pretty easy to understand,
+[00:13:43] and there going to involve these sort of complex timing diagrams,
+[00:13:46] that we looked at last week.
+[00:13:49] And so the way it's set up
+[00:13:52] and I'm going to simplify a bit,
+[00:13:54] looking at the way it's set up in Spanner,
+[00:13:57] is we have the client,
+[00:13:59] and the client is sort of in charge of really running the transaction
+[00:14:03] and use the transaction manager, transaction library,
+[00:14:07] actually runs on the client machine,
+[00:14:11] and in charge of basically you know orchestrate this transaction,
+[00:14:16] and again the client here is not you know the user web browser or Gmail,
+[00:14:20] but basically the servers, server on, the Gmail server in the data center,
+[00:14:25] that's the client of Spanner.
+[00:14:28] And so let's make the picture reasonable simple,
+[00:14:30] so we have two shards instead of three or five,
+[00:14:34] so we have shard A and we have shard B.
+[00:14:38] And let's assume we're going to just execute the transfer transaction,
+[00:14:43] the same one as before,
+[00:14:44] we're going to deduct some money from one account,
+[00:14:46] then add it to another account.
+[00:14:49] And initially, I'm going to talk about this without the timestamps,
+[00:14:58] in some ways, you know the one reason to do so is that,
+[00:15:01] actually for the read-write transaction, timestamps are not very important,
+[00:15:05] the timestamps actually are mostly there for read-only transactions,
+[00:15:08] and they need a little tweaking to the read-write transactions
+[00:15:11] to support the read-only transactions,
+[00:15:13] and therefore the timestamps are sort of in drifting to read-write transactions too,
+[00:15:20] but in essence, you know the read-write transactions are
+[00:15:22] basically straight 2-phase locking and 2-phase commit.
+[00:15:27] So the client is going to reads these accounts,
+[00:15:29] for example, let's assume that you know read x,
+[00:15:33] so we just gonna do the transfer transaction,
+[00:15:36] from moving money, adding 1 to x,
+[00:15:39] you know subtracting, subtracting 1 dollar from x
+[00:15:43] and adding a dollar to y,
+[00:15:45] it's going to be x,
+[00:15:46] and let's assume that x sits in one shard,
+[00:15:48] so it's going to be a cross shard transaction,
+[00:15:51] and and you have to read of y,
+[00:15:56] and, there's gonna be,
+[00:16:01] when the client executes these read operations,
+[00:16:05] they go to the shards and shards actually keep lock table,
+[00:16:10] and so they record basically this transaction,
+[00:16:13] you know so let's say this is transaction, whatever TID,
+[00:16:17] and they're gonna record that you know the x is owned you know,
+[00:16:22] lock table actually owned by the client,
+[00:16:24] you know and here is y owned by the client,
+[00:16:28] and that sort of a very standard you know we've seen before.
+[00:16:33] You know the thing that is slightly different here,
+[00:16:35] and not fully drawing it out here is that,
+[00:16:39] when we're talking to one shard A,
+[00:16:41] shard A is really one of these Paxos groups,
+[00:16:45] and so it has you know three,
+[00:16:48] in this case, you know a group of three peers,
+[00:16:52] and so SA really a replicated servers consisting of multiple peers,
+[00:16:59] in when executing read-only transaction,
+[00:17:02] we're gonna be talking to the leader of that peers,
+[00:17:04] so if you think in terms of Raft style,
+[00:17:05] you can just think about it,
+[00:17:07] the read request goes to the leader of the Paxos group.
+[00:17:14] And, another,
+[00:17:16] so every time I sort of draw this one single arrow here for SA or for SB,
+[00:17:22] you know it's a much more complicated story,
+[00:17:25] particularly when writes get involved,
+[00:17:27] because writes actually going to go through the Paxos or Raft group.
+[00:17:33] The read-only or lock tables actually not replicated,
+[00:17:37] it is stored at the leader of the Paxos group,
+[00:17:43] and if the leader goes down during the transaction,
+[00:17:46] then you know basically the transaction has to be restarted,
+[00:17:50] where the transaction will be aborted,
+[00:17:52] because the lock information is lost.
+[00:17:55] The reason that these lock table is not, is not the replica,
+[00:18:04] this is make read operation fast.
+[00:18:06] Okay, so once you know the client actually has gotten the values of x and y,
+[00:18:13] and it's taken out the locks you know sort of 2-phase locking style,
+[00:18:17] the it's gonna subtract one from x, you know add one you know to y,
+[00:18:24] and then basically going to submit the transaction.
+[00:18:27] So basically all the writes are done locally at the client,
+[00:18:31] again so this is the Gmail server,
+[00:18:34] and one [] thing is,
+[00:18:36] when the client is done with transaction,
+[00:18:38] it submits transaction to to Spanner,
+[00:18:42] and it submits to a transaction coordinator,
+[00:18:49] so some you know set of servers you know or some machines
+[00:18:53] you pick as the transaction coordinator,
+[00:18:55] and again the transaction coordinator is Paxos group,
+[00:18:59] as I said, it's multiple pears in different data centers.
+[00:19:04] And one reason we want this to be a Paxos group is,
+[00:19:08] so that as we've seen before,
+[00:19:10] in 2-phase protocol or the 2-phase commit,
+[00:19:13] that if the coordinator fails,
+[00:19:16] it might actually block the participants, right,
+[00:19:19] if participants have prepared and agreed to go along with the transaction,
+[00:19:23] but then the coordinator fails,
+[00:19:25] you knwo those participants have to hold on to their locks,
+[00:19:27] and have to wait until the coordinator comes back,
+[00:19:31] by replicating the coordinator using Paxos,
+[00:19:34] and we make the coordinator highly available,
+[00:19:37] and so basically avoid that particular sort of disaster scenario.
+[00:19:43] Okay?
+[00:19:44] So the transaction coordinators,
+[00:19:46] then basically in charge of running the 2-phase commit protocol,
+[00:19:50] and so it will send you know the updates for x and y to the leader of shard A,
+[00:19:58] x y to the leaders of shard B,
+[00:20:03] the they you know grab the locks,
+[00:20:05] you know in this case, you know,
+[00:20:06] you know they already hold the locks,
+[00:20:09] or promote locks write, read-write locks,
+[00:20:12] and basically prepare you know transaction,
+[00:20:16] so they don't really execute it yet,
+[00:20:17] but just make the, you know typically using write-ahead logging,
+[00:20:22] you know prepared to changes,
+[00:20:24] and if everything is okay,
+[00:20:25] then they basically commit to the transaction
+[00:20:29] by entering sort of this prepared state,
+[00:20:35] and this is sort of a big moment,
+[00:20:38] because at this point,
+[00:20:39] the transaction is appears,
+[00:20:41] when participants are committed to this transaction,
+[00:20:45] and we know from last lecture,
+[00:20:46] you know the participants do actually have to record state,
+[00:20:50] so that if they fail and they come back up,
+[00:20:52] they can recover and pick up from where they left off,
+[00:20:55] so, at the prepared state,
+[00:20:58] basically this results into a Paxos write,
+[00:21:04] you know recording the state of the transaction and 2PC state
+[00:21:13] the logs that participate holding, etc etc,
+[00:21:18] and so this Paxos write,
+[00:21:21] so the leader of this particular shard,
+[00:21:23] there's a [push] Paxos write across you know the different peers in the group
+[00:21:28] to ensure that state is replicated, fault tolerant,
+[00:21:33] so once you know the, the participants have prepared and agreed to prepared,
+[00:21:41] then you know they sent back ok,
+[00:21:43] you know, ok, this is very similar 2-phase protocol that we talked before,
+[00:21:49] and at this point, you know the coordinator can commit,
+[00:21:55] and of course the point to commit,
+[00:21:57] the coordinator with some record actually made the commit decision,
+[00:22:01] because that participants may come back later,
+[00:22:03] and want to know and find out about it,
+[00:22:04] and we might have failures,
+[00:22:06] so again the Paxos state or the PC 2-phase commit state
+[00:22:11] is written to using Paxos and replicated using Paxos.
+[00:22:19] And from this whole presentation,
+[00:22:21] you can just think about Paxos as
+[00:22:23] being complete substitute or equivalent to Raft,
+[00:22:25] you know Spanner predates Raft,
+[00:22:30] but like you know for perceptually and you know through [],
+[00:22:34] you know for this paper is basically the same.
+[00:22:38] So this point is actually commits,
+[00:22:40] this you know is really commit,
+[00:22:42] which once transaction coordinator has written down the transaction is committed,
+[00:22:48] that is actual commit point,
+[00:22:50] and then informs you know their participants,
+[00:22:53] you know that has happened,
+[00:22:59] and you know they're going to respond back, you know ok, great, transaction is committed,
+[00:23:03] and the transaction coordinator can clean up its state,
+[00:23:05] and at some point later, the shards can also clean up their state,
+[00:23:10] and that at the point of commit and the participants release their locks.
+[00:23:26] Okay, so that is sort of the basic story for read-write transactions,
+[00:23:31] and so any questions about this?
+[00:23:34] And I think the simple way to think about is,
+[00:23:37] this is two-phase commit, two-phase locking,
+[00:23:39] with the main difference between what we talked about last week,
+[00:23:43] and this week is that,
+[00:23:45] the participant, the transaction coordinator, the participants are all Paxos groups,
+[00:23:51] so they replicated highly available,
+[00:23:53] and some of the problems that we talked about the two-phase commit last time
+[00:23:57] are less, less relevant here,
+[00:23:59] because the participants are much more highly available.
+[00:24:04] So the each shard is replicating the lock table or not?
+[00:24:10] Yeah, well, it's not replicating the lock table,
+[00:24:13] it's replicating the lock that's holding when it does the prepare.
+[00:24:17] So only the lock when it's that it's holding during.
+[00:24:20] Yeah, the state that it needs to do two-phase commit.
+[00:24:26] So then they like the current locks for some transaction,
+[00:24:31] that hasn't reach the prepared stage,
+[00:24:34] it will, they just lost?
+[00:24:36] They will be lost and then the transaction will abort,
+[00:24:39] participant does not participate,
+[00:24:42] and tell the coordinator hey I lost my locks to that, can't do it.
+[00:24:47] Thank you.
+[00:24:50] Okay, so that the rest of this lecture is about the read-only transactions,
+[00:24:55] and, so these transactions are only do reads no writes,
+[00:25:09] and they are common,
+[00:25:11] and so one of the goals is to actually make them very fast.
+[00:25:19] And the way, there, the way they achieve you know high performance is
+[00:25:25] they gone arrange that the reads,
+[00:25:27] Spanner makes high performance,
+[00:25:28] because reads are only for local shards,
+[00:25:38] and they have no locks,
+[00:25:43] and no lock is good,
+[00:25:44] because it means that read-write transactions can block the read-write transactions,
+[00:25:48] or another way saying is, read-only transactions can't block read-write transactions,
+[00:25:52] and no no two-phase commit,
+[00:25:57] and so that means also no wide-area communication necessary,
+[00:26:00] and so that the reads can definitely execute from a local replica.
+[00:26:05] And you know also see of course,
+[00:26:07] you know this is the read from a local shards,
+[00:26:10] the the real challenge here is
+[00:26:12] like how to still get consistency or you know serializability,
+[00:26:18] but it's important to point out, you know,
+[00:26:20] but for a moment you know assume,
+[00:26:23] that we know how to do this,
+[00:26:24] you know we could,
+[00:26:25] then reading from only local shard, holding no locks, not doing two-phase commit,
+[00:26:31] means that all the communication is local
+[00:26:33] within within that particular data center,
+[00:26:36] and it can be very fast,
+[00:26:38] then if you look at the end in table 3 and 6 in the paper,
+[00:26:45] you basically see that,
+[00:26:47] basically you know read-only transactions
+[00:26:52] are ten times faster than read-write transactions,
+[00:26:56] read-write transactions are in the order of hundreds of milliseconds,
+[00:26:59] which sort of makes sense,
+[00:27:00] because they have to communicate long distance,
+[00:27:04] and but read-only transactions on a new order of 5 to 10 milliseconds.
+[00:27:13] Okay, so the key challenge of course is always going to be,
+[00:27:16] we execute local replica, how to get correctness.
+[00:27:21] So let me talk a little bit about it,
+[00:27:23] because it's slightly different than what we've seen before,
+[00:27:27] so correctness means two things here,
+[00:27:29] one, you know that transactions are serializable,
+[00:27:33] so they must execute in some serial order,
+[00:27:36] so if you think about it,
+[00:27:37] we have a read-write transaction,
+[00:27:39] and we have another read-write transaction,
+[00:27:43] then we have a read-only transaction,
+[00:27:45] you know the read-only transaction has to
+[00:27:46] sort of fit between the two read-write transactions,
+[00:27:49] and read-only transaction should not observe
+[00:27:51] some part of the read-write transaction,
+[00:27:55] so the read-write transactions does multiple writes, like the first one,
+[00:27:59] then the read-only transaction you know see all those writes or none of them,
+[00:28:03] and similarly for the one that actually is [].
+[00:28:06] Okay?
+[00:28:07] So the second,
+[00:28:08] this is a standard thing that we talked about last week, serializability,
+[00:28:12] and then would they go for something stronger,
+[00:28:15] and what they call external consistency,
+[00:28:25] and external consistency means that,
+[00:28:27] if transaction 2 start after transaction 1 has committed,
+[00:28:36] then you know T2 must see T1's write.
+[00:28:48] So we'll go back into this previous picture,
+[00:28:50] like if read-only transaction,
+[00:28:53] this one started after the first transaction committed,
+[00:28:57] then this read-only transaction must see the reads, the writes of that transaction T1,
+[00:29:05] and, and so the idea is, if you think about this,
+[00:29:10] basically this sort of external consistency means
+[00:29:13] serializability plus this real-time requirement,
+[00:29:16] and in fact you know it is very similar to linearizability,
+[00:29:29] except you know the one way
+[00:29:33] to contrast external consistency for transactions with linearizability is that,
+[00:29:38] external consistency really transaction level property,
+[00:29:41] and the way we've been talking about linearizability so far,
+[00:29:44] and always has been sort of individual reads and writes,
+[00:29:47] and but to the first order,
+[00:29:51] you know I think you should think about exactly the same way.
+[00:29:54] And like linearizability,
+[00:29:56] external consistency is pleasant for programmers,
+[00:29:59] is very strong consistency property.
+[00:30:06] Okay, any questions,
+[00:30:07] about the correctness definition there
+[00:30:09] or the correctness goal that the Spanner has?
+[00:30:18] Okay.
+[00:30:19] Okay, let's then talk about,
+[00:30:20] how to actually achieve this correctness for read-only transactions.
+[00:30:24] And let me start out by explaining a bad plan that actually doesn't work,
+[00:30:28] and then we're going to talk about a better plan.
+[00:30:34] So the bad plan is,
+[00:30:35] we're going to read,
+[00:30:37] you know arrange that we read always the latest committed value,
+[00:30:44] that seems about write, right,
+[00:30:47] because we have to arrange that if T2 starts after T1 committed,
+[00:30:52] we'll see, you have to see it's writes,
+[00:30:53] so why not read the latest committed value,
+[00:30:55] then we should be, maybe we're good.
+[00:30:58] So here is the,
+[00:30:59] the problem case of course it doesn't actually work,
+[00:31:03] so T1, maybe T1 does a write of x, does write of y, does transfer commits,
+[00:31:14] then you know we have another transaction,
+[00:31:17] we have transaction T3,
+[00:31:19] or t3 is the read-only action,
+[00:31:20] it actually does a read of x,
+[00:31:23] so this is sort of real time,
+[00:31:25] and then after T2,
+[00:31:27] then after T1 T3 starts,
+[00:31:29] T2 runs, runs [],
+[00:31:33] [] the write of x, the write of y, commits,
+[00:31:36] and then you know T3 get a little bit delayed,
+[00:31:38] and then actually does second read read of y,
+[00:31:43] sort of time you know as usual going that way.
+[00:31:50] And you know if you're following the read the latest committed value,
+[00:31:56] then what is this really going to return,
+[00:31:58] it's going to return the value from this transaction T1,
+[00:32:02] and this read is going to return the value of y from that transaction,
+[00:32:07] because you know that's the latest commited value.
+[00:32:10] And that would be wrong, right,
+[00:32:19] because now we're actually in a situation,
+[00:32:21] where basically you know T3 observes the writes you know from different transactions,
+[00:32:26] and not get a consistent [].
+[00:32:30] So, so this rule is not good enough,
+[00:32:33] and to avoid this problem and not use this bad plan,
+[00:32:39] Spanner uses a different plan,
+[00:32:41] and that's plan is called snapshot isolation,
+[00:32:54] this actually is a standard database idea,
+[00:32:57] and mostly sort of local databases,
+[00:33:03] not actually across the wide-area,
+[00:33:06] and so we'll talk about in the sort of wide-area aspect in a second,
+[00:33:11] but just let me first explain what's snapshot isolation is.
+[00:33:14] And so what snapshot isolation does is,
+[00:33:16] we're going to assign a timestamp to a transaction,
+[00:33:27] and you know there's two different points, we're gonna assign timestamps,
+[00:33:33] for read-write transactions, it's gonna be you know the commit started to commit,
+[00:33:41] and for read-only transactions, it is going to be the start of the transactions,
+[00:33:49] and then we're gonna execute all operations, transaction in timestamp order,
+[00:34:02] I will explain in a second, but what I mean that,
+[00:34:05] and be able to execute all the operation in timestamp order,
+[00:34:09] you know each replica,
+[00:34:12] this is store one value for a particular key,
+[00:34:16] replica actually stores multiple values for key namely with their timestamp,
+[00:34:35] so for example at a particular replica,
+[00:34:36] we can ask, please give me the value of x at time 10
+[00:34:40] or give me the value of timestamp x at 20,
+[00:34:45] and so sometimes this is called multi version databases or multi version storage,
+[00:34:50] you know what basically keep,
+[00:34:51] for every update, you know basically keep a version of the data item,
+[00:34:55] so you can go back in time.
+[00:34:58] And, so this fixes you know the problem that I showed in the first case,
+[00:35:03] because basically what's going to happen,
+[00:35:05] let's look at the three transaction again,
+[00:35:07] so we got T1, we've got T2, we got T3,
+[00:35:12] T1 just write one, you know there's a write, write of x, write of y, [] commit,
+[00:35:19] let's say the commit actually happens at you know 10,
+[00:35:24] so this transaction basically runs at timestamp 10,
+[00:35:28] then you know at some point,
+[00:35:32] we're going to get read of x,
+[00:35:33] we'll talk about that in a second,
+[00:35:35] and here we have this other transaction,
+[00:35:37] we get the write of y,
+[00:35:40] the write, sorry write x, write y, the commit,
+[00:35:45] let's say this transaction commit at timestamp 20,
+[00:35:48] just run basically at that timestamp
+[00:35:53] and then we have to read of x,
+[00:35:54] and we have the read of y,
+[00:35:56] now when the read of x happens,
+[00:35:58] it's going to be assigned to timestamp starting time, time of transaction,
+[00:36:02] so starting times,
+[00:36:04] let's say the starting time of this transaction is 15,
+[00:36:08] so T2 runs at 15,
+[00:36:13] and so when the read of x is executed,
+[00:36:16] it needs basically to read the latest value of x, after, after, before 15,
+[00:36:26] and you know to do that, you know the latest committed value for timestamp 15,
+[00:36:32] before timestamp 15 is going to be times the the values from this transaction.
+[00:36:39] So read x, reads the value of transaction 1,
+[00:36:42] but of course, read y also will execute at the timestamp of the start of the transaction,
+[00:36:47] so it's going to also read y at that time at 15,
+[00:36:51] and you know there's going to be only one value for y 15,
+[00:36:54] namely that is the one produced by the transaction T1,
+[00:36:58] and so read one, read y will also reads from T1,
+[00:37:04] and so we avoid this problem that we had before,
+[00:37:07] where we read from different transactions.
+[00:37:11] And so this gives the linearizability or serializability that we're looking for,
+[00:37:16] all the transactions are executed in a global timestamp order.
+[00:37:23] Does that make sense?
+[00:37:26] So what you can think about is that,
+[00:37:27] every replica basically keeps a table,
+[00:37:31] write of values and timestamps,
+[00:37:33] and so we're gonna have like x at value 9@10
+[00:37:40] and x at value 8@20.
+[00:37:45] And so when the read comes in you know at a particular replica,
+[00:37:48] you know reads 15 comes in,
+[00:37:49] I can just pick out you know the latest write you know preceding its timestamp.
+[00:37:57] So I have a question,
+[00:37:58] so when we do the read x,
+[00:38:00] let's say, so let's just focus on read x,
+[00:38:02] so x itself exists on some shard,
+[00:38:05] which is replicated on a Paxos group,
+[00:38:08] which let's say you know there are like three servers that replicate x,
+[00:38:13] and when you read from x,
+[00:38:14] because we want to read-only transactions to be very fast,
+[00:38:16] we just read from the local replica,
+[00:38:19] which need not necessarily be the leader,
+[00:38:22] so like how do we guarantee that we don't read the stale,
+[00:38:26] how do that we don't make a stale?
+[00:38:28] You know brilliant question,
+[00:38:30] and that's exactly the topic I want to talk about next.
+[00:38:35] The problem as you point out,
+[00:38:38] you know there's a challenge,
+[00:38:40] that maybe the replica hasn't seen,
+[00:38:46] hasn't seen the write to x at timestamp whatever 10, right,
+[00:38:54] and so the way you know this problem solved in the Spanner,
+[00:39:01] the solution they called something that's called "safe time",
+[00:39:10] and, so the way this result is that,
+[00:39:13] basically Paxos or Raft you know sends all writes also in timestamp order,
+[00:39:25] so there's not,
+[00:39:26] you know you can think about the total order is now a counter,
+[00:39:30] as usual for example maybe in lab, lab 3,
+[00:39:36] but it actually is literally a timestamp,
+[00:39:38] and since the timestamp also form global order,
+[00:39:41] that global order of timestamps you know sufficient to order all the writes.
+[00:39:45] And then there's a rule,
+[00:39:47] there's an additional rule for read,
+[00:39:50] before you do read,
+[00:39:53] so before read of x at you know timestamp 15,
+[00:40:01] the replica has to wait for write, that is with timestamp bigger than 15,
+[00:40:12] this sees write with timestamp bigger than 15,
+[00:40:15] it knows that there's certainly no writes anymore before 15,
+[00:40:18] and so therefore safe to execute the read at timestamp 15,
+[00:40:23] and know what value actually needs to be returned.
+[00:40:27] And so for services that are,
+[00:40:29] so this means that,
+[00:40:30] the read actually may have to get a delayed a little bit, until the next write,
+[00:40:33] you know of course for busy servers,
+[00:40:34] these writes will come along all the time,
+[00:40:36] and so that wait probably non-existence or almost non-existence.
+[00:40:41] Okay?
+[00:40:42] But this is the rule that needs to be followed,
+[00:40:44] to make sure that indeed this problem,
+[00:40:46] of replica actually have not seen the write yet returning the wrong value.
+[00:40:52] The real slightly more complicated,
+[00:40:54] you also have to wait,
+[00:40:57] also wait for transactions that have prepared but not committed,
+[00:41:19] for example, this transaction might have been prepared, basically you know timestamp 14,
+[00:41:25] but it hasn't maybe committed write yet you know to the key value store,
+[00:41:30] and so we got to make sure that,
+[00:41:31] you know any transaction that was prepared before our read timestamp,
+[00:41:37] that actually commits before we actually return the value of the read.
+[00:41:41] Okay?
+[00:41:44] Does this make sense?
+[00:41:47] Would this also be the case for different shards,
+[00:41:51] do we consider different shards separately?
+[00:41:56] The read just hit the local shard, right, the local replica,
+[00:42:05] so I'm not hundred percent sure what the question you ask me.
+[00:42:08] I think I think the question I'm asking is,
+[00:42:10] the correctness guarantees do they apply across shards?
+[00:42:17] Yes, you know they apply the level of transactions, right,
+[00:42:20] so so if a read-only read a local replica,
+[00:42:24] we still have to make sure that the transactions are extremely consistent,
+[00:42:28] and by following these rules, we achieved that goal.
+[00:42:32] Okay, make sense, thank you.
+[00:42:37] Okay, now, we're going to sort of the core part of the Spanner paper,
+[00:42:46] which is really to be,
+[00:42:47] we want to reason about time, like timestamps,
+[00:42:51] in this case, then you know the clocks,
+[00:42:53] you know different servers must be, clock must be good,
+[00:43:01] it must be perfect,
+[00:43:02] people must, you know different participants must agree on the timestamp order,
+[00:43:06] and if the transaction takes a particular timestamp,
+[00:43:10] you know that timestamp must be the sort of same timestamp everywhere in the system,
+[00:43:14] so, and so the way I've described it in previous slides,
+[00:43:21] you know whatever participants picks the the read transaction,
+[00:43:25] assigns a timestamp to like 15,
+[00:43:27] which maybe go back a little bit,
+[00:43:29] you know here you know we're just assigning timestamp to these transactions,
+[00:43:34] and it better be the case,
+[00:43:35] that like actually T1 and T2 T3 agree on these timestamps,
+[00:43:40] and that they are comparable,
+[00:43:42] and so as we'll see in a, in a second,
+[00:43:47] this only matters really for read-only transactions,
+[00:44:05] and we can you know consider the two cases,
+[00:44:09] like what happens,
+[00:44:10] here's a question that we want to ask is,
+[00:44:12] what happens is like one replica or one server just has the wrong time, right,
+[00:44:16] and so it doesn't agree with the time that the other servers,
+[00:44:20] what kind of problems could introduce,
+[00:44:23] so let's first think about the case,
+[00:44:25] what the timestamp is too large?
+[00:44:33] So, for example you know, let's go back to our version here,
+[00:44:37] with this case,
+[00:44:39] so let's say the read-only transaction starts reading,
+[00:44:43] and it reads actually instead of you know 15,
+[00:44:49] maybe whatever the value returns actually is 25,
+[00:44:56] and what would that do,
+[00:44:59] or let make it a little simpler you know 18,
+[00:45:04] to get less confusion,
+[00:45:06] you know what, what is the outcome of actually having timestamp that is off,
+[00:45:10] but off in the direction of being too large.
+[00:45:16] It's still less than 25,
+[00:45:17] does it still read [] than 20,
+[00:45:20] does it still read from the first one,
+[00:45:23] but if it's later,
+[00:45:24] it'll read from the second one.
+[00:45:26] Yeah, which either one is fine, correct,
+[00:45:28] the real key issue here is that,
+[00:45:31] you know before reading, remember, you have to wait until you see a write, right,
+[00:45:36] so if you are,
+[00:45:36] so what happens if your timestamp is too large,
+[00:45:40] we're off to the too large side.
+[00:45:42] You have to wait for.
+[00:45:45] Yeah,you have to wait,
+[00:45:47] a little longer maybe,
+[00:45:49] nothing goes wrong.
+[00:45:55] So now the other question is,
+[00:45:58] what if the timestamp is too small,
+[00:46:04] so for example the read,
+[00:46:06] when the T3 the machine that executes T3 you know ask for the time,
+[00:46:10] instead of time 10, actually gets back you know say 9,
+[00:46:14] then this is a variation of the lecture question,
+[00:46:18] so basically like T3 runs at 9.
+[00:46:23] And maybe this is a good time for actually to take a breakout room,
+[00:46:27] and you can think and argue, what, what is the outcome,
+[00:46:30] what is the potential outcomes,
+[00:46:32] you know or what could go wrong,
+[00:46:34] if actually the timestamp that got assigned at T3 is 9 instead of 10.
+[00:46:44] So maybe we can do a breakout room,
+[00:46:45] Lily, would that be possible,
+[00:46:49] okay, I think Lily is back soon,
+[00:46:59] hold on a second here.
+[00:47:18] Okay, anybody else getting that noise?
+[00:53:43] Okay, everybody back and everybody can hear me again?
+[00:53:47] Yep.
+[00:53:52] We're all good?
+[00:53:57] Assume we're all good.
+[00:54:00] Yes, yes, we're good.
+[00:54:01] We're all good.
+[00:54:04] Okay, okay, so back, you know so this question here,
+[00:54:09] usual we're investigating, we're relying on scheme,
+[00:54:13] where the clocks on different machines are perfectly synchronized,
+[00:54:16] as I mentioned, matters only for read-only transactions,
+[00:54:21] because read-write transactions you know grab logs
+[00:54:23] and use two-phase locking to get a total order,
+[00:54:26] so they were executing some serializable, external consistent order,
+[00:54:31] where we see that for read-only transactions, the timestamps crucial,
+[00:54:37] at least, we think it's crucial,
+[00:54:38] for if they're too large,
+[00:54:39] you know not maybe just affect performance negatively,
+[00:54:42] but the question is what happens if the timestamp is too small,
+[00:54:46] and so the particular question we're asking is,
+[00:54:50] like what, what would happen,
+[00:54:51] if in the scenario, that we looked at a second,
+[00:54:58] where we have transactions you know T1,
+[00:55:01] actually I wrote this wrong, you know T2 and T3,
+[00:55:04] or t3 is doing the read,
+[00:55:06] and this read instead of actually happening maybe at 15,
+[00:55:12] and it actually happens,
+[00:55:14] you know because the clock you know 3 wrong,
+[00:55:17] it actually happens at 9,
+[00:55:20] and you know how bad would that be?
+[00:55:28] Break our serializability.
+[00:55:31] Anybody?
+[00:55:32] Okay, looks like,
+[00:55:34] okay, sorry, I didn't hear you,
+[00:55:36] because I actually had some problem on my side tonight,
+[00:55:39] I can hear you I think,
+[00:55:41] can you repeat the answer?
+[00:55:42] Sorry, I said it would break serializability.
+[00:55:45] Yeah, why?
+[00:55:46] Because then here here read would happen,
+[00:55:50] would assume to be happening after your latest write,
+[00:55:54] would then happen before which you wouldn't yield the the write.
+[00:55:57] Yeah, so just make the story complete,
+[00:56:00] you know T3 really is executing at time 15, right,
+[00:56:05] which is after T2 T1 committed,
+[00:56:09] so, T3 must see T1's write,
+[00:56:12] but if the clock is wrong,
+[00:56:14] and timestamp 9 got assigned to to T3,
+[00:56:18] and T3 will actually read the value of x before transaction T1 executed,
+[00:56:26] and that will be wrong,
+[00:56:27] that will break external consistency.
+[00:56:33] Okay?
+[00:56:34] Everybody clear on that?
+[00:56:51] Okay, so clearly we'd like to avoid this,
+[00:56:54] and and sort of the central problems,
+[00:56:58] the [] is how do we get clocks,
+[00:57:02] how do we keep clocks synchronized.
+[00:57:04] Oh, wait, I just have one more question about.
+[00:57:07] So this scenario basically can happen,
+[00:57:10] because it's always the coordinator for read-write transaction that assigns the timestamp,
+[00:57:18] so even if the read is local and it happens on,
+[00:57:22] so it's possible for the machine that was running behind
+[00:57:25] to have a version, that's in the future of its local clock.
+[00:57:31] Yeah, or in the past, that in the future, yeah.
+[00:57:36] Okay, and that can happen,
+[00:57:37] because it's not at machine who decided the timestamp.
+[00:57:41] No, okay, so forget about which machine it is,
+[00:57:43] like T3 is going to decide on the timestamp for transaction, right,
+[00:57:48] we go back here to this picture,
+[00:57:51] so here we got T3,
+[00:57:53] so T3 starts
+[00:57:56] and T3 starts in principle a absolute time in true time after 10, right,
+[00:58:04] because T3 starts after T1,
+[00:58:05] as we can see from this picture,
+[00:58:08] so this particular read x you know,
+[00:58:10] and so we assign the timestamp to read-only transaction,
+[00:58:14] we start, we assign the timestamp for read-only transactions,
+[00:58:16] at the point of the start of transaction,
+[00:58:19] so the read of the x is the start of the transaction for T3,
+[00:58:22] T3 basically needs to get the timestamp,
+[00:58:25] so it asks you know please give me the current value of its clock,
+[00:58:28] and you know if you know the clock is reliable and correct,
+[00:58:32] you know it will give back you know some time after 10 for sure,
+[00:58:36] because T3 started after 10,
+[00:58:39] but let's you know we were hypothesizes that the clock of T3 is not,
+[00:58:44] you know clear [] synchronized,
+[00:58:46] and the clock actually return 9,
+[00:58:49] and so now transaction 3 will execute timestamp 9,
+[00:58:54] and that will cause you to read the value from before T1,
+[00:58:58] and that will break external consistency.
+[00:59:04] Okay, but if, if the,
+[00:59:08] if the replica which we execute the T3 had the,
+[00:59:17] it may have the version 10 of variable x, right?
+[00:59:25] It might,but you know it's executing transaction at time 9,
+[00:59:29] so we'll get the value for before 10, this version [memory].
+[00:59:32] Yeah, yeah.
+[00:59:33] Yep?
+[00:59:36] Yeah.
+[00:59:36] Just making sure this is a very good question,
+[00:59:37] I think this very important point to get crystal clear what's going on here.
+[00:59:43] Okay, so so I think we're now hopefully on the same page,
+[00:59:46] you know it's very important,
+[00:59:48] that these clocks at different machines are perfectly synchronized,
+[00:59:52] and of course you know it's not possible to get perfect clock synchronization,
+[00:59:57] and sort of a couple of difficulties,
+[01:00:02] it's difficult to get clocks synchronization,
+[01:00:04] because of clocks naturally drift,
+[01:00:09] and so you know when you think,
+[01:00:11] it's you know whatever 10pm and plus one microsecond,
+[01:00:14] you know my machine might think,
+[01:00:17] it's you know 10pm and two plus two microseconds,
+[01:00:21] and just basically because you know they're sort of in your machine or in the servers,
+[01:00:26] that oscillators you know that keep track of time,
+[01:00:28] they are supposed to run at a particular frequency,
+[01:00:33] but the frequency you know it's not perfect,
+[01:00:35] you know and better clocks,
+[01:00:37] you know atom clocks you know have better oscillators, that are much more precise,
+[01:00:43] and as sort of the kind of clocks that Spanner is sort of relying on,
+[01:00:48] that you know pretty high precision,
+[01:00:50] but there's still they need to
+[01:00:51] synchronize once in a while with common you know global time,
+[01:00:56] so to avoid the problem of drift,
+[01:00:59] you know pretty precise clocks, they use atomic clocks,
+[01:01:05] which are more precise than like the clocks in your computer,
+[01:01:08] and then they synchronize with global time,
+[01:01:14] so to make sure like all clocks sort of agree on the global time,
+[01:01:19] and then they sort of keep ticking ticking ticking
+[01:01:22] and then resynchronized periodically,
+[01:01:25] synchronized clocks and with global time,
+[01:01:28] and they use GPS global position system that broadcast time,
+[01:01:34] as a way to synchronize these different atom clocks,
+[01:01:38] and then keep them running in sync.
+[01:01:41] And so it looks like,
+[01:01:43] the paper doesn't really say too much about actually how the true time system works,
+[01:01:48] but it looks like,
+[01:01:49] they have maybe few or one atomic clock per data center,
+[01:01:54] servers you know synchronize,
+[01:01:55] you know with that, time server to regularly
+[01:01:59] synchronize their local clocks with that time master
+[01:02:03] and different time master in the different data centers,
+[01:02:05] you know synchronize themselves through the GPS system.
+[01:02:11] But and so as a result,
+[01:02:14] the clocks are actually on the different servers are pretty close,
+[01:02:17] in terms of you know they talk about the ε
+[01:02:20] you know what the error rate is,
+[01:02:22] and so it seems like the ε for their clocks,
+[01:02:25] you can look at one of the tables at the end of the paper,
+[01:02:28] is in the order of a few microseconds to you know a few milliseconds.
+[01:02:35] And so when a machine reach,
+[01:02:38] you know ask the operating system, please give me what the current time is,
+[01:02:42] the current time that gets returned maybe a few microseconds off from ture time
+[01:02:48] or even a few milliseconds off from true time.
+[01:02:53] Okay?
+[01:02:55] So there's a bit of.
+[01:02:56] [], yeah, go ahead before.
+[01:02:58] Yeah so, so like the paper,
+[01:03:01] as you mentioned, we did not really go into that,
+[01:03:04] but just like the process of synchronizing the clocks
+[01:03:07] or even measuring how different they are.
+[01:03:09] Yeah.
+[01:03:10] I mean, shouldn't we also account for the time of the message travel, I mean.
+[01:03:14] Yeah, yeah, I think that's what they mean,
+[01:03:16] I'm sorry, I didn't say much about this,
+[01:03:18] but that's what they mean,
+[01:03:19] so they sort of keep a running estimate about what they think,
+[01:03:21] you know the for example to synchronize with the time master,
+[01:03:25] the presumably the time library on the local machine
+[01:03:28] keeps track of the start to make an estimate,
+[01:03:32] of what is the average delay or normal delay,
+[01:03:36] for sending or receiving a message to the time master,
+[01:03:39] and basically use that to correct for any small mistakes,
+[01:03:45] then they also the protocol clearly have support for outliers,
+[01:03:49] and so [] outliers,
+[01:03:50] I mean something bad happened in the network,
+[01:03:52] and therefore your timestamp got delayed in a lot,
+[01:03:55] so you should not include those,
+[01:03:57] and I guess there's a third problem,
+[01:03:59] which is you know sometimes these oscillators go [kaput],
+[01:04:03] you know just are not correct anymore,
+[01:04:06] and so they may return incorrect values,
+[01:04:08] and so you know again the, they don't talk about the great amount of detail,
+[01:04:12] but it seems those just use similar techniques like ntp
+[01:04:16] to deal with those kinds of problems.
+[01:04:20] I see, thank you.
+[01:04:24] So if you're interested in this kind of stuff,
+[01:04:26] there's protocol called ntp,
+[01:04:28] that actually when your computer and [] uses to
+[01:04:30] actually synchronize its clock with you know global time,
+[01:04:35] and ntp has all these kind of mechanism built into it,
+[01:04:39] but ntp is not,
+[01:04:40] it doesn't have the same position or the same small margins,
+[01:04:45] that actually true time,
+[01:04:49] and so I think ntp could be, you know you should be thinking that,
+[01:04:52] these error rates are in order of you know milliseconds to ten milliseconds,
+[01:04:56] basically it has to do mostly with the roundtrip time.
+[01:05:03] Any further questions about this?
+[01:05:08] Okay, so clocks are not perfectly synchronized,
+[01:05:11] you know there's basically, there's a margin of error,
+[01:05:14] and what basically the true time does is,
+[01:05:17] actually giving true time gives an answer,
+[01:05:21] you know gives you certain best estimated guess
+[01:05:23] of what the current absolute time or true time is
+[01:05:26] plus you know what the machine things is the margin of error.
+[01:05:30] And so, and and so the solution or to solve to deal with this clock drift,
+[01:05:41] is to not use timestamps you know true time,
+[01:05:46] or just just pure timestamps,
+[01:05:48] but basically timestamps are intervals.
+[01:06:00] And so every value return from now, from the current time,
+[01:06:07] basically has the earliest and the latest,
+[01:06:15] and so, for example we ask for the current time,
+[01:06:18] and it is true time is 10am or 2pm,
+[01:06:23] it might return interval,
+[01:06:25] saying well the earliest it could be is you know 1 pm 1:59,
+[01:06:31] and you know 59 seconds and you know whatever 20 microseconds,
+[01:06:38] you know and latest might be you know 2pm and plus you know 2 microseconds,
+[01:06:45] and some machines might be more than a couple of microseconds,
+[01:06:48] some machine might even milliseconds,
+[01:06:50] and I guess some things in the paper,
+[01:06:52] the margin sometimes are in order of 10 milliseconds or multiple milliseconds,
+[01:06:57] but it gives an interval,
+[01:06:59] and it's guaranteed that the true time is within that interval.
+[01:07:04] It's a, is the interval ε or 2ε?
+[01:07:12] The paper doesn't really talk about it,
+[01:07:13] in that sense,
+[01:07:14] it is just an estimate about what the margin of error is,
+[01:07:22] and I think if you look at the details of the protocol,
+[01:07:25] often that margin error [] to 2ε.
+[01:07:33] Okay?
+[01:07:35] Now, to deal,
+[01:07:36] so now we need to adjust our protocols, right,
+[01:07:40] because our protocols have some rules,
+[01:07:41] that setting the start time for timestamp
+[01:07:46] or setting the start time for transaction using a timestamp,
+[01:07:50] and rule for you know reads the way to the next write,
+[01:07:58] and we'll see you know,
+[01:07:59] basically there's a couple of rules that need to be changed
+[01:08:01] to deal with intervals as opposed to with true time.
+[01:08:08] So, first of all the start rule is different,
+[01:08:14] so start rule is,
+[01:08:20] the current time,
+[01:08:22] you know we asked the computer, please tell me the current time is,
+[01:08:25] get interval back,
+[01:08:26] and then the start time that we pick is the latest,
+[01:08:33] and so that just means, correct,
+[01:08:34] whatever timestamp, the start rule actually is [],
+[01:08:38] is guaranteed to be after true time,
+[01:08:43] so we know that true time is in the past,
+[01:08:45] and for read-only transactions,
+[01:08:47] you know this is assign to the start of the transaction,
+[01:08:53] and for read-write transaction,
+[01:08:55] as before, it actually has at the point that the commit starts,
+[01:09:00] so that part doesn't change,
+[01:09:02] the only part that really changes is that,
+[01:09:04] you get the end point of the interval,
+[01:09:06] and we can get the end point of the interval,
+[01:09:08] so that at least true time past, has past.
+[01:09:13] Okay, then there's a second rule that we didn't have before,
+[01:09:19] which is to commit wait rule,
+[01:09:21] and we're gonna delay in transaction,
+[01:09:24] so if the transaction got some timestamp at the commit time,
+[01:09:29] with the start to commit,
+[01:09:30] and then we get to the end of the commit,
+[01:09:33] then we're going to delay that commit,
+[01:09:36] delay commit until the timestamp that was assigned at the starting of the commit,
+[01:09:44] is is the past,
+[01:09:50] oh, my notes are wrong here,
+[01:09:52] hold on one second,
+[01:10:11] we're going to delay until the timestamp is before now.earliest,
+[01:10:26] so we know that actually is definitely before true time.
+[01:10:32] Okay, so so that's sort of the modifications to the protocol,
+[01:10:37] and let's see how that works,
+[01:10:38] with a simple example,
+[01:10:40] get a little more feel for it.
+[01:10:49] So, for example, I'm going to use a slightly simpler than the previous one,
+[01:10:52] I'm just gonna focus on the transaction that does writes x,
+[01:10:56] and we still have 3 transactions,
+[01:10:59] so here's T1,
+[01:11:01] and T1 does write to x and then commits,
+[01:11:06] and, let's you know we don't really care too much about these transactions,
+[01:11:09] so let's say the commit at 1, so true time 1,
+[01:11:15] so now we're gonna run transaction T2,
+[01:11:18] and it's gonna write,
+[01:11:21] yeah, so transaction T2 of course runs after T1,
+[01:11:26] and it writes you know say x2,
+[01:11:29] so here write x1,
+[01:11:31] writes 2 to x,
+[01:11:33] it starts to prepare, which was the beginning of the commit,
+[01:11:36] and so at the beginning of the commit, you know going to ask for a time,
+[01:11:41] and so it's going to get an interval back,
+[01:11:45] and you know we know that true time that's going to get back
+[01:11:50] as some [] lie in that interval,
+[01:11:53] but somewhere in that interval,
+[01:11:54] so the interval in fact you know might you know start well before you know true time,
+[01:11:59] let's say you know interval starts [] at you know 1,
+[01:12:02] which overlaps with the transaction T1,
+[01:12:05] and you know maybe the latest value of true times is, of interval is 10,
+[01:12:10] so that's what it gets back,
+[01:12:12] and what we're going to pick as the timestamp is
+[01:12:15] going to pick this value 10,
+[01:12:20] and we want to pick the latest value,
+[01:12:22] because we want to be absolutely sure that,
+[01:12:24] you know if there's a transaction that started before you know the true time,
+[01:12:30] that you know we pick a time that is definitely after that transaction, that true time,
+[01:12:34] so we're gonna pick 10, which is definitely beyond 1,
+[01:12:37] and so we'll never get confused about this previous transactions,
+[01:12:41] then, at some point,
+[01:12:43] you know, so this transaction you know takes timestamp 10,
+[01:12:47] and the 10 you know might be a little bit further in the future of true time, right,
+[01:12:51] so transaction doesn't prepare,
+[01:12:54] or whatever necessary work you know the two-phase commit,
+[01:12:58] actually hits the real commit point,
+[01:13:00] and there and may have to wait, right,
+[01:13:04] because this is a commit rule,
+[01:13:06] we have to wait a little while,
+[01:13:07] until absolutely sure that 10 exactly in the past,
+[01:13:13] and so this basically the commit time,
+[01:13:16] what you know transaction coordinator will do is,
+[01:13:20] look at commit time,
+[01:13:21] just keep reading its local clock,
+[01:13:23] and we'll keep reading its local clock until it gets an interval back,
+[01:13:26] where the earliest time is past 10,
+[01:13:31] so maybe at some point, you know reading boom boom reading,
+[01:13:34] reading gets actual interval back,
+[01:13:35] and then interval and the interval starts to say at 9 or 7,
+[01:13:39] it keeps reading until it actually gets a value that's bigger than 10,
+[01:13:45] and then we know for sure that true time has passed,
+[01:13:50] and so it safe actually to commit transaction,
+[01:13:56] and so any transaction that now runs after T3
+[01:13:59] will have must run after true time 10.
+[01:14:06] So let's say you know transaction 3 start at some point,
+[01:14:11] and transaction 3 starts after T2,
+[01:14:15] so we have to now make absolutely sure,
+[01:14:17] that we read you know x is 2, is going to read,
+[01:14:20] so it's gonna read x,
+[01:14:23] and and so we will ask for the current time,
+[01:14:31] it's gonna get maybe an interval back,
+[01:14:34] interval might overlap a little bit T2,
+[01:14:39] but you know the true time maybe from this clock is pretty precise,
+[01:14:45] and true time, the interval get back is from 10 to 12,
+[01:14:48] so true time is somewhere between 10 to 12,
+[01:14:51] we know which are basically has to be past you know 10,
+[01:14:54] because you know we're going T3 reads by definition after T2,
+[01:15:00] and that's gonna work out,
+[01:15:03] because basically t T3 is gonna pick its timestamp
+[01:15:08] the end of the interval by the latest rule,
+[01:15:10] so T3 is actually going to run timestamp you know true time 12, if you will,
+[01:15:16] and that will guarantee, correct,
+[01:15:18] that you know this interval we know for sure pass the true time 10,
+[01:15:24] and so when T3 reads you know is going to read x is 2,
+[01:15:30] because it will observe you know the value of transaction 2,
+[01:15:34] because you know the, it's reading well beyond true time,
+[01:15:39] and this must cost a little bit of delay,
+[01:15:41] but hopefully if the clocks are pretty precise,
+[01:15:44] as we talked a little bit earlier,
+[01:15:46] that delay is actually going to be small.
+[01:15:51] Does this make sense?
+[01:15:57] Sorry, I had a question,
+[01:15:59] so if T2 is saying that it's going to start a transaction at time 10,
+[01:16:07] then when we read something do,
+[01:16:11] like in the same transaction,
+[01:16:12] do we also need to make sure that 10 is outside,
+[01:16:16] like before the now interval.
+[01:16:21] The question is,
+[01:16:22] let's say T2 does more than writes,
+[01:16:24] and does reads or writes,
+[01:16:26] you know T2 should observe its own write,
+[01:16:29] is that the question you're asking?
+[01:16:32] T2, like when when we reads,
+[01:16:36] for example is going to read y.
+[01:16:39] Yep, so let's add this to it.
+[01:16:47] Yeah, or yeah after that.
+[01:16:49] Yeah, your way [I really care], before the prepare actually reads y.
+[01:16:55] Okay, let me, yep.
+[01:17:03] And then, oh,
+[01:17:10] okay, this may be.
+[01:17:12] The reason read-write transaction don't really matter that much,
+[01:17:15] because if you go back at the very beginning,
+[01:17:19] at this picture you know the,
+[01:17:22] if a read-write transaction does reads, right,
+[01:17:25] the reads will go to the shard masters or shard leaders,
+[01:17:32] that will [take], if you take read locks out,
+[01:17:34] and the reads are basically,
+[01:17:38] the client executes all the operations locally, right,
+[01:17:41] and so it gets read values,
+[01:17:43] and we'll read the most recent read value,
+[01:17:46] that we got after it locks you know the the lock variable,
+[01:17:52] so basically in read-write transactions,
+[01:17:55] the locks really do all the global ordering,
+[01:17:58] here's the two-phase locking ensures global ordering,
+[01:18:02] and so really the interaction that is interesting is,
+[01:18:05] the interaction between you know the read-only transaction,
+[01:18:08] which is T3 and the read-write transactions.
+[01:18:14] One is T2 actually commit,
+[01:18:17] and we're reading it before it commits.
+[01:18:21] Yeah, so the protocol in read-write transaction is,
+[01:18:24] we're reading right early, we first do all the work,
+[01:18:27] and then we go to the commit phase,
+[01:18:29] so here's like, here's the commit point
+[01:18:32] or here's where the clients like please commit transaction
+[01:18:36] and sends it to the transaction coordinator,
+[01:18:38] and then the transaction coordinator runs the two-phase commit protocol.
+[01:18:42] But you know the all the shards,
+[01:18:45] you know need to have locks,
+[01:18:46] the values that actually that transaction is actually using.
+[01:19:02] Okay?
+[01:19:11] Okay.
+[01:19:12] Alright, so let's try to summarize a little bit.
+[01:19:24] So read-write transactions you know are basically global ordered,
+[01:19:31] or serializable external consistency, serializability plus external consistency,
+[01:19:36] due to the fact that they basically do two-phase commit plus two-phase locking,
+[01:19:43] the read-only transactions are the ones that are special,
+[01:19:46] because they are only contact a local replica,
+[01:19:50] and the reason they actually see you know the correct value is,
+[01:19:54] because of snapshot isolation,
+[01:20:00] each data item is actually versioned,
+[01:20:04] and stamped with the timestamp which actually was modified,
+[01:20:09] and so, you know you can read in the past using snapshot isolation,
+[01:20:15] and then to ensure that,
+[01:20:16] so this snapshot isolation really gives us serializability,
+[01:20:25] but you know Spanner actually shoots for something stronger,
+[01:20:29] namely it actually shoots for this external consistency property,
+[01:20:32] which is like linearizability,
+[01:20:34] so there's real-time component to it,
+[01:20:39] and to actually ensure that we got actually external consistency,
+[01:20:44] we execute the read-only operations in timestamp order,
+[01:20:53] and you know because you know timestamp order,
+[01:20:56] it requires on perfectly synchronized clocks,
+[01:20:59] the Spanner relies the rules a little bit
+[01:21:03] by actually using time intervals,
+[01:21:15] and the whole goal, correctly, the whole,
+[01:21:17] by using this set of techniques,
+[01:21:19] it turns out that read-only transactions are very fast,
+[01:21:25] so read-write transactions are basically you know not actually particularly fast,
+[01:21:28] if you look at the table 6,
+[01:21:30] you know it's you know 100 milliseconds for read-write transaction,
+[01:21:34] that means basically you can only do 10 transactions per second, right,
+[01:21:37] this is really not much,
+[01:21:39] but the read-only transactions are fast.
+[01:21:42] Now, this is the case though like you know,
+[01:21:45] you know the although the read-write transactions are maybe not that fast,
+[01:21:49] they they are very powerful,
+[01:21:51] you know you're basically doing transactional operations across multiple shards,
+[01:21:56] that is sitting in different data centers in different parts of the world,
+[01:22:00] and that just for programmers incredibly convenient and powerful tool,
+[01:22:04] that you can ACID semantics across shards in replicated in all over the world.
+[01:22:16] So, this is all I wanted to say actually about Spanner,
+[01:22:19] I hope this actually was helpful,
+[01:22:21] and that you're not, maybe less confused and more confused,
+[01:22:26] because of this lecture,
+[01:22:27] but, if you have questions, feel free to hang around,
+[01:22:30] and I'll be happy to discuss this or any other aspect of Spanner.
+[01:22:37] And good luck finishing 3b,
+[01:22:39] and I hope you get time to enjoy the long weekend.
+[01:22:48] Thank you.
+[01:22:51] So I have a question, maybe early in the slides,
+[01:22:54] so when you have diagram for the two-phase commit,
+[01:22:58] for the read-write transaction,
+[01:23:01] so before we communicate with the, with the, with the TC,
+[01:23:07] the TC stands for the coordinator?
+[01:23:09] Yeah, stands for coordinator, yeah.
+[01:23:11] Okay, so before we communicate with the transaction coordinator,
+[01:23:14] when we read x and read y initially,
+[01:23:17] we don't do any communication with TC,
+[01:23:21] so my question is what is the nature of these reads,
+[01:23:24] do we treat them as read-only,
+[01:23:26] so we read from the replica that is closest to us,
+[01:23:28] or do we actually do like majority type of communication.
+[01:23:33] You know we we go actually to go to the participants leader,
+[01:23:38] goes to the Paxos leader.
+[01:23:41] I see, so it goes the,
+[01:23:42] okay, so it goes like in lab 3.
+[01:23:45] Sorry?
+[01:23:46] So it's basically, so the read x here basically was the same thing as in lab 3,
+[01:23:51] so it goes through the leader,
+[01:23:52] and it gets replicated through the whole.
+[01:23:54] No, it actually does, there's no,
+[01:23:57] I believe there's no actually reads go inside running through Paxos,
+[01:24:01] but you know and go through the transaction leader, oh sorry the Paxos leader
+[01:24:06] and the Paxos leader of course knows what the last write was.
+[01:24:10] But what if the, for example we have some failure,
+[01:24:12] and the leader thinks that it's the leader,
+[01:24:15] but in some partition,
+[01:24:16] and it actually has updated information.
+[01:24:19] I don't know exactly,
+[01:24:20] you know how they deal with this case.
+[01:24:22] I think, I think their leases make that impossible.
+[01:24:25] Yeah, so they have the,
+[01:24:30] so every leader is leader for a period of time,
+[01:24:33] and during that period of time,
+[01:24:37] no other leader can be leader.
+[01:24:39] Okay, I see, awesome, thank you.
+[01:24:42] Thank you remind me.
+[01:24:45] I had a question with the last diagram with time interval,
+[01:24:51] yeah, I was wondering if like if the read for T3,
+[01:24:56] or let's say the write at T2,
+[01:24:59] time intervals from 1 to 12 also,
+[01:25:02] such that the write happens at 12 for T2,
+[01:25:05] and T3 reads also happens at 12,
+[01:25:07] what happens in that scenario?
+[01:25:10] Okay, you gotta, like what if you one more.
+[01:25:14] Yeah, so for T2 in T2,
+[01:25:17] the write right now, it's from 1 to 10, right,
+[01:25:19] then what happens at like 12,
+[01:25:22] so that it's like the same as the transaction 3.
+[01:25:25] 12 not 2.
+[01:25:27] I think 12, sorry, meaning both, interested.
+[01:25:32] So if the,
+[01:25:35] so the P correct transaction 2 would take 12 as start time,
+[01:25:43] of the of the read-write transaction,
+[01:25:48] it would wait, correct, until 12 shows up in the interval, before it commits,
+[01:25:56] so true time is somewhere between 1 and 12,
+[01:25:58] and wait until at least 13, right,
+[01:26:02] and so true time is now beyond 12 for sure.
+[01:26:05] Yeah.
+[01:26:06] And now we know that T3 starts after T2, right,
+[01:26:11] you know it could never got this interval back,
+[01:26:14] because the true time is already definitely pass 13,
+[01:26:18] or you know you know past 12,
+[01:26:21] so when this guy now reads its clock,
+[01:26:25] we know there's going to be some interval,
+[01:26:27] you know, maybe it still includes 10,
+[01:26:29] but you know and will include 14 or 13,
+[01:26:36] and we'll pick the latest value, right,
+[01:26:38] so let's say pick 14,
+[01:26:41] and so it will do timestamp actually at 14.
+[01:26:46] Actually, so basically like that scenario wouldn't have happened,
+[01:26:50] because the time interval thing would have guaranteed the earliest and latest.
+[01:26:54] Yes, and that is the case that the T3 definitely started after T2,
+[01:26:59] by definition,
+[01:27:00] that's the way we set up the example.
+[01:27:03] And then also then like if if,
+[01:27:05] instead like the read was happening around the same time as committed
+[01:27:09] not necessarily strictly after,
+[01:27:10] as in this case, like what is there any guaranteed on that,
+[01:27:14] like does it have.
+[01:27:17] Great question,
+[01:27:18] so remember what the definition of linearizability, right,
+[01:27:20] if T2 and T3 basically run roughly concurrently,
+[01:27:24] like run truly concurrent,
+[01:27:26] then it doesn't matter,
+[01:27:28] you know T3 can go before T2 or after.
+[01:27:32] Okay.
+[01:27:34] But then what about serializability aspects,
+[01:27:36] if they execute again,
+[01:27:38] like it might not necessarily be in the same order.
+[01:27:42] The order executed some total order,
+[01:27:44] and T3 either go to before T2 or after T2,
+[01:27:49] but either order is fine,
+[01:27:51] which both are allowed by serializability or linearizability,
+[01:27:54] because the execution is truly concurrent,
+[01:27:57] T3 starts before T2 committed.
+[01:28:02] Gotcha, and then for the T3,
+[01:28:04] like the if the commit and read happens at the same time,
+[01:28:07] the what T3 is actually gonna read,
+[01:28:09] just gonna depend on if the replica is reading from has that commit.
+[01:28:15] Yeah.
+[01:28:15] Thank you so much.
+[01:28:16] You're welcome, good questions.
+[01:28:19] I had a question about,
+[01:28:22] like if, if I saw this in this picture,
+[01:28:27] and they when it tries to commit 12 is not there,
+[01:28:30] it's just gonna retry and wait again.
+[01:28:33] Okay.
+[01:28:34] It's just keep reading the clock until it gets interval back,
+[01:28:38] where the earliest is past its timestamp.
+[01:28:45] Okay, I also have just clear just to make sure,
+[01:28:50] the guarantee that it provides is that,
+[01:28:52] if if [] in timestamp x,
+[01:28:58] and by the time where x is like before the now interval,
+[01:29:05] this machine or this Paxos group will have seen everything worked,
+[01:29:11] I guess machine will have seen everything that has happened,
+[01:29:16] at like before x, is that right?
+[01:29:20] Yeah, I think more or less yes,
+[01:29:22] I've not heard of since you're what you're asking,
+[01:29:24] but you know we we get an interval back,
+[01:29:26] what we know is that,
+[01:29:28] the true time is somewhere in this interval,
+[01:29:31] so here's true time,
+[01:29:35] and so when we start this prepare,
+[01:29:37] you know true time is not past 12,
+[01:29:41] but it's somewhere between 1 and 12,
+[01:29:43] and so when we do commit,
+[01:29:45] we gotta make sure that,
+[01:29:46] the commit actually happens really after true time,
+[01:29:49] and so we're gonna wait a little bit,
+[01:29:51] you know, so we know we got big than 12,
+[01:29:54] and we're going to wait until actually our clock gives an interval,
+[01:29:57] where true time is definitely past 12.
+[01:30:03] I think I think what I was asking was more like,
+[01:30:06] if you pick 12,
+[01:30:07] and then your interval is returned to be 13 to 20,
+[01:30:11] do you know that anything that,
+[01:30:15] like with timestamp less than or equal to 12,
+[01:30:19] that the changes for those transactions,
+[01:30:21] that you're gonna be able to see them.
+[01:30:24] Yes.
+[01:30:25] Okay.
+[01:30:27] Okay, that makes sense, thank you.
+[01:30:33] So I don't totally understand what the point of commit wait actually is,
+[01:30:37] because it seems like,
+[01:30:39] commit wait will happen after you've already selected the timestamp
+[01:30:42] for the transaction that you're interested in,
+[01:30:45] and you simply delay the actual absolute time
+[01:30:48] at which the thing will let you get committed just to make sure that..
+[01:30:52] No, but the commit time, you really start updating the database.
+[01:30:56] Aha.
+[01:30:57] And so at commit time, you have to commit,
+[01:31:00] you return like T3 didn't run until after of the C.
+[01:31:05] Right.
+[01:31:06] Because that was our definition,
+[01:31:08] like T3 started after T2 committed.
+[01:31:10] Right, right right,
+[01:31:12] but like what would happen if you didn't,
+[01:31:13] like what do you lose,
+[01:31:14] if you don't have.
+[01:31:16] Then T3 would run concurrently with T2.
+[01:31:21] Okay, hold on.
+[01:31:22] I see.
+[01:31:23] I'm not sure which scenario you want to explore,
+[01:31:25] but, if you know we allow T3 to start before C,
+[01:31:30] then you know we have completely different story, correct,
+[01:31:33] because there's nothing to discuss,
+[01:31:34] because T3 runs concurrently T2,
+[01:31:37] and it could observe to T or not, then over.
+[01:31:40] Okay, I see.
+[01:31:44] And so the timestamp for C,
+[01:31:46] we are waiting those,
+[01:31:47] we pass true time
+[01:31:49] of you know the starting of the prepared number that we get back,
+[01:31:54] so we know that the true time really has passed.
+[01:31:58] And this is.
+[01:31:59] T3 could never pick a time true time,
+[01:32:04] that actually would be would be before T2 committed on.
+[01:32:12] I see, I see, okay.
+[01:32:16] I guess it seemed like everything was already version,
+[01:32:19] that if you modify the data,
+[01:32:22] you physically modified data [early], like that would be okay,
+[01:32:25] because everything has a timestamp attached to it,
+[01:32:28] so no one would,
+[01:32:29] from far away, it seemed like no do the wrong thing,
+[01:32:32] like looking more at what they actually define as external consistency,
+[01:32:37] I don't really understand how it is similar to linearizability,
+[01:32:40] because it just says that,
+[01:32:42] if a transaction actually commits before another one starts,
+[01:32:45] then they'll have, the first will have a smaller timestamp than latter one,
+[01:32:49] is also sort of implicit in that,
+[01:32:51] transactions execute in the order of their timestamps for sure.
+[01:32:55] Yeah, maybe my short [] was not so brilliant,
+[01:32:59] but, yeah, absolutely,
+[01:33:02] the real requirement is that,
+[01:33:04] if a transaction start after,
+[01:33:08] if T2 starts after T1 committed,
+[01:33:11] T2 must observe all the writes from T1.
+[01:33:15] Aha, right, right, right.
+[01:33:19] I see,
+[01:33:20] I guess the, I guess the time,
+[01:33:22] knowing that the timestamp of T2 larger than t1 will tell you,
+[01:33:26] that you're going to have observed everything T1.
+[01:33:28] Okay, I see, makes sense.
+[01:33:30] Yeah.
+[01:33:31] Okay, thanks.
+[01:33:32] You're welcome.
+[01:33:40] Any other questions, if there's still anybody there.
+[01:33:47] I had a question about part 4.2.3,
+[01:33:52] section of schema-change transactions.
+[01:33:55] Yeah, I didn't talk about it at all.
+[01:33:58] I was just curious about like,
+[01:34:00] because essentially there they talk about like predicting the time of the commit.
+[01:34:05] Well, you may be,
+[01:34:07] let me see,
+[01:34:08] I'll tell you whatever way I think about it,
+[01:34:10] and then you can say me, you can tell me where where where the confusion is,
+[01:34:14] so schema-change correct that means,
+[01:34:16] basically adding column to a table or delete a column of a table
+[01:34:20] or something along those lines,
+[01:34:21] so it really changes you know the layout of the database,
+[01:34:27] and, and so schema changes are generally expensive,
+[01:34:31] and the way they make sure that their atomic,
+[01:34:34] they're running in far in the future,
+[01:34:36] so they run over the timestamp,
+[01:34:38] you know well beyond the current time,
+[01:34:41] and so I guess that's transaction do its stuff, correct,
+[01:34:44] because every other transaction reading or writing using this version [memory],
+[01:34:48] and you know they're creating version memory way farther in the future,
+[01:34:52] and so it can't affect any of the current transaction is running,
+[01:34:56] now communicate you know you know this takes so long,
+[01:35:02] by the time they actually want to commit the schema migration part,
+[01:35:09] there, there are actually transactions,
+[01:35:11] they're starting to [] on the time that migration transaction started,
+[01:35:19] so those you know, those transactions actually times marches on,
+[01:35:21] you know we're doing transactions,
+[01:35:23] and then the rule is that basically any read-write transaction
+[01:35:26] or any read-only or any transaction basically have to stop,
+[01:35:32] until basically the transfer, the migration transaction was completed,
+[01:35:39] because the migration transaction is timestamping you know the new values,
+[01:35:44] you know with its timestamp.
+[01:35:47] So when when there's a request essentially for this migration,
+[01:35:52] it chooses a commit time far into the future, and.
+[01:35:56] You hope basically, you hope basically the that transaction also commits, you know not.
+[01:36:02] Yeah, by then.
+[01:36:04] So any reads that come at a time up until then are served from the current.
+[01:36:11] Local replicas from at all, correct,
+[01:36:13] because they could have even seen that write.
+[01:36:17] Okay, and it's a cool trick,
+[01:36:20] if you have version memory,
+[01:36:22] you can you schedule things in the future.
+[01:36:24] Yeah, it's a cool trick,
+[01:36:25] I was just wondering,
+[01:36:26] how they actually like figure out that point in the future.
+[01:36:33] Yeah, it's probably some some [] or something, okay.
+[01:36:38] So, but essentially,
+[01:36:39] so if you don't choose a time, that's far enough in the future,
+[01:36:46] then you run the risk of.
+[01:36:48] Exactly.
+[01:36:49] Okay, so then you have incorrect results.
+[01:36:52] To avoid risk of incorrect results, which actually block.
+[01:36:57] Yeah, I see, okay.
+[01:37:01] Awesome, thanks so much.
+[01:37:03] You're welcome.
+[01:37:04] Bye.

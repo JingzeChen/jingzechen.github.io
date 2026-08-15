@@ -1,0 +1,1236 @@
+[00:00:00] Works again.
+[00:00:01] Okay, so the plan for today is talking about GFS,
+[00:00:04] I'm gonna do it in sort of multiple steps.
+[00:00:06] One I'm gonna talk a little bit about storage in general,
+[00:00:10] and why it's so important,
+[00:00:14] and why we spend a lot of time
+[00:00:16] in this class talking about it.
+[00:00:18] Then I'm going to talk a little bit about
+[00:00:23] in terms of GFS and it's main design,
+[00:00:25] we'll focus on consistency,
+[00:00:28] which will be the main theme through this lecture,
+[00:00:31] as part of the consistency,
+[00:00:33] you know we probably I do,
+[00:00:35] hopefully there's still time to breakout of the room,
+[00:00:37] and talk a little bit about the breakout rooms about the lecture,
+[00:00:41] or the question was posed for lecture,
+[00:00:43] and we'll resume discussion of of consistency.
+[00:00:51] Okay, so,
+[00:00:53] let me talk a little bit about storage systems in general,
+[00:00:56] and why they so feature so prominently in 6.824,
+[00:01:02] and the main reason is,
+[00:01:04] it's just a fantastic building block,
+[00:01:08] for fault tolerance systems.
+[00:01:14] And so the basic idea is that,
+[00:01:15] if you if you can build an durable storage system,
+[00:01:22] then you can structure sort of your application as
+[00:01:25] you know the app is basically you know state less,
+[00:01:32] and then the storage holds all the persistent state.
+[00:01:40] And that simplifies the design of the app tremendously,
+[00:01:43] because the app basically you know doesn't really have any stable storage,
+[00:01:48] you know that it has to maintain itself,
+[00:01:50] in fact is a fact that all out to storage system,
+[00:01:53] so you can start up a new application very quickly,
+[00:01:56] you know it crash doesn't really matter,
+[00:01:58] because it only has soft state, not any hard state,
+[00:02:01] and then start up again,
+[00:02:02] when you start up again,
+[00:02:03] you just reach state from the distributed storage system.
+[00:02:06] And you can see this quick look at any website,
+[00:02:09] you know basically structured in that way,
+[00:02:11] there's a storage backend, you know that maintains state,
+[00:02:14] and then there's the application,
+[00:02:17] middle tier that does the application specific computation,
+[00:02:20] or whatever runs Javascript Go or whatever,
+[00:02:23] and you know it front ends that out
+[00:02:25] you know to a client on the Internet.
+[00:02:28] And, so storage just like this fantastic building block,
+[00:02:33] and I think this is one reason,
+[00:02:34] that we're going to see this over and over in this class.
+[00:02:38] That means that you know the storage system itself,
+[00:02:40] of course has to be highly fault tolerant,
+[00:02:42] and as it turns out to be a very tricky thing to do,
+[00:02:45] and so that is the other side,
+[00:02:48] the flip side of it,
+[00:02:49] it will make life of the application easy,
+[00:02:51] but you know the designing actually fault tolerant storage system is not easy.
+[00:02:56] So why is it hard,
+[00:03:00] and basically come down to you know one reason,
+[00:03:05] that drives these designs,
+[00:03:07] which is like we generally want high performance,
+[00:03:10] when you think about the storage system for today,
+[00:03:12] you know GFS its main goal is
+[00:03:15] to basically support mapreduce types applications,
+[00:03:17] and so, it really needs high performance.
+[00:03:21] Well, what does that mean,
+[00:03:22] well, it means that you typically have to shard data across servers,
+[00:03:31] so you cant't use one server,
+[00:03:33] you have to use multiple servers,
+[00:03:34] and the reason you want to read from the disk,
+[00:03:37] and often particular machine has limited throughput,
+[00:03:40] if you want to read more
+[00:03:42] than actually a single disk can sustain,
+[00:03:44] you have to use multiple disks,
+[00:03:45] and you have to use multiple network cards,
+[00:03:46] and so you can immediately get into these sort of large scale systems
+[00:03:51] in the GFS where you have thousands of machines.
+[00:03:55] But if you have many servers,
+[00:03:58] some are gonna fail,
+[00:04:01] you gonna get failures,
+[00:04:02] or you can maybe,
+[00:04:03] you can see more exclusively constant faults,
+[00:04:09] and you know let's say the computer crashes, you know once a year,
+[00:04:13] you know, now let's say you know you have thousands of machines,
+[00:04:17] like in the GFS paper,
+[00:04:19] so many more in the thousand machines,
+[00:04:20] at minimal thousand machines,
+[00:04:22] how many failures are going to see per day, roughly.
+[00:04:29] Around 3.
+[00:04:31] Yeah, around 3, right,
+[00:04:32] that means that you know sort of a failure of a computer
+[00:04:36] like my laptop at the beginning of the lecture,
+[00:04:38] is just a common scenario,
+[00:04:41] and so if you're going to move up to
+[00:04:43] more than a thousand, ten thousand machines, a hundred thousand machines,
+[00:04:46] you're running applications using that kind of number of computers,
+[00:04:49] you're gonna get faults,
+[00:04:50] and so that means you want a fall tolerance design.
+[00:05:01] And you know to get fault tolerance,
+[00:05:03] you know at least in the case,
+[00:05:04] where storage system with the typical approach the way to go,
+[00:05:06] we're gonna go with replication,
+[00:05:10] copy data on multiple disks,
+[00:05:12] you know so that they what this fails,
+[00:05:13] you know the other disk hopefully have the data.
+[00:05:18] But if you go into replication
+[00:05:20] and so the data is in multiple places,
+[00:05:23] that runs into the challenge that the data may be out of sync,
+[00:05:27] and so you actually get into inconsistent potential inconsistencies.
+[00:05:40] You know, to avoid these inconsistencies,
+[00:05:43] you know if you desire a strong consistency,
+[00:05:45] basically your replicate system behaves as if it's,
+[00:05:48] it as the same behavior as an unreplicated system.
+[00:05:51] Then you will need some persistency protocol,
+[00:05:58] and that's gonna require some maybe sending messages
+[00:06:00] and may be lower performance,
+[00:06:06] maybe the messages themselves, not really huge performance overhead,
+[00:06:09] but you know [] knowledge we'll see,
+[00:06:11] and you might actually have to read or write to durable storage,
+[00:06:14] as part of that protocol
+[00:06:16] and you know reading or writing to storage
+[00:06:17] intentionally tends to be quite expensive.
+[00:06:20] So here we see this conundrum,
+[00:06:21] like you know we want high performance,
+[00:06:24] we want fault tolerance,
+[00:06:25] because we have many servers,
+[00:06:27] we want high performance over many servers,
+[00:06:29] many servers means fault tolerance,
+[00:06:31] that means application that means you know inconsistencies,
+[00:06:35] because we have data in multiple places,
+[00:06:37] to fix the inconsistencies,
+[00:06:38] we need to get a protocol that might lower performance.
+[00:06:42] So here sort of this fundamental challenge
+[00:06:44] in designing these distributed storage systems,
+[00:06:46] that user struggle between consistency and performance,
+[00:06:51] and we'll see that throughout the term.
+[00:06:56] So let me talk a little bit about consistency,
+[00:07:02] and sort of a very high level,
+[00:07:04] and I promise you for the rest of this semester,
+[00:07:07] we're going more detail as we go.
+[00:07:10] So first let's talk again about the ideal consistency,
+[00:07:13] an ideal consistency, the way the simplest way to think about is that,
+[00:07:16] basically the machine behaves as if it's a single system,
+[00:07:29] that's also the desired behavior,
+[00:07:31] and the sort of two things that make the desired behavior
+[00:07:34] or two hazards that make this design behavior hard to achieve,
+[00:07:42] or you know at least you know requires some thinking,
+[00:07:45] and one is concurrency and second thing is failures.
+[00:07:48] So let me start with consumer concurrency,
+[00:07:50] because even if you have a single machine with multiple clients,
+[00:07:55] so your concurrency within a single machine,
+[00:07:57] you actually have to think about consistency,
+[00:07:59] and this cause is quite obvious.
+[00:08:01] Let's say we have one machine, one disk,
+[00:08:05] both of requests you know come in from different clients,
+[00:08:08] and if the machine is a multi-processor machine,
+[00:08:10] they might actually run these requests internally in parallel.
+[00:08:14] So, so let's think a little bit about it,
+[00:08:17] what does it mean,
+[00:08:18] so so let's say we have client 1,
+[00:08:22] that does a write operation to key x and write 1,
+[00:08:28] and at the same time,
+[00:08:29] there's a request coming in with writes to x too,
+[00:08:33] but actually writes the value 2, right.
+[00:08:35] Now, you know if you want to specify or stage what consistency means,
+[00:08:39] we need some rule about like what will happen,
+[00:08:42] in the rules typically phrased from the perspective of the reader,
+[00:08:45] so let's say there's another reader coming in,
+[00:08:48] where another request coming in from another client and actually read x,
+[00:08:53] the question is,
+[00:08:54] what is the value that actually that reader or that client observes.
+[00:08:58] And look a little bit more complicated or more interesting,
+[00:09:01] let's say we have four clients,
+[00:09:02] which we're going to bring out this issue of consistency definitions more clearly,
+[00:09:06] and it also does a read of x,
+[00:09:08] well after you know the client 3 actually read x.
+[00:09:13] So now we have some state,
+[00:09:14] what is desired outcomes,
+[00:09:15] what is incorrect outcomes,
+[00:09:16] and that's really what defines consistency.
+[00:09:20] So, let's take the first case C3,
+[00:09:23] you know what be a reasonable outcome for read C, read,
+[00:09:28] what is reasonable outcome for the read of C3 to return,
+[00:09:32] what values,
+[00:09:34] you know what value would make you happy,
+[00:09:35] or make an application programmer happy.
+[00:09:39] 2.
+[00:09:40] 2 be very reasonable?
+[00:09:42] Any other reasonable values?
+[00:09:45] 1.
+[00:09:46] Yeah, 1 would be reasonable,
+[00:09:47] because the operation happened concurrently,
+[00:09:49] so maybe we don't really know which one,
+[00:09:51] we don't really want to restrict what particular order they go,
+[00:09:54] so we gone say like either one to fine,
+[00:09:56] because run concurrently.
+[00:09:57] What are some values that we would like not to see,
+[00:10:01] for the C3 read.
+[00:10:02] 7.
+[00:10:03] Yeah, 7, any other value, right,
+[00:10:05] because nobody wrote that,
+[00:10:06] so that would be undesirable.
+[00:10:08] Okay, so good, so like we agree that,
+[00:10:10] probably the reasonable outcome for C3 would be either 1 or 2.
+[00:10:14] Okay, how about C4?
+[00:10:18] The same as c3.
+[00:10:20] Really, exactly the same?
+[00:10:23] So, let's say C3 return 1,
+[00:10:26] what do we expect C4 to return?
+[00:10:28] Whatever C3 saw.
+[00:10:30] Yeah, because it run after C3, right,
+[00:10:33] if 1 was returned, we expect 1 here too,
+[00:10:38] if 2 was returned, we expect 2 here.
+[00:10:42] Does that make sense?
+[00:10:45] Okay, so, you know there's like super brief you know sort of introduction
+[00:10:50] of saying how can we define consistency,
+[00:10:53] and typically we do this using sort of [traces],
+[00:10:55] and we argue about what correctness for particular [traces],
+[00:10:58] and we will see more of that.
+[00:11:00] Of course, you know the server can enforce you know this kind of concurrency
+[00:11:04] by for example using locks,
+[00:11:05] if you have done,
+[00:11:06] if you do mapreduce,
+[00:11:08] you know of any concurrent Go programming you're write,
+[00:11:10] that sort of the standard technique to enforce consistency in terms of,
+[00:11:15] in the presence of concurrency is to use locks.
+[00:11:21] In distributed system,
+[00:11:22] you know the ideal consistency you know sort of [] two hazards,
+[00:11:26] and the second hazard is basically failure,
+[00:11:28] so just replication in general,
+[00:11:30] for if we have two servers [],
+[00:11:32] so here's S1, here's S2,
+[00:11:36] and you know both have a disk,
+[00:11:40] and we have our same clients as before, C1 and C2,
+[00:11:44] and they write you know to x,
+[00:11:47] and you know let's say you know just to illustrate what kind of complication,
+[00:11:53] what kind of, illustrate that we have to do something,
+[00:11:56] let's start with the most you know dumb replication plan.
+[00:12:01] So what very bad replication plan,
+[00:12:11] so this particular bad replication kind of plan,
+[00:12:13] what we're gonna do is,
+[00:12:14] like, we're gonna allow a client,
+[00:12:16] when a client actually wants to update or write,
+[00:12:19] we're gonna tell it to
+[00:12:21] basically you know the protocol that we're going to follow is,
+[00:12:23] the client write to both servers,
+[00:12:25] in you know whatever,
+[00:12:26] don't really coordinate, just write to both.
+[00:12:30] And so exactly we have client 1, client 2 running,
+[00:12:34] you know then you know may be client 2 does the same thing,
+[00:12:40] and, and then we're going to ask ourselves the same question,
+[00:12:44] what does you know C3 see what actually read,
+[00:12:49] and let's assume that for reading,
+[00:12:50] you know say like we're either way,
+[00:12:53] we're gonna read from any replica,
+[00:12:55] as I said, is a very bad replication plan,
+[00:12:57] basically there's no restrictions.
+[00:13:00] So what are the possible outcomes?
+[00:13:03] So this guy writes 1, this guy writes 2,
+[00:13:07] and you know we C3,
+[00:13:10] what are the possible outcomes for C3?
+[00:13:15] 1 and 2, again.
+[00:13:17] Yeah, 1 and 2, that really bad happens.
+[00:13:20] How about C4,
+[00:13:22] we do a read of x, well after C3 x,
+[00:13:25] like this in the previous board.
+[00:13:29] Also 1 and 2.
+[00:13:31] Yeah, 1 and 2 again,
+[00:13:33] what happens C3 reads 1, but C4 may return?
+[00:13:41] 1 or 2.
+[00:13:42] 1 or 2, it's that what we want or not?
+[00:13:46] No.
+[00:13:47] No, I mean you know,
+[00:13:48] again, it would be difficult for an application writer
+[00:13:50] to actually read about this,
+[00:13:53] you know particularly if the C3 and C4 were the same thing,
+[00:13:56] you first read to [] 1, no modification makes,
+[00:13:58] the next second returns another value,
+[00:14:00] how is that possible,
+[00:14:01] and it make the application programmers difficult to write.
+[00:14:04] And so you know the reason of course
+[00:14:07] that this inconsistency shows up here,
+[00:14:09] because we basically have no protocol
+[00:14:11] to coordinate you know the clients the readers and the writers,
+[00:14:15] so we need some form of distributed system,
+[00:14:16] typically we need some form of protocol to fix these,
+[00:14:19] and get the desire
+[00:14:21] to enforce that we get the desired consistency.
+[00:14:25] So we can see in rest of the semester,
+[00:14:27] a whole bunch of potential protocols,
+[00:14:28] they have different trade-offs in terms of fault tolerance and consistency.
+[00:14:32] Okay?
+[00:14:34] And in fact you should get into get our head in that kind of thinking,
+[00:14:39] the we're gonna use a whole bunch of different case studys,
+[00:14:43] and the case study today is GFS.
+[00:14:55] And this is an interesting case study,
+[00:14:57] you know why we would assign it,
+[00:14:59] and one reason is an interesting case study,
+[00:15:01] because it brings out all these core issue.
+[00:15:04] GFS design designed to get high performance,
+[00:15:10] yeah, that means it actually uses replication and fault tolerance,
+[00:15:22] and you know it struggles with consistency,
+[00:15:26] so it's like a few for sort of themes,
+[00:15:27] that we're going to be consistently seeing it throughout the semester,
+[00:15:30] will show up in this one paper.
+[00:15:33] The other side of this why is interesting case study,
+[00:15:36] because it is a successful system,
+[00:15:41] Google does actually use GFS,
+[00:15:44] at at this, at this point, in my understanding,
+[00:15:47] there's a successor file system called Colossus,
+[00:15:49] you know but it's inspired by GFS,
+[00:15:52] and but there are other sort of cluster-based file systems,
+[00:15:58] you know for like mapreduce type used HDFS,
+[00:16:01] you know also very much inspired by the design of GFS.
+[00:16:05] And you know one thing that is actually interesting,
+[00:16:08] at the point that this paper was written,
+[00:16:11] in sort of late to 2000,
+[00:16:14] it was pretty distributed file system were well understood topics,
+[00:16:17] so people knew about fault tolerance,
+[00:16:19] and they knew about replication,
+[00:16:20] people knew about consistency,
+[00:16:22] all that kind of stuff were pretty well understood.
+[00:16:25] However, nobody actually built you know system
+[00:16:29] you know at the scale of thousands of computers,
+[00:16:32] and that sure brings out a number of challenges,
+[00:16:36] that previous system have to not address,
+[00:16:39] and in fact the design is not completely standard,
+[00:16:43] so the design that we're reading about,
+[00:16:46] it's not was not sort of the standard design,
+[00:16:48] that you would see in academic papers at that time,
+[00:16:51] there were two aspects of making non-standard,
+[00:16:54] [] which will get more we'll spend more time on.
+[00:16:57] One is you know there's actually a single master,
+[00:16:59] the master, it's not replicated,
+[00:17:02] there's a single machine that sort of charged
+[00:17:04] with like almost all the coordination in the system,
+[00:17:09] and so that is unusual,
+[00:17:11] you know why would you build file system fault tolerance system,
+[00:17:15] which has a single point of failure,
+[00:17:17] is not something that people in the academic literature were doing at that time,
+[00:17:21] and the second thing is that,
+[00:17:24] it has, it has not consistent,
+[00:17:26] you know it can have inconsistencies,
+[00:17:33] and again mostly in literature in at that particular time,
+[00:17:37] you know people were really sweating actually to build
+[00:17:39] the distributed systems that actually have strong consistency,
+[00:17:42] and you know don't have the anomalies,
+[00:17:44] that we saw on the previous board.
+[00:17:47] Alright, and so so even though like a lot of the core techniques you know were well known,
+[00:17:53] you know the way you were putting together essentially quite different.
+[00:17:58] And so, that makes it interesting,
+[00:18:00] and particularly the scale which you know this system actually operates is impressive.
+[00:18:05] And pretty common even for today,
+[00:18:07] you know this issue,
+[00:18:08] struggle between fault tolerance, replication performance and consistency
+[00:18:16] is standard problem,
+[00:18:17] recurring problems for almost any distributed storage system,
+[00:18:20] so that people built today.
+[00:18:23] It changes over time,
+[00:18:24] like S3 for a while,
+[00:18:25] you know they really have that strong consistency,
+[00:18:27] lately it has gotten much stronger consistency.
+[00:18:31] Okay, so what, since the paper is really driven,
+[00:18:35] and the design is driven by fault tolerance by performance,
+[00:18:40] I wanted to go back to the mapreduce paper for second,
+[00:18:44] and this is a graph of the mapreduce paper,
+[00:18:48] and one way to think about GFS is,
+[00:18:51] that it's the file system for mapreduce,
+[00:19:01] and so the goal is
+[00:19:02] to actually run many mapreduce jobs and get high performance.
+[00:19:05] And we know that basically from,
+[00:19:07] we could tell from the mapreduce paper already
+[00:19:09] that GFS is impressive in that manner in terms of performance.
+[00:19:14] So if you look at the you know this side of this graph,
+[00:19:18] this is straight out of the mapreduce paper,
+[00:19:20] this is the normal execution of one of the mapreduce jobs,
+[00:19:24] and you know it has three parts to it,
+[00:19:28] one is the first part input,
+[00:19:29] like reading the input files,
+[00:19:31] the inputs to the map from the file system,
+[00:19:33] and in case you know they didn't say much about it,
+[00:19:35] but those are written read from GFS,
+[00:19:39] there's the internal shuffle that we really care about,
+[00:19:41] and then at the end,
+[00:19:43] you know the reduce jobs write back the results into GFS.
+[00:19:47] And, and so, do performance, you know part of the performance,
+[00:19:52] there's mapreduce task is able to determined by
+[00:19:54] you know the read at which,
+[00:19:55] the mappers can actually read you know data from GFS file system,
+[00:20:00] so whatever we're running many, many mappers at the same time,
+[00:20:03] in fact some mappers from different jobs maybe reading the same files.
+[00:20:07] So we look at the input,
+[00:20:09] like this, this there's top you know graph,
+[00:20:12] shows the input in terms of megabytes per second,
+[00:20:16] at the read at which you know the mapper
+[00:20:18] actually jointly collectively for one particular job,
+[00:20:21] you can read from the file system.
+[00:20:23] As you can see,
+[00:20:24] you know it goes over, well over a thousand or 10 000 megabytes per second.
+[00:20:31] And you know the first question to ask you is,
+[00:20:32] maybe exactly an impressive number,
+[00:20:38] should we be impressed with that number are,
+[00:20:40] thinking well, you know give me one disk and I do too.
+[00:20:50] Anybody?
+[00:20:52] I think, because it's older, maybe yes.
+[00:20:56] Okay, SSD, how much what rates can you write read?
+[00:21:08] Okay, let me tell you this,
+[00:21:09] roughly the throughput of a single disk at the time this, this paper
+[00:21:16] was around like thirty megabytes per second,
+[00:21:18] but somewhere in the tens of megabytes a second,
+[00:21:21] so here we're looking at
+[00:21:22] you know well over 10000 megabytes per second, correct,
+[00:21:27] and so that is an impressive number.
+[00:21:30] And you know you have to work
+[00:21:31] as you know the seeing,
+[00:21:32] the GFS design that allows that kind of throughput.
+[00:21:36] Of course, this technology indications GFS,
+[00:21:39] of course this technology was faster,
+[00:21:41] it would be you know what the real goal here correctly,
+[00:21:43] it's like we have a thousand machines,
+[00:21:45] maybe each one has a disk,
+[00:21:46] each one read thirty megabytes per second,
+[00:21:48] which is 1000 times thirty megabytes per second to get out of it.
+[00:21:52] Okay?
+[00:21:53] So that't what you know drives a lot of this design is,
+[00:21:57] to immediately allow the mappers to read in parallel from the file system,
+[00:22:02] joint file system.
+[00:22:05] Okay?
+[00:22:07] Let me say a little bit more about this,
+[00:22:09] about what are the key properties that GFS has,
+[00:22:13] you know one big large data sets,
+[00:22:18] remember that, I mean that,
+[00:22:24] and so in the think the data set you should think about is like mapreduce data sets,
+[00:22:27] you're going to have a complete crawl the world wide web,
+[00:22:32] is stored in this distributed file system.
+[00:22:35] Has to be fast,
+[00:22:37] we talked about,
+[00:22:39] the way they get like high performance is to do automatic sharding,
+[00:22:44] shard files across multiple disks,
+[00:22:46] allow multiple clients to read from those disks in parallel.
+[00:22:50] Alright?
+[00:22:52] It goes global,
+[00:22:56] what that mean it's shared,
+[00:22:58] you know all apps see same file system,
+[00:23:06] and that's convenient,
+[00:23:07] like if you have multiple mapreduce jobs,
+[00:23:10] you know that operate on the same set of files,
+[00:23:13] they can, first of all read all the same set of files,
+[00:23:16] then they can produce new files,
+[00:23:17] and another mapreduce you can use those files again,
+[00:23:20] and so it's very convenient to have a lot of sharing between applications,
+[00:23:23] so it's very convenient to have.
+[00:23:26] Of course, you know the GFS has to be fault tolerant,
+[00:23:34] it's likely they're gonna be failures,
+[00:23:35] it's what we want like automatic,
+[00:23:38] close to automatic fault tolerance as possible,
+[00:23:40] you'll see GFS doesn't provide completely automatic,
+[00:23:42] but do a pretty good job with getting high with fault tolerance.
+[00:23:48] Okay, any questions about the, this part so far,
+[00:23:53] like a broad intro to this topic,
+[00:23:55] few intro [] about GFS.
+[00:24:04] Okay.
+[00:24:05] Let's then talk about the design.
+[00:24:14] So here's the design,
+[00:24:17] is seen in from the figure one I think in the paper,
+[00:24:21] and there's a couple things I wanted to point out,
+[00:24:23] talk a little bit more in detail about.
+[00:24:25] So, first of all, you know, we have an application,
+[00:24:27] and then you know the application again you know might be mapreduce job,
+[00:24:31] consists multiple reduce task, multiple map task,
+[00:24:34] and they link with the GFS,
+[00:24:36] like and so, it's not a Linux file system,
+[00:24:40] you know this is not the file system,
+[00:24:41] you used to you know whatever edit files or compile,
+[00:24:46] it is really intended,
+[00:24:47] you know as a special purpose file system for these large computations.
+[00:24:54] And as I said before,
+[00:24:55] our real goal correctly achieves an impressive number,
+[00:24:58] like we want the number of megabytes from a single disk times number of machines,
+[00:25:02] and a single application should be able to exploit that.
+[00:25:05] So the way they arrange that is to have a master,
+[00:25:09] that is basically in charge of actually know where things are,
+[00:25:12] and the clients just periodically talks to the master,
+[00:25:15] to to retrieve information,
+[00:25:19] so for example it opens the file,
+[00:25:21] and open call will result in a message to the master,
+[00:25:26] and the master will respond back
+[00:25:29] and say like all the particular filename,
+[00:25:31] the chunks that you need are here,
+[00:25:35] well, these are the chunks that you need,
+[00:25:37] and there's a chunk handles identifier
+[00:25:39] for the particular chunks that constitute a file,
+[00:25:42] and here are the servers that sure that chunk,
+[00:25:45] so you get back chunk handle as well as a bunch of chunk locations.
+[00:25:51] And one file might you know basically file consists,
+[00:25:53] if you think about a big file,
+[00:25:56] it consists of many many chunks,
+[00:25:59] chunk 0, chunk 1, chunk 2, etc, chunk 3 blah, blah, etc, etc,
+[00:26:07] any chunk is pretty big, 64 megabytes,
+[00:26:12] naturally, the application wants we you know second second second 64 megabyte,
+[00:26:16] it goes to the GFS
+[00:26:19] is like okay, I wanna read you the second chunk,
+[00:26:22] you know this particular file,
+[00:26:24] and the GFS answer, will answer back with the handle for chunk 1,
+[00:26:29] as well as the servers that actually holds chunk 1, right.
+[00:26:34] So multiple applications might ask you know for chunks from the same file,
+[00:26:39] and they all get you know
+[00:26:42] one application might be reading chunk 0,
+[00:26:44] another application might be read chunk 2,
+[00:26:46] they'll get different lists back for each of these chunks.
+[00:26:50] So then the GFS client you know once it knows chunk locations,
+[00:26:54] and basically straight talks to the chunk servers,
+[00:26:58] and basically read you know the data at the speed of the network,
+[00:27:04] and you know maybe every disk you know sits behind this particular chunk server,
+[00:27:08] directly to the application.
+[00:27:10] And here you can see where we're going to get the big win, right,
+[00:27:13] because we're gonna be able to read,
+[00:27:14] you know for multiple,
+[00:27:16] you know multiple clients can be read from multiple disks at the same time,
+[00:27:20] and we're going to get tremendous amount of performance,
+[00:27:23] so for example, like here's map task running,
+[00:27:26] here's another map tasks running,
+[00:27:27] that also as a client,
+[00:27:29] you know they you know going to be talking to the set of servers,
+[00:27:32] we have that whole you know the chunk of all the collection the data set,
+[00:27:35] and there's gonna read in parallel
+[00:27:37] from all those different chunk servers,
+[00:27:39] and that was going to give us a high throughput number.
+[00:27:45] Is that makes sense,
+[00:27:46] that's sort of the overall plan clear here.
+[00:27:53] Just to sort of completed,
+[00:27:54] like on chunk server is nothing really else,
+[00:27:57] and sort of a Linux box, Linux computer with you know disk to it,
+[00:28:01] in fact there's 64 megabyte chunk,
+[00:28:03] each store as a Linux file, in the Linux file system.
+[00:28:08] Okay?
+[00:28:12] Okay, so I want to zoom in on the different pieces
+[00:28:14] and I'll start with the master,
+[00:28:16] because masters are related to the control center here,
+[00:28:21] so talk a little bit about the state that actually the master maintains.
+[00:28:29] Okay, so first of all,
+[00:28:32] you know it has the mapping from file name to an array of of chunk handles,
+[00:28:49] and as you saw in the paper,
+[00:28:50] one of the goals,
+[00:28:51] actually is to maintain all this memory of,
+[00:28:54] most of the information actually directly available in memory,
+[00:28:57] so that master response to a client very quickly,
+[00:29:01] and the reason why reason to do that is because,
+[00:29:03] now there's one master, many clients,
+[00:29:06] you want to execute every client operation as efficient as possible,
+[00:29:09] so that you can scale the master to at least a reasonable number of clients,
+[00:29:14] and then, for every chunk handle,
+[00:29:19] the master contains some additional number,
+[00:29:21] it make particular, it maintains a version number,
+[00:29:29] and a list of chunk servers,
+[00:29:35] that holds a copy of that chunk.
+[00:29:40] And as we'll see in a second,
+[00:29:41] you know one of them is named,
+[00:29:43] one of those servers are primary,
+[00:29:46] and the other ones are secondary,
+[00:29:50] and the typical number that you know a chunk stored at 3 servers
+[00:29:55] and we can maybe talk a little bit later about why 3.
+[00:29:58] And then you know there is a lease associated with each primary,
+[00:30:02] so there's a lease time maintained as well.
+[00:30:06] Then there's two sort of other big storage components,
+[00:30:10] and these are sort of the file system level things,
+[00:30:13] and then in terms of implementation, there's a log,
+[00:30:17] and there are checkpoints。
+[00:30:24] Since the master of the crucial control center,
+[00:30:28] whenever there's change to the name space,
+[00:30:32] and potentially create a new file in the GFS,
+[00:30:35] or mapping the file to chunk blocks and changes,
+[00:30:39] all those operations are written to this log,
+[00:30:42] and log sits on stable storage.
+[00:30:49] And the basic idea is that,
+[00:30:51] like we were before responding to the client,
+[00:30:54] the change actually has made the master writes to stable storage first,
+[00:30:59] and then responds to the client,
+[00:31:00] so this means that if the master fails or crashes,
+[00:31:04] then later comes back up,
+[00:31:05] it can replay log to reconstruct you know the state of its internal state,
+[00:31:11] and by writing it first to a storage before responding to the client,
+[00:31:14] the client will never observe strange results,
+[00:31:16] you know you could do the other way around correct,
+[00:31:19] that result in a problem,
+[00:31:20] because you know the client will think that the file has been created,
+[00:31:23] server crash backup and then the file doesn't exist,
+[00:31:27] so, these are another consistency point.
+[00:31:31] You know replaying always back all the operations
+[00:31:34] from the beginning of time to log is of course undesirable,
+[00:31:36] it means that if the master crashes,
+[00:31:38] and we have only one of them will be down for a long time,
+[00:31:41] so in addition to that,
+[00:31:42] you know it actually keeps checkpoints in stable storage,
+[00:31:47] so periodically, the master makes a checkpoint of its own state
+[00:31:52] and the mapping [] array chunk handles,
+[00:31:55] and stores that on on the stable storage,
+[00:31:59] and so then they only have to replay the last part,
+[00:32:02] basically all the operations in the log after the last checkpoint,
+[00:32:05] so the recovery is actually quickly.
+[00:32:08] So, there's another couple interesting questions,
+[00:32:10] that we can ask ourselves,
+[00:32:11] like what state does need to end up in a stable storage,
+[00:32:14] you know for the master actually function correctly.
+[00:32:17] So the first question to ask is,
+[00:32:19] how about this array of chunk handles the mapping from filename to chunk handles,
+[00:32:24] does that need to be stable stored,
+[00:32:27] or can it be only in memory.
+[00:32:38] If the master crashes,
+[00:32:41] I think you can like get that information from the servers, chunk servers,
+[00:32:48] so maybe only, may memory.
+[00:32:52] Yeah, well, that's answer the question,
+[00:32:54] what other people think.
+[00:32:56] So it can be reconstructed from the log,
+[00:32:58] so, when the server crashes,
+[00:33:00] only the log needs to be in the hard storage,
+[00:33:04] and then it can reload it from the log to main memory.
+[00:33:06] Yeah, so definitely has to be in log,
+[00:33:08] so we agree that,
+[00:33:09] this array of chunk handles basically has to be stored in stable storage,
+[00:33:16] because otherwise we lose,
+[00:33:18] like we create a file,
+[00:33:19] and we didn't write the storage,
+[00:33:20] we just lose the file right,
+[00:33:22] so this mapping from filename to chunk handles need to be in a stable storage,
+[00:33:26] how about this chunk handle to chunk handle to list of chunk servers,
+[00:33:32] is that actually you need to be [].
+[00:33:36] I think in the paper,
+[00:33:37] they say that when the master reboots,
+[00:33:41] it asks the servers to tell tell the master,
+[00:33:46] what the chunks that they have are.
+[00:33:49] Yeah, so this is not actually,
+[00:33:51] this is basically just volatile state, not not stable storage.
+[00:33:56] So same presumably to the primaries and the secondaries, and to the lease time.
+[00:34:03] How about the version number?
+[00:34:11] Does the master need to remember on stable storage version number or not?
+[00:34:16] Yes, because it needs to know
+[00:34:18] if the chunks in the other servers are stale or not.
+[00:34:24] Yeah, exactly exactly right, right,
+[00:34:26] so the master must remember version number,
+[00:34:28] because if it doesn't,
+[00:34:32] and the whole system went down,
+[00:34:34] and the chunk servers came back up,
+[00:34:36] and maybe the chunk server actually with the most recent data does not come up,
+[00:34:40] with an older guy comes up with version number 14,
+[00:34:43] then the master has to be able to tell
+[00:34:44] that you know that chunk server version of 14 was not the most recent chunk server,
+[00:34:51] and so it needs to maintain that version number on disk,
+[00:34:54] so that actually can tell,
+[00:34:55] which chunk servers actually have the most updated information on which ones don't.
+[00:35:00] Okay?
+[00:35:01] I have a question here,
+[00:35:04] if, well, I mean if if the master failed
+[00:35:08] and then it has to come up,
+[00:35:09] it's anyway going to connect to all of the chunk servers,
+[00:35:13] and it will find out what the largest version is.
+[00:35:18] Yeah, has ability to find out what the last,
+[00:35:22] first of all, it will try to talk to all chunk servers,
+[00:35:26] some chunk servers might be down.
+[00:35:28] Okay.
+[00:35:29] And that's that maybe just the chunk server,
+[00:35:32] that actually has the most recent version right.
+[00:35:34] Yeah, okay.
+[00:35:35] So you can't take the max of the life chunk servers,
+[00:35:39] that be incorrect.
+[00:35:46] Any other questions about this?
+[00:35:52] Okay, let's look at the two sort of basic operations,
+[00:35:55] to really get down to consistency,
+[00:35:57] and of course you know it's going to be reading and writing,
+[00:36:00] so reading a file,
+[00:36:02] and then we'll talk about writing a file.
+[00:36:04] So reading files in some sense straightforward,
+[00:36:07] we talked about basically a client send message
+[00:36:09] you know to with the filename plus offset to the master,
+[00:36:16] and basically ask please give me you know chunk servers,
+[00:36:21] and chunk handle that hold that hold the data at that offset,
+[00:36:30] and so end finds the chunk handle,
+[00:36:33] so like read byte whatever 0,
+[00:36:36] you know it's pretty clear that has to be the first entry in the list,
+[00:36:42] you know from filename to chunk handle.
+[00:36:46] So [], the master chunk handle basically replies you know with the master,
+[00:36:52] replies to the client with the chunk handle,
+[00:36:57] and list of chunk servers for that handle and version number.
+[00:37:09] So basically the client gets back a message
+[00:37:12] saying you know that's chunk you know 221,
+[00:37:14] you know and here are the three machines,
+[00:37:17] IP address, the three machines that actually have it,
+[00:37:20] and the version number is like version of 10.
+[00:37:26] Then the client caches this list,
+[00:37:35] and then it basically sends a message to the closest,
+[00:37:40] reads from closest server.
+[00:37:51] And so why this the client actually read cache this information,
+[00:37:58] yes, we'll see later, correct,
+[00:37:59] that caused some troubles.
+[00:38:01] So it doesn't have to contact the master for some time,
+[00:38:04] if it wants to read again or write to that chunk.
+[00:38:09] Yeah, why is that important?
+[00:38:12] To reduce the, I guess the traffic,
+[00:38:15] and in general it takes less time,
+[00:38:18] if you have less communication with the master.
+[00:38:21] Yeah, and you know the, you do the same with that's correct,
+[00:38:24] this design is that the master actually a single machine,
+[00:38:27] and as a single machine,
+[00:38:28] you can just have a limited amount of memory and limit network interface,
+[00:38:32] and so you have too many clients talking to,
+[00:38:34] it wouldn't be able to serve, right,
+[00:38:36] so client caching is important to reduce the load on this single machine.
+[00:38:42] Okay, why read from the closest server?
+[00:38:47] Minimize network traffic.
+[00:38:49] Yeah, minimize network traffic,
+[00:38:50] you know, so the whole goal correct is,
+[00:38:52] to pump as much data to client as possible,
+[00:38:55] the highest throughput.
+[00:38:56] And you know we have, there's two problems,
+[00:38:59] we had to cross with data center network,
+[00:39:01] one you know where there's probably some topology,
+[00:39:04] and maybe [swamps] like the top links of topology,
+[00:39:08] and may actually increase latency to actually get to the other side.
+[00:39:14] Alright, it's important to be able to be to the closest side,
+[00:39:16] again to basically maximize you know the throughput
+[00:39:19] you know that joint set of clients,
+[00:39:21] you can sort of experience,
+[00:39:22] when they're reading in parallel from many many chunk servers.
+[00:39:26] Okay?
+[00:39:28] So the chunk server S you know [] check the version number,
+[00:39:36] and if the version number is okay,
+[00:39:37] you know then send data.
+[00:39:43] Okay?
+[00:39:45] Why is check the version number there?
+[00:39:51] To check if it's too stale.
+[00:39:53] Yeah, we do our best to avoid reading stale data,
+[00:39:59] and you know as we'll seen in a second,
+[00:40:00] we do you don't do a perfect job at [],
+[00:40:03] but try hard to minimize you know occurrences with the clients reading stale data.
+[00:40:10] Okay?
+[00:40:11] Those reading reasonable straightforward.
+[00:40:15] So let's look at the writing.
+[00:40:21] So this is a picture from the paper,
+[00:40:25] and so let's say client was the,
+[00:40:27] let's focus append.
+[00:40:40] And so they argued that the very common operation for them
+[00:40:44] needs to append a record to a file,
+[00:40:46] and can we see why,
+[00:40:49] given what you guys you know from mapreduce,
+[00:40:52] you know Google does make sense,
+[00:40:55] why append is so important.
+[00:41:02] Because largely in doing mapreduce,
+[00:41:05] you need to,
+[00:41:07] as the map function spits out information,
+[00:41:11] it's largely just adding on information
+[00:41:13] rather than changing previously spit out information.
+[00:41:16] Yeah, you know maybe the map is not the best example,
+[00:41:18] because write to the local files not to GFS,
+[00:41:21] but the reducer does,
+[00:41:22] the same argument also reducer.
+[00:41:26] Yeah, so they're going to work there
+[00:41:27] at writings basically consume a lot of information,
+[00:41:30] and you know append record soon to file,
+[00:41:33] with the resulting computation with result of the computation.
+[00:41:35] Okay?
+[00:41:37] Good, so you know step 1 we have clients,
+[00:41:40] it will talk to the master to figure out where to write,
+[00:41:45] and so the master looks in it's table,
+[00:41:47] where the filename to chunk handles,
+[00:41:57] and finds you know the chunk handles,
+[00:41:58] and then you know looks at this table of chunk handles to servers,
+[00:42:08] to find the list of servers that has,
+[00:42:10] that have a particular thing,
+[00:42:12] that have that particular chunk.
+[00:42:14] Okay, so what happens next,
+[00:42:15] so there's two cases,
+[00:42:17] when there's already primary,
+[00:42:19] in the second case, the first case,
+[00:42:21] with two cases having a primary or not primary.
+[00:42:24] Let's say this is the very first time,
+[00:42:25] that this particular client contacts the master for this particular chunk,
+[00:42:29] nobody else has done it so far,
+[00:42:31] so there's no primary,
+[00:42:33] in that case, you know we need to do,
+[00:42:36] master needs to pick a primary, right,
+[00:42:38] how did it do that.
+[00:42:40] I think the master just picks any of the available chunk servers, right.
+[00:42:46] Yep, picks one,
+[00:42:47] so picks one of those primary and other ones are the secondary,
+[00:42:51] what other steps are involved in this sort of.
+[00:42:53] Yeah, and then subsequently the master grants a lease to that primary,
+[00:42:59] and that lease has a certain like date of expiry.
+[00:43:04] Yeah, what else do you have,
+[00:43:05] one or more other piece of crucial information.
+[00:43:10] Even.
+[00:43:12] Increment the version number?
+[00:43:14] Yeah, yeah, step one is increment version number,
+[00:43:20] because you're gonna make a new primary,
+[00:43:23] and when every time you make a new primary,
+[00:43:24] or whatever you make a new primary,
+[00:43:25] you go to sort of want to think about is a new epoch,
+[00:43:27] in the file system or this particular file,
+[00:43:31] and so you increase the version number,
+[00:43:32] because you have a new data,
+[00:43:35] so basically the master increases the version number,
+[00:43:38] yeah, it's sends to the primary a new version number and the secondaries,
+[00:43:44] and saying like hey guys we're gonna start a new,
+[00:43:48] we will start a new mutation,
+[00:43:49] you got for forming a replica group,
+[00:43:52] and your replica group with this particular version number whatever
+[00:43:54] version number 12, right.
+[00:43:57] And the primary and the secondary store version number,
+[00:44:00] what do you is store the version number,
+[00:44:07] do they store on disk or on their disk or memory, or.
+[00:44:16] I don't know.
+[00:44:19] Anyone, what do you think?
+[00:44:23] Okay, let's first do memory,
+[00:44:24] let's say storage in memory,
+[00:44:25] would that be a good design?
+[00:44:29] No.
+[00:44:31] Sorry.
+[00:44:32] You can go.
+[00:44:33] I guess it wouldn't,
+[00:44:34] because if the chunk server goes down,
+[00:44:36] and then it comes back up,
+[00:44:38] it, it should know what version it has.
+[00:44:41] Yeah, because otherwise you couldn't convince the primary
+[00:44:43] that has the most recent one,
+[00:44:44] was the primary, sorry the master could big,
+[00:44:47] you know the chunk server with most recent data,
+[00:44:50] so it has to be on this,
+[00:44:51] so basically the version number lives on disk,
+[00:44:53] both at the chunk servers and at the master, right.
+[00:44:58] So when the chunk, the master gets back,
+[00:45:01] you know the acknowledgement from the primary and secondary,
+[00:45:04] that they written the version number to disk,
+[00:45:07] and in the primary actually has received the lease,
+[00:45:10] then you know the master also writes its version number to disk,
+[00:45:15] and then responds to the client.
+[00:45:18] Okay?
+[00:45:20] So to back to the client,
+[00:45:21] responds with a list of servers,
+[00:45:24] you know primary plus secondary plus version number.
+[00:45:29] Okay?
+[00:45:32] Then you know the next step,
+[00:45:33] and again here we see the whole goal is
+[00:45:35] to [type] a lot of data from the network,
+[00:45:37] is the client actually just sends the data,
+[00:45:40] that wants write to the to the primary and the secondary,
+[00:45:44] the way it actually does is sort of an interesting way,
+[00:45:46] and basically contact the closest secondary it knows of,
+[00:45:49] you know out of this list,
+[00:45:51] and sends the data there,
+[00:45:53] and that secondary you know move the data over to the next person in the list,
+[00:45:57] and then to the next server list,
+[00:46:00] and so this way
+[00:46:01] you know the data sort of pumped from the clients
+[00:46:04] you know to the pipeline to all the replicas,
+[00:46:08] and you know when the secondary receives,
+[00:46:11] the first secondary receives some of the data,
+[00:46:13] immediately starts actually pushing the data further down the pipeline.
+[00:46:17] Okay?
+[00:46:19] The reason this design is,
+[00:46:20] this way sort of basically this network interface,
+[00:46:22] the client that has go to the outside world,
+[00:46:24] uses a full network interface to push the data down the pipeline,
+[00:46:29] so that gives us high throughput.
+[00:46:32] Okay?
+[00:46:35] Okay, so then you know if this all successful,
+[00:46:37] and the data has been pushed you know to all the servers,
+[00:46:41] those servers don't store that information in this yet,
+[00:46:43] and it just sits there sort of on the side,
+[00:46:45] you know to be used in the next step.
+[00:46:48] So the next step is,
+[00:46:49] basically for the client to send a message,
+[00:46:51] like an append message you know to the primary,
+[00:46:56] and at that point,
+[00:46:58] you know the primary will check you know the version number, right,
+[00:47:02] whether it actually version number corresponds to the version number,
+[00:47:05] if it doesn't correspond to, if it doesn't match,
+[00:47:07] then they probably won't allow it,
+[00:47:10] the primary checks this lease, is the lease valid,
+[00:47:13] because if lease is not valid anymore,
+[00:47:15] it cannot accept any mutation operations,
+[00:47:18] because it if lease is not valid,
+[00:47:20] there might be another primary outside in the world,
+[00:47:23] so it checks the lease,
+[00:47:26] and then, if you know basically the version numbers match, the lease is still valid,
+[00:47:29] basically picks an offset to write there.
+[00:47:34] And then the next step is,
+[00:47:35] we basically write you know the data that just came in,
+[00:47:38] you know this record to a stable storage,
+[00:47:41] so the primary actually at this point write it to stable storage,
+[00:47:45] the data,
+[00:47:46] and then sends messages to the secondary,
+[00:47:48] saying please write the data too.
+[00:47:51] And since the primary picks the offsets,
+[00:47:55] you know the, it tells the secondaries,
+[00:47:56] where to write you know that particular record into the file,
+[00:48:00] so maybe you like whatever it takes offset 125,
+[00:48:03] and it will tell the secondaries,
+[00:48:05] [] all to write you know the data that came in earlier at offset 125.
+[00:48:12] Then, if everything workout,
+[00:48:14] you know everybody, all the secondary and the primary
+[00:48:17] successfully write their data back you know to disk,
+[00:48:19] then it actually responds back to the client,
+[00:48:21] saying like okay success you append actually happens.
+[00:48:28] There's a way that the write actually might be not successful
+[00:48:32] or it might not be successful,
+[00:48:33] and namely for example, the primary has written into its own disk,
+[00:48:36] but it fails to write it,
+[00:48:38] you know it fails to connect to one of the secondaries,
+[00:48:40] maybe secondary actually crashed,
+[00:48:42] or maybe the secondary just has a network connection that doesn't work,
+[00:48:46] and in that case, the primary actually returns an error to the client,
+[00:48:51] so error if one secondary didn't respond,
+[00:49:06] and in that case, the client library what it will do is usually try or retry,
+[00:49:09] it will reissue the same append and will try again,
+[00:49:16] in the hope that the second time around,
+[00:49:18] you know that data actually, that [] get through,
+[00:49:22] and so this is what they call like you do at-least-once.
+[00:49:31] If you retry, will the primary pick the same offset?
+[00:49:37] I don't think so.
+[00:49:41] No, it needs a new offset
+[00:49:42] and you know writes the, write new particular offset,
+[00:49:46] so that means if you look at the disks
+[00:49:50] a file on the three replicas,
+[00:49:53] you know the primary S1 S2,
+[00:49:56] it might be the case,
+[00:49:57] something you wrote like you know S1 125 the data,
+[00:50:01] we succeeded maybe S2 12,
+[00:50:03] but S2 actually doesn't happen, there's no data, right,
+[00:50:08] and then we try again,
+[00:50:10] we might rather read the same data x,
+[00:50:12] and maybe we'll succeed in all three.
+[00:50:15] So you see here,
+[00:50:16] that basically replicates records can be duplicated.
+[00:50:21] Is this something that can happen in a standard file system,
+[00:50:23] like your Linux file system on your laptop or your computer.
+[00:50:32] No.
+[00:50:33] No, would you be surprised if your computer did this?
+[00:50:40] I mean, yeah,
+[00:50:40] this is not how standard file writes work.
+[00:50:42] Yeah, it would be inconvenient to have this property,
+[00:50:48] or it doesn't matter?
+[00:50:53] Inconvenient.
+[00:50:55] Yeah, gonna be a pretty bizarre,
+[00:50:58] you know presumably like you know you compiler you produce outputs in your file,
+[00:51:02] and then maybe you know certain blocks written twice,
+[00:51:04] and then you can't run the program anymore,
+[00:51:06] like you know the whole thing is just garbage at that point.
+[00:51:10] So it would just be weird,
+[00:51:12] like you write an email message
+[00:51:13] and this is the body of the email message shows up twice.
+[00:51:16] So this is not your typical file system we do
+[00:51:20] and so there's like a slightly bizarre
+[00:51:22] and you know what is the justification,
+[00:51:24] why, why, why do you think this is a good idea.
+[00:51:30] I'm not sure what is a good idea,
+[00:51:31] but I'm confused how that works for mapreduce specifically,
+[00:51:35] so if you run word count and you do that,
+[00:51:39] and like some files and you'll count,
+[00:51:41] and they're like word a, it shows up once,
+[00:51:45] but you do it twice,
+[00:51:47] because something failed,
+[00:51:48] and now you have a, 1 a, 1,
+[00:51:50] so your a count is going to be wrong.
+[00:51:52] How, yeah, I'm confused.
+[00:51:55] Yes, right, how do they work,
+[00:51:58] it seems like if you don't do anything,
+[00:52:00] then this is really highly inconvenient,
+[00:52:02] where it actually returns to the application,
+[00:52:04] will compute the wrong result.
+[00:52:07] They said use checksums and a unique IDs to check,
+[00:52:13] you know every yeah, every record was like once.
+[00:52:20] Additionally, when you do record appends,
+[00:52:23] the response which has returned from the primary to the client,
+[00:52:27] gives you the offset into the file,
+[00:52:30] where your data was actually written,
+[00:52:32] and the rest of it is assumed to be like undefined.
+[00:52:37] Yeah, that I think the key point here correct is,
+[00:52:39] like basically the application doesn't interact with the file system directly,
+[00:52:42] interact for some library,
+[00:52:43] in the library,
+[00:52:44] basically if you write append records,
+[00:52:46] the library sticks an id in it,
+[00:52:49] and so and also use the library to read these records,
+[00:52:52] and so if you see a record with the same id,
+[00:52:54] you know skip the second one,
+[00:52:56] because you know it's been clearly the same one.
+[00:52:59] And you know they have double, an extra thing in there for checksums
+[00:53:02] to make sure the record didn't get garbled,
+[00:53:04] and basically to detect change in the bytes,
+[00:53:10] but you know the id basically helps them to decide,
+[00:53:13] allows the library to decide,
+[00:53:15] well, this is the same record,
+[00:53:16] I'm not gonna give it to the application,
+[00:53:19] or the applications doesn't need to process it.
+[00:53:22] Okay?
+[00:53:23] My question is,
+[00:53:25] instead of rewriting to every replica,
+[00:53:28] wouldn't it be better to remember which replica is failing,
+[00:53:31] and to stop until it can be written to that one.
+[00:53:35] Yeah, there's a bunch of different designs possible,
+[00:53:37] when let's return to later,
+[00:53:40] you know I think one reason that they do this this way is,
+[00:53:45] like if a temporary failure,
+[00:53:47] like a network disconnection or whatever you know the lease,
+[00:53:49] the write will succeed and they will continue,
+[00:53:51] and doesn't have to be any reconfiguration,
+[00:53:54] there has to be nothing you know
+[00:53:55] and the write can just keep going, right,
+[00:53:58] you know so the write doesn't have to fail.
+[00:54:03] Okay.
+[00:54:04] It's just a quick question in general,
+[00:54:06] the all of these servers are trusted, right, there's no.
+[00:54:11] Yes, absolutely, this is actually important point,
+[00:54:16] this is not like you know your Linux file system,
+[00:54:17] where there's permissions and access control writes
+[00:54:20] and all that kind of stuff,
+[00:54:22] the servers are completely trusted,
+[00:54:25] the clients are trusted, the masters trusted,
+[00:54:27] the software written by Google is trusted,
+[00:54:28] the whole thing is trusted,
+[00:54:31] right, this is your complete internal file system.
+[00:54:34] In fact, it's sort of cool,
+[00:54:35] it's like a little bit may be surprising,
+[00:54:37] that we don't even know about this file system in such amout detail,
+[00:54:39] because it's only used inside Google,
+[00:54:42] and one of the cool things is that,
+[00:54:43] you know period of time and still they do,
+[00:54:46] they wrote up the papers
+[00:54:48] and describing actually how these systems work,
+[00:54:50] and there's one reason we know that,
+[00:54:52] it's actually extremely cool, that they did that.
+[00:54:59] Okay.
+[00:55:02] So okay, so we now understand how read works, what write works,
+[00:55:05] you know there's some sort of interesting behaviors,
+[00:55:09] I want to talk a little bit more about consistency, correct,
+[00:55:11] and that really comes down to
+[00:55:13] you know what a read observe after you did append,
+[00:55:18] and the homework question really got after this,
+[00:55:22] and what I would like to do now is
+[00:55:24] to take a quick break out, like five minutes,
+[00:55:26] and so you can discuss you know the answer to this question,
+[00:55:30] and then come back
+[00:55:31] and talk a little bit more in detail about consistency.
+[00:55:34] Okay?
+[00:55:36] I'm gonna make Lily.
+[00:55:43] Okay, everybody back.
+[00:55:46] Can everybody here me, double checking.
+[00:55:49] Yeah, hey, professor, question,
+[00:55:50] can you go back to the slide with the,
+[00:55:55] when we talked about the write slide here,
+[00:55:57] so you mentioned,
+[00:55:59] the master responds to the client through the version number,
+[00:56:03] and if that is the key,
+[00:56:04] then is it possible, is it even possible,
+[00:56:08] would even have to read like a stale data,
+[00:56:10] because the client has a version number
+[00:56:12] and the chunk servers without the version number,
+[00:56:14] so they can just compare those,
+[00:56:16] if they don't match the client,
+[00:56:18] the chunk servers can just say,
+[00:56:20] I I have a stale data,
+[00:56:22] so you should not read this.
+[00:56:25] Okay, let's go,
+[00:56:26] yeah, let's go for this scenario a little bit more detail.
+[00:56:28] Let me actually zoom this window.
+[00:56:36] Okay, let's talk about it,
+[00:56:37] so I think this scenario we're talking about,
+[00:56:39] that leads into a problematic situation as follows,
+[00:56:43] we have primary, we have secondary,
+[00:56:45] two secondary, secondary one, secondary two,
+[00:56:50] we have a client at this side,
+[00:56:52] we have a primary,
+[00:56:55] client reach you know it's back like a version number say 10,
+[00:57:03] the, later on another primary will,
+[00:57:17] okay, so S2 get some servers,
+[00:57:19] then at some point, the,
+[00:57:23] so this information is cached on the side,
+[00:57:27] you know, maybe you know one of the secondary is like S2 crashes,
+[00:57:33] or at least appears to be disconnected from the network,
+[00:57:37] so what the master will do is increment version numbers,
+[00:57:40] you know go to 11 messages 11,
+[00:57:44] then you know another client may come around and start writing,
+[00:57:49] so we'll write a new value to S1 and S2 for the file,
+[00:57:55] so the chunk has now been updated,
+[00:57:56] so let's say chunks original 10 same as version number,
+[00:58:00] now it's 11 here,
+[00:58:02] but you know it's the case,
+[00:58:04] that even though the master primary secondary couldn't talk S2,
+[00:58:08] but the second client,
+[00:58:09] first client could still talk to the secondary,
+[00:58:12] and it will read the version numbers match,
+[00:58:14] they're both 10,
+[00:58:17] and it will read, it'll send 10 back, right,
+[00:58:22] so you have a case where the write has completed,
+[00:58:25] as acknowledged to be okay,
+[00:58:27] and nevertheless,
+[00:58:28] there's a client that actually will read a stale value back.
+[00:58:32] So, why doesn't the 11 go back to the client?
+[00:58:37] The first client,
+[00:58:40] the reason is because the first client caches it for a longer period of time,
+[00:58:43] they don't actually have anything in the protocol that actually does that.
+[00:58:50] So does the version increment,
+[00:58:52] when the, when the system tries to push an update to S2,
+[00:58:57] and it's not able to, or.
+[00:58:59] Version numbers only increment,
+[00:59:01] the version number is maintained by the master,
+[00:59:03] they only increment when you select a new primary,
+[00:59:13] not when you do it,
+[00:59:14] there's a there's also a serial number, that they talk about,
+[00:59:17] but its different from the version number,
+[00:59:18] that just to order you know the writes.
+[00:59:23] Okay?
+[00:59:24] How does the primary know which secondary is it has to check with,
+[00:59:28] before making, before completing it write successfully.
+[00:59:31] The primary, the master tells it,
+[00:59:34] master tells the primary you know secondary you need to update.
+[00:59:40] So when the master basically issues the lease to the primary,
+[00:59:43] and if one of the secondaries is down at that moment,
+[00:59:47] does the master consider this a failure,
+[00:59:49] or does it just update the version number for the servers that are alive,
+[00:59:53] and it just forget about the other one,
+[00:59:55] because it's going to have an outdated version number anyway.
+[00:59:58] Yeah, the papers is a little bit [],
+[01:00:01] exactly how the recovery part the reconfiguration stuff works,
+[01:00:07] but I imagine that,
+[01:00:08] basically the primary actually does heartbeats with P1 S1 S2,
+[01:00:13] in some point, the side you know S2 is dead,
+[01:00:15] and at that point, it will point
+[01:00:19] and the lease the primary maybe runs out,
+[01:00:22] and then it will create a new primary and a new S1 and another S,
+[01:00:27] you know actual hold you know,
+[01:00:28] or maybe just S1,
+[01:00:29] because there's no, no additional chunk server,
+[01:00:33] and that forms the new replica group for that chunk.
+[01:00:38] Also, the lease doesn't run out yet, basically.
+[01:00:42] Well, the primary we can't appoint,
+[01:00:44] okay so here's some interesting cases,
+[01:00:46] let's see,
+[01:00:47] so, you guys are doing exactly the thing I want,
+[01:00:49] based on this paper,
+[01:00:51] which you really start thinking about all the problematic cases.
+[01:00:54] And this is exactly how you think about consistency,
+[01:00:56] when you start thinking about consistency,
+[01:00:58] you need to consider all possible failures,
+[01:01:01] and argue whether you know those failures lead to inconsistencies.
+[01:01:05] So, one thing let's talk about this one case,
+[01:01:08] where we've got a master, we've got a primary,
+[01:01:12] and let's say the primary in the master get disconnected,
+[01:01:17] actually let me draw the picture slightly differently,
+[01:01:21] master in the middle,
+[01:01:24] and we got server, we got server here, you know S1, S2,
+[01:01:29] and let's say S2 is the primary,
+[01:01:32] and so you know whatever you may talk to some other servers out there,
+[01:01:39] perhaps S1 is the is one of the secondary for this primary.
+[01:01:44] So let's say a network partition,
+[01:01:46] so the master sends messages, you know heartbeat messages,
+[01:01:49] doesn't get a response,
+[01:01:53] when can the master point to a new primary.
+[01:01:59] When the lease is over for S2?
+[01:02:04] Yeah, right, because primary has to wait,
+[01:02:09] the master has to wait until the lease has expired,
+[01:02:12] because if the lease was not expired,
+[01:02:15] then maybe we have two primaries at the same time, right,
+[01:02:19] P1 and P2 are staying at the same time,
+[01:02:22] and would that be bad?
+[01:02:27] Yeah, then I think,
+[01:02:30] wait, would would clients, clients wouldn't know where to send to,
+[01:02:34] and the master wouldn't know which one is primary, right.
+[01:02:37] Well, presumably some clients still talking to this primary, right,
+[01:02:40] while you might be talking to this primary,
+[01:02:43] in a primary for the same chunk.
+[01:02:48] I think you get very bizarre ordering, right,
+[01:02:50] where like some writes will get lost,
+[01:02:52] you know you know it would be a mess.
+[01:02:55] It would be not a principal,
+[01:02:56] you know argument where one,
+[01:02:58] you know where all writes happening order and one at a time.
+[01:03:04] So this is a bad situation,
+[01:03:05] and this situation is avoided,
+[01:03:06] like the split-brain syndrome, is sometimes called split brain syndrome,
+[01:03:10] where you end up with a system where have two masters.
+[01:03:13] And this is problem here avoided, because of the lease,
+[01:03:18] and the master will not appoint any other primary
+[01:03:21] until the lease of the first primary absolutely has has expired,
+[01:03:26] and it knows even if the primary is up,
+[01:03:28] but not reachable to it,
+[01:03:29] but may be reasonable to other clients,
+[01:03:31] that primary won't accept any write messages anymore,
+[01:03:33] because lease has expired.
+[01:03:40] Does that make sense?
+[01:03:43] Okay, let me say one more thing before wrapping up,
+[01:03:47] apologizes, partly because you know, I had some technical problems,
+[01:03:53] but I wanted to make one more point,
+[01:03:54] and it came up in the discussion too in the breakout room,
+[01:03:58] which is you know how could you do better,
+[01:04:01] how to get strong consistency,
+[01:04:06] or maybe just stronger,
+[01:04:08] got pretty strong consistency,
+[01:04:09] that you know not with some you know issues.
+[01:04:16] And so there's a hundred different ways you could do it,
+[01:04:18] and in fact, you know, what we're going to be seeing.
+[01:04:26] You know one, I think one issue that shows up here all the time is,
+[01:04:29] like you could instead of like obtaining the primary and then reporting,
+[01:04:33] making writes visible incrementally,
+[01:04:35] it's probably not a good idea,
+[01:04:36] so you probably want to do is,
+[01:04:38] like update all secondary primaries or not,
+[01:04:45] but not in this you know particular design,
+[01:04:47] where like somebody get updated and some may not get updated,
+[01:04:50] that's actually visible to the client.
+[01:04:53] So there's a bunch of like you know techniques or protocol
+[01:04:57] changes that you could do,
+[01:04:58] that will make this better
+[01:04:59] and in fact you will see in labs 2 and 3,
+[01:05:02] you will build systems that actually have the stronger properties,
+[01:05:06] and deal with the scenarios you know concurrently lead to consistency.
+[01:05:12] In fact, if you look at Google self,
+[01:05:14] and we'll read some of these [] later,
+[01:05:16] Google build additional storage systems,
+[01:05:20] other storage systems that have stronger consistency,
+[01:05:26] and basically tailored those to a different application domain,
+[01:05:29] for example, like in like halfway to term read the paper Spanner,
+[01:05:34] you know that actually has a much stronger storage for consistency
+[01:05:38] and and even have support for transactions.
+[01:05:41] But it was like the application domain is quite different,
+[01:05:43] you know you can sort of see here,
+[01:05:45] the GFS is really tailored,
+[01:05:46] you know to sort of running mapreduce jobs.
+[01:05:52] Okay, so I hope this is a useful introduction for consistency,
+[01:05:55] and start thinking about these kinds of problems,
+[01:05:58] because they would be recurring set of problems,
+[01:06:00] that will show up in the rest of the term.
+[01:06:04] And I apologize for running over a little bit.
+[01:06:08] Thank you.
+[01:06:08] Hang around, so people want to ask additional questions,
+[01:06:11] feel free to ask it,
+[01:06:14] and if you have to run to another class,
+[01:06:15] you know please run to another class.

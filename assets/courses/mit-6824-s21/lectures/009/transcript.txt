@@ -1,0 +1,1462 @@
+[00:00:00] Thank you.
+[00:00:01] Okay, good afternoon, good morning, good evening, good night, wherever you are,
+[00:00:06] so today I want to talk about the zookeeper
+[00:00:10] and with the this background,
+[00:00:13] paper that we you know which is assigned for today,
+[00:00:15] which is from 2010.
+[00:00:18] And, so there's gonna be referring back the last couple lectures,
+[00:00:24] I think we dove in quite a bit of detail into raft,
+[00:00:26] including looking at code,
+[00:00:30] the lectures from now on are going to be more conceptual
+[00:00:33] and exploring ideas in distributed systems zookeeper's,
+[00:00:39] and the zookeeper, what is particularly relevant to us,
+[00:00:43] because it has a little bit of relationship
+[00:00:46] as we'll see with lab 3.
+[00:00:49] And so it will allow us to talk about some properties of lab 3,
+[00:00:52] and particularly linearizability,
+[00:00:55] but zookeeper system more importantly,
+[00:00:58] it's interesting,
+[00:00:58] because one of widely-used system in practice,
+[00:01:08] well beyond Apache, well beyond Yahoo,
+[00:01:12] is a open source Apache project,
+[00:01:15] that is still active.
+[00:01:18] What particularly interesting about it for us,
+[00:01:22] in the lecture like today is actually high performance,
+[00:01:25] and high performance, I mean,
+[00:01:27] much higher performance than what actually lab 3 is gonna be.
+[00:01:33] I'll talk to talk quite a bit of detail about this,
+[00:01:36] and there's sort of two reasons why it is high performance,
+[00:01:39] one, it is the client operations are asynchronous,
+[00:01:47] and really what high performing from here means is,
+[00:01:50] we can, the system can process many more operations per second,
+[00:01:54] so it's really a throughput metric,
+[00:01:56] and the second reason it's high performances because,
+[00:02:00] it doesn't provide strong consistency,
+[00:02:03] so it doesn't, it has an interesting consistency definition,
+[00:02:12] and it gives us some freedom
+[00:02:13] to execute basically read operations on any replica,
+[00:02:16] and therefore read [] can scale.
+[00:02:20] Then, the second aspect that is interesting from zookeeper is,
+[00:02:23] in addition to being high performance,
+[00:02:25] it is sort of a generic,
+[00:02:26] what they call coordination service,
+[00:02:35] and the point being here is,
+[00:02:37] there are many applications,
+[00:02:40] where you need to keep track of like who's part of this cluster
+[00:02:45] and who's the master,
+[00:02:47] so think about the mapreduce or think about the GFS,
+[00:02:51] the master in GFS needs to keep track
+[00:02:53] or like for every chunk,
+[00:02:55] who are the servers that actually server that,
+[00:02:57] [] server chunk who servers actually is the master,
+[00:03:01] and so tracking that sort of configuration information,
+[00:03:04] you know comes up in lots of different distributed applications,
+[00:03:07] zookeeper is really designed to support that kind of thing,
+[00:03:10] so you sort of outsource all the configuration management to zookeeper,
+[00:03:15] and then focus the rest of your application development,
+[00:03:19] on other aspects of your distributed system.
+[00:03:23] Okay, so that's sort of a brief introduction,
+[00:03:25] you know the topics that we're gonna be talking about.
+[00:03:30] And as usual, feel free to interrupt at any time,
+[00:03:33] or you know post something in the chat message,
+[00:03:37] let me actually pull up the chat.
+[00:03:41] Okay, so we just you know start from the basics zookeeper is replicated state machine,
+[00:03:59] in the same way that you know the replicated state machines that we've been seeing.
+[00:04:03] And so let's draw the usual picture,
+[00:04:06] we have some servers,
+[00:04:08] in this case,
+[00:04:08] it's gonna be zookeeper ZK.
+[00:04:12] It receives requests from clients,
+[00:04:15] that create create znode,
+[00:04:18] and basically the way it interacts to distribute these operations,
+[00:04:26] it has sort of a separate library,
+[00:04:27] you know think about this as the raft library,
+[00:04:30] in their case, it's called ZAB.
+[00:04:35] Basically, you know the leader you know sticks the operation into
+[00:04:40] you know the equivalent raft library,
+[00:04:42] that you know talks you know to you know other libraries or other peers,
+[00:04:49] that basically creates a log,
+[00:04:53] you know that conveys with all these operations and all these machines,
+[00:04:57] and then the operations are the log of feedback to the [],
+[00:05:01] so in our case, the apply channel to the service,
+[00:05:05] the service applies the operation in response to the client,
+[00:05:07] and so we have basically different [] is running.
+[00:05:11] And so far, you know in the labs you know really focusing mostly,
+[00:05:17] you know lab 2 is all about you know this part,
+[00:05:21] implementing in our case raft, so instead of ZAB,
+[00:05:25] and for the first or the at a very high level,
+[00:05:28] you can think about ZAB being another raft,
+[00:05:32] you know providing sort of similar guarantees
+[00:05:34] you know implemented quite differently,
+[00:05:37] you know it provides an order of all the operations,
+[00:05:41] the [] failures, network partitions, etc etc,
+[00:05:45] doesn't suffer from split-brain brain,
+[00:05:47] all are sort of things which we associate with the raft library.
+[00:05:52] In you know what we're gonna be focusing in lab 3 on is,
+[00:05:57] actually implementing a service on top of it,
+[00:05:59] so this paper talks about the this coordination service zookeeper in,
+[00:06:04] we're going to actually implement in lab 3 key value stores,
+[00:06:12] and the data structure is just map from keys to values.
+[00:06:17] And so the operations you know that we're going to be supporting are put and get,
+[00:06:23] so the clients may put and get operations you know to the service,
+[00:06:26] the service runs in through raft,
+[00:06:29] and then applies them one by one to the key value store.
+[00:06:33] In zookeeper you know the structures slightly different,
+[00:06:36] there's a tree of znodes,
+[00:06:38] but the basic operation is the applys the same,
+[00:06:41] you know the lower layer the ZAB or the ZAB library
+[00:06:45] or ZAB library orders all the operations,
+[00:06:47] they're applied in the same order all replicas,
+[00:06:50] because they are applied all in the same order,
+[00:06:52] there's no non-determinism,
+[00:06:54] the resulting state on each of the replica is going to be identical.
+[00:07:00] Okay?
+[00:07:02] That's sort of the basic setting of this paper,
+[00:07:07] and sort of also the relation, part of the relationship
+[00:07:09] between lab 3 and the zookeeper service itself.
+[00:07:14] And mostly going to be talking in this lecture
+[00:07:16] on focus on the zookeeper part itself,
+[00:07:18] and not talk about ZAB,
+[00:07:20] because you're gonna assume,
+[00:07:22] that's similar to what we're doing and we're doing in lab 2.
+[00:07:28] Okay, we're going to talking a little bit about,
+[00:07:31] what kind of performance would you observe,
+[00:07:35] if you want to finish lab 3,
+[00:07:38] and would measure how many you puts or gets your operation get through per second,
+[00:07:43] because one of the achievements this paper is you know high performance.
+[00:07:48] So let's think a little bit about that,
+[00:07:50] so let's assume you know a put operation coming in,
+[00:07:54] and you know put operation comes in by the leader,
+[00:07:56] and so we're just gonna go for the normal case,
+[00:07:58] like the standard case, where everything is working,
+[00:08:00] no network failures, no partitions, nothing,
+[00:08:02] everything works out perfectly.
+[00:08:04] Here's the leader,
+[00:08:05] we've got two followers.
+[00:08:09] And you know now you know that protocol you know probably inside out,
+[00:08:14] you know the first thing of course it happens,
+[00:08:15] like would be the leader call start,
+[00:08:18] start actually writes the put operation to its, to log in the leader,
+[00:08:26] and then the leader you know propagates it's log to the other followers,
+[00:08:31] and you know before it actually happens in parallel,
+[00:08:35] send that argument,
+[00:08:36] let me draw it slightly differently,
+[00:08:40] basically it launches a bunch of RPCs almost instantaneously to the different followers,
+[00:08:47] each follower of course you know will append the entry to its logs,
+[00:08:50] so that requires a writes to persistent storage,
+[00:08:54] same thing here,
+[00:08:55] and then they respond back.
+[00:08:57] And so here's a response back,
+[00:08:59] and in this case, majority has responded,
+[00:09:03] the leader can actually apply the operation,
+[00:09:05] so the leader will actually apply the operation here for [],
+[00:09:10] so do the put and send the response back to the client.
+[00:09:16] What curious about is like,
+[00:09:17] how many put per second can we actually get,
+[00:09:21] you know in this in this setting.
+[00:09:26] And you know think about it,
+[00:09:28] you know the when you do [] back-of-the-envelope-calculation,
+[00:09:33] we don't really care exactly about the exact numbers,
+[00:09:36] but you know one roundtrip,
+[00:09:38] we need at least one roundtrip to actually get the majority,right,
+[00:09:42] leader needs to talk to at least one follower to actually maintain the majority,
+[00:09:45] so we're going to have at least one roundtrip messaging.
+[00:09:52] And then you sort of need to look at the writes to stable storage,
+[00:09:58] because those tend to be expensive,
+[00:10:00] and we'll see you know in this case,
+[00:10:01] we're going to have two writes,
+[00:10:02] because there's gonna be one write at the leader,
+[00:10:04] one write at the follower,
+[00:10:05] at that point, we have at least two nodes that have copy,
+[00:10:09] so what are the things will be committed,
+[00:10:10] if no further failures,
+[00:10:14] and so basically you know 2, and minimum we're going to need 2 writes.
+[00:10:21] So that's sort of the base and the best you could do right,
+[00:10:23] in this simple scheme that we discussed, discussed here,
+[00:10:26] sort of, we can think about the cost is,
+[00:10:29] in a roundtrip,
+[00:10:31] you know maybe those running in the data center,
+[00:10:33] networks are not across the Internet,
+[00:10:35] maybe you know that actually comes down to 1 millisecond,
+[00:10:40] we're roughly in the [neighborhood] for a millisecond,
+[00:10:42] maybe a little bit faster,
+[00:10:43] but we don't really care about,
+[00:10:44] just a millisecond.
+[00:10:46] So, we're going to do two writes to stable storage,
+[00:10:49] write actually to stable storage seems to be expensive,
+[00:10:52] and you know depends on what medium, what technology you're using for stable storage,
+[00:10:56] let's assume when we're using SSDs, you know sort of pretty typical,
+[00:10:59] then you know presumably one write in the order of maybe 2 milliseconds,
+[00:11:03] you know we've got to really make sure actually the write ends up on the in the SSD,
+[00:11:07] so we're gonna probably has to be a synchronous write,
+[00:11:11] so it means like 2 milliseconds for one write,
+[00:11:14] so two writes would be roughly you know 4 milliseconds.
+[00:11:19] So we ended up, there's going to be 5 milliseconds.
+[00:11:24] And so, how many operations per second?
+[00:11:28] Just to see if anybody still awake.
+[00:11:34] 200.
+[00:11:35] Yeah, so there's gonna be 200 put per second.
+[00:11:41] Any questions about this, does that make sense?
+[00:11:46] Okay, so now let's look at zookeeper.
+[00:11:49] What's the roundtrip for in the writes,
+[00:11:51] sorry, I missed it.
+[00:11:53] The, the writes, the writes there's you know roundtrip,
+[00:11:57] there's 1 roundtrip correct,
+[00:11:58] talk from the leader to the follower,
+[00:12:00] and the two writes,
+[00:12:00] one at the stable storage for the leader
+[00:12:03] and one at the stable storage for the follower,
+[00:12:07] and the 2 writes end up to 4,
+[00:12:09] roundtrip to roughly 1 millisecond,
+[00:12:11] so the total is 5 milliseconds for one put.
+[00:12:17] Okay, let's look at the zookeeper,
+[00:12:28] and again the metric that the paper is interested in is the throughput metric,
+[00:12:32] where it basically the clients, you have many many many clients
+[00:12:36] and they pump many request to zookeeper as much as possible
+[00:12:46] and [pipeline] them aggressively.
+[00:12:50] And so, so let's see what the results of that is,
+[00:12:55] and so let me pull up the graph of the paper,
+[00:13:04] and you know look at that paper a little, look the graph a little bit.
+[00:13:10] So a couple things that presumably to observe,
+[00:13:13] you know on the x axis is the percentage of read requests,
+[00:13:16] as we'll see in a second,
+[00:13:17] you know this is going to be important to distinguish read or write operations,
+[00:13:21] and so write operations are really operations that modify,
+[00:13:24] any write operation that modifies state,
+[00:13:26] read operations are operations don't modify the state at all,
+[00:13:29] so in our lab three terms,
+[00:13:32] you know put would be the write operation
+[00:13:34] and get be the read operation.
+[00:13:36] And on the y axis is the number operations per second,
+[00:13:40] and let's look at the case of 3 servers,
+[00:13:42] and so the first thing you notice is that zero reads,
+[00:13:47] so only write operations, so what that modify the state,
+[00:13:50] you know we get roughly 21k operations per second as throughput, right,
+[00:13:59] and you know look at, you know if the system only has reads,
+[00:14:04] it actually gets a lot more,
+[00:14:05] and gets up in the you know whatever the 60-70 reads region,
+[00:14:11] and in fact, what really go on is,
+[00:14:13] that the number reads,
+[00:14:15] the throughput in terms of reads the scales with the number of servers.
+[00:14:26] So, if you have 3 servers,
+[00:14:30] you know you get 3 times you know the read performance of one server,
+[00:14:33] if you have 5 servers,
+[00:14:34] you get 5 times the read performance one server.
+[00:14:38] Of course not true writes, correct,
+[00:14:40] in fact if you look at this graph,
+[00:14:42] you see that if with more servers,
+[00:14:44] the write performance actually goes down.
+[00:14:46] And you know that the reason for that is presumably,
+[00:14:49] the leader has to chat with more servers,
+[00:14:53] to actually gets operation through.
+[00:14:55] And so when we're purely doing write operations,
+[00:14:58] we actually limited,
+[00:15:00] and we cannot expect more performance than a single server,
+[00:15:02] in fact, the [up] servers we're going to go down performance.
+[00:15:08] And so this 21k you know per second,
+[00:15:10] you know even for single,
+[00:15:13] for you know write operations with a configuration of 3 servers,
+[00:15:18] you know is impressive number,
+[00:15:19] is quite a bit higher than actually the simple [] that we did for lab 3,
+[00:15:24] lab 3 will never get the, will not get closer to the number at all.
+[00:15:29] And so we want to understand,
+[00:15:31] you want to see in this design,
+[00:15:34] what the designer do to actually get that kind of performance.
+[00:15:42] And sort of two as I mentioned earlier,
+[00:15:44] there's sort of two key ideas,
+[00:15:46] 1, everything is asynchronous,
+[00:15:48] or the clients can submit many operations to raft or zookeeper, sorry, in a single shot,
+[00:15:57] so they all pipeline,
+[00:15:58] so basically when, the way to think about zookeeper client,
+[00:16:02] basically says, please start executing this put
+[00:16:05] and doesn't wait in the response of the put,
+[00:16:08] you know immediately issues the second put,
+[00:16:11] and then the third and fourth [and fifth],
+[00:16:13] so, for example, a lot of these puts run will be batched together,
+[00:16:16] maybe even a single message will be transferred to the leader,
+[00:16:20] and the leader will apply them all at the same time,
+[00:16:22] in fact, will leader will write to the persistent storage only once,
+[00:16:27] you know for a whole batch of operation,
+[00:16:28] so instead of having one write per operation,
+[00:16:32] you're going to have one disk write to many many many operations,
+[00:16:35] and this is one reason,
+[00:16:36] you know they get this very good performance on write operations.
+[00:16:42] And the second thing is,
+[00:16:44] they do something special for read operations,
+[00:16:48] they allow read operations to be processed by any server.
+[00:16:57] So instead of running all the operations through the leader,
+[00:17:00] they allow operations to actually be processed by any server.
+[00:17:06] So.
+[00:17:08] And then the [] we want to talk a little bit more about it.
+[00:17:12] I think, I wanted to think about what could we do something similar,
+[00:17:15] like, let's say we want to lab 3,
+[00:17:21] and we're gonna do the same trick,
+[00:17:23] here we want to look at is
+[00:17:25] basically reads from any machine or any peer.
+[00:17:37] So the picture would be as follows,
+[00:17:39] you know we have a leader,
+[00:17:41] we have the two followers,
+[00:17:43] we just stick to the case of three,
+[00:17:47] we have a client.
+[00:17:50] And we're like consider what actually could happen,
+[00:17:55] if you know we sort of, if we follow this strategy,
+[00:17:58] where we're going to read from anything,
+[00:17:59] we use our client,
+[00:18:01] the leaders actually when we do puts,
+[00:18:03] you know they all go through the leader,
+[00:18:06] and so the client you know basically does read,
+[00:18:09] and let's say you know this was a put done,
+[00:18:12] and at the same time, roughly after after the put was done,
+[00:18:16] the client issues a get,
+[00:18:19] and talks to one of the followers an arbitrary one,
+[00:18:21] let's use this in case, it does not talk to the leader,
+[00:18:24] and then you know where the follower response,
+[00:18:29] and the question is like what value does the get to observe.
+[00:18:35] So what are the possible values you know that the client can observe,
+[00:18:38] let's say that you know we're reading whatever the key x,
+[00:18:42] and the initial value of x is 0,
+[00:18:45] and this put actually put x to 1.
+[00:18:48] And what are the value that x actually return,
+[00:18:51] if we don't do anything particularly special.
+[00:18:57] So just a question here about the setup,
+[00:18:58] so if we're assuming that raft is the infrastructure here,
+[00:19:02] and get its just another command,
+[00:19:03] then would the follower just redirect applying to the leader,
+[00:19:07] put or get request to the leader.
+[00:19:12] No, [] a lot of things we could do,
+[00:19:13] but like we want to get this [perfect] scalability,
+[00:19:17] so to get perfect scalability,
+[00:19:19] the follower cannot talk to the leader for read operations,
+[00:19:22] so basically read operations are executed by the individual followers immediately,
+[00:19:28] with that no communication,
+[00:19:29] with that you know the way we're going to get perfect scalability.
+[00:19:31] So, there not even communicating with.
+[00:19:34] Yep, I'm just doing beneath plan,
+[00:19:36] looks like our goal is to get perfect scalability,
+[00:19:39] like you know zookeeper does,
+[00:19:41] and we want to understand like you know is that difficult or easy,
+[00:19:43] or what does that really mean,
+[00:19:45] and so the first thing to find experiment is,
+[00:19:47] like would do absolutely nothing at the leaders and followers,
+[00:19:50] followers get read operation executed and return the value.
+[00:19:55] And what can you know,
+[00:19:56] so another question,
+[00:19:57] what values can be returned by, in the client observe, in this picture.
+[00:20:02] Can be either,
+[00:20:03] because maybe you put,
+[00:20:05] then they make it through the disk of the leader yet.
+[00:20:08] Yeah, it could be either,
+[00:20:09] so either going to return 0 or it could return 1, right.
+[00:20:14] So it can return stale data, it's possibility.
+[00:20:19] Let's say, let's say we do,
+[00:20:22] let's say return 1,
+[00:20:25] so this get returns 1 for a [] experiment,
+[00:20:29] and then the client does another get,
+[00:20:34] now going to say to where that get is going,
+[00:20:36] but you know and what values could we see,
+[00:20:45] for respond to that get.
+[00:20:47] Assuming there are no other writes that should be 1, right.
+[00:20:51] Yeah, [unfortunately],
+[00:20:52] because I have 3 servers,
+[00:20:54] if I have 5 servers?
+[00:21:01] Why is it different?
+[00:21:04] Okay, let's make it different.
+[00:21:07] So certainly can return 1, we're agreeing that,
+[00:21:11] because if the follower talks to the second get request,
+[00:21:15] you know talks to a follower that actually has seen the put operation,
+[00:21:21] which the majority of them have seen put operation,
+[00:21:23] we're going to get 1 back, right.
+[00:21:26] The real question is, could it see 0,
+[00:21:32] even though it observed the 1 earlier.
+[00:21:35] I mean you could see that 0,
+[00:21:36] even in the case of a 3 servers, right,
+[00:21:38] because let's say that you have the majority of servers.
+[00:21:41] Let me do first 5 case, because it's simpler to see.
+[00:21:47] Are we assuming that the client always asks the same peer?
+[00:21:52] No, there might be a little network partition or disconnection for a brief period of time,
+[00:21:56] so you don't actually have to talk to the same peer as the last time, right.
+[00:22:00] Yeah, so in that case, it can talk to a different peer,
+[00:22:04] who and that peer may respond with 0, that's.
+[00:22:08] So, this is possible,
+[00:22:10] so we're gonna have sort of strange behavior,
+[00:22:13] in this configuration where you might see a recent,
+[00:22:16] you know in the first case,
+[00:22:17] we might see actually a recent value,
+[00:22:19] and then we read actually something from back back in time.
+[00:22:28] Yep.
+[00:22:30] So we're doing nothing special,
+[00:22:32] and just like naively read from any peer,
+[00:22:36] and you know we have sort of two side [types] of problems
+[00:22:38] I mean the get can return stale data,
+[00:22:40] the get return data you've gone back in time.
+[00:22:45] And so.
+[00:22:46] Sorry, wasn't this possible also with 3 followers,
+[00:22:50] because the majority was the leader and one follower
+[00:22:52] and you could ask the other one.
+[00:22:56] If you've seen the one in,
+[00:22:57] yes, it could be possible, absolutely,
+[00:23:01] the 3 will be possible too,
+[00:23:02] I think the 5 is much more clear,
+[00:23:04] that this is possible.
+[00:23:10] Okay, so.
+[00:23:13] So, now we're going to go back
+[00:23:14] and sort of think about a little bit of this behavior,
+[00:23:16] you know the returning those values, is that okay?
+[00:23:20] And this is a very interesting question,
+[00:23:22] and it depends of course, what do you mean with correct.
+[00:23:26] And what you know if something's okay,
+[00:23:28] depends on what our correct definition is.
+[00:23:31] And the correctness definition that we sort of in peddling
+[00:23:34] for the last couple lectures at the beginning of term,
+[00:23:37] is this notion of linearizability.
+[00:23:46] And, in roughly what that means,
+[00:23:49] I talked a little bit about it in a week ago,
+[00:23:53] you know behaves like a single machine,
+[00:23:57] that's the intuition that we've been using since the beginning of the semester,
+[00:24:03] but you know the definition of linearizability is a little bit more precise,
+[00:24:07] sort of tries to nail down what it means to behave like a single machine,
+[00:24:11] and so when something behaves like a single machine,
+[00:24:13] first of all, it has to be the case,
+[00:24:15] that even if the operation actually concurrently,
+[00:24:17] you can sort of order them in a total order,
+[00:24:20] so it's possible to construct a total order of all the operations,
+[00:24:25] because in the end, it's a single machine,
+[00:24:27] so it behaves as a single machine,
+[00:24:29] there's only one machine,
+[00:24:30] so virtual machine that can actually perform the operations total order of ops,
+[00:24:37] and there has to be some properties true about that total order.
+[00:24:42] And so one property that has to be true is,
+[00:24:44] that the order matches real-time,
+[00:24:52] and the real-time really what I mean is that,
+[00:24:54] if operation completed before another one started,
+[00:24:59] then you know that first operation has to go before the second operation in the total order.
+[00:25:06] And then there's third property,
+[00:25:08] that read operation, read op returns value of last write.
+[00:25:24] That's sort of the official definition of linearizability
+[00:25:26] and you can just think about this
+[00:25:27] as sort of more precise definition, more precise statement,
+[00:25:31] this first thing this intuition,
+[00:25:33] namely the whole thing behaves like a single machine.
+[00:25:37] Now we want to go back,
+[00:25:39] and you know think a little bit about scenario,
+[00:25:42] that we [] have just on this whiteboard,
+[00:25:45] namely use two cases of stale data and back in time,
+[00:25:48] and think about that think whether linearizability allows them.
+[00:25:53] And so let's first focus on the first one,
+[00:25:56] so we have a client 1, correct, for this,
+[00:25:58] the way you would draw this out,
+[00:26:00] and reasonable linearizability is,
+[00:26:02] you could draw a diagram for this form,
+[00:26:04] where going to the left bar is the start of the operation,
+[00:26:07] the right bar is acknowledgement to the client that the operation actually executed,
+[00:26:12] and in this case,
+[00:26:12] you know we sort of saying were to put to x and put the value of 1.
+[00:26:18] Then we had another client or in the same client,
+[00:26:22] let's do drawing other client,
+[00:26:24] you know basically did the read,
+[00:26:25] and the read started well past the put operations,
+[00:26:30] there's a get of x,
+[00:26:32] and we had one case, where the get that's actually return the 0,
+[00:26:36] that was the first possibility.
+[00:26:40] And so that's what actually happened on the previous board,
+[00:26:43] and now we want to think about this,
+[00:26:45] is this execution allowed by linearizability,
+[00:26:48] this is the correctness definition that we're looking for,
+[00:26:51] then we want to see this execution,
+[00:26:53] this order of operations that happened in practice,
+[00:26:56] you know at least we've seen that it's possible in practice,
+[00:26:59] is this allowed by linearizability,
+[00:27:00] that is our correctness criteria.
+[00:27:03] Is this allow by linearizability?
+[00:27:12] No.
+[00:27:13] No, why not?
+[00:27:15] Well, because the C2 client operation started after the C1 completed,
+[00:27:20] so in the total order,
+[00:27:22] you have that put x 1
+[00:27:23] and get x has to be 1,
+[00:27:25] because it should read the last write.
+[00:27:27] Yeah, so basically in the total order that you construct,
+[00:27:30] you know this guy,
+[00:27:31] you know this operation must be after that operation,
+[00:27:34] because it started later.
+[00:27:36] But then you look, you know that violated rule number 3, correct,
+[00:27:40] that operation returns the value of the last write,
+[00:27:42] that's actually not the case,
+[00:27:44] actually returns [new] earlier value,
+[00:27:46] so this is not linearizable.
+[00:27:50] Does that make sense?
+[00:27:53] And of course it's totally matches our intuition, right,
+[00:27:55] because a single machine just could not have happened,
+[00:27:58] you know you wrote a value to a single machine,
+[00:28:00] and then you read it back
+[00:28:01] and it's certainly not other value,
+[00:28:03] it's actually the previous value,
+[00:28:04] so this is not allow.
+[00:28:06] Okay, let's do a second one, like other examples,
+[00:28:09] so we had a client 1 again,
+[00:28:10] just put,
+[00:28:12] draw a little bit more compact,
+[00:28:15] because I don't have much space.
+[00:28:17] And you know we do a put,
+[00:28:19] then we do, there's the read or a get,
+[00:28:23] get run returns 1,
+[00:28:25] so we're not in the first case,
+[00:28:27] but in the second, but another case,
+[00:28:29] and then, we have to get that returns 0.
+[00:28:36] And so that's the second sort of case that we looked at, correct,
+[00:28:40] this picture you know the back in time case.
+[00:28:44] And again we can ask ourselves the same question,
+[00:28:46] is it allowed by linearizability?
+[00:28:53] No, because the read wouldn't be return the value the last write.
+[00:28:59] Yeah, its pretty straightforward observation, correct,
+[00:29:02] this is absolutely not the case,
+[00:29:03] in fact, it's almost similar in the first case,
+[00:29:05] because these operations have to be in this order,
+[00:29:08] but you know that could not have happened,
+[00:29:11] it would violate rule 3, right.
+[00:29:16] Okay, so you know this gives you an intuition like linearizability means,
+[00:29:21] how you reason about it,
+[00:29:22] and basically, if we don't do anything special,
+[00:29:25] and we do this naive scheme,
+[00:29:28] if you were implementing lab 3,
+[00:29:30] and you followed this naive scheme,
+[00:29:32] then you would not pass the test,
+[00:29:34] because you know the test assume or the goal in lab 3 is
+[00:29:38] actually to provide linearizability for put and gets.
+[00:29:40] And so the scenarios like these ones are just not allowed,
+[00:29:43] you know your implementation has to be a in a way,
+[00:29:46] that these results cannot appear.
+[00:29:50] Does that make sense?
+[00:29:53] So we're going lab 3 were a shoot for linearizability
+[00:29:58] and what is one easy way of getting linearizability,
+[00:30:03] how are we going to sure that puts or gets operation are linearizable.
+[00:30:09] Well, I mean if you do actually we use one machine,
+[00:30:12] then it will be linearizable, right.
+[00:30:14] Yeah, so what's the easy solution,
+[00:30:16] we run all the reads you know for the leader, right.
+[00:30:20] So basically the easy solution to get linearizability,
+[00:30:23] and in fact, that's what we're gonna be doing in lab 3,
+[00:30:25] in lab 3 what going to be doing is
+[00:30:31] you know read or get operations get ops go through the log,
+[00:30:37] go through raft,
+[00:30:42] and as you observe,
+[00:30:44] it seems you know if they really go all through one machine,
+[00:30:47] they might not go for one machine,
+[00:30:49] leader may change over time,
+[00:30:51] when we know that the leader is always totally order, correct,
+[00:30:54] the log is total order,
+[00:30:55] and so we're going to be able to construct you know a total order,
+[00:30:58] that actually has the order matches real-time,
+[00:31:01] and all the reads return values up the last write.
+[00:31:04] Because this is the raft protocol will guarantee,
+[00:31:08] that all the entries in log are in a total order, right.
+[00:31:13] And of course the raft protocol do quite a bit of work
+[00:31:16] to actually make that all happen,
+[00:31:17] and despite you know network failures,
+[00:31:20] despite network splits,
+[00:31:25] you know the raft protocol will guarantee us,
+[00:31:28] that basically all the operations happen in a total order.
+[00:31:31] In fact, the whole replicated state machine approaches are based on this idea, correct,
+[00:31:35] like all the ops in total order
+[00:31:37] and applied in the same order all peers,
+[00:31:39] and as a result, [] looks like a single machine.
+[00:31:43] And so the easy way to solve this problem is
+[00:31:46] to run all the reads you know through the leader,
+[00:31:50] whenever the leader at that particular point of time
+[00:31:52] and that will give us linearizability.
+[00:31:58] Let me pause for a second, any questions about this?
+[00:32:02] Sorry, matches real-time it just means that,
+[00:32:05] if operation 1 ends before operation 2 starts,
+[00:32:07] then 1 before 2.
+[00:32:09] Yeah, yeah, the raft,
+[00:32:13] you know you will see that this will happen automatically, correct,
+[00:32:15] because the the if operation actually completely finished,
+[00:32:20] that must have been the case,
+[00:32:21] that the leader responded you know back to a client,
+[00:32:24] and then if the client started operation later
+[00:32:26] and must end up later in the log at the leader.
+[00:32:31] So this is going to be a practice is true.
+[00:32:34] And also, so just double check, maybe reiterate,
+[00:32:37] so the in lab 3,
+[00:32:38] all of the client requests gonna be synchronous, []?
+[00:32:41] Yes it's absolute.
+[00:32:45] Okay, good,
+[00:32:46] so you know what [] side of this scheme,
+[00:32:49] you know we'll go back actually,
+[00:32:50] if you read the raft paper very carefully,
+[00:32:52] there's an optimization for read-only operations,
+[00:32:55] but even that optimization, requires some some communication.
+[00:33:01] And so like if we just follow this naive,
+[00:33:03] you know this trick for a plan to actually get linearizability.
+[00:33:07] You know, does this what does that mean for performance,
+[00:33:11] you know go back to sort of thinking about contrasting the zookeeper,
+[00:33:20] you know is for example,
+[00:33:22] the number of read operations is going to scale with the number of servers?
+[00:33:27] No, because now everything has to pass through the leader.
+[00:33:30] Exactly, everything have go through the leader again,
+[00:33:32] so here we are again,
+[00:33:34] that's a little bit undesirable, correct.
+[00:33:36] And so it gives you an instant question is,
+[00:33:38] like you know how is it possible,
+[00:33:39] that [when you go to] a zookeeper,
+[00:33:42] zookeeper gets great performance,
+[00:33:44] like we see the simple scheme that doesn't really work,
+[00:33:48] or at least violates linearizability.
+[00:33:50] And so one, so we want to talk a little bit,
+[00:33:53] like to understand what was really how did zookeeper get this.
+[00:33:57] And so the first thing to really realize is,
+[00:34:00] probably the most important part,
+[00:34:02] is that zookeeper does not provide the linearizability,
+[00:34:08] it basically changes the correctness definition.
+[00:34:23] And so the zookeeper service,
+[00:34:25] it's not going to behave like a single machine,
+[00:34:28] you know it's gonna have results that would never happen on a single machine.
+[00:34:33] So the particular, so what is it, what does it provide.
+[00:34:37] Well, it does provide linearizable writes,
+[00:34:52] so all the operations, all the write operation actually you know go through the leader
+[00:34:57] and you go through the log
+[00:34:59] and appended to the log every peer in the same order,
+[00:35:03] and so there going to also be applied in the same order,
+[00:35:05] so we still have this replicated state machine approach,
+[00:35:09] where apply all the write operation,
+[00:35:11] operation change data into in the total order.
+[00:35:19] But, there's a couple more properties.
+[00:35:23] So, but it does not provide linearizability for reads,
+[00:35:26] instead it sort of provides two sort of different property,
+[00:35:29] which is that all the operations appear in FIFO order, in FIFO client order,
+[00:35:40] this partly has to do with asynchronous,
+[00:35:43] you know client may submit multiple requests one by one
+[00:35:47] without waiting for a response.
+[00:35:50] And you know zookeeper will guarantee,
+[00:35:53] if you submit client 1 submitted the request,
+[00:35:57] and then client 1 submitted another request,
+[00:35:59] then that second request will appear later,
+[00:36:03] result will observe the result of the first operation.
+[00:36:09] And so in particular you know writes goes client order,
+[00:36:24] and then reads where all the actually is where the interesting properties are,
+[00:36:32] the reads observe last write,
+[00:36:35] okay, so reads reads observe last write from same client.
+[00:36:51] So this sort of makes sense,
+[00:36:52] you know basically this sort of sense like, you read your own writes,
+[00:36:56] so if you do the write operation,
+[00:36:57] you immediately follow the read operation,
+[00:36:59] you see at least the results of your own writes.
+[00:37:02] But, for writes from other operations, from other clients,
+[00:37:06] the zookeeper does not guarantee that property,
+[00:37:09] instead what it guarantees is that,
+[00:37:11] the read will observe some prefix of the log.
+[00:37:21] And so this means right you can actually see stale data,
+[00:37:30] which may read from a follower
+[00:37:32] and that follower has a prefix of the log,
+[00:37:35] but not has the last entries in the log,
+[00:37:37] because maybe just lag behind a little bit,
+[00:37:40] and nevertheless that follower is allowed to return a value,
+[00:37:46] because you know the only thing that's you know zookeeper going to guarantee,
+[00:37:50] that actually reads observe a prefix log.
+[00:37:55] So the operations can now go out of order,
+[00:37:57] you know once they in the log,
+[00:37:58] and you can sort of,
+[00:37:59] reads can like read operation out of the log in out of order,
+[00:38:04] it really has to be a prefix, a prefix of the log.
+[00:38:07] And then there's a second requirement,
+[00:38:09] that you cannot do no reads from the past,
+[00:38:18] and it really means like if you saw some prefix 1,
+[00:38:23] and then you issue reads some prefix one,
+[00:38:26] and then you read the second read,
+[00:38:28] then that second read has to see at least prefix 1 plus more.
+[00:38:35] It might be no, it might be just prefix 1,
+[00:38:37] but cannot go back in time,
+[00:38:39] so it cannot see a shorter prefix than prefix 1.
+[00:38:44] And so this basically,
+[00:38:45] so so if we look back at this picture,
+[00:38:50] the zookeeper will allow this in certain cases,
+[00:38:53] namely, if the two clients are different,
+[00:38:56] but it won't allow this,
+[00:38:59] this you can never have back in time.
+[00:39:02] Okay?
+[00:39:05] So I have a question, a conceptual one,
+[00:39:07] so we have these two consistency guarantees,
+[00:39:10] the linearizable writes and the FIFO client order,
+[00:39:13] so if we ignore the second constraint for a second,
+[00:39:15] and if we only focus on the first one,
+[00:39:17] does the definition of linearizable writes actually makes sense,
+[00:39:21] since the definition of linearizability
+[00:39:23] depends on having a read operation and a write operation.
+[00:39:27] So you're like hold that thought for a second,
+[00:39:30] because the way they define linearizable writes
+[00:39:35] is not basically the writes in a total order,
+[00:39:37] and but there is a relationship between the read and the write,
+[00:39:39] so hold the thought for a second, okay,
+[00:39:42] we'll come back,
+[00:39:43] we get to that in a in a minute,
+[00:39:45] like one board,
+[00:39:47] I want to make one board in between, okay?
+[00:39:50] Sounds good.
+[00:39:52] Okay so, just like,
+[00:39:54] let's look a little bit at
+[00:39:57] how zookeeper actually provides these guarantees.
+[00:40:01] And you know sort of get the intuition you know,
+[00:40:06] how you could implement this,
+[00:40:08] the paper actually not very explicit about how they implement this,
+[00:40:11] sort of like I'm gonna give you a roughly best guess.
+[00:40:15] So, there's a zookeeper client,
+[00:40:21] it runs on the client machine,
+[00:40:22] in lab 3, we call this a clerk,
+[00:40:25] and so this is a piece of software library
+[00:40:27] sort of works collaborates with the service.
+[00:40:30] In in zookeeper in the paper terminology,
+[00:40:34] basically it is the thing that has session,
+[00:40:36] so when you join,
+[00:40:38] when a client wants to connect the zookeeper service,
+[00:40:40] you know it creates a session,
+[00:40:41] it connects using the session information to the leader
+[00:40:44] and maintains you know state across the session.
+[00:40:48] So we have a leader in zookeeper,
+[00:40:51] and we'll see you know followers,
+[00:40:54] you know basically this is all sort of similar,
+[00:40:56] to what we're used to from lab 2,
+[00:40:59] and the zookeeper client issues write you know to the leader,
+[00:41:03] because the writes are going to be linearizable,
+[00:41:06] in fact the writes basically follow
+[00:41:07] exactly sort of roughly the same strategy as in the raft library,
+[00:41:11] so, it's going to be a log,
+[00:41:13] and in the log,
+[00:41:15] all the writes are entered you know whatever you know some slots,
+[00:41:18] let's say the leader appends this write here in this particular index,
+[00:41:24] so this has an index,
+[00:41:26] and in the paper, they refer to this index as zxid,
+[00:41:31] so I think you can think about the zxid basically as the index in the log.
+[00:41:37] And when the leader basically commits,
+[00:41:41] an entry writes you know to the log,
+[00:41:44] it returns the zxid back to the client,
+[00:41:48] so the client maintains that state,
+[00:41:51] so associated with the session is basically with zxids zxid at last write.
+[00:42:00] Okay?
+[00:42:02] And so when the client later on the read,
+[00:42:06] and the read it doesn't have to go to the leader,
+[00:42:08] because that's the whole goal to get more performance,
+[00:42:10] so maybe the read actually will go you know to one of the followers,
+[00:42:16] and but then the read will be tagged with the zxid
+[00:42:20] that of the last write that particular client is done.
+[00:42:25] And so what does that mean,
+[00:42:27] well, let's say this following behind, right,
+[00:42:29] and it has two entries,
+[00:42:31] but hasn't actually observed you know the write yet,
+[00:42:34] because whatever the leader may be committed it through these other followers.
+[00:42:38] And what happens in this case is that,
+[00:42:39] this read the follower won't really respond immediately,
+[00:42:43] instead it will wait until the same you know the zxid,
+[00:42:50] and as soon as we've seen the zxid,
+[00:42:51] it actually will respond.
+[00:42:57] Of course there's gonna be another client,
+[00:42:59] and so maybe at some point this write will come through,
+[00:43:03] and maybe now the read the client does another read,
+[00:43:08] and so it hasn't seen you know other zxids,
+[00:43:12] and maybe like let me make one more follower,
+[00:43:15] let's say there's yet another follower,
+[00:43:17] that actually has not observed you know that that final write yet.
+[00:43:21] Let me.
+[00:43:23] So there's going to be another,
+[00:43:24] let's say there's another client,
+[00:43:26] that sticks in some other write,
+[00:43:28] that's the scenario I want to talk about,
+[00:43:30] there was another client that actually appended w after the cxid,
+[00:43:34] you know it is right here,
+[00:43:36] but it was not observed that particularly write,
+[00:43:38] you know what we have here,
+[00:43:40] is we got the, we got two slots,
+[00:43:47] we got to write,
+[00:43:48] but you know the green write hasn't really show up at particular follower,
+[00:43:52] so if the client now issues second read,
+[00:43:55] maybe that goes to the other follower,
+[00:43:57] you know that's the same zxid,
+[00:43:59] because it hasn't seen any new,
+[00:44:01] that client has not issued any new writes,
+[00:44:04] it will arrive there,
+[00:44:05] and that guy is allowed to respond immediately,
+[00:44:11] because it has seen the zxid of you know the [],
+[00:44:16] has seen the zxid of that particular client,
+[00:44:18] of course, it misses some writes,
+[00:44:20] you know that from other clients,
+[00:44:22] that are already being processed by some majority of the servers,
+[00:44:25] but it is not required to return that data
+[00:44:28] and so it can just return.
+[00:44:30] And so this might actually return in stale values,
+[00:44:34] but you know that allow by the definition of the zookeeper correctness guarantees.
+[00:44:39] Professor, I had a question.
+[00:44:41] Yeah.
+[00:44:42] At first, I I thought, I'm not sure, but,
+[00:44:47] I understood client reads like the session reads were sticky,
+[00:44:52] so they would like in general go to the same.
+[00:44:55] Yeah, you know but of course there might be a little bit of,
+[00:45:00] it might be a quick network partition or anything like it,
+[00:45:04] and so in between time you know the,
+[00:45:07] it might have switched to another server.
+[00:45:10] Okay, and then.
+[00:45:12] In addition, turns out the zookeeper does actually do some load balancing,
+[00:45:16] so but but nevertheless it can happen, right.
+[00:45:21] Right.
+[00:45:22] The other thing was,
+[00:45:23] you said write always always go to the leader,
+[00:45:30] and then the leader responded with zxid,
+[00:45:35] that does the leader have to like first reach consensus before responding,
+[00:45:41] or in this.
+[00:45:43] Okay, yes, I guess so,
+[00:45:48] you know that's committed, otherwise it is uncommitted, right,
+[00:45:52] I think the exact protocol,
+[00:45:55] I'm abstracting away a little bit in the details of the protocol,
+[00:45:58] I'm just going to sketch how it works.
+[00:46:01] I believe you're right,
+[00:46:02] you know that it must return presumably
+[00:46:05] after you know the entries really committed.
+[00:46:08] Then, sorry last thing,
+[00:46:10] you said it always goes to the leader,
+[00:46:13] but I think the paper described it could go to followers,
+[00:46:16] so write go to a follower and then be read.
+[00:46:18] But then ends up to the leader, right,
+[00:46:22] so it ends it go to the leader.
+[00:46:24] Thanks.
+[00:46:25] Yeah.
+[00:46:26] Just to clarify,
+[00:46:28] when you say wait for zxid,
+[00:46:30] like for example the second follower or second,
+[00:46:33] when we wait for the zxid,
+[00:46:34] we're actually waiting for it to be committed,
+[00:46:36] it's not sufficient to just get.
+[00:46:38] It must be committed, yeah.
+[00:46:40] Got it.
+[00:46:43] Wait, but would like,
+[00:46:45] it would have been committed by the time it was,
+[00:46:48] like a client wouldn't get an uncommitted zxid, right,
+[00:46:53] like ever, like.
+[00:46:54] Oh, yeah, but just that's correct,
+[00:46:56] so if you know the this point,
+[00:47:01] at this point, the follower sees zxid,
+[00:47:04] and the write is in that particular zxid,
+[00:47:07] now it must have been committed,
+[00:47:09] because you know the client could not have gotten that zxid
+[00:47:11] unless you know that that zxid was committed.
+[00:47:17] Thanks.
+[00:47:19] Also, so when you say that from the read you you get stale data,
+[00:47:25] so like the last basic arrow,
+[00:47:27] but the client here in the read request,
+[00:47:30] it supplied these zxid within it,
+[00:47:32] so it's as if the client knowingly exactly wanted that location in the log,
+[00:47:39] that had zxid as its index,
+[00:47:42] so didn't it knowingly just request that prefix that specific prefix of the log?
+[00:47:47] No, but really says you know what this zxid actually says,
+[00:47:50] like it's basically counters you know going back in time,
+[00:47:55] and so the zxid like you know you have,
+[00:47:58] as a follower, you have to return to your result,
+[00:48:01] that at least concludes the prefix of the log through zxid,
+[00:48:05] you might have more, that be fine too,
+[00:48:08] but at least through zxid,
+[00:48:09] and this just stops one case where you read back in time.
+[00:48:13] Okay, awesome, thank you.
+[00:48:16] Okay, so now you might wonder,
+[00:48:20] you know, so this clearly does not provide linearizability,
+[00:48:22] and one reason people are excited about the linearizability is,
+[00:48:25] because it behaves like a single machine,
+[00:48:26] so it's easier to program,
+[00:48:27] you know you do put, you do get,
+[00:48:30] you roughly know what you're gonna get,
+[00:48:32] and no pun intended,
+[00:48:34] but here you certainly have a model of programming model
+[00:48:38] is different from a single machine,
+[00:48:41] and so you know how do you program this thing.
+[00:48:45] And you know it turns out that,
+[00:48:46] there basically the rules,
+[00:48:48] you know the correct definition that you know zookeeper has,
+[00:48:51] are basically you can think of it like,
+[00:48:54] those good enough to actually do for purpose to do help programming.
+[00:49:00] And so I want to talk a little bit about that.
+[00:49:12] So the real point is that,
+[00:49:14] you know with linearizability,
+[00:49:16] it's pretty clear that you know that helps programming
+[00:49:19] and writing intuitive programs,
+[00:49:21] you think is going to be slightly different,
+[00:49:23] and we want to understand,
+[00:49:24] actually if things work out well,
+[00:49:27] and whether it's like [] in the [] program
+[00:49:30] is basically completely unusable.
+[00:49:32] So, so let's look at one of the key examples they talk about in the paper.
+[00:49:38] And the first thing I want to do is,
+[00:49:42] basically ignore the sync operation,
+[00:49:43] because you can make every operation actually linearizable by just issuing sync,
+[00:49:49] like before you do the read,
+[00:49:51] but that of course makes everything slow again,
+[00:49:54] and we're not going to get our performance,
+[00:49:55] so basically we want to avoid doing syncs,
+[00:49:59] and so I'm just gonna ignore syncs,
+[00:50:00] and like program as if we don't have syncs.
+[00:50:04] So let's look at the following operations,
+[00:50:06] so here's the write order,
+[00:50:13] do a couple operations,
+[00:50:14] and this is the case of the ready file,
+[00:50:16] so we issue a delete of the ready file,
+[00:50:23] so, for example, this is a, a new master,
+[00:50:29] that becomes, becomes the new, the new leader,
+[00:50:35] and so need to write a configuration information in it,
+[00:50:39] like you know who were part of the, the replicated state machine,
+[00:50:44] and who is the leader,
+[00:50:45] and so it writes you know some configuration files,
+[00:50:47] write f1, write f2, create of ready,
+[00:51:02] and then other followers,
+[00:51:05] might other is the read order,
+[00:51:11] they can you know for example call if exists ready,
+[00:51:23] and so zookeeper actually operation exists,
+[00:51:25] and if ready exists,
+[00:51:29] then it will be a true,
+[00:51:32] and otherwise not and so you have to wait,
+[00:51:36] so let's ignore that case for a second,
+[00:51:38] let's assume that you know the second clients,
+[00:51:40] so here was the one for one client did write operations,
+[00:51:43] second client read operations,
+[00:51:45] and then if it exists,
+[00:51:47] then the client reads f1 and then reads f2.
+[00:51:55] And so the thing that you know we want to understand,
+[00:51:59] like you know what values could f1 this read actually return.
+[00:52:12] The thing that we worry about correct is,
+[00:52:14] it could return could return some result of a write,
+[00:52:19] that was done much earlier here,
+[00:52:26] or must have observe this write.
+[00:52:33] I think the paper mentions that,
+[00:52:35] the reader can watch certain things
+[00:52:39] and be notified of changes.
+[00:52:42] Yeah, so let's assume that actually the file exists,
+[00:52:44] so created actually succeeds immediately,
+[00:52:45] so let's talk about the notifications in a second.
+[00:52:49] So this exists returns immediately,
+[00:52:53] no watch evolved, it just exists,
+[00:52:55] and then we do that second client does a read of f1.
+[00:53:00] I think it should read whatever was written by the first client,
+[00:53:03] because the operations are in FIFO.
+[00:53:06] Yeah, right,
+[00:53:08] so the I think the real thing that actually does.
+[00:53:14] If we saw this [] what value,
+[00:53:16] correctly for some write earlier,
+[00:53:17] that would mean that we're reading back in time, right.
+[00:53:21] And that is just not allowed,
+[00:53:22] you know the rules actually forbid that,
+[00:53:25] this read you know must observe you know this value of that write,
+[00:53:31] because this read the previous read exists observe this write, right,
+[00:53:36] so we know that you know this exists [id]
+[00:53:39] must have seen the zxid corresponding by that create,
+[00:53:44] and so that means that,
+[00:53:44] this read will must you know must see the last write,
+[00:53:52] you know that was performed in the total order,
+[00:53:54] that proceeded you know that particular create,
+[00:53:56] and so the last write you know critical order,
+[00:54:00] before that is this particular write, right,
+[00:54:02] because all the writes are actually linearizable.
+[00:54:05] And so it must be the case,
+[00:54:06] that this read f1 observes the result of the write f1.
+[00:54:10] So this is nice, correct,
+[00:54:11] because if you know some new leader became the primary,
+[00:54:16] get raised configuration file,
+[00:54:18] you know we know for sure,
+[00:54:19] that actually we're going to see that last configuration file,
+[00:54:21] that was created by that by that new leader.
+[00:54:26] So we see here an example,
+[00:54:27] that these rules are carefully chosen,
+[00:54:30] that you know things that you might care about,
+[00:54:32] if you're writing a configuration servers,
+[00:54:34] that actually certainly workout.
+[00:54:38] Sorry, I I might have not understood what you were saying before,
+[00:54:42] but in this case if it exists,
+[00:54:44] if checking exists ready,
+[00:54:46] couldn't read like stuff before ready was deleted?
+[00:54:52] Okay, all the writes in the total order,
+[00:54:54] so these writes in total order,
+[00:54:55] that write is in total order,
+[00:54:56] that create in total order,
+[00:54:58] so this read here on the other side has observed that create,
+[00:55:02] so whatever read is going to do is
+[00:55:04] go back and in totol order, correct,
+[00:55:05] like observed the last write in that total order,
+[00:55:08] and at last write f1 is this one.
+[00:55:11] But is exists writes?
+[00:55:13] No, exists is read,
+[00:55:14] but exists observed this particular write.
+[00:55:17] Oh, you're saying.
+[00:55:18] You, you cannot read it back in time, correct,
+[00:55:21] that just the whole goal.
+[00:55:22] Right, but how did we know that it observed, that exists.
+[00:55:26] I told you that,
+[00:55:27] I said like the file existed,
+[00:55:29] so it must be the case that it observed it,
+[00:55:32] exists is return true.
+[00:55:33] But it, but it existed before you deleted it, right.
+[00:55:38] Yeah yeah yeah yeah,
+[00:55:39] but you know okay, we'll go back in a second,
+[00:55:41] let me, okay this is the second case,
+[00:55:43] this is a good point,
+[00:55:44] let me a talk about that,
+[00:55:45] so there's another scenario,
+[00:55:47] and I think this is the one you're worrying about that could have happened,
+[00:55:50] and this is where notifications come in.
+[00:55:53] So at least agree that this is right, correct.
+[00:55:56] So the second case, more rules
+[00:56:02] and this is indeed interesting.
+[00:56:04] I think the case where you're worried about is,
+[00:56:07] here's our reader again,
+[00:56:09] here's our writer again,
+[00:56:11] and the reader you know calls exists on ready,
+[00:56:19] unless the file you know is there,
+[00:56:23] in you know does read f1.
+[00:56:26] Alright, we're almost same as in the previous scenario,
+[00:56:29] and now like you know there's some changing leadership,
+[00:56:32] you know there's a there's a crash, you know recovery,
+[00:56:36] and all that kind of stuff is happening,
+[00:56:38] and so there's a new primary,
+[00:56:41] it deletes ready,
+[00:56:46] you know write f1, and write f2,
+[00:56:55] and it's might create ready like as before.
+[00:57:05] And let's assume that this like this read a little bit delayed,
+[00:57:08] and you know something else happened on the machine,
+[00:57:11] and you know now does the read f2.
+[00:57:15] And I think this is a very the question you were asking about,
+[00:57:18] because this is the [] something, right,
+[00:57:20] because now there's a configuration change,
+[00:57:23] and if this configuration change gets flooded in the middle here, right,
+[00:57:27] this read of f2 is going to return the new configuration,
+[00:57:32] as opposed to the read of f1 that is going to return the old configuration,
+[00:57:35] and clearly things are gonna be messed up,
+[00:57:38] that's not a scenario we want to be in,
+[00:57:41] so we terrible outcome.
+[00:57:43] So and how does that actually you know get rectified,
+[00:57:47] or how this actually zookeeper deal with this.
+[00:57:49] Well, this is where the watch come in,
+[00:57:52] you know the pictures I drew in the previously board is not completely correct,
+[00:57:56] in addition to calling exists with the ready
+[00:58:00] is going to say watch to true.
+[00:58:08] And what that means is that,
+[00:58:12] this delete you know change is the ready file,
+[00:58:17] and we have now set a watch on the ready file,
+[00:58:20] and so when the ready file gets deleted by this new primary,
+[00:58:26] that actually results in a notification.
+[00:58:35] And there's a rule for this notification,
+[00:58:37] and the rule for the notification is that,
+[00:58:39] every notification will be delivered before you know writes that go after it.
+[00:58:46] And so what has to be the case,
+[00:58:48] that you know the this notification will be delivered before the write to f1.
+[00:58:56] So when, so there's two possible scenarios,
+[00:58:59] if the notification gets delivered here,
+[00:59:02] or the notification gets delivered like after the read of f2.
+[00:59:06] Let me move that read of f2 slightly up,
+[00:59:12] or yeah,
+[00:59:14] so it's still happening,
+[00:59:15] so in time behind you know the write operation,
+[00:59:18] but notification gets [] delivered here depending on the delays
+[00:59:22] or it's going to delivered here.
+[00:59:24] Sorry, what's the exact wording of that rule that allows this to happen?
+[00:59:30] Basically, I think one way to think about it,
+[00:59:33] the notification is like it was always like a write operation,
+[00:59:36] and the followers you know implemented,
+[00:59:39] so that the if the change happens to delete the notification goes off,
+[00:59:44] that notification is delivered to the client with that zxid.
+[00:59:51] Yeah, but I still don't understand why this guarantees,
+[00:59:54] that it can go like before,
+[01:00:01] wait, so the valid places for it are,
+[01:00:03] before the write of f1 and also like after the write of f2, right?
+[01:00:11] The notification is delivered after the after the delete of ready,
+[01:00:16] and before the writes,
+[01:00:18] before the writes of f1 and f2 are [],
+[01:00:20] or [in] the create for that matter.
+[01:00:24] Oh, I see.
+[01:00:30] That's just a rule, zookeeper has to guarantee that.
+[01:00:33] Okay.
+[01:00:35] Okay, so so that means there's two cases, correct,
+[01:00:37] like the notification gets delivered,
+[01:00:39] before the read of f1 or after the read of f1.
+[01:00:43] If we deliver, if it gets delivered after the read of f1 of f2,
+[01:00:47] is there a problem?
+[01:00:51] No.
+[01:00:51] No, because then the read just happened before the writes.
+[01:00:55] So everything's good,
+[01:00:55] so this is this whole block is happening after the read of f2 is perfectly fine,
+[01:00:59] and how about here?
+[01:01:03] Professor, did you say the watch is like a like write something?
+[01:01:09] Well, you can think about it,
+[01:01:12] the watch is not a write operation,
+[01:01:13] I didn't mean to imply that,
+[01:01:14] the write, the watch is executed with the appropriate zxid,
+[01:01:19] that's associated with that modification.
+[01:01:22] Those are local, right, watches.
+[01:01:24] Yeah, the watches are local,
+[01:01:25] and so when they're executed,
+[01:01:27] the it's guaranteed you know that they happened at the write,
+[01:01:32] when the write is observed
+[01:01:34] or the client sees that's [],
+[01:01:36] the watch propagated with the zxid to the client
+[01:01:38] and make sure that execute it.
+[01:01:41] Thanks.
+[01:01:44] Again, the papers are slightly [vapor], exactly how it's implemented,
+[01:01:47] but you can imagine different scenarios,
+[01:01:50] but the more important points like these rules guaranteed.
+[01:01:52] Okay, so what happens if the notification is delivered here?
+[01:01:58] So the client is running, correct,
+[01:02:00] you know exists, the read f1
+[01:02:01] and now this notification comes in.
+[01:02:06] Then you have to restart probably.
+[01:02:08] Yeah, you have to restart.
+[01:02:15] Okay? So what we see here basically is that,
+[01:02:19] you know the rules you know make programming definitely a bit more a difficult,
+[01:02:23] but not impossible,
+[01:02:26] you know with a little bit careful sort of programming,
+[01:02:29] you know you and understand the rules,
+[01:02:31] you can actually get the desirable results,
+[01:02:34] that actually probably the application wants.
+[01:02:36] What happens to the read f1 though?
+[01:02:39] What happens to read f1?
+[01:02:41] You start over.
+[01:02:43] Including that.
+[01:02:44] Right.
+[01:02:48] Okay?
+[01:02:50] And you'll see this is a trick,
+[01:02:51] that shows up in those [recipes] quite a bit,
+[01:02:53] like this there's an idea of actually you know bailing out and starting over again.
+[01:03:00] Okay, so hopefully that gives you a sense that got for two things,
+[01:03:04] sort of even though people,
+[01:03:07] one reason like people like linearizability is
+[01:03:09] because it's very intuitive,
+[01:03:10] very easy to program with,
+[01:03:12] because everything behaves like a single machine.
+[01:03:14] But if you want fault tolerance, scalability,
+[01:03:17] it's hard to get actually good performance,
+[01:03:19] and so one way to get good performance is
+[01:03:21] to compromise on the consistency guarantee,
+[01:03:23] and in this case,
+[01:03:24] you know compromising linearizability
+[01:03:26] and provide some other consistency guarantee,
+[01:03:28] and as we can see,
+[01:03:29] you know that's complicate the user experience of the programmer experience,
+[01:03:34] but, these rules in zookeeper are carefully chosen,
+[01:03:38] so still you know things can actually work out,
+[01:03:41] it's doable.
+[01:03:44] So it is possible to get the write to sort of guarantees.
+[01:03:48] So now there's another aspect to this programming model,
+[01:03:51] and then I want to talk a little bit about now,
+[01:03:53] that is really related to the coordination service part.
+[01:04:06] And so examples, you know that you need to,
+[01:04:10] you know what does it mean to be a coordination service.
+[01:04:13] One good example is probably the VM virtual machine fault tolerance paper
+[01:04:19] from a little while ago that we read,
+[01:04:21] and that had this test-and-set operation,
+[01:04:28] the goal of the you know the test-and-set operation is
+[01:04:30] basically make sure that there's no split-brain,
+[01:04:32] because basically two clients would run,
+[01:04:34] and one would win the test-and-set, the other one wouldn't,
+[01:04:36] and as a result, you know the one that won the test-and-set
+[01:04:39] could conclude you know that that's going to be the primary.
+[01:04:43] And so that is sort of a an example
+[01:04:46] of feature that coordination service should be able to provide.
+[01:04:52] And I wanna you know just just make a little bit more concrete,
+[01:04:56] let's think about with lab 3,
+[01:04:59] could you get that with lab 3,
+[01:05:02] you know basically sort of test-and-set type thing.
+[01:05:05] Well, so let's do a very simple case,
+[01:05:10] you know let's say we have,
+[01:05:13] here are simple implementation of test-and-set,
+[01:05:17] and in lab 3, we only have put and get operations,
+[01:05:21] there's no other operations,
+[01:05:22] so those are the two operations,
+[01:05:23] so like how would you write this,
+[01:05:25] you know, maybe you know do a put to a key, let's say master,
+[01:05:35] and we put my IP address in it,
+[01:05:37] the IP address of the caller
+[01:05:40] and then you do get,
+[01:05:42] you know and we say if the get on master is equal to my IP address,
+[01:05:56] then you know act as master or act as leader.
+[01:06:03] Actually, this is our naive implementation,
+[01:06:05] you know we don't have many other choices,
+[01:06:07] because we put, we only have put and get,
+[01:06:10] and this is how we can implement this.
+[01:06:13] Will this do the desirable thing?
+[01:06:23] Oh, there's no atomicity between the put and the get,
+[01:06:27] so maybe something changed.
+[01:06:29] Correct, so basically there could be two clients, correct,
+[01:06:32] both could execute both put at the same time,
+[01:06:36] and, and then observe, you know the,
+[01:06:42] in roughly, they could do it at the same time,
+[01:06:46] and the interleave correctly involve [actually]
+[01:06:48] return gets you know with their particular IP address, right,
+[01:06:51] so we can get 2 leaders.
+[01:06:57] And of course not what we want,
+[01:06:59] so the main point of this,
+[01:07:01] for example is basically you just have put and get,
+[01:07:04] it's gonna be very hard to actually implement the test-and-set.
+[01:07:08] It turns out it's possible, but very complex,
+[01:07:10] use bakery algorithm, you can actually probably do it,
+[01:07:13] but it's gonna be ridiculous,
+[01:07:14] like to do that in a distributed system,
+[01:07:17] and so what zookeeper does,
+[01:07:20] it just provides some additional help,
+[01:07:25] to build the sort of [] primitives,
+[01:07:28] we'll see in a second.
+[01:07:31] The other thing that presumably what you want to know,
+[01:07:33] and lab 3 does not provide any support
+[01:07:36] for you sort of configuration services or coordination services,
+[01:07:40] that you want to know when somebody goes down,
+[01:07:42] for example you want to observe that
+[01:07:44] like the leader goes down,
+[01:07:45] like some other parties would like to know,
+[01:07:48] like is the leader down,
+[01:07:49] so that we can choose a new one if it needed to,
+[01:07:52] and so at least on the application of the building using a service.
+[01:07:57] Okay, so, so there are two things that we really want,
+[01:08:00] you know one is you know sort of way of trying to get this atomicity,
+[01:08:05] that's what we're looking for in the zookeeper design,
+[01:08:08] and then zookeeper design, second we were looking for in zookeeper design is,
+[01:08:11] for an application to learn whether some node goes down.
+[01:08:17] So let's look at the zookeeper API,
+[01:08:20] and really we want to look at is znode API.
+[01:08:27] And you'll see again,
+[01:08:28] that is actually carefully designed
+[01:08:30] to actually make it possible
+[01:08:31] to do the things that we're we're looking for.
+[01:08:35] Okay, so the way the system is organized is,
+[01:08:38] you know there's a tree of znodes,
+[01:08:40] typically you know there's like one sort of app1 as a znode,
+[01:08:46] that might have some children,
+[01:08:47] that correspond to the machines that are part of app1,
+[01:08:52] so it's like peer or machine 1, machine 2,
+[01:08:56] like maybe IP addresses or DNS names,
+[01:09:00] machine 3,
+[01:09:01] and they might actually have version numbers associated
+[01:09:05] or sequence numbers with them.
+[01:09:06] And basically znodes can be of three types,
+[01:09:10] one, they can be regular,
+[01:09:13] so they're fault tolerance replicated all that kind of stuff.
+[01:09:16] And then they could be ephemeral,
+[01:09:21] and ephemeral basically means that the node will disappear automatically,
+[01:09:26] when the session with that the machine 3 goes away,
+[01:09:32] so either because there's a network partition,
+[01:09:34] there's no heartbeat more coming in from machine 3,
+[01:09:38] but at some point zookeeper decides you know that session is gone,
+[01:09:41] and so then it will delete that node automatically,
+[01:09:46] and so that's where ephemeral nodes.
+[01:09:49] And then there's a third one which is sequential,
+[01:09:53] oops, go back,
+[01:09:54] to the third one you know type node sequential nodes,
+[01:09:59] and that really means that,
+[01:10:00] you know that version version number associated with them in their name,
+[01:10:04] and and they're created one by one in under particular znode,
+[01:10:10] all the children will have a sequence number in their name,
+[01:10:15] and the nodes are ordered by the sequence number,
+[01:10:19] and so again this might have sequence number 1,
+[01:10:21] this might sequence number 2,
+[01:10:22] and this might have sequence number 3,
+[01:10:24] and the new one gets created will have a sequence number higher than 3.
+[01:10:29] Okay, then, there's a API associated with that,
+[01:10:33] I want to talk a little bit about,
+[01:10:34] there's create which we already mentioned a little bit,
+[01:10:39] you know takes a path, it takes some data and flags,
+[01:10:44] and the flags correspond to the three cases.
+[01:10:48] And then there's delete,
+[01:10:50] and in the previous slide effort little bit misleading,
+[01:10:53] and delete takes a path before, it also takes a version number.
+[01:10:58] And exists takes a path and a watch.
+[01:11:05] And then there's a getData primitive,
+[01:11:09] takes a path and version number.
+[01:11:14] And we'll see that these version numbers are the trick,
+[01:11:16] are the key to actually get are atomicity.
+[01:11:19] And then setData path data and version number.
+[01:11:26] And there's also a call for getChildren
+[01:11:28] to get actual the children of a particular znode,
+[01:11:32] which takes a path, and I think the watch.
+[01:11:39] And there sync basically a call the operation
+[01:11:42] to actually ensure that actually,
+[01:11:43] so if you really need strong linearizability.
+[01:11:47] Okay, so I want to talk a little bit about
+[01:11:50] you know why you know this version number handy,
+[01:11:54] and so, let's look at a particular example, the simple example,
+[01:11:58] I can come up with basically implementing a counter.
+[01:12:07] And so the way you would write the,
+[01:12:12] if you write you know,
+[01:12:13] okay so, let me actually first get the write solution,
+[01:12:16] so while you know true,
+[01:12:19] you know the way you implement increment,
+[01:12:21] so there's the pseudo code for increment of this counter,
+[01:12:25] is you do get x,v you know getData of the counter,
+[01:12:35] getData count,
+[01:12:39] and then if you know setData count,
+[01:12:50] that's a sort of x+1 and the version number,
+[01:12:59] and if that is the case, then break.
+[01:13:04] Okay, so let me quickly go over this,
+[01:13:06] so the getData returns the current version number and the value of the key,
+[01:13:13] so the key or the path you know,
+[01:13:15] so for the file count,
+[01:13:16] it returns the value and its version number that particular point,
+[01:13:19] when they did read,
+[01:13:20] and then you call and setData takes three arguments,
+[01:13:24] you know the path, updates the new value,
+[01:13:26] in this case it's going to be x+1,
+[01:13:28] because we want to increment the value by 1,
+[01:13:30] and it actually passes in the version number,
+[01:13:32] and the semantics of setData is that,
+[01:13:36] if you know the version numbers are still the same,
+[01:13:40] then the setData actually happens and otherwise not.
+[01:13:45] So what does this protect against?
+[01:13:50] This prevents you from interleaving the get-and-set, basically.
+[01:13:56] So if like two operate, two clients did get at the same time,
+[01:14:01] they would read,
+[01:14:04] they do get at the same time,
+[01:14:07] they get both back say you know whatever x 0 and version number 0,
+[01:14:13] x 0, version number 0,
+[01:14:16] then they do both put,
+[01:14:19] where like in this case a setData,
+[01:14:22] so the setData with you know whatever x is 1, you know version number 0,
+[01:14:29] also this guy does the same thing,
+[01:14:31] set you know 1 0.
+[01:14:35] And you know why
+[01:14:37] and so both both clients issued two set operations,
+[01:14:41] both set operation []?
+[01:14:51] Well, no.
+[01:14:52] And yeah, why not.
+[01:14:54] Because one of the version numbers will be wrong.
+[01:14:57] Yeah, right, like so one of the two goes first,
+[01:15:00] why does one of the two go first?
+[01:15:02] Because all writes are linearizable.
+[01:15:05] Yeah, all writes are linearizable,
+[01:15:06] so they're going some total order,
+[01:15:07] so you know we can pick one,
+[01:15:09] so let's say this guy goes first,
+[01:15:10] or this the operation goes first,
+[01:15:12] so that will increase the,
+[01:15:15] that will increase the, the value correct 1,
+[01:15:21] from 0 to 1 is correctly
+[01:15:23] and but will also and will execute,
+[01:15:25] because the version number is match, right,
+[01:15:27] like the version number 0 is actually what the current version number is,
+[01:15:30] so the version number match, the increment happens
+[01:15:32] and setData returns true.
+[01:15:35] What will happen with the second one,
+[01:15:37] while the second one, the version number won't match,
+[01:15:38] because the version number will be increased,
+[01:15:40] because of previous setData operation,
+[01:15:43] and therefore the second setData operation will fail,
+[01:15:45] and so and then the client will loop back and try again,
+[01:15:48] and try to and try to take another shot and do the increment.
+[01:15:54] And correct, so what happens in this case is correct,
+[01:15:58] even though the two clients executed the operation concurrently,
+[01:16:02] if the interleaving is bad,
+[01:16:04] you know the this piece of code will actually do the write thing,
+[01:16:06] the second client will try again,
+[01:16:08] and as a result you know the,
+[01:16:10] what the end value will be you know 2 supposed to 1.
+[01:16:15] Okay?
+[01:16:19] Does that make sense?
+[01:16:24] If you've done any sort of lock-free programming in the past,
+[01:16:27] then this might now look very familiar to you,
+[01:16:30] and so this sort of style of lock-free
+[01:16:32] basically zookeeper to encourage this sort of style of lock-free programming.
+[01:16:45] Okay, what I'd like to do,
+[01:16:49] since I'm running out of time,
+[01:16:50] last time I ran over time is,
+[01:16:52] I'll want to talk with some points about logs,
+[01:16:56] but I will do that next time,
+[01:16:59] the next lecture.
+[01:17:02] Now let me just sort of summarize what we've learned so far,
+[01:17:05] and then I'll talk a little bit more about zookeeper in the next lecture.
+[01:17:11] So, as summary,
+[01:17:16] so basically you know just a very successful design,
+[01:17:25] widely used,
+[01:17:26] you can download you know on github,
+[01:17:29] you can play around with it, if you wanted to,
+[01:17:32] and one of the things that's interesting about it,
+[01:17:34] compared to all the systems that we look so far,
+[01:17:37] it has weaker consistency,
+[01:17:39] which weaker consistency, I mean it doesn't provide linearizability,
+[01:17:44] and you know we're seeing that basically as a careful design API,
+[01:17:50] at least we've seen some aspects of the careful design API,
+[01:17:53] that despite the fact that actually has weaker consistency,
+[01:17:56] you can still use it,
+[01:17:57] and in fact you know you can use it actually for pretty important applications,
+[01:18:01] you can actually use zookeeper as a configuration service,
+[01:18:05] like its main purpose of keeping track of,
+[01:18:07] like who's primary, who's in the, who what the set of replicas etc etc,
+[01:18:13] and so for this sort of crucial operation of being a configuration service,
+[01:18:17] that has to be correct,
+[01:18:18] because otherwise we get to split-brain problem,
+[01:18:20] the API carefully designed,
+[01:18:22] so that if you use the API correctly,
+[01:18:25] you still can implement this crucial application on top of it,
+[01:18:31] despite the fact that actually provides weak consistency.
+[01:18:34] And the cool part of that is that,
+[01:18:37] this discrimination,
+[01:18:38] you know like sort of careful design API and the weaker consistency
+[01:18:41] allows us to get you know zookeeper really high performance.
+[01:18:49] And we'll see later in later lectures,
+[01:18:51] more of this sort of trick,
+[01:18:54] of trying to weaken the consistency guarantees
+[01:18:57] to actually you know get better for get better performance
+[01:19:01] or you know able to continue despite network partitions.
+[01:19:10] Okay, let me stop here,
+[01:19:11] and then I'll resume in a little while,
+[01:19:16] the next time around for the [] lecture.
+[01:19:19] Any questions?
+[01:19:21] Where again as usual,
+[01:19:23] if you have to go, please feel to go,
+[01:19:25] if you want to hang around and ask more questions,
+[01:19:27] you know feel free, please feel free to do so.
+[01:19:42] Sorry, can you go to the slide which said the set,
+[01:19:49] the unsuccessful example for the set and for the test-and-set,
+[01:19:55] I think it's two slides back.
+[01:19:58] This one?
+[01:19:59] Yeah, so the new design,
+[01:20:04] it's, it is able to fix that write.
+[01:20:07] Yeah, I mean like API zookeeper provides.
+[01:20:15] In the [] version write.
+[01:20:16] Yeah, if you have to exactly,
+[01:20:19] I didn't get to do that,
+[01:20:21] but that was going to the rest of the lecture is to talk about,
+[01:20:23] how you can implement test-and-set using the version numbers.
+[01:20:27] And clearly the increment suggests you can, correct,
+[01:20:30] because this is basically the same sequence.
+[01:20:34] Right.
+[01:20:36] Oh, if this is the same thing as the master, okay.
+[01:20:38] Yeah, that exactly.
+[01:20:41] Okay, thank you so much.
+[01:20:42] You're welcome.
+[01:20:45] I have a question about this version versioning to prevent lock
+[01:20:50] to implement lock-free programming,
+[01:20:52] is this like much more efficient lock-free programming,
+[01:20:55] because you still need to read,
+[01:20:58] try the operation again and again
+[01:21:00] until it succeeds write.
+[01:21:02] Yeah, again, this test-and-set has a similar property, correct,
+[01:21:06] if the test-and-set failed,
+[01:21:07] and you wanted to become you know actually increment,
+[01:21:09] you have to do that again,
+[01:21:10] so, it's often the case,
+[01:21:12] in this lock-free style programming,
+[01:21:13] that you have these loops where you retry.
+[01:21:16] And so if there's a lot of contention,
+[01:21:18] you're gonna get a lot of retry,
+[01:21:20] because there's no contention, there's no retry,
+[01:21:22] and typically you know these lock-free algorithms actually are pretty careful
+[01:21:26] in how they do the back off,
+[01:21:28] so they don't really retry immediately,
+[01:21:29] you know they have some backup plan.
+[01:21:32] Right, but what benefits this skip over a standard lock,
+[01:21:37] because either way if you have a lot of contention,
+[01:21:39] you're gonna be like sitting there and retrying a lot.
+[01:21:42] Yeah, so let's,
+[01:21:43] yeah, so you know,
+[01:21:45] so, the increment counter is an example,
+[01:21:48] where basically sort of implicitly do the locking,
+[01:21:52] because you will see if we implement locks in zookeeper,
+[01:21:56] like zookeeper, implement locks with zookeeper API,
+[01:22:01] and then if you do this stupid lock,
+[01:22:03] you can also have this contention issue,
+[01:22:05] of course, there's a way of implementing smarter lock,
+[01:22:08] they talked about like without [hurting]
+[01:22:11] and then you could do better,
+[01:22:13] and so I hoping to talk about next time.
+[01:22:19] Okay, thank you.
+[01:22:20] I think the real point here is you know that,
+[01:22:22] you can use these primitives to actually do lock-free programming,
+[01:22:26] like with the interface that the lab 3 provides, its not possible.
+[01:22:32] Makes sense, thank you.
+[01:22:43] Any further questions?

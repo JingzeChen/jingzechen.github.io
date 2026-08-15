@@ -1,0 +1,1343 @@
+[00:00:04] Okay, good afternoon, good morning or good night,
+[00:00:08] let's get started,
+[00:00:11] today I want to talk about Bitcoin.
+[00:00:14] The reason I want to talk about it is,
+[00:00:17] it solves a hard problem,
+[00:00:19] namely achieving consensus with byzantine participants.
+[00:00:41] I think it solved,
+[00:00:43] so byzantine I mean participants is that,
+[00:00:45] it might be a malicious or adversarial,
+[00:00:48] and it solves this problem in the context of a completely open systems,
+[00:00:53] you know people can join and leave the system as will,
+[00:00:57] and some of them may be malicious,
+[00:01:00] and yet you know achieve consensus on the order in which transaction happen.
+[00:01:07] So does it actually a very challenging context,
+[00:01:09] is actually really doing in the money involved.
+[00:01:14] The design you know looks a little bit like has aspects of SUNDR,
+[00:01:22] so in the sence,
+[00:01:22] there's a signed log of operations,
+[00:01:26] in this case transactions.
+[00:01:28] We know like in SUNDR, that actually you can handle forks,
+[00:01:39] so most of the, many aspects that are interesting to talk about with respect to Bitcoin,
+[00:01:44] but mostly I'm going to focus on
+[00:01:46] sort of sort of the distributed systems aspect of this particular paper.
+[00:01:50] This paper is a bit unusual or quite unusual,
+[00:01:55] first of all, it's not a paper out of the scientific literature,
+[00:02:00] that I've been reading so far,
+[00:02:01] it comes out of a different part of the world,
+[00:02:04] it is pseudo-anonymous,
+[00:02:15] and it has you know particularly [] you know with a financial institutions,
+[00:02:21] and you know you can have all kinds of opinions
+[00:02:24] about Bitcoin in general and cryptocurrency in general,
+[00:02:28] but from the perspective of distributed systems,
+[00:02:30] this is a [] successful system,
+[00:02:32] this is a really truly an open system,
+[00:02:36] that can tolerate the byzantine participants and achieving consensus.
+[00:02:40] And so really, you know the focus of this lecture,
+[00:02:42] you're trying to understand
+[00:02:43] how actually achieves that particular aspect.
+[00:02:50] Any questions, just do before diving in?
+[00:03:01] Okay, so as I just mentioned,
+[00:03:03] you know the context is here financial transactions.
+[00:03:09] And so there's a free overriding concerns,
+[00:03:13] you know when, when transactions are involved,
+[00:03:15] where money transactions are involved,
+[00:03:17] first of all, of course there's the concern outright forgery,
+[00:03:26] where basically you know people cook up transactions out of thin air,
+[00:03:30] and enter them in the log,
+[00:03:32] and you know trying to mislead other participants,
+[00:03:36] you know that actually they're spending their own money,
+[00:03:39] while spending somebody else's money,
+[00:03:41] and you know this problem is reasonably straightforward for solved,
+[00:03:44] in a very short similar style to SUNDR,
+[00:03:46] but basically signing operations make it hard to actually forge,
+[00:03:53] and in fact you know the general setting here, correct,
+[00:03:55] it's the same as in SUNDR,
+[00:03:56] well, you know the byzantine participants are very very powerful,
+[00:04:01] we're going to be assuming
+[00:04:02] that the crypto systems actually work and cannot be compromised.
+[00:04:07] And so a lot of the core functionality or the basis
+[00:04:11] of which you know we might conclude,
+[00:04:13] that actually things are secure, all going to come down
+[00:04:15] to the fact that the underlying cryptography is correct,
+[00:04:21] so that's one challenge.
+[00:04:23] The second challenge which is the one,
+[00:04:25] that the paper spends mosts of time talking about is double spending,
+[00:04:34] so you literally have you know some Bitcoins, that you accumulated,
+[00:04:39] and a byzantine practitioner tries to spend twice that same Bitcoin,
+[00:04:46] and of course we want to avoid that particular problem I do,
+[00:04:50] and the main ideas we'll see is
+[00:04:52] a public ledger or a public log of all the transactions,
+[00:04:58] you know so you can see if the transaction actually,
+[00:05:00] without money was already spending early transaction,
+[00:05:03] and really trying to achieve consensus on what is actually in the log,
+[00:05:07] is the heart of the paper.
+[00:05:10] Then, of course, in addition to these two,
+[00:05:14] you know the obvious other problem,
+[00:05:16] which paper doesn't talk much about,
+[00:05:18] and we're also not gonna talk much about
+[00:05:20] which is just theft,
+[00:05:22] where somebody actually steal somebody else's private key,
+[00:05:26] and therefore can spend money or Bitcoins
+[00:05:30] using that particular private key,
+[00:05:31] and it turns out to be in practice a serious problem,
+[00:05:34] people store their wallets with their signing keys on computers,
+[00:05:40] and computers can be broken into,
+[00:05:42] and and therefore people can break it over, steals somebody else's money.
+[00:05:47] And I think this is a serious problem in practice,
+[00:05:50] I'm not going to be spending much time talking about it,
+[00:05:53] again I want to focus on the distributed system's aspects.
+[00:05:59] Any questions about the challenges?
+[00:06:06] Okay, let's look at the transaction,
+[00:06:09] you know what's actually in it.
+[00:06:12] So this is basically what is in the ledger,
+[00:06:22] I'm going simplify this greatly,
+[00:06:27] because some of the details actually don't really matter to the discussion,
+[00:06:29] that we're going to have,
+[00:06:30] and the first [order] you can think about is,
+[00:06:33] every transaction is a record,
+[00:06:37] and the record has a public key,
+[00:06:44] for the user, for which you know the the money is intended,
+[00:06:48] so this is the destination,
+[00:06:51] a hash of the previous transaction,
+[00:06:58] you know for this particular Bitcoin,
+[00:07:01] and a signature, and we have the private key,
+[00:07:11] U2 you know were basically the previous owner of that particular Bitcoin,
+[00:07:18] and in that sort of you can think about this as the source,
+[00:07:22] so basically U2 is making
+[00:07:23] you know granting you know Bitcoin, transferring Bitcoins from U2 to U1,
+[00:07:28] so that U1 that can spend them.
+[00:07:31] Of course, there's all kind of other stuff in it,
+[00:07:33] like there's an amount in it,
+[00:07:35] it's a fractional amount,
+[00:07:36] there are many destinations and many sources possible,
+[00:07:40] there are many ins and outs,
+[00:07:43] we are basically will ignore it,
+[00:07:45] and just focus on a sort of simplified description,
+[00:07:49] turns out that transactions are encoded also
+[00:07:52] not sort of like sort of [passive] records,
+[00:07:54] but basically a little scripting language,
+[00:07:57] and also going to ignore all those aspects.
+[00:08:02] I'm going to start to focus on this thing,
+[00:08:04] and you know talk a little bit and show a little example,
+[00:08:07] so we get a little bit of handle
+[00:08:09] and actually what we're looking at in terms of the challenge.
+[00:08:15] So we're going to sort of look at an example ledger
+[00:08:18] and sort of trying to understand
+[00:08:19] actually you know what it means to be a Bitcoin or what a coin is,
+[00:08:23] it's not like sort of a single thing,
+[00:08:27] actually it really comes down to is
+[00:08:29] actually sort of a sha1 of the last transaction,
+[00:08:32] that's sort of what a coin is.
+[00:08:34] So let's say you know y owns a coin and received from x,
+[00:08:41] and so that means that there's somewhere in the ledger,
+[00:08:44] that sort of transactions,
+[00:08:46] that transfer the money or the coin or parts of the coin to y,
+[00:08:51] and so let's see,
+[00:08:52] like somewhere, maybe there was an entry that ledger somewhere,
+[00:08:55] in some period time, where x actually received some Bitcoins,
+[00:09:04] and, and now you know sort of grants the, has given it to y.
+[00:09:11] So there's another transaction in the ledger,
+[00:09:14] that basically records that fact,
+[00:09:16] and so that might have a pub key of y,
+[00:09:20] destination the hash of the transaction 6,
+[00:09:26] and so that uniquely identifies shorthand handle
+[00:09:29] for uniquely identifying transaction 6,
+[00:09:32] and so we have the ledger or record, we think is transaction 6,
+[00:09:35] now we can re-compute the hash of that transaction
+[00:09:38] compared to the one that storage transaction 7,
+[00:09:40] and where truly determined that basically transaction 6,
+[00:09:44] what's the source you know for this transaction 7,
+[00:09:47] or it's based the previous transaction, was transaction 6, for this particular coin,
+[00:09:52] it is signed by you know x.
+[00:09:57] Now, so this is sort of situation,
+[00:10:00] where y obtained basically you know some Bitcoins you know from x,
+[00:10:07] you know y wants to spend,
+[00:10:09] for example, maybe y want to buy a latte from z,
+[00:10:12] and so it's transfer some money to z,
+[00:10:18] so maybe we'll see another transaction in the ledger,
+[00:10:21] which is going to be a form,
+[00:10:22] this is one that actually y is going to add,
+[00:10:29] pub(z), hash of the previous coin,
+[00:10:38] the last transaction for that coin, so that's,
+[00:10:41] and you know sign by y.
+[00:10:45] Basically you know z wants to do,
+[00:10:48] before you know z actually hands over the latte to y,
+[00:10:51] z need to do some verification
+[00:10:53] to make sure that this actually is a legit you know transaction,
+[00:10:57] so you know look up you know transaction 7,
+[00:11:02] and you know compute you know the hash of double check,
+[00:11:06] the hash actually corresponds to the one
+[00:11:08] that actually listed in transaction, in transaction 8,
+[00:11:13] if you know the hash checks out,
+[00:11:15] so there's transaction 7 is indeed,
+[00:11:17] you know we believe that the one that actually transaction 8 refers to,
+[00:11:22] you know z looks up the public key in transaction 7 for y,
+[00:11:28] which usually is the public key y,
+[00:11:30] then you know verifies that use that public key
+[00:11:33] to verify the signature of this transaction,
+[00:11:36] and the signature of course covers the whole transaction,
+[00:11:39] and if the signature checks out,
+[00:11:41] you know then you know z can be confident
+[00:11:45] you know that actually the ledger contains a transaction,
+[00:11:49] that basically transfers you know some amount of money from y to z,
+[00:11:53] so at this point, you know the verification you know z verifies,
+[00:11:58] and you know if it's okay, you know whatever ship latte,
+[00:12:06] and if not, you know reject,
+[00:12:13] and again like before in you know the SUNDR,
+[00:12:16] and all these sort of schemes you know we're lying here in the fact,
+[00:12:19] that basically y you know was careful with its private key,
+[00:12:31] so you know we have to assume,
+[00:12:34] that y didn't disclose in any way it's private key,
+[00:12:44] because if anybody has you know this private key,
+[00:12:46] then there's anybody could come up to signature,
+[00:12:49] and you know he was able to spend basically y's money,
+[00:12:54] although maybe from the perspective receiver, doesn't really care.
+[00:12:58] Okay, so, so that's sort of basic plan,
+[00:13:03] in terms of having a record,
+[00:13:07] I mean, you know this is pretty good,
+[00:13:09] I mean, there's a record of the transaction that happened,
+[00:13:15] when z receives a transaction,
+[00:13:17] that could check whether this is a valid transaction,
+[00:13:20] and that you know allows to decide
+[00:13:23] where to actually accept the money and deliver the goods.
+[00:13:27] So, one key challenge you know in,that,
+[00:13:34] you know sort of left,
+[00:13:35] you know we're seeing that outright forgery is difficult,
+[00:13:41] but you know we need to think a little bit about the double spending,
+[00:13:43] and so the double spending problem is as follows.
+[00:13:46] Let's say instead of creating two record, one record
+[00:13:49] in this particular example in the transaction the 8,
+[00:13:52] z actually you know creates, [] y creates two records,
+[00:14:07] one record is basically giving the one that you saw you know are T8,
+[00:14:14] y to z, with hash T7.
+[00:14:20] And let's see,
+[00:14:21] let's assume that actually y also tries to double spend its money,
+[00:14:26] so it creates a second transaction T8',
+[00:14:29] where you know the records is basically the same,
+[00:14:32] except the money goes to Q,
+[00:14:34] and it hash of T7,
+[00:14:38] and of course you know sign by y,
+[00:14:41] you know signed by y.
+[00:14:46] Now, you know let's say you know both q and z are latte stores,
+[00:14:51] if you know z accepts T8,
+[00:14:57] as it would,
+[00:14:57] because you know everything will check out
+[00:14:59] as we saw in the previous slide,
+[00:15:01] then z would actually ship a latte to y,
+[00:15:04] when q not knowing anything,
+[00:15:06] maybe about this other T8 transaction,
+[00:15:09] since this T8 transaction,
+[00:15:11] you know check it out,
+[00:15:12] it's indeed the case,
+[00:15:13] that you know the money in T7 was transferred to y,
+[00:15:16] the thing is you know checked you know with signature for y,
+[00:15:20] you know if valid and will say okay great,
+[00:15:22] you know, oh, thank you for the money,
+[00:15:24] I'll ship you also a latte,
+[00:15:26] and now we're in this bad position,
+[00:15:28] where y by double spending or succeeded in double spending and got two lattes,
+[00:15:35] you know there's the problem,
+[00:15:36] that basically the paper really focused on trying to solve.
+[00:15:45] The basic approach is,
+[00:15:49] you know sort of similar to what somewhere was doing,
+[00:15:52] let's keep a complete log of all transactions,
+[00:15:55] since the beginning of time,
+[00:16:02] and in the log contains all the transactions including the order, right,
+[00:16:13] and so you know let's see you know,
+[00:16:15] so we sort of put the transactions in,
+[00:16:18] you know whatever here we had T6, here we had T7,
+[00:16:23] so if there's a public record,
+[00:16:25] that is ordered to all the transactions,
+[00:16:26] you know T8 or T8' goes first,
+[00:16:28] let's say T8 goes first,
+[00:16:31] and then the T8' goes in the log,
+[00:16:35] and you know this would happen,
+[00:16:37] then you have no problem at all, right,
+[00:16:40] because this was the transaction from y to z,
+[00:16:44] this was the transaction from y to Q,
+[00:16:47] and you know basically when q validates,
+[00:16:52] you know when z validates transaction,
+[00:16:54] everything looks perfect as exactly as before,
+[00:16:56] when Q validates the transaction,
+[00:16:58] in addition to the checks, that we just looked at,
+[00:17:01] it actually looks in the log,
+[00:17:03] Q looks in the log,
+[00:17:08] like to see T7 basically is already spent,
+[00:17:22] and of course you step back the log, you know runs into Ty T8,
+[00:17:26] and you know sees actually the money has been spent,
+[00:17:29] so therefore it will reject you know T8'.
+[00:17:34] Alright?
+[00:17:36] So, so that's the basic plan,
+[00:17:38] and so basically you know produces one problem,
+[00:17:40] which is like how do we actually ensure that,
+[00:17:45] all participants in the systems actually agree on this log,
+[00:17:49] and you know all the transactions are in the same slot everywhere,
+[00:17:53] and contain the same content, the same hashes, the same signatures,
+[00:17:56] so that we can actually verify the transactions,
+[00:17:59] you know using scheme are laid out in this slide.
+[00:18:04] And so this is where sort of consensus problem comes in,
+[00:18:09] and sometimes people refer to this solution here
+[00:18:12] as the Nakamoto consensus protocol.
+[00:18:16] Now before diving into that protocol,
+[00:18:18] I want to sketch out you know possible solutions,
+[00:18:23] that are not going to work,
+[00:18:25] just to get a better sense,
+[00:18:27] but like what the challenges are,
+[00:18:29] this sort of Nakamoto consensus actually solves.
+[00:18:36] So you know design 1,
+[00:18:40] there's not really design,
+[00:18:42] it's more sort of an idea to think about and then reject,
+[00:18:46] design 1 may be the easiest design is,
+[00:18:49] let's assume we have the server S,
+[00:18:52] and the server actually just trusted,
+[00:18:58] and then we have clients you know that,
+[00:19:00] you know there some transactions, whatever T6,
+[00:19:09] 1 2, whatever x y z,
+[00:19:12] and they just submit you know these transactions to the, to the trusted server,
+[00:19:18] you know after we all the clients trust the server,
+[00:19:22] and the server can just produce a log, right,
+[00:19:24] with all the transactions in it,
+[00:19:27] and you know order them appropriately etc, etc.
+[00:19:32] So if we assume there's a trusted server,
+[00:19:34] and this problem is actually reasonably straightforward to solve,
+[00:19:37] and you know that's setting we're in,
+[00:19:38] that we're in great [shape],
+[00:19:40] you know maybe replicate the server using you know some Raft type protocol,
+[00:19:45] and you know we'll have a fault tolerance server,
+[00:19:49] and you know really the only downside to this particular process is,
+[00:19:53] if the clients could not agree on a single trusted server,
+[00:19:57] and so an example in the case of Bitcoin,
+[00:20:00] when you want to do transactions,
+[00:20:01] you know maybe the,
+[00:20:03] you know the rest of the world going to trust the US government
+[00:20:07] to actually implement the server correctly and produce a log,
+[00:20:11] and in that case, you know we have multiple different clients,
+[00:20:17] because you cannot agree on a trusted server,
+[00:20:20] then this solution, this serve doesn't work.
+[00:20:24] So that's one solution,
+[00:20:26] it's the easy one,
+[00:20:28] but in the case of decentralized design,
+[00:20:31] where there's no trust any central component,
+[00:20:34] this is not a workable solution.
+[00:20:36] So, so now we consider using sort of the more SUNDR like approach,
+[00:20:43] to modify scheme slightly,
+[00:20:44] and say like okay good,
+[00:20:46] we know actually how to deal with untrusted servers,
+[00:20:48] in fact we read a paper about it last week.
+[00:20:51] And so let's assume that these servers actually untrusted,
+[00:20:55] and you know basically you play the SUNDR game,
+[00:20:58] clients produce the logs, read the logs from the server,
+[00:21:02] and append records to the, append the records to the log,
+[00:21:05] submit it back to the server,
+[00:21:07] so the server is basically do almost nothing else,
+[00:21:10] that's relaying logs between different clients,
+[00:21:13] and we've seen last week,
+[00:21:15] that actually approach works really well,
+[00:21:18] it can be used,
+[00:21:20] but you know it has one shortcoming as we saw,
+[00:21:24] namely the server can present two different views of the world
+[00:21:29] by basically forking the log,
+[00:21:31] so maybe the log has some prefix,
+[00:21:33] you know T1 to T2 to T5 to 6 7,
+[00:21:36] but now it has T8 in this one,
+[00:21:39] and has another log,
+[00:21:41] which indeed has T7 ... and T8'.
+[00:21:47] And so one fork you know we've got T8,
+[00:21:51] on the other fork, we have T8',
+[00:21:53] and now like we became re or settle in one particular fork,
+[00:22:00] and the server sort of persistently you know keeps the two worlds apart,
+[00:22:05] like the y is, and z is in one area of the world,
+[00:22:08] Q is in another in the world,
+[00:22:09] y always gets the first sort of log,
+[00:22:12] and z always gets the second one log, the other way around,
+[00:22:17] then, you know,
+[00:22:20] then they will pretend there's okay, good,
+[00:22:21] yeah, there's no money earlier spending T7 in this log,
+[00:22:26] so T8 in Q will actually accept,
+[00:22:29] you know T8' in this world,
+[00:22:32] and here z will accept you know T8,
+[00:22:35] and so y succeeded in actually double spending.
+[00:22:39] So, this design doesn't work,
+[00:22:42] for the particular problem at hand,
+[00:22:44] we need some solution
+[00:22:46] and is where the consensus comes in,
+[00:22:48] we need some solution,
+[00:22:49] that basically for the untrusted clients
+[00:22:52] to basically be able to settle on which you know fork they are on.
+[00:22:58] Okay, so, in, so let's think a little bit about that,
+[00:23:02] so let's think about more much more decentralized design,
+[00:23:05] we're going to replace the server with a network of computers.
+[00:23:09] So, this is there,
+[00:23:11] and this goes sort of to get closer to the Bitcoin design,
+[00:23:15] where there's indeed a network of peers,
+[00:23:19] that's sort of all collaborate together
+[00:23:22] to provide you know this single log,
+[00:23:26] although even though some of the participants actually might be malicious,
+[00:23:28] and try to do something different.
+[00:23:30] And so basically the idea is that,
+[00:23:31] when a client actually you know create a transaction,
+[00:23:36] you know then transaction is distributed across a network of peers,
+[00:23:42] in fact, the client 1 might be a peer himself,
+[00:23:45] so the transaction is going to spread around,
+[00:23:51] and you know everybody every node in the network actually maintains a log,
+[00:23:56] and appends you know the transaction to its log.
+[00:24:04] And the problem that we have left is,
+[00:24:07] like you know how to agree on an order.
+[00:24:20] And you know we we actually have seen these kind of systems before,
+[00:24:24] like in fact in Raft,
+[00:24:26] you know we had multiple computers,
+[00:24:27] and they were able to agree on order, right,
+[00:24:29] and the basic trick, was used as a basic inside is,
+[00:24:33] you know basically compute some majority
+[00:24:35] and have a majority of nodes agree
+[00:24:38] in slot you know 6 is gonna be transaction T8,
+[00:24:42] and in slot 7 is going to be T8'.
+[00:24:46] And the, and that works great, correct,
+[00:24:50] if we know exactly how many nodes are in the system,
+[00:24:55] we know there's 5 nodes in the system,
+[00:24:57] the node and then the majority is 3,
+[00:25:00] and we receive response from 3 participants,
+[00:25:03] you know we know okay, we can commit that particular slot.
+[00:25:07] And the problem really here is that,
+[00:25:08] this is a decentralized system, that's completely open,
+[00:25:13] the system nodes might even may leave, may come in any particular point of time,
+[00:25:18] and there is no list of all the participants in system,
+[00:25:22] so there's also no clear what actually what is a majority in the system like that,
+[00:25:29] because it's completely open,
+[00:25:33] so it's like the notion of the majority is completely able to find.
+[00:25:37] So you know we need some sort of, like a sort of usual game,
+[00:25:41] sort of doing voting on a majority
+[00:25:44] and then accept the result of the majority is not going to play out,
+[00:25:48] and so this is the the game sort of Raft,
+[00:25:51] you know even though it's a consensus protocol, not gonna really work out,
+[00:25:54] because you know the setting we're dealing with is
+[00:25:58] a decentralized open distributed system,
+[00:26:00] as opposed to a closed system as in the setting of Raft.
+[00:26:08] Does this make sense so far?
+[00:26:11] Let me pause for a second,
+[00:26:12] before getting into the more technical part.
+[00:26:21] Alright?
+[00:26:26] Okay, so how does Bitcoin solve this problem?
+[00:26:34] And the key idea is something that is called the proof-of-work,
+[00:26:45] basically the rule is that,
+[00:26:51] there's a mount of work a node needs to do
+[00:26:55] to actually be able to extend the log,
+[00:26:58] and the basic rule is that,
+[00:27:02] the winner in you know proof-of-work,
+[00:27:10] machine is able to solve the puzzle,
+[00:27:12] first, it decides on the next log entry,
+[00:27:26] and the basic idea,
+[00:27:28] that this might you might actually get some intuition,
+[00:27:30] why this action will work out,
+[00:27:32] is because basically hard to impersonate the winner
+[00:27:44] to actually solve the particular proof-of-work puzzle,
+[00:27:49] that needs to be able to add to the log,
+[00:27:52] actually requires a real computer,
+[00:27:53] in a month getting roughly of compute time
+[00:27:58] to actually solve the problem,
+[00:28:00] and so if you can solve and demonstrate you solve the problem,
+[00:28:03] you know for sure that somebody actually spent a month of work actually do it,
+[00:28:07] and this is sort of enough of to convince you know the rest of the system,
+[00:28:14] that you know there's a real resources were actually spent
+[00:28:20] to append, to be able to append to the log entry,
+[00:28:25] and and you can maybe think of others like the schemes,
+[00:28:28] like whatever you know unique IP addresses or things like that,
+[00:28:32] but all those kind of things can be actually easily falsified,
+[00:28:35] and so it's sort of proof-of-work idea is sort of core core
+[00:28:40] to demonstrate that, actually you know put a month effort into actually,
+[00:28:45] to figure out what the next [], to compute,
+[00:28:50] to be able to be able to append a log entry to the log.
+[00:28:57] One, you know just get that immediately out of the way,
+[00:29:00] one of downside of this proof-of-work approach is that,
+[00:29:04] it actually waste energy,
+[00:29:11] and in fact you know Bitcoins become so successful,
+[00:29:15] that a lot of people are down there,
+[00:29:17] are you know mining and doing this proof-of-work,
+[00:29:20] that the energy bill or energy consumption
+[00:29:23] of all the combined miners together is incredibly significant,
+[00:29:29] it's huge,
+[00:29:31] and so, play downside of this approach is the waste of energy.
+[00:29:38] In recent years, there have been other crypto currencies or other designs,
+[00:29:45] that are based on a different idea,
+[00:29:47] instead of proof-of-work,
+[00:29:48] they're actually based on something else called proof-of-stake,
+[00:29:57] and this basically sort of game there is,
+[00:29:59] you know let's say you own 3% of you know the currency,
+[00:30:03] then you get,
+[00:30:06] because you own 3%,
+[00:30:08] you can actually decide you know for 3% of the log entries,
+[00:30:13] you know which ones are going to be appended.
+[00:30:16] And so the is a completely different approach,
+[00:30:19] that doesn't require solving computational intensive puzzles,
+[00:30:24] and it seems to get quite a bit of actually attention,
+[00:30:30] and there are cryptocurrencies that use it,
+[00:30:33] and in fact it looks like one of the more major ones Ethereum seems to be slated,
+[00:30:38] where going in the direction of proof-of-stake approach.
+[00:30:42] But Bitcoin uses proof-of-work approach,
+[00:30:46] and so we're just going to proceed with that design.
+[00:30:52] Any questions?
+[00:30:55] So let's, I'm just wondering of
+[00:30:58] how it's hard to impersonate the winner,
+[00:31:00] so let's say that we have server A and server B,
+[00:31:04] and server A wants to append entry, let's say e1,
+[00:31:08] and server B wants to append entry e2,
+[00:31:10] so server A solves the puzzle and publishes the solution, right,
+[00:31:14] and I'm assuming that the solution is easy to check,
+[00:31:17] so then server B sees the solution and check that it's correct,
+[00:31:23] so it cannot work that,
+[00:31:25] server B just simply re-publishes the solution with its own name,
+[00:31:29] and signing it by its own name,
+[00:31:31] because the puzzle for e2 is different from the puzzle for e1, right?
+[00:31:35] Yeah, okay, yeah exactly,
+[00:31:37] and we'll see, we'll get into this in more detail in the second,
+[00:31:41] of course, this here, this is sort of the basic insight,
+[00:31:43] of course not enough.
+[00:31:45] But it will turn out to be enough to basically settle on a fork,
+[00:31:49] so we're going to accept,
+[00:31:50] they're gonna be forks,
+[00:31:51] and then we're gonna have,
+[00:31:52] Bitcoin basically accepts their forks like SUNDR,
+[00:31:56] then has a way of basically deciding which fork to settle on.
+[00:32:02] Yeah, so I had a question about network partitions,
+[00:32:07] and I I was wondering how like,
+[00:32:10] you know if you were able to make a partition like on the Internet,
+[00:32:14] which you know probably unreasonable,
+[00:32:17] but you're able to partition the Internet like the whole Internet,
+[00:32:21] and who couldn't you convince,
+[00:32:23] like you know one like double spend
+[00:32:28] by like spending on both sides of the partition.
+[00:32:32] Yeah, the partition never heals?
+[00:32:36] Eventually, you'd assume it heals,
+[00:32:39] but then by then like you probably would have gone in like something shipped.
+[00:32:44] Yeah, so generally we'll see,
+[00:32:46] we'll talk a little bit more about it,
+[00:32:48] like there's all kind of, there's ways of creating forks,
+[00:32:51] and what you're describing is
+[00:32:52] basically for it persists for a long period of time,
+[00:32:55] and you will see that the basically the,
+[00:32:59] you know Bitcoin basically produces these logs with transactions every ten minutes,
+[00:33:05] and you know if you're very conservative
+[00:33:07] or you wanna be careful not to be, avoid double spending
+[00:33:13] or making sure there's nothing worth double spend,
+[00:33:16] you generally wait you know for multiple these logs to appear, like 5 6,
+[00:33:20] so basically an hour,
+[00:33:21] before actually decided to actually accept,
+[00:33:24] you know to say yeah, this I'm on the right fork.
+[00:33:29] Thanks.
+[00:33:39] Okay, so.
+[00:33:41] Let's also see actually how the pieces fit together,
+[00:33:45] so it turns out you know the,
+[00:33:47] you know do proof-of-work for transaction,
+[00:33:49] it'll be crazy,
+[00:33:51] because you got to spend a lot of conventional power,
+[00:33:54] and for put one single transaction,
+[00:33:55] that will limit the number of transactions you can actually do per second,
+[00:33:59] and so the way actually this is done is
+[00:34:02] basically transaction to a group in blocks
+[00:34:05] and proof-of-work is going on, on a block basis.
+[00:34:10] So we have our network,
+[00:34:15] and the way it actually works is that,
+[00:34:16] we're not making a lot of blocks,
+[00:34:18] but like we made a lot of transactions,
+[00:34:21] we make actually a lot of blocks,
+[00:34:23] which are called you know basically blockchain.
+[00:34:28] And so here we got our network,
+[00:34:31] you know we have peers around the world,
+[00:34:34] and you know the log here is basically a sequence of blocks.
+[00:34:43] And so peers have you know copies of these,
+[00:34:45] you know may create new ones,
+[00:34:47] append them and distribute them and [] them across the network.
+[00:34:52] So what is in a, in block, at a very high level,
+[00:34:57] again, there are many more details you know that I'm just gonna ignore,
+[00:35:01] it's gonna be the hash of the previous block,
+[00:35:03] so, B-1,
+[00:35:07] and so if this is block 5,
+[00:35:09] you know this is going to be then you know B4, so B-1,
+[00:35:15] so the unique identifier of the previous block in the chain,
+[00:35:19] the transactions that are part of this block,
+[00:35:23] and then a nonce, which we'll talk about in a second,
+[00:35:28] but this is a thing that is going to play a crucial role in the the puzzle,
+[00:35:33] and the timestamp,
+[00:35:39] and you know this is about typically,
+[00:35:42] you'll see a little bit,
+[00:35:44] you know think about these are roughly a MB you know block,
+[00:35:48] so basically the the game is
+[00:35:50] you know the the peers of collect transactions,
+[00:35:54] then basically solve the puzzle,
+[00:35:59] and once they solve the puzzle,
+[00:36:01] they gonna ship the block to everybody in the in the network,
+[00:36:06] everybody can check whether the peer actually solves the puzzle correctly,
+[00:36:10] and if you know the puzzle correctly sort of correctly in the transaction checkout,
+[00:36:14] and actually the hash is checkout,
+[00:36:16] then they're going to basically accept that block as the next block in the chain.
+[00:36:23] So a little more detail,
+[00:36:26] you know when you know basically the winner gets to the site on the next block,
+[00:36:34] so we have a new block,
+[00:36:40] and this is gonna be the proof-of-work,
+[00:36:42] which is done typically the [party] that does the proof-of-work is called the miners,
+[00:36:47] we'll see in a second why.
+[00:36:51] And basically the game that we're going to play is that,
+[00:37:01] the miner has to compute a hash of this new block,
+[00:37:05] for that basically has, has n leading zeros.
+[00:37:18] So and the way you know the miner can do that is,
+[00:37:22] basically by changing the nonce,
+[00:37:24] so basically the miner makes random guesses for nonce,
+[00:37:28] compute the hash and checks you know the number of leading zeros,
+[00:37:32] and if the number of leading zeros you know larger,
+[00:37:36] then you know basically that block is going to be accepted.
+[00:37:40] The only way you can think about is,
+[00:37:41] basically the hash value is below some particular below particular difficulty value,
+[00:37:50] this N can be changed over time,
+[00:37:53] as we'll see in a second later,
+[00:37:54] to you know adjust the difficulty,
+[00:37:57] and but on average, you know you know the miner work that is necessary,
+[00:38:05] you know so that they're targeting is about
+[00:38:08] like a roughly CPU month of computation.
+[00:38:13] And it's not really expressed in that way,
+[00:38:14] is really expressed in terms of number of hashes you can do per second,
+[00:38:17] but then it boils down to sort of for that kind of number.
+[00:38:22] Of course, a lot of peers you know do this in parallel,
+[00:38:25] you know there I think the network is currently around 10, 000 nodes,
+[00:38:28] 10, 000 nodes might be
+[00:38:29] and there might be many more miners,
+[00:38:31] I think hundreds of thousands of miners,
+[00:38:34] and you know they might get lucky
+[00:38:36] and you know pick the right nonce very quickly,
+[00:38:39] and some of them actually get quickly,
+[00:38:43] and so what they're shooting sort of roughly is that,
+[00:38:46] you know the first one, you know actually solve the puzzle,
+[00:38:49] that it takes about ten minutes.
+[00:38:54] I mean you know by adjusting the difficulty
+[00:38:58] or the [] should just you know the time,
+[00:39:02] where the the time it will take to actually compute one of these hashes energy,
+[00:39:07] that one has to put in to actually solve the puzzle.
+[00:39:11] And so, whatever you know whatever miner sort of solves this puzzle first,
+[00:39:18] basically gets to spread the block across the network,
+[00:39:21] and basically sort of about ten minutes you know to do so, right,
+[00:39:24] and so you know, one reason to the ten minutes is there
+[00:39:27] is going to take a little bit of time to move them one MB of block
+[00:39:31] across you know many many peers that are in the network,
+[00:39:34] and you want to make sure,
+[00:39:36] there's enough time to get the the block out to many of the peers,
+[00:39:42] so that you can avoid forks
+[00:39:44] as we'll see in a second,
+[00:39:47] so before that somebody else actually you know solves puzzle too.
+[00:39:51] Um, professor,
+[00:39:53] so the does a number of leading zeros's
+[00:39:59] that hash needs to be accepted by a node,
+[00:40:03] is that number like set by each node individually, like.
+[00:40:07] No, no, it's puzzle of the protocol,
+[00:40:08] there's a agreed puzzle.
+[00:40:10] But, but.
+[00:40:11] It's consensus on about N is.
+[00:40:14] But what I mean is like,
+[00:40:16] it's puzzle of protocol, but like,
+[00:40:21] so, so, so.
+[00:40:23] You can change, will change over time.
+[00:40:25] Well behaved nodes will follow it,
+[00:40:27] but they, but but who calculate, who calculates,
+[00:40:30] that a central server that calculates the N and sends it out everywhere.
+[00:40:36] No no, we'll see in a second later,
+[00:40:37] actually how it's computed,
+[00:40:39] basically I can give you a hint about how it's computed,
+[00:40:43] one reason the timestamps are in these things,
+[00:40:46] is that like if the time between a block becomes too low,
+[00:40:51] then the difficulty goes up.
+[00:40:55] And you know these timestamps of course are validated using the hashes,
+[00:40:58] and all that kind of stuff and sit in the blockchain,
+[00:41:00] everybody sees the same blockchain,
+[00:41:02] so they will compute the same difference between the timestamps,
+[00:41:05] and therefore make the same adjustment in terms of difficulty.
+[00:41:09] Right.
+[00:41:10] This is one of the cool parts, correct
+[00:41:11] having a log of everything that's in there,
+[00:41:13] like if you have some deterministic,
+[00:41:14] if you could compute any deterministic function over the content of the log.
+[00:41:19] Right, okay,
+[00:41:20] so it would be a deterministic function,
+[00:41:24] but at the end of the day,
+[00:41:25] like if I like try and get away with like sending less than N like zeros,
+[00:41:32] then each individual node in the network should call me out.
+[00:41:37] Yeah, they will reject your solution,
+[00:41:38] because you don't have a real solution.
+[00:41:41] Okay, thanks.
+[00:41:43] So what stops an attacker
+[00:41:45] from just constantly flooding the network with wrong solutions?
+[00:41:48] Yeah, denial service attack
+[00:41:50] and hopefully one of the, turns out that checking the solution is very easy, right,
+[00:41:56] and so it's easy to quickly reject an incorrect solution.
+[00:42:01] Thank you.
+[00:42:03] And how, how are the timestamps determined [],
+[00:42:06] like does each block set the timestamp on its own.
+[00:42:09] Yeah, the miner that successful mines sets timestamp in the block.
+[00:42:15] And what if they just set the timestamp to be like longer than it took,
+[00:42:21] so that it becomes less difficult.
+[00:42:22] It can't lie too much, correct,
+[00:42:24] they have a ten minute window,
+[00:42:25] so roughly to [],
+[00:42:26] I don't really know exactly how the timestamp is check,
+[00:42:29] I don't know, might imagine this solvable.
+[00:42:36] Peers get to the transactions that want to be appended to the block.
+[00:42:42] Thank you, that's the next line.
+[00:42:45] So, so blocks and transactions,
+[00:42:57] so let's assume like there's some
+[00:42:59] you know one B5 that already has been computed,
+[00:43:02] you know that's in the log you know points whatever to B4,
+[00:43:08] and so we're a miner,
+[00:43:10] we're working on
+[00:43:12] you know we got a block with,
+[00:43:14] you know that is sort of reminding on,
+[00:43:16] so it has a bunch of transactions,
+[00:43:19] and we're basically you know trying to compute you know the solution to this puzzle,
+[00:43:25] and so new transactions coming, right,
+[00:43:26] you know they arrived,
+[00:43:28] and so the new transaction is actually called a memory buffer,
+[00:43:32] buffer, you're going some buffer,
+[00:43:34] and basically they're going to when the next block,
+[00:43:39] where going to be at some point,
+[00:43:42] this guy you know let's say this is one miner, miner i,
+[00:43:47] alright, so let's see miner i is the lucky one,
+[00:43:50] you know actually miner i computes you know the new B6.
+[00:43:56] And so at some point you know B6,
+[00:43:59] it's the new next head of the log,
+[00:44:03] you know which contains a bunch of transactions,
+[00:44:06] and so while you know sort of miner i was actually trying to hash
+[00:44:09] you know computing to many many many hashes to actually solves the puzzle,
+[00:44:13] new transactions come in,
+[00:44:15] so soon as a miner i is done with B6,
+[00:44:19] it basically selects you know the number of transactions,
+[00:44:22] puts a new block together, a partial block,
+[00:44:25] it's not the one that is solved yet,
+[00:44:28] transactions in from the [pool],
+[00:44:30] you know whatever updates, whatever [] needs to be updated,
+[00:44:33] and then starts hashing on that one and hoping to solve it,
+[00:44:37] so that can be added to the transaction log at some point later,
+[00:44:40] if it succeeds.
+[00:44:42] Of course, if somebody else succeeds in solving the producing B7 before miner i,
+[00:44:48] you know miner i gonna switch you know to the B7,
+[00:44:51] that block remove any transactions that ended up already in B7,
+[00:44:56] and continues with the transactions that are left and are not in B7 yet.
+[00:45:01] Okay, that sort of the plan
+[00:45:04] for how exactly the blocks interact at a high level.
+[00:45:12] So as as transactions coming in,
+[00:45:17] like you know trying to calculate the nonce for block,
+[00:45:22] that will like give you know N leading zeros,
+[00:45:26] new transactions will come in, right.
+[00:45:29] As they [], they're not part of that block,
+[00:45:31] they're going to be sitting on the side, they're for the next block.
+[00:45:34] Okay.
+[00:45:36] Could you could you add, could you add them to the.
+[00:45:41] That would change the hash.
+[00:45:43] Right, but I mean,
+[00:45:46] you just need to keep trying to get like a nonce, right.
+[00:45:49] But you also have a limit on the block size,
+[00:45:52] you know block size can't be bigger than one of,
+[00:45:54] one some particular predefined constant by the protocol,
+[00:45:57] yeah there's a bunch of other reasons
+[00:46:00] you know once you [] the block you know with your transactions,
+[00:46:02] you you keep going hashing until you find the solution.
+[00:46:06] Okay.
+[00:46:07] Or, or you get.
+[00:46:09] Or you receive a new one and then you reject,
+[00:46:11] you go work on the next one.
+[00:46:15] Okay, thanks.
+[00:46:16] So when when someone when a miner loses,
+[00:46:20] and do they like,
+[00:46:22] like is it possible for a miner never to make profit out of this,
+[00:46:26] because they keep losing,
+[00:46:27] because they don't have enough computes.
+[00:46:28] Yeah, absolutely,
+[00:46:30] if if I would start mining with my laptop,
+[00:46:33] I'm pretty sure it would make no money.
+[00:46:37] And the transaction pool, it is local?
+[00:46:41] Yeah, every every node maintains a transaction pool,
+[00:46:45] as they receive transactions from from other nodes in the network,
+[00:46:50] you know the the transaction pool
+[00:46:52] and they use that transaction pool basically to fail the next block.
+[00:46:57] So.
+[00:46:58] And all kinds of rules,
+[00:46:59] you know like how you choose select transactions,
+[00:47:01] which I'm not going to talk about.
+[00:47:03] Okay, so to append, you need to tell your transaction to everyone.
+[00:47:08] Yes, or you tell to a bunch of peers
+[00:47:11] and they will flood it for the rest of you
+[00:47:13] to the rest of the network.
+[00:47:18] So for my understanding,
+[00:47:20] when a miner successfully mines or verifies a transaction, they get rewarded.
+[00:47:28] Yeah.
+[00:47:28] They did this verification,
+[00:47:30] but they can also lie when it comes to the timestamp,
+[00:47:34] so let's say that you have two verifiers
+[00:47:36] and they're both working on the same block,
+[00:47:37] and they almost simultaneously verified at the same time,
+[00:47:41] but one of them was you know they lied,
+[00:47:45] and they made the timestamp a bit earlier,
+[00:47:48] so kind of the.
+[00:47:50] The difficulties [] for a period of time,
+[00:47:53] like for the next like twenty as a whole bunch of years,
+[00:47:56] it only changes periodically,
+[00:47:57] you can't change it arbitrarily.
+[00:48:00] So was that, I'm sorry, I think I missed that line.
+[00:48:03] The difficulty is not changed on every block,
+[00:48:07] it is periodically changed
+[00:48:09] after some number of you know blocks have been computed.
+[00:48:12] And so you know it's done in the back,
+[00:48:14] you know everybody can see what these timestamps are,
+[00:48:17] you know every, I think every [] with the exact number of blocks were,
+[00:48:21] when when you know the difficulties is adjusted.
+[00:48:25] I see.
+[00:48:28] So at that point you already agreed with all those blocks in the past,
+[00:48:31] so everybody's in agreed with like what the timestamps are,
+[00:48:34] that we're going to use to actually compute a new valid block.
+[00:48:40] So, so I I had a question about like achieving consensus,
+[00:48:47] I guess, like all of this relies on like,
+[00:48:51] pretty much every node running the same code, right,
+[00:48:55] or at least following the rules very, very precisely,
+[00:49:00] like what happens, if there's a bug in my code,
+[00:49:02] and the code that I'm running,
+[00:49:04] you know maybe a bug in like a bunch of different nodes,
+[00:49:10] does that [] off like, like all, like notions of like consistency potentially.
+[00:49:16] Well, yeah, as long as a majority is,
+[00:49:19] we'll talk a little bit more about it,
+[00:49:20] has a majority of the nodes actually that runs the right code,
+[00:49:23] you actually work out.
+[00:49:24] Right, but like if there's a trapdoor in the code,
+[00:49:28] yeah, you've got a problem,
+[00:49:30] like if there's a trapdoor in Linux, you got a problem too.
+[00:49:34] So, so do do, does every node run like the same code, or are.
+[00:49:39] There a couple different Bitcoin version around,
+[00:49:42] we'll talk a little bit more about in a second,
+[00:49:43] but there are the main core they're called,
+[00:49:48] you know and there like it's like an open source project,
+[00:49:50] like Linux,
+[00:49:52] you know it has maintainers and you know code review and all that kind of stuff.
+[00:49:57] And most of the wallets and most of the peers
+[00:50:01] will run one of the standardized version basically.
+[00:50:05] Thanks.
+[00:50:11] Okay, forks.
+[00:50:14] So, wo we know now what the rule is,
+[00:50:18] you know who can actually extends a log or the chain [],
+[00:50:23] you can still have forks.
+[00:50:25] Okay, here's our new [] chain, whatever B5 you know B6,
+[00:50:32] and you know we you know somebody to do may actually gets a lucky,
+[00:50:35] and so roughly computes you know B7, two B7 at the same time,
+[00:50:39] so you're gonna B7',
+[00:50:42] and here we got B7'',
+[00:50:46] that would be problematic for us, right,
+[00:50:49] because maybe one of these this chain has the transaction
+[00:50:53] you know the y to whatever y to z,
+[00:50:58] yeah, maybe this one has you know y to Q,
+[00:51:02] when we were on a sort of make sure,
+[00:51:04] that we actually settle in the end of one chain.
+[00:51:07] So there's two reasons why this change might [],
+[00:51:10] you know one is you know people are participants find the,
+[00:51:17] find the nonce at the same time
+[00:51:23] or roughly at the same time,
+[00:51:24] and the second one is that,
+[00:51:26] there may be slow networks,
+[00:51:31] and so you know a peer might receive you know from two nodes
+[00:51:35] that are different you know network,
+[00:51:37] at some point, these two new solutions,
+[00:51:39] and basically you know when a node ends up in this situation,
+[00:51:44] basically does nothing,
+[00:51:45] as usual, keeps the fork around,
+[00:51:47] and just waits to see which fork get extended,
+[00:51:50] and so you know maybe this work,
+[00:51:52] the bottom one will get extended you know B8,
+[00:51:56] and then the rule is very simple,
+[00:51:57] you know the peer switches, switches the longest fork,
+[00:52:12] and, and so, and so basically you know
+[00:52:16] all the transactions you know might have learned about,
+[00:52:18] in this fork, in the top fork,
+[00:52:21] just going to disappear,
+[00:52:22] you know there's gonna not matter in the system,
+[00:52:25] because in the end,
+[00:52:26] you know all those good nodes will actually agree on the longest chain
+[00:52:30] and basically proceed mining along the longest chain.
+[00:52:35] That's the basic plan,
+[00:52:37] and so, let's look a little bit about
+[00:52:38] how would that solve our double double spending problem.
+[00:52:44] Wait, I have a question on your slide.
+[00:52:48] Yep, I'm gonna continue previous slide in this slide.
+[00:52:51] Oh, okay, so.
+[00:52:53] If you have any question, so.
+[00:52:55] So even if the in the, in the second cause, like the slow network,
+[00:53:00] can't you detect that,
+[00:53:02] if you if the miner included the timestamp
+[00:53:06] where they found when they found the solution?
+[00:53:09] Yeah, okay, the.
+[00:53:15] You might already be suspicious or may agree on
+[00:53:18] what actually the next what the right probably the right chain is,
+[00:53:21] but it will be confirmed later by future blocks,
+[00:53:25] and you use the future blocks do really decide what longest chain is.
+[00:53:31] Okay.
+[00:53:34] Okay, double spending,
+[00:53:38] so let's talk about two easy two cases,
+[00:53:40] when the first one is easy,
+[00:53:42] you know y sends, you know the y to z and y to Q,
+[00:53:51] to some peer or to the peers,
+[00:53:55] and basically what will happen in this case is that,
+[00:53:57] it's a well behaving peer,
+[00:53:59] you'll see like hey you know
+[00:54:00] two transactions that actually spent the same money twice are going to reject,
+[00:54:06] that a peer that receives was trying to
+[00:54:09] or a miner that is going to construct a block,
+[00:54:12] and it actually validate all the transactions,
+[00:54:13] before they stick them in the block.
+[00:54:16] So this whole you know don't really this is not gonna work,
+[00:54:18] miners gonna reject, good miners.
+[00:54:24] Okay, the second question, the more interesting,
+[00:54:27] I think cases basically y sends, y to z, to some set of peers,
+[00:54:36] and then y to Q, to another set of peers.
+[00:54:47] And you know we, and then might you know,
+[00:54:51] maybe you know the maybe one pool was bigger than the other pool,
+[00:54:55] but it could actually end up in a situation,
+[00:54:57] where basically we got the chain as before,
+[00:55:00] and basically either once it appears you know computes you know the hash,
+[00:55:06] where that includes y to Q,
+[00:55:09] and the other one computes a block you know actually contains y to z.
+[00:55:14] So this looks like a double spending thing,
+[00:55:17] and so if you're z, correct,
+[00:55:19] z is the person that is going to decide
+[00:55:21] whether to accept you know this transaction
+[00:55:23] and hand out, the hand out the latte,
+[00:55:26] what you do is you're gonna wait,
+[00:55:29] and you're gonna wait until
+[00:55:31] there's a bunch of more blocks that are behind it,
+[00:55:34] so typically it's 5 6, up to 5 6,
+[00:55:38] you know for a very valuable transaction,
+[00:55:39] maybe not for a latte,
+[00:55:40] but if you're buying a car,
+[00:55:41] you really want to make damn sure,
+[00:55:43] that you're gonna get your money,
+[00:55:45] and that you know y didn't double spend the money,
+[00:55:49] so, you may where wait for a while
+[00:55:54] until new hash has been ended,
+[00:55:57] to a new blocks being extended to the blockchain,
+[00:56:00] and you know once you have 5 or 6,
+[00:56:02] you know the paper does some calculations,
+[00:56:05] you're going to be pretty confident, you're very confident that,
+[00:56:09] that it's unlikely you know for attacker to basically compute a new chain
+[00:56:15] and sort of overtake you know the longer chain, right,
+[00:56:19] let's say this is the attacker,
+[00:56:20] the attacker has less computational power,
+[00:56:23] they are presumably on the assumption behind this whole paper
+[00:56:25] has less computational power than all the good people,
+[00:56:28] and so if the good people have more computational power,
+[00:56:31] it's going to be impossible for the attacker
+[00:56:34] unlikely or the [] will be impossible
+[00:56:38] or unlikely for the attacker to compute faster,
+[00:56:41] and actually make a chain that is longer than the good chain.
+[00:56:45] So that's sort of the key assumption that's behind all this,
+[00:56:48] among this reason reason.
+[00:56:54] And so basically z you know just has to wait for a while
+[00:56:57] until the good guys are extended to chain long enough,
+[00:57:00] that you know z is completely convinced that,
+[00:57:03] you know it's impossible for a set of attackers,
+[00:57:06] to actually out compute you know the good people.
+[00:57:10] And at that point you know z can just accept the transaction,
+[00:57:14] and say like oh this is legit transaction,
+[00:57:16] if everything else checks out,
+[00:57:18] and handover the latte or a car you know to z, to y I guess.
+[00:57:26] Sorry, quick question, who distributes the puzzles?
+[00:57:31] There's no distribution puzzles necessary, right,
+[00:57:38] the puzzle is you know predetermined,
+[00:57:40] you know the puzzle is
+[00:57:41] you have to compute a hash over the block that has enough leading zeros,
+[00:57:49] so theres no distribution of the puzzle,
+[00:57:51] the only thing that's distributed maybe its difficulty,
+[00:57:53] but as we talk a little bit earlier,
+[00:57:54] that sort of adjusted over time in a deterministic way.
+[00:57:59] Thank you.
+[00:58:00] So there's all these transactions that are happening
+[00:58:04] and then through some gossip protocol or something,
+[00:58:07] the transaction distributed to all the nodes,
+[00:58:10] and then somehow there's agreement on
+[00:58:15] what set of transactions are packaged into a block,
+[00:58:18] so everyone has agreement on what the block is.
+[00:58:21] No no no no no, no, the miner receives transactions, right,
+[00:58:27] we go here, where was it,
+[00:58:31] block, there was some slide.
+[00:58:34] I think the next one.
+[00:58:38] Yeah, blocks in transactions,
+[00:58:39] so the miner, maybe miner I you know just receive transactions over the network,
+[00:58:44] and it just decides which transactions go in that block,
+[00:58:47] and it starts computing,
+[00:58:49] and if it wins,
+[00:58:50] that is the transactions that go in that block.
+[00:58:53] I see.
+[00:58:54] So that determines the total order,
+[00:58:56] you know the total order is disturbed by all the previous blocks,
+[00:58:59] can approach this new block and within a block,
+[00:59:01] basically miner I is deciding what goes in,
+[00:59:03] and there's some complicated rules,
+[00:59:05] that miners are supposed to follow,
+[00:59:07] but basically the miner gets to decide.
+[00:59:11] Thank you.
+[00:59:16] And there are certain incentive systems for the miners to do the right thing.
+[00:59:20] So let me talk a little bit about this,
+[00:59:22] so so far, you know we've seen the this puzzle,
+[00:59:28] that's sort of the core of this proof-of-work idea,
+[00:59:31] is actually the core of actually achieving consensus,
+[00:59:34] and, but you know this requires the miners actually do quite a bit of work,
+[00:59:40] you know like they have to hash hash hash, have a serious computer,
+[00:59:44] one, one we saw roughly a month work,
+[00:59:47] and so why would a miner do that,
+[00:59:49] and so there's an incentive system
+[00:59:50] for to encourage miners to actually play this role.
+[01:00:03] And you know there's a rule,
+[01:00:05] that basically there a bunch of Bitcoins reserved in the pool,
+[01:00:09] like when first bits you know Bitcoin transactions are created,
+[01:00:14] and miners get paid were rewarded out of the pool,
+[01:00:18] and so this was the first transaction,
+[01:00:23] transaction in the block is basically a reward for the miner.
+[01:00:33] And so basically the miner can insert transaction
+[01:00:36] in the first [] transaction, the first slot,
+[01:00:40] where that basically is the miner's public key
+[01:00:44] and transferring money out of the pool to himself or herself.
+[01:00:49] And and that is the way that miner can actually,
+[01:00:54] get namely sort of return or reward for actually the work they do,
+[01:01:00] that reward changes over time,
+[01:01:02] currently I think you know were
+[01:01:05] you know today is I think it's 6.25 Bitcoin
+[01:01:10] to actually mined a block,
+[01:01:13] but this changes over time,
+[01:01:14] it actually has a halving rule,
+[01:01:16] that reduces you know a half,
+[01:01:20] a couple years ago, a twelve bit 12.5 Bitcoin,
+[01:01:24] in a couple in a while will be
+[01:01:26] whatever three points, you know whatever the half of 6.25
+[01:01:29] and I think I remember correctly every two and every 210,000 blocks,
+[01:01:36] that number halves,
+[01:01:37] it's until it runs into the most finest finest Bitcoin denominator,
+[01:01:47] and then basically stops.
+[01:01:49] But we're a while away,
+[01:01:51] before that actually is the case,
+[01:01:53] if that happens,
+[01:01:54] then, the idea is that
+[01:01:56] to mine actually block every transaction pays a little fee,
+[01:02:00] and the miner collects the fees you know from all the transactions in the block,
+[01:02:05] and use and rewards the miner with those fees,
+[01:02:09] even now there are some fees,
+[01:02:11] but to make sure that basically,
+[01:02:14] the transactions are not [],
+[01:02:16] and so really the miner actually earns not only 6.25,
+[01:02:22] but also like the fees actually,
+[01:02:25] and the fees that actually go along with the transactions.
+[01:02:32] Okay, that's the minor incentive.
+[01:02:34] In you know Bitcoin has gotten so successful,
+[01:02:39] that basically there's sort of an arms race in miners,
+[01:02:44] and this is like for example,
+[01:02:45] why you know if I would want to participate,
+[01:02:48] and actually when they make some money,
+[01:02:50] I'm going to lose,
+[01:02:51] because the serious miners are much better at computing a hash,
+[01:02:58] is at a very high rate,
+[01:03:00] than you know your standard laptop can.
+[01:03:02] And so there's a couple of things actually go on in this arms race,
+[01:03:05] first of all, the miners for pools,
+[01:03:13] so the basic idea is that,
+[01:03:14] the miners collaborate with each other
+[01:03:16] and share the revenue with each other,
+[01:03:18] and so you know if your pool with many many, many nodes,
+[01:03:21] you know maybe you know from different people,
+[01:03:25] many computers from different people,
+[01:03:27] the people could share the revenue stream out of mining,
+[01:03:30] and because they do this as a pool,
+[01:03:33] you know they're more likely to actually win and once in a while
+[01:03:37] and you know of course probabilistically, they have some chance to win,
+[01:03:41] and basically you know spreads of the income stream
+[01:03:44] in a more stable form across all the miners in a single pool.
+[01:03:48] So if you [] you look online today,
+[01:03:52] there are some really large pools,
+[01:03:55] and nothing like the three biggest pools
+[01:03:58] contribute to contribute more than 50% of the mining power.
+[01:04:06] I'm sorry, why,
+[01:04:09] is this, why you said that each block takes around ten minutes to mine,
+[01:04:14] even though it takes a month of CPU power.
+[01:04:17] Yeah, on averages a month,
+[01:04:21] but you know you're gonna have some lucky,
+[01:04:22] you, you pick the nonce,
+[01:04:23] you know get lucky and actually picking nonce,
+[01:04:27] that actually allows you to solve the problem much quicker, right,
+[01:04:30] there's always a probability,
+[01:04:31] nonce on some big number
+[01:04:33] and if you pick the right number,
+[01:04:34] you know you can get lucky
+[01:04:36] and have many many, many miners do that,
+[01:04:38] there's actually a chance,
+[01:04:39] you don't take much less than a month,
+[01:04:44] and in fact, that's why where ten minutes comes from.
+[01:04:46] Wait, oh, is is the month more important or ten minutes more important,
+[01:04:51] because if there was only one miner, right,
+[01:04:54] on the expected is one month, you,
+[01:04:57] on average it would take one month, right?
+[01:04:59] Yeah, but there going to do something is there are many many miners.
+[01:05:02] But what what it like very,
+[01:05:05] like if there's a lot more miner,
+[01:05:06] miner it's clear the ability of.
+[01:05:09] There's a lot of variation, but on average ten minutes,
+[01:05:12] [] that is on average comes out to be ten minutes.
+[01:05:16] Okay.
+[01:05:18] Is it ever possible that like a puzzle is impossible?
+[01:05:23] No, I don't think so, it may take a long time.
+[01:05:29] There's gonna be,
+[01:05:34] well, there's gonna be you get to pick the nonce, correct,
+[01:05:37] and you know there's going to be a case
+[01:05:39] where the hash is going to fall within N leading zeros.
+[01:05:48] And so like how,
+[01:05:49] so since the value of Bitcoin is actually very, let's say volatile,
+[01:05:56] and so then how can we actually ensure that
+[01:05:58] the incentive system for miners is still adequate
+[01:06:01] to keep this thing going for the future,
+[01:06:04] I mean since the number of like since the reward is predetermined,
+[01:06:07] let's say to be 6.25 Bitcoins,
+[01:06:09] what if for some reason the Bitcoin value has dropped,
+[01:06:12] and then the incentive is not good enough for the miners,
+[01:06:13] and so I just think.
+[01:06:15] Yeah you know there's actually no value for miners to do this,
+[01:06:18] then you know the Bitcoin network collapse,
+[01:06:20] and presumably the way this is gonna work out
+[01:06:23] is the transaction fees go up.
+[01:06:26] But then if the transaction fees go up,
+[01:06:28] then it will, it will be a counter incentive for people who could use it.
+[01:06:32] Yeah yeah, but like if everybody's on the Bitcoin network,
+[01:06:35] if you want to trade goods,
+[01:06:37] you know you have to deal with somebody on the Bitcoin network,
+[01:06:40] so there's all kinds of complicated analysis,
+[01:06:43] that I'm not gonna like predict on like what's gonna be the outcome.
+[01:06:48] I see, okay.
+[01:06:49] Well, I guess we seen two 2140,
+[01:06:52] and that's sort of the point where I think the reward system runs out,
+[01:06:55] it's gonna be all based on transaction fees, and with the current rate.
+[01:06:59] I see, thanks.
+[01:07:04] Okay, so the other thing that's going on is
+[01:07:07] you know people build special hardware,
+[01:07:09] there are companies that you know delivery boards,
+[01:07:12] you know that are really good at fast at hashing,
+[01:07:14] and these are used by the miner pools,
+[01:07:18] people try they have high speed links to many peers,
+[01:07:23] so if they find a block,
+[01:07:24] they can actually get it out first
+[01:07:26] and so they win, etc etc.
+[01:07:29] So this is you know if you're interested in this,
+[01:07:32] you can read lots and lots of information about it online,
+[01:07:36] you know still the system seems to be hanging together.
+[01:07:43] Okay, let me talk a little bit about a whole bunch of practical issues,
+[01:07:48] that I sort of ignored,
+[01:07:49] although we touched on it a bit.
+[01:07:58] So, so first, ten minutes,
+[01:08:03] I think ten minutes is basically [] time you know the sort of upper bound,
+[01:08:08] where like you know, like ten times the time roughly to flood the network.
+[01:08:21] So Bitcoin try to avoid you know these are a sort of privilege,
+[01:08:25] you know privilege fork,
+[01:08:28] where basically you know two nodes at the same time roughly compute,
+[01:08:32] and therefore extends the chain roughly at the same time,
+[01:08:36] and want to try to avoid that,
+[01:08:38] and so one way to avoid that is,
+[01:08:41] to basically give enough time to the nodes
+[01:08:43] to sort of get the, the block out you know to a many many many peers,
+[01:08:49] so that most peers actually know about it,
+[01:08:51] and then you know so that's where the ten minutes comes from.
+[01:08:58] Of course, the block size determines the [] transaction per second,
+[01:09:09] the block size is roughly megabyte,
+[01:09:11] and so you know you're gonna do one block per you know roughly 10 minutes,
+[01:09:19] then you know the number of transactions is is limited to
+[01:09:24] the number of, the number of transaction that fit in a single block,
+[01:09:30] and that is a number of transactions, you can do.
+[01:09:33] And it turns out that, for today, you know that the number of transactions is,
+[01:09:40] like you get in the thousands per second to work out the numbers,
+[01:09:43] and that's sufficient,
+[01:09:44] for example there's probably an analogy,
+[01:09:47] people which made it bigger than the Visa network,
+[01:09:49] more transaction of Visa can process,
+[01:09:52] by presumably is not big enough to actually,
+[01:09:54] basically run all transactions you know money transaction the world across.
+[01:10:03] Another big, I will come back to this in a second,
+[01:10:07] another big issue is that,
+[01:10:10] changes to the protocol, change require consensus,
+[01:10:22] and in some cases this is easy, right,
+[01:10:27] some changes are easy,
+[01:10:32] there's one easy changes,
+[01:10:33] for example the number of leading zeros,
+[01:10:36] you know there's basically deterministic algorithm
+[01:10:39] to compute from the past log entries,
+[01:10:43] what the difficulty is going to be for future puzzles.
+[01:10:48] And since this would be deterministic of function of the log,
+[01:10:52] there's nothing that changes,
+[01:10:53] basically an easy,
+[01:10:55] there's a bunch of other parameters in the protocol,
+[01:10:57] but that kind of flavor.
+[01:11:00] Some changes however result in a soft work,
+[01:11:10] we talked a little bit about,
+[01:11:12] let's say, you know the main software, main distribution,
+[01:11:16] the core distribution for Bitcoin I want to make a change,
+[01:11:19] there are the sort of incompatible,
+[01:11:22] then you're gonna have old clients
+[01:11:24] or clients running with the old software,
+[01:11:26] peers running with the old software and new peers new software,
+[01:11:30] and that will temporarily you know may create some forks,
+[01:11:33] of course you know the some communication going on,
+[01:11:36] and in the long run,
+[01:11:38] you know probably people will settle on the new fork with the new software.
+[01:11:45] Some changes actually result in a hard fork,
+[01:11:57] so, for example, there was a couple years ago,
+[01:12:00] there was a lot of discussion about this block size,
+[01:12:03] some people in the community,
+[01:12:05] community want to increase the block size,
+[01:12:06] so other people don't want to increase the block size,
+[01:12:09] and basically you know they split,
+[01:12:11] and there's corresponds with two Bitcoin or two Bitcoin forks running,
+[01:12:23] in fact, there's probably more than two,
+[01:12:24] but like that one resolved in [] and hard forks split.
+[01:12:29] So, sort of an interesting you know aspect
+[01:12:32] consensus into kind of systems,
+[01:12:34] that you're going to have these kinds of practical problems,
+[01:12:37] that actually can really into soft fork or in hard fork,
+[01:12:41] because people just don't want to collaborate on a particular form.
+[01:12:46] Any questions about this?
+[01:12:50] What happens in hard forks?
+[01:12:54] You have two two different blockchains,
+[01:12:57] and clients have to choose which fork they want to be.
+[01:13:01] Interesting.
+[01:13:03] Or publish their transactions in both, I don't know.
+[01:13:07] I mean, but you have like, I mean say I have a couple Bitcoin,
+[01:13:13] I'll have a couple of Bitcoin both forks, right,
+[01:13:16] but I can start spending them,
+[01:13:19] and either, like.
+[01:13:21] Well, you have you have Bitcoins in the prefix of those, correct,
+[01:13:25] so and both forks have the prefix,
+[01:13:27] so you can't, you can't double spend your money.
+[01:13:31] Ha?
+[01:13:32] Well, so actually in in the case of,
+[01:13:34] like when Bitcoin fork there was a hard fork
+[01:13:36] and in the one of the new forks was called Bitcoin cash,
+[01:13:40] all the tokens were duplicated within the value of the tokens,
+[01:13:47] it wasn't like you doubled your values,
+[01:13:49] like the price of Bitcoin decrease
+[01:13:52] and then the difference in that decrease was the value of the Bitcoin cash,
+[01:13:56] so, is think of it like a stock split,
+[01:13:59] like you get more tokens,
+[01:14:01] but the actual value would stay the same,
+[01:14:04] because you know increasing the supply of tokens.
+[01:14:07] Okay, great.
+[01:14:09] Thank you.
+[01:14:12] Any other questions?
+[01:14:19] Okay good, let me summarize now.
+[01:14:28] So, basically what we see here is gonna distribute consensus,
+[01:14:37] with an open distributed systems with potentially Byzantine participants,
+[01:14:43] which let me see, if my program crashed, hold on a second.
+[01:15:10] So this consensus is with Byzantine potentially Byzantine participants.
+[01:15:23] And you know the you know the the thing that actually is being reached consensus
+[01:15:28] on this public ledger or public log, if you will,
+[01:15:34] the basic orders, all the transactions ever since the beginning of time
+[01:15:38] and allow people to check what the balances are of every public key,
+[01:15:46] and avoid double spending,
+[01:15:50] and you know the particular cool sort of the idea here is
+[01:15:54] to basically just proof-of-work idea
+[01:15:58] to determine actually who is allowed to extend the block chain.
+[01:16:05] Okay?
+[01:16:06] So it's basically all I want to say,
+[01:16:09] so if you need to run and leave,
+[01:16:13] feel free to leave
+[01:16:14] and this is basically the end of this lecture,
+[01:16:16] anybody wants to stay and ask more questions,
+[01:16:18] please feel free to stay,
+[01:16:20] on Thursday, there's no lecture, it's a hacking day,
+[01:16:23] as you know, that Friday is the deadline
+[01:16:26] for the final project or lab 4 whatever you'll be doing,
+[01:16:30] so, good luck, trying to get that work finished.
+[01:16:33] And we'll talk in the next class, meeting next Tuesday.
+[01:16:39] Okay, thank you.
+[01:16:44] Oh, could you talk a little bit more about the proof-of-stake?
+[01:16:48] Sure, I'm not sure what to say about it,
+[01:16:56] the you know if you want to know any more details,
+[01:16:59] you know just Google proof-of-stake,
+[01:17:00] and you'll find a different Bitcoin currencies that use it,
+[01:17:03] and and that will tell you more detail,
+[01:17:08] but basically you know the power of in the network
+[01:17:12] is proportional to proof-of-stake in the network,
+[01:17:15] and the basic idea is that,
+[01:17:17] if you own like whatever 3% or 10% of all the Bitcoins,
+[01:17:21] you know you guys to decide 10% of the the new blocks,
+[01:17:25] and you're going to have incentive, you know the higher your stake,
+[01:17:29] you know the higher incentives actually to play the game correctly.
+[01:17:35] So the struggle becomes more deterministic in that case, right?
+[01:17:40] All depends on the details of the protocol,
+[01:17:46] in algorithm, you know basically there's a periodical leader,
+[01:17:49] and there's a committee election,
+[01:17:51] and then the committee decides someone like what the next block is,
+[01:17:54] and then you know there's a new leader
+[01:17:56] and the new committee elections etc etc.
+[01:17:59] And many aspects of that, are you know probably stick and randomized,
+[01:18:05] so that the attacker can win the game.
+[01:18:15] These protocol are quite sophisticated.
+[01:18:26] Also to be able to mine
+[01:18:29] you have to have of the log to verify the transactions, right?
+[01:18:36] Yes.
+[01:18:37] Yeah, so the miners is a complete copy of the log which is gigabyte.
+[01:18:42] Isn't that a lot?
+[01:18:44] It turned out to be totally doable for a reasonable computer.
+[01:18:49] Okay, thank you.
+[01:18:52] You're welcome.
+[01:18:59] This is unrelated to the lecture,
+[01:19:01] but do you think it'd be possible
+[01:19:03] to talk about during the classroom time
+[01:19:06] like the design that TAs that you had for lab 3 and 4,
+[01:19:10] like because there's more open-ended, so.
+[01:19:13] Yeah, certainly more open-ended.
+[01:19:16] I was not planning to,
+[01:19:18] I don't know we have time left to do so,
+[01:19:21] first of all, not everybody has done lab 4,
+[01:19:24] and so I currently have no intention to do so,
+[01:19:28] but of course you can reach out to our office hours
+[01:19:31] and talk to the TA soon,
+[01:19:33] or again reach out later to me
+[01:19:35] and we can talk about lab 3 and lab 4.
+[01:19:39] Sounds good, thank you.
+[01:19:45] So, so I I had a question about,
+[01:19:50] like it says, it says in the paper like, or rather, sorry,
+[01:19:57] yeah, once the latest transaction in a coin is buried under enough blocks,
+[01:20:04] the spent transaction before it can be discarded to save disk space.
+[01:20:11] I I I I understood though that you know a blockchain,
+[01:20:16] never really like discards transactions,
+[01:20:21] it keeps a whole log of all the transactions,
+[01:20:24] why is this, like why was this done in practice.
+[01:20:29] Because to save space on the, save space on the,
+[01:20:34] allow it's a space compaction on the nodes in the miners.
+[01:20:41] And so they don't have to keep track of every transaction in the log,
+[01:20:45] over every basically Bitcoin,
+[01:20:47] they have to keep track of the last one and efficient,
+[01:20:52] and so one way to think about is
+[01:20:54] sort of like you can compute a snapshot in time of all the values of all the points,
+[01:21:00] and then you don't really have to remember the whole past.
+[01:21:04] Who does keep the whole past then?
+[01:21:07] Yeah, there's two things,
+[01:21:10] one is like you know when you check whether transaction's valid,
+[01:21:13] go scan the whole log,
+[01:21:15] people don't do that you know take forever,
+[01:21:17] and basically build a data structure is no quite impact,
+[01:21:20] and has the last transaction for every unspent coin,
+[01:21:27] the you know you can totally download the whole log,
+[01:21:32] you know from you want from the Internet,
+[01:21:34] it is maintained and nodes to store it,
+[01:21:38] you know to basically they lose all the data,
+[01:21:40] they can compute all the balances
+[01:21:43] basically from running all the transaction from beginning of time.
+[01:21:48] But so so like, if people are like who maintains the whole block,
+[01:21:54] the whole transactions.
+[01:21:56] Replicated everywhere, right,
+[01:21:58] everybody wants to get a copy of the log.
+[01:22:02] Right.
+[01:22:03] But, but if most people are doing this it's cutting transactions,
+[01:22:07] like why would someone keep like the.
+[01:22:11] This is not good enough to actually keep track of,
+[01:22:14] you know this allows you to decide
+[01:22:15] where the transaction was actually happened in the past,
+[01:22:19] but it doesn't allow you to validate transactions,
+[01:22:21] so you want to validate transactions you have to keep the past.
+[01:22:23] Okay, okay, thanks.
+[01:22:28] You're welcome.
+[01:22:33] Any more questions?
+[01:22:37] Okay, thanks.

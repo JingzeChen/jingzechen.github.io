@@ -1,0 +1,462 @@
+[00:00:04] Okay, good afternoon, good evening or good night, good morning,
+[00:00:10] whatever timezone you're in watching this lecture.
+[00:00:14] Double checking on sound, people can hear me?
+[00:00:25] Yes.
+[00:00:26] Yes.
+[00:00:27] Sure, okay, I'm gonna talk about two things today,
+[00:00:31] I want to finish off our discussion to FaRM,
+[00:00:34] and then I'll talk about Spark.
+[00:00:36] And just to remind everybody else,
+[00:00:38] so everybody, we were more FaRM,
+[00:00:41] we're talked about executing transaction without any failures,
+[00:00:46] and we looked at one example,
+[00:00:48] of whether actually the transaction provided external consistency or strict serializability.
+[00:00:55] And, so I want to talk about one more example,
+[00:00:58] to look about, to talk about serializability,
+[00:01:01] and then talk a little bit about fault tolerance,
+[00:01:04] but before doing so,
+[00:01:06] it's probably helpful to remind,
+[00:01:08] remind ourselves exactly you know how transaction works,
+[00:01:12] if there are no failures.
+[00:01:15] And so in FaRM application goes for two phases,
+[00:01:18] the execution phase, where it fetches objects you know from different shards,
+[00:01:24] and then the commit phase.
+[00:01:25] And so we look back at this picture here,
+[00:01:28] you know there's an execution phase,
+[00:01:30] three objects being, three objects being read,
+[00:01:37] you know one from each different shard,
+[00:01:39] you know we have shard one, shard two and shard three,
+[00:01:42] and every shard has one backup,
+[00:01:44] so this system could tolerate one failure.
+[00:01:48] So object to read, the the two objects are being modified,
+[00:01:52] as we see in the second,
+[00:01:55] and then once you know the three objects read and two modified,
+[00:01:59] the application might decide to commit,
+[00:02:02] and then so the whole commit phase goes into action,
+[00:02:04] this whole story from steps one through five,
+[00:02:09] and in step one, the transaction takes of locks
+[00:02:13] on the objects that have been written written,
+[00:02:16] so we see here,
+[00:02:17] there have been two objects that have been written to by the transaction,
+[00:02:22] and so we're propagating what's called lock records you know to every primary,
+[00:02:28] so every primary is going to have a lock record for this transaction,
+[00:02:34] and for the objects involved in the transaction,
+[00:02:38] so and lock records contains an object id,
+[00:02:42] which identifies the object uniquely,
+[00:02:44] a version number,
+[00:02:46] so at the time that transaction reads an object,
+[00:02:50] it gets back a version number,
+[00:02:52] in fact gets back this 64 bit number,
+[00:02:56] which is top is a lock bit and the rest is version number,
+[00:03:01] and then a new value.
+[00:03:09] So, you know primary 1 and primary 2 is going to have,
+[00:03:13] primary 1 is going to have to lock record for object 1,
+[00:03:15] primary 2 is going to have to lock object for primary for object 2,
+[00:03:19] then there's a separate phase for the validation of the read-only operations
+[00:03:25] or operations were objects that have only read, but not modified,
+[00:03:29] as we can see in those validation step,
+[00:03:33] the dotted lines represent one-sided RDMAs,
+[00:03:41] and as we talked about on Tuesday,
+[00:03:43] those basically involve no server involvement,
+[00:03:46] you know sender can just read an object out of the memory of the server,
+[00:03:51] without actually have,
+[00:03:52] without actually having to interrupt the computation, that's actually running on the server,
+[00:03:57] so they tend to be very fast,
+[00:03:59] unlike you know these operations that we saw here,
+[00:04:01] which are actually write RDMAs,
+[00:04:08] they are cool too,
+[00:04:08] in the sense, that you get to write you know to the
+[00:04:12] appends you know to this log record
+[00:04:13] without actually interrupting the server,
+[00:04:15] but the server actually has to process these log records,
+[00:04:18] and and the server in this case,
+[00:04:20] once it actually process one of these log records,
+[00:04:23] you know tries to take the lock,
+[00:04:24] if it succeeds trying to take the lock,
+[00:04:26] because the version number hasn't changed
+[00:04:28] or to the lock bit or no other transactions taking the lock,
+[00:04:32] then it will reply back,
+[00:04:34] you know using another one of write RDMA saying ok.
+[00:04:39] And so yeah we see that on the acquiring lock,
+[00:04:42] requires action on the server,
+[00:04:44] but the one-sided RDMA for reads validation,
+[00:04:47] doesn't require any action on the server.
+[00:04:51] Then, there's the,
+[00:04:54] if everything turns out to be okay,
+[00:04:56] so, transactions basically able to obtain those write locks
+[00:05:01] and validate you know the read operations,
+[00:05:04] it actually makes a decision to commit
+[00:05:07] and to commit, it a first communicates to every backup,
+[00:05:15] the object the change,
+[00:05:18] so write to commit backup record,
+[00:05:26] it depends that to every, to the backups of the objects that have been modified,
+[00:05:32] again you know it's basically a copy of the lock record,
+[00:05:36] you know oid goes in there the version number goes in there and the new value.
+[00:05:42] Once you know all the backups you know have have reported,
+[00:05:48] that they actually have a copy of the object,
+[00:05:50] now we're basically in pretty good shape,
+[00:05:52] because the primary has copy, the backup has copy,
+[00:05:55] [] the primary doesn't really know,
+[00:05:57] if the transaction has been committed yet or not,
+[00:06:00] and so the final step is that,
+[00:06:02] actually the coordinator or transaction coordinator write out and commit a record,
+[00:06:09] and commit primary record,
+[00:06:18] informing the primaries that actually transaction actually has committed.
+[00:06:23] And as soon as it gets an acknowledgement from one of the NICs,
+[00:06:27] you know indicated by the dotted lines,
+[00:06:29] it actually reports back to the application,
+[00:06:32] saying that the transaction committed.
+[00:06:38] So what we wanna do now is look at two cases,
+[00:06:41] one we wanted to talk a little bit more about serializability,
+[00:06:44] just to see if the concurrency control work out,
+[00:06:46] and then we'll talk a little bit about fault tolerance,
+[00:06:48] and see if the fault tolerance story works out.
+[00:06:51] So let me first start with serializability,
+[00:06:56] alright, so maybe before doing that,
+[00:06:58] let me just ask if any questions so far,
+[00:07:01] or whether everybody should have swapped,
+[00:07:04] successfully swapped FaRM back into into your memories.
+[00:07:12] What does the rectangle mean in this?
+[00:07:16] Sorry?
+[00:07:17] So what's the rectangle,
+[00:07:19] what does it signify, along?
+[00:07:20] It's object.
+[00:07:22] Oh, it's object, okay.
+[00:07:26] Okay, any other questions?
+[00:07:31] Okay, good, let's,
+[00:07:34] so let's look at the correctness from the concurrency perspective,
+[00:07:40] so the correct correctness strict serializability.
+[00:07:49] And on Tuesday, we looked at
+[00:07:51] transaction that didn't really evolve write validation,
+[00:07:56] because there was no object was read, but not written,
+[00:08:01] and so I'm going to look at another transaction this time around,
+[00:08:03] where actually the validation phase plays a role.
+[00:08:06] And so we look at two transactions,
+[00:08:08] and this is sort of,
+[00:08:09] this example is a classic example
+[00:08:13] to test whether a protocol provides serializability or not,
+[00:08:16] of course, it's not going to be approve,
+[00:08:18] but it's sort of one of these key examples,
+[00:08:20] generally it's very helpful to see, to understand how the protocol works.
+[00:08:25] The protocol, the transactions are,
+[00:08:27] if x is 0, then we're going to set y to 1,
+[00:08:30] so if object x 0, we'll set object y 1,
+[00:08:34] which is transaction 2 sort of the opposite, it looks,
+[00:08:37] if y is 0, and if y 0, set x to 1.
+[00:08:44] And the reason of this sort of,
+[00:08:46] this is a good test for serializability,
+[00:08:49] is that either transaction 1 should go after T2, correct,
+[00:08:52] or T2 should go after T1,
+[00:08:54] and depending on which order you run,
+[00:08:56] you know either y is 1, or x is 1,
+[00:08:59] but you never should have,
+[00:09:01] you never should have the outcome said x is 1, oops, the x is 1, and y is 1.
+[00:09:12] And that should not be allowed,
+[00:09:13] because definitely violates serializability.
+[00:09:16] Does that make sense?
+[00:09:22] Okay, so what do we want to do is
+[00:09:24] to test whether FaRM is actually successful,
+[00:09:29] in, we want to understand requirements,
+[00:09:31] and indeed it is not possible that x is 1 and y is 1 get produced.
+[00:09:37] So let's look at the timeline,
+[00:09:39] let's say here we have T1, here we have T2 timeline,
+[00:09:46] so they both you know in their sort of the preparation or execution phase,
+[00:09:51] both reads these objects,
+[00:09:52] so let's say they run through the concurrently,
+[00:09:55] we do a read of x and version number 0,
+[00:09:57] we do a read of y, the version number 0,
+[00:10:00] same here.
+[00:10:04] And of course T1 will update y, T2 will update x,
+[00:10:09] and they [] at some point you know those start to commit phase,
+[00:10:19] and you know let's,
+[00:10:23] so let's say the T1 that starts first,
+[00:10:25] and basically grabs the, it needs to lock on y,
+[00:10:30] since it's going to be writing y,
+[00:10:32] so, let's say x successfully grab the lock on y,
+[00:10:36] and so that actually will set the lock bit and the version number of the y object.
+[00:10:44] And then let's say you know actually,
+[00:10:47] since it's going to read,
+[00:10:48] it has read x,
+[00:10:50] but it's not as read x,
+[00:10:52] but it's not modifying x, but the validation of x,
+[00:10:57] you know x was read version number 0,
+[00:11:01] the you know at validation phase,
+[00:11:05] so nothing actually has changed with x,
+[00:11:07] that version number still 0 there,
+[00:11:09] you know we're executed in this order,
+[00:11:12] and so things are sort of are fine,
+[00:11:15] and you know at some point, you know this transaction might commit.
+[00:11:20] So let's look at T2,
+[00:11:22] let's say you know T2 runs after the validation of x,
+[00:11:28] so it grabs the lock,
+[00:11:30] and and then you know the, it has read y,
+[00:11:36] so it needs to do a validation of y,
+[00:11:39] that's going to do a validation of y,
+[00:11:42] and the question is,
+[00:11:44] is that validation could succeed or not.
+[00:11:52] No, because the previous the other operation has the lock modified value,
+[00:11:56] so it's not the same, that was originally read.
+[00:12:00] Yeah, so the version numbers might be still the same,
+[00:12:02] but y, you know T1 has set the lock bit, right, for the object y,
+[00:12:07] and so at this point, this validation will fail,
+[00:12:11] because it's not the same, or the lock bit has been set,
+[00:12:15] so to T2 transaction, the T2 transaction will abort.
+[00:12:20] Okay, does that makes sense?
+[00:12:23] So we see at least in this particular example,
+[00:12:25] that you know it is the case,
+[00:12:27] that T1 and T2 both commit,
+[00:12:29] which would result in this incorrect outcome.
+[00:12:35] Any questions about this?
+[00:12:40] I I had a question.
+[00:12:42] Yeah.
+[00:12:43] Yeah, so, like for for the transactions,
+[00:12:47] so these are like these have to be like update transaction,
+[00:12:51] like rewrite, correct,
+[00:12:54] just read, it couldn't do it.
+[00:12:58] Yeah, go ahead.
+[00:12:59] I I just wonder,
+[00:13:00] if they were like read operations,
+[00:13:02] you could do that, like lock-free, right,
+[00:13:05] and as long as the.
+[00:13:06] Yeah, so this is actually,
+[00:13:08] let's go back to this picture here, right,
+[00:13:10] then let's look at the,
+[00:13:11] let's say, there were no writes involved in this transaction at all, right,
+[00:13:14] so for example the two objects have been read, correct,
+[00:13:17] store at you know P1 and P2.
+[00:13:20] So let's assume that these guys are actually not involved,
+[00:13:22] so those objects were not written,
+[00:13:24] so the only operation that's happening is read with that object.
+[00:13:28] And you see in and so the protocols carefully designed,
+[00:13:33] so that if you only do reads,
+[00:13:35] you only do one-sided RDMAs, correct,
+[00:13:38] here in the execution phase
+[00:13:40] and one RDMA to do the validation,
+[00:13:44] and no locks are taken out,
+[00:13:46] no writes are being done,
+[00:13:47] no records are being appended,
+[00:13:49] that's the only thing that happens.
+[00:13:52] And so this is one of the cool features about FaRM,
+[00:13:56] is that these transactions that only do reads,
+[00:13:59] can be executed without, with only one-sided RDMAs,
+[00:14:05] and only with no writes to any locks or grabbing locks,
+[00:14:12] and so that's why one reason that they get extremely high performance.
+[00:14:16] And this is also the reason why,
+[00:14:18] for example the lock phase, the lock step and validation steps are two separate things,
+[00:14:24] because in for read-only transactions, there's no lock step.
+[00:14:31] Okay?
+[00:14:33] Actually, a question on that,
+[00:14:35] for read-only transactions,
+[00:14:38] why do we need the second,
+[00:14:40] why do we need the validation phase,
+[00:14:42] because aren't you like reading a value,
+[00:14:44] and then you're immediately validating right after it like the version,
+[00:14:47] it seems like.
+[00:14:49] It could be another transaction, that has been has modified the object yet,
+[00:14:53] so if transaction ran or started and committed before,
+[00:14:58] okay, the concurrent transaction actual writes might modify the object,
+[00:15:05] and now, we'll be back, right,
+[00:15:06] so the the the transaction writes,
+[00:15:12] then the transaction that actually follows
+[00:15:15] you know should you know see observed at last write.
+[00:15:19] But if they occur at the same time,
+[00:15:21] then we can reorder them either way.
+[00:15:23] Exactly at the same time, we order reorder them, yeah.
+[00:15:32] So it still seems to me,
+[00:15:34] like the second validation,
+[00:15:36] because the first time you read it,
+[00:15:37] the second time you just immediately [] and see the version is the same [],
+[00:15:41] it still seems to me like the second validation is like almost unnecessary.
+[00:15:46] I I, you might be right,
+[00:15:48] I haven't thought very hard about this,
+[00:15:50] that if there, if there are transactions are only read-only transactions,
+[00:15:56] you know then the validation is definitely not necessary,
+[00:15:58] I have very carefully thought about,
+[00:16:00] when there's a mix of transactions,
+[00:16:02] where there is a case where you need the validation.
+[00:16:05] Yeah, what would that be the case,
+[00:16:06] where like you have like, if you read a value,
+[00:16:10] like you expect to read like two values atomically,
+[00:16:13] read value, after you read a value,
+[00:16:16] like some transaction modifies the other value.
+[00:16:20] Yeah, it would be one possible.
+[00:16:22] When it doesn't.
+[00:16:28] Yeah, sure, I'm not, I'm not quite sure,
+[00:16:30] actually in that case, if that's the problem.
+[00:16:33] Like, for example in this case,
+[00:16:34] you know this T1 and T2 cases,
+[00:16:36] really crucial that y actually does the validation, correct,
+[00:16:41] even though actually that transaction you know T1 only reads y, right.
+[00:16:52] But what if, transaction 2 was just x equals 1,
+[00:16:57] instead of like without that statement.
+[00:17:00] Blind write.
+[00:17:02] Hmm?
+[00:17:03] If it is a blind write.
+[00:17:05] Yeah, it's just x equals 1
+[00:17:06] and then it executes after the validation of T1.
+[00:17:11] Yeah, that's fine, correct.
+[00:17:20] But whould.
+[00:17:21] I'm not sure what the question is.
+[00:17:22] Oh, so if T2 is is just,
+[00:17:25] like like you know write x equals 1,
+[00:17:29] within the validation step,
+[00:17:31] after an excuse, after the validation step of T1,
+[00:17:35] wouldn't then T1 think that x equals 0,
+[00:17:40] but then x becomes 1 before the commit.
+[00:17:47] Okay, so okay, let me, maybe we can make a hold up,
+[00:17:50] because I gotta redraw the whole picture,
+[00:17:53] and figure out exactly what the scenario you're talking about.
+[00:17:56] Okay, so maybe we can go back to this at the end.
+[00:18:02] Sorry, I had a question,
+[00:18:03] what is the use case for normal transaction?
+[00:18:07] If think back Spanner and this paper,
+[00:18:14] like there's often the case,
+[00:18:16] in these workloads, the TPC-C workload and the TATP workload,
+[00:18:20] where you know there's a transaction that only does reads for example,
+[00:18:24] I've computed the balances of a set of accounts,
+[00:18:27] nothing is being written,
+[00:18:28] but you know a lot of things, a lot of accounts being read.
+[00:18:34] Thank you.
+[00:18:38] Okay, so we see here there's actually a validation phase is crucial, correct,
+[00:18:42] T1 and T2 transaction,
+[00:18:45] in in [], that actually things are work out, correct,
+[00:18:48] we get strict serializability,
+[00:18:50] of course this is not a proof,
+[00:18:51] but it gives you you know this example
+[00:18:54] to try to get at the tricky case,
+[00:18:57] you know actually FaRM seems to work out correctly.
+[00:19:01] Okay so, so that's on the concurrency control,
+[00:19:05] then the second part,
+[00:19:07] we want to talk a little bit about is fault tolerance.
+[00:19:11] And you gone want to get the, not gonna go great amount of depth here,
+[00:19:16] just want to talk about the you know key challenge,
+[00:19:21] and see you know and build some intuition,
+[00:19:24] why we might actually be hopeful that FaRM actually addresses the key challenge.
+[00:19:32] And so the key challenge,
+[00:19:34] and so we actually have the key challenge is that,
+[00:19:38] there's actually crashes after telling the application,
+[00:19:54] and then it has to be the case, right,
+[00:19:56] that the transaction persists,
+[00:20:00] because we have informed the application that the transaction is committed,
+[00:20:03] so we can't actually lose any writes that the transaction has done.
+[00:20:09] And so we can look at this picture again,
+[00:20:12] and see if we're,
+[00:20:14] going to be hopeful that this is the case,
+[00:20:22] so you know there are a couple things to observe,
+[00:20:25] after you know the lock phase,
+[00:20:29] it is the case that,
+[00:20:33] after the lock phase,
+[00:20:34] it's the case, that the two primaries P1 and P2 have a lock record,
+[00:20:43] which describes the update,
+[00:20:44] we don't really know the transaction,
+[00:20:47] that record doesn't say whether the record actually,
+[00:20:50] whether the transaction is committed,
+[00:20:52] but we have information about the transaction,
+[00:20:56] then, after this step, to commit backup step,
+[00:20:59] we know that you know backup B1 and B2 have the commit record,
+[00:21:13] and then before you know the transaction,
+[00:21:16] the transaction coordinator reports to the application,
+[00:21:20] that it has to be successful,
+[00:21:22] we know that one of the primaries,
+[00:21:25] let's say P1 also has commit record,
+[00:21:34] so you know let's assume there's a crash you know like right here,
+[00:21:37] so at that particular just after that commit point, you know the system crashes,
+[00:21:42] and what we want to convince ourselves off is that,
+[00:21:45] if there's one failure,
+[00:21:47] like for each shard, things actually work out correct,
+[00:21:51] and so the worst case basically correct is the B2 fails,
+[00:21:59] so here, where is B2 you know B2 B2 fails,
+[00:22:03] and so we lose you know that commit record,
+[00:22:06] that is actually there,
+[00:22:08] the primary might actually have not a commit record yet,
+[00:22:12] because you know it crashed after we see if the acknowledgement of one primary,
+[00:22:17] so let's say that P1 must actually have to commit record,
+[00:22:20] so in this case, P1 have commit record,
+[00:22:25] and you know and of course you know the backup has commit record for B1,
+[00:22:30] so this is enough information, correct, for convince during recovery,
+[00:22:36] that actually the transaction has committed,
+[00:22:38] because you know we have a commit record,
+[00:22:40] which is just what the tid that's committed,
+[00:22:43] and we actually have all the information at the backups,
+[00:22:46] namely the lock, the commit records which describe the write transactions,
+[00:22:52] on the backups,
+[00:22:53] and so during recovery,
+[00:22:55] we actually have enough information to decide
+[00:22:57] you know that the transaction actually has committed.
+[00:23:01] And so that's sufficient,
+[00:23:03] you know of course there's a complex protocol,
+[00:23:05] that actually needs to go into action,
+[00:23:06] and sort of look at all the pieces that are left behind by the transaction,
+[00:23:10] with enough pieces left behind transaction,
+[00:23:11] for the coordinator, for the new coordinator, the recovery process to decide that,
+[00:23:17] actually this transaction indeed has committed and should be persistent.
+[00:23:22] Okay?
+[00:23:30] Good.
+[00:23:32] So let me summarize FaRM
+[00:23:34] and before we jump into the discussion of Spark.
+[00:23:41] So you know top level,
+[00:23:43] you know what's so cool about FaRM is fast,
+[00:23:47] it can execute many many, many transactions per second,
+[00:23:50] you know there are some restrictions of course you know on FaRM,
+[00:23:54] you can't do it all all the time.
+[00:24:02] So, first of all,
+[00:24:04] it assume few conflicts,
+[00:24:08] so use this optimistic concurrency control scheme,
+[00:24:13] and the reason that uses this optimistic concurrency control scheme,
+[00:24:15] because want to take out locks,
+[00:24:17] because it wants to do this one-sided RDMA,
+[00:24:19] without actually any server involvement.
+[00:24:22] So using optimistic concurrency control scheme,
+[00:24:25] that means that, if you want a good performance
+[00:24:29] and avoid transaction aborts that workload better,
+[00:24:32] actually, have few conflicts,
+[00:24:34] we're seeing new innovation,
+[00:24:35] there are two common benchmarks
+[00:24:37] that are being used in the transaction literature to measure systems,
+[00:24:41] for those two benchmarks,
+[00:24:43] you know clearly as doing extremely well,
+[00:24:45] does mean they're not that many conflicts.
+[00:24:50] The second assumption, it makes is that,
+[00:24:51] the data must fit in memory,
+[00:24:59] so it means that if you have a really really big database,
+[00:25:02] you have to buy more machines,
+[00:25:03] or if you're really the data too big
+[00:25:07] and you don't want to buy more machines,
+[00:25:08] then basically you can't use FaRM,
+[00:25:10] and you have to go back to more traditional database,
+[00:25:13] that actually has you know persistent storage,
+[00:25:14] and so you can read or write record to a much larger storage device.
+[00:25:24] Replication is only, is only within the data center,
+[00:25:37] so in that way, in that way,
+[00:25:39] it's quite different from Spanner,
+[00:25:42] the whole goal, there was to do,
+[00:25:43] synchronous transactions across, the synchronous replication across data centers,
+[00:25:48] you know to support applications,
+[00:25:50] that need to be able to survive or continue,
+[00:25:54] while some data centers are down,
+[00:25:56] indicates you know FaRM that is just not the case,
+[00:25:59] it's not targeted to those kinds of applications.
+[00:26:04] And then the final point is,
+[00:26:06] it requires you know pretty fancy or exotic hardware,
+[00:26:15] in particular has two things,
+[00:26:17] this UPS, [] UPS to survive complete data center outages,
+[00:26:23] and more importantly you know use this RDMA NICs,
+[00:26:29] you know get actually really high performance.
+[00:26:35] Okay, that's all I wanted to say about FaRM,
+[00:26:41] unless there are any further questions.
+[00:26:55] Okay, so that basically ends set of paper or ends transaction side of this 6.824,
+[00:27:07] so we're sort of done three lectures on transactions,
+[00:27:10] and that was basically this is the end of talking about transactions,
+[00:27:15] so will show up in other papers,
+[00:27:16] but we're not going to talk about any more detail,
+[00:27:19] in fact we're basically sort of done
+[00:27:21] with talking about you know sort of the most challenging part in the distributed systems,
+[00:27:25] namely building fault tolerant storage systems,
+[00:27:29] and you know we're now seeing a broad spectrum of different designs,
+[00:27:33] including designs,
+[00:27:34] that they are actually supports very powerful programming abstraction of transactions.
+[00:27:40] So in the next, this lecture,
+[00:27:42] the remaining of this lecture and subsequent lectures,
+[00:27:45] we're going to sort of look at different topics,
+[00:27:47] that were unrelated to storage systems.
+[00:27:51] And so the first topic, that we're gonna be talking about is Spark.

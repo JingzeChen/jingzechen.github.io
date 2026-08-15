@@ -1,0 +1,1355 @@
+[00:00:01] Okay, good afternoon, can everybody hear me?
+[00:00:08] Yep.
+[00:00:09] Okay, thank you,
+[00:00:10] yes I will post the lecture notes at the end of lecture,
+[00:00:14] response to the chat.
+[00:00:18] Okay, so, today basically I want to start a new topic in in 6.824,
+[00:00:28] and sort of last topic that will be discussing,
+[00:00:32] the topic is really decentralized systems.
+[00:00:45] And these are typically decentralized really refers to the fact,
+[00:00:49] that there's no single authority that is in control of the system,
+[00:00:54] a lot of the systems that we've seen so far,
+[00:00:57] all the machines and servers sort of cooperate,
+[00:01:00] and on the under control of a single institution or any single authority.
+[00:01:06] And since a lot of you ask questions,
+[00:01:09] about like how would it work,
+[00:01:10] if there's no central point of trust.
+[00:01:15] And so, from now on,
+[00:01:18] the three systems or three papers were going to be discussing,
+[00:01:21] all sit in this form of decentralized systems,
+[00:01:23] and decentralized systems are harder to build
+[00:01:28] than the sort of single trust systems,
+[00:01:31] because you know you might have to account for byzantine failures
+[00:01:35] or byzantine participants,
+[00:01:46] and these are participants that you know sometimes follow the protocol,
+[00:01:49] and sometimes they don't follow the protocol,
+[00:01:51] so again really think about it,
+[00:01:53] they are basically adversaries,
+[00:01:55] and they may try to abuse or trick other participants in systems,
+[00:02:03] you know for their own goods,
+[00:02:04] but not maybe for others.
+[00:02:06] And so that makes actually system design,
+[00:02:11] which distributed system designs much more challenging,
+[00:02:14] and much more difficult to reason about,
+[00:02:16] you know like in the last you know 18 whatever lectures,
+[00:02:20] mostly when we talk about,
+[00:02:22] when we design protocol or we thought about Raft,
+[00:02:25] and we just assume that
+[00:02:26] actually every participant in the protocol follows the rules,
+[00:02:30] and in the byzantine with byzantine participants,
+[00:02:33] that is not the case anymore,
+[00:02:35] you know the participants can cook up new messages,
+[00:02:38] you know send messages out of order,
+[00:02:40] trick other participants,
+[00:02:42] and so the we thinking about those kind of protocols is much more difficult,
+[00:02:47] because we have to consider what, what the adversary could do,
+[00:02:51] to sort of make our [],
+[00:02:54] to break basically the properties of the protocols, that we're shooting for,
+[00:02:58] so this tends to be made the problem much harder.
+[00:03:04] And really you know where what this sort of topic is,
+[00:03:08] so sits on the intersection of distributed systems and security.
+[00:03:16] And as we'll see in the next this paper, next three papers,
+[00:03:21] you know cryptography or security ideas, like signing and hashing,
+[00:03:25] and are going to play a crucial role to actually make [] progress.
+[00:03:31] In fact, you know the paper actually that we're reading for today is also,
+[00:03:34] is a paper that we use in the 6.858,
+[00:03:38] taking maybe 6.858 last Spring,
+[00:03:42] we talked about this paper too,
+[00:03:44] although then for mostly from the perspective of security,
+[00:03:47] and today I'm going to mostly focuses on
+[00:03:49] the perspective of distributed systems,
+[00:03:53] the SUNDR itself, a lot of people ask,
+[00:03:58] a lot of you ask you know SUNDR being used,
+[00:04:03] and as far as I know,
+[00:04:04] there's actually no systems that actually implement SUNDR directly
+[00:04:09] or based directly based SUNDR,
+[00:04:11] other than lab 4 in 6.858,
+[00:04:15] in lab 4, what if you do lab 4, the default project,
+[00:04:21] lab 4 at 6.858,
+[00:04:22] then you actually implement SUNDR.
+[00:04:26] Now, the reason, so you might wonder why we are studying this paper at all,
+[00:04:32] the reason we're studying it,
+[00:04:33] because it actually proposes a number of
+[00:04:35] very powerful techniques or powerful ideas,
+[00:04:40] and so particularly the signed log,
+[00:04:44] even though is a strong design conceptual design,
+[00:04:48] is incredibly powerful,
+[00:04:50] and you see back
+[00:04:52] same idea appear in lots of other decentralized systems,
+[00:04:56] you know ranging from systems like Git to you know systems like Bitcoin
+[00:05:01] or any other sort of cryptographic ledger,
+[00:05:04] we're gonna be talking about Monday or next Tuesday,
+[00:05:08] I know one system actually is directly influenced by SUNDR,
+[00:05:14] which is a system called Keybase,
+[00:05:16] Keybase uses SUNDR techniques,
+[00:05:20] and and many more,
+[00:05:22] if you're not familiar with Keybase,
+[00:05:24] actually was originally acquired by Zoom,
+[00:05:28] which was only all familiar with.
+[00:05:32] Okay, so that's sort of for the quick intro to this paper,
+[00:05:37] before I dive into more of the setting,
+[00:05:39] any sort of questions
+[00:05:41] before diving a little bit deeper in the paper.
+[00:05:51] Okay.
+[00:05:53] So let's talk a little bit about the setting of this paper
+[00:05:56] or the motivation of this paper.
+[00:06:00] So the setting in the,
+[00:06:04] that the [] set forward is a network file system,
+[00:06:11] and, you can think about this a little bit,
+[00:06:14] in the style of earlier paper, that we've read Frangipani,
+[00:06:19] where the topic also was to implement consistent network file system.
+[00:06:25] So we have a file server,
+[00:06:31] we have clients that interact with the file server,
+[00:06:35] somebody might actually create a file f,
+[00:06:39] and maybe read f on another client.
+[00:06:46] And you know the setting we're in,
+[00:06:50] is that basically the file server as opposed to in the Frangipani,
+[00:06:55] the file server are actually can be Byzantine.
+[00:07:03] And Byzantine really increasing extremely powerful threat model,
+[00:07:07] or you know gives the attacker an incredible amount of power.
+[00:07:11] So in Byzantine you know the server might send different RPCs back,
+[00:07:16] you know cook up its own RPCs, the the, takeover the machine,
+[00:07:25] you know bribe the administrator,
+[00:07:27] and for everything is basically the way to think about is that,
+[00:07:31] the adversary gets complete control of the file server.
+[00:07:36] And so this covers sort of wide range
+[00:07:40] of you know sort of more common attacks
+[00:07:42] or like the typical attacks you might see in a real system,
+[00:07:45] so real attacks one bug in software,
+[00:07:52] so if you know there's a bug in the software,
+[00:07:55] then you know the adversary can exploit,
+[00:07:57] that [] maybe to obtain privileges
+[00:08:01] and you know that Byzantine model you know completely passes,
+[00:08:05] that or you know system administrator might have a weak, with weak password,
+[00:08:16] if the attacker [] and then they take control over the system,
+[00:08:21] you know that's also covered by Byzantine physical breaking,
+[00:08:28] maybe the attacker [] you know get access to the physical machine,
+[00:08:33] and you know can therefore control the physical part of the machine,
+[00:08:38] again it's all covered by this you know Byzantine threat model,
+[00:08:42] or even you know, maybe you know the the attacker bribes an operator
+[00:08:55] or colludes you know with a malicious client,
+[00:09:00] you know that is also covered by this model,
+[00:09:02] so this is a threat model,
+[00:09:03] that is a very very gives a lot of power to the adversary,
+[00:09:08] it covers a lot of standard attacks.
+[00:09:10] And and you know the first thing sort of observed,
+[00:09:14] you know again that SUNDR [place] is that,
+[00:09:21] instead of actually you know sort of
+[00:09:23] maintaining the whole file system on the file server,
+[00:09:26] the file server is as simple as possible,
+[00:09:29] and in fact you know the file servers very much like almost like Pedal,
+[00:09:33] it's almost like a block device with a little bit more.
+[00:09:39] So there's a central place where all the blocks are stored,
+[00:09:43] and but the clients really implement the file system,
+[00:09:47] so it's not really you know that the client sends, create for file actually,
+[00:09:52] you know sends blocks and reads blocks, from the block server,
+[00:09:58] and basically constructs you know from the blocks with reads or writes,
+[00:10:02] you know its own view of the file system,
+[00:10:05] and serve you know a file system operations,
+[00:10:07] basically on the straight on the client
+[00:10:09] and so here really, we create you know f, read f, etc.
+[00:10:16] So very very similar to the Frangipani,
+[00:10:19] except the big difference of Frangipani is,
+[00:10:22] that Pedal and all clients were completely trusted,
+[00:10:25] and in this setting,
+[00:10:26] the clients are not trusted,
+[00:10:28] and the file servers,
+[00:10:30] it can be also, is also not trusted.
+[00:10:34] Okay?
+[00:10:41] Okay, so the paper focused on a particular set of security properties,
+[00:10:47] and focus is really on,
+[00:10:55] the focus is on what's called integrity properties,
+[00:11:01] and in contrast to confidentiality,
+[00:11:03] confidentiality about protecting data from them,
+[00:11:06] so that nobody else can read it,
+[00:11:07] integrity is just ensuring that the system structure is correct,
+[00:11:12] and the modifications, illegal modifications to the data are being detected,
+[00:11:17] and whether the data is public or not public,
+[00:11:18] you know that sort of besides the point here.
+[00:11:21] To make a little bit more concrete,
+[00:11:24] you know there sort of, the thing that happens in our minds is,
+[00:11:27] we have a set of, we have developers,
+[00:11:32] you know we have dev1, you know dev2,
+[00:11:37] they may share some machine,
+[00:11:40] that contains the source code repository of some source of project,
+[00:11:46] the developers you know are collaborating on that project,
+[00:11:49] and and so think about this as a example,
+[00:11:54] the paper mentions is,
+[00:11:55] in the paper, maybe this is the development machines,
+[00:11:58] and the server for a Debian Linux,
+[00:12:02] and what they want to defend against is trapdoor,
+[00:12:07] trapdoor, you know trapdoor in the software.
+[00:12:17] So the you know the attacker you know takes over control,
+[00:12:22] breaks into the machine, that contains the source repo,
+[00:12:26] modifies the software [],
+[00:12:29] and then it's going out of that software gets deployed,
+[00:12:32] you know for example Debian Linux gets deployed to lots of machines,
+[00:12:35] and now the attacker has control over those machines,
+[00:12:41] because it's gonna exploit the trapdoor.
+[00:12:43] The the paper talks about this attack,
+[00:12:46] this particular instance in Debian Linux in 2003,
+[00:12:51] where the attack was able to compromise
+[00:12:56] you know the development server or cluster,
+[00:12:59] in recovering from these kinds of attacks very painful,
+[00:13:03] in fact, in 2003 you know they report,
+[00:13:06] that the Debian Linux which froze development for a couple days,
+[00:13:10] and while they were trying to sort out
+[00:13:12] which parts of their source repo was still correct,
+[00:13:15] and which parts were actually modified by the attacker,
+[00:13:18] and these attacks happens periodically,
+[00:13:21] I think last year,
+[00:13:23] you know Ubuntu had a similar type of problem in in 2018 or 2019,
+[00:13:28] I can't remember exactly,
+[00:13:29] and it was a similar case,
+[00:13:31] where one of the core development servers was broken into,
+[00:13:37] you know they have to sort out,
+[00:13:40] what see which software which files got infected
+[00:13:45] and affected by that breaking.
+[00:13:49] Okay, so that's sort of the setting of the paper,
+[00:13:53] and I'm going to make a little bit more concrete,
+[00:13:55] a little bit of a toy example,
+[00:13:57] to help us you know go through the techniques,
+[00:14:00] that this paper actually uses.
+[00:14:03] So the example that I'm gonna use,
+[00:14:07] partially inspired by 6.858,
+[00:14:10] is, let's say you know we have a file system,
+[00:14:15] there's, you're doing the,
+[00:14:19] and the file system contains
+[00:14:20] you know the source code for this application of using 6.858 zoobar,
+[00:14:27] and zoobar is a sort of a virtual bank type application,
+[00:14:32] where users of the system,
+[00:14:35] registered users of the system can transfer zoobars to each other,
+[00:14:39] and so it has a file called auth.py, you know does authentication,
+[00:14:45] and have a file that basically you know influence bank, bank.py.
+[00:14:51] And, so, let's consider the case
+[00:14:56] where you know have a new set of developers, A B and C,
+[00:14:59] and they decided that they wanted to increase the usability of zoobar,
+[00:15:05] actually deployed for real and make it real,
+[00:15:08] basically you know they decide to divide the work as follows,
+[00:15:11] A, is gonna modify auth.py
+[00:15:21] to support MIT certificates or MIT certs,
+[00:15:29] kerberos tickets or certificates,
+[00:15:31] and with the idea that,
+[00:15:34] what we're gonna do is,
+[00:15:36] we're gonna auth.py is going to be modified,
+[00:15:39] so that only legit MIT community members
+[00:15:43] actually can log into the file server,
+[00:15:46] file server or into zoobar,
+[00:15:48] and sort of we actually know who it actually really is,
+[00:15:50] that is associated with that particular MIT certificate.
+[00:15:54] And then you know to make a little bit more useful,
+[00:15:56] you know B can actually modify the bank.py
+[00:15:58] to actually link it you know to cash tag for TechCash.
+[00:16:06] And so, you know the idea that
+[00:16:09] basically we can actually use this zoobar system do that,
+[00:16:13] like we can use the zoobar system to actually transfer money,
+[00:16:17] you know real money instead of zoobars,
+[00:16:19] between users that are registered with this servers,
+[00:16:25] that this sounds of course like a crazy idea,
+[00:16:27] you don't really do it,
+[00:16:28] but it's not completely ridiculous,
+[00:16:30] you know, because you know the auth.py really checks who would actually is,
+[00:16:34] based on the MIT certificate,
+[00:16:36] and so maybe it's not unreasonable that
+[00:16:39] we could connect you know bank.py to actually TechCash.
+[00:16:44] And then basically C in our scenario is going to be that person,
+[00:16:48] that's actually going to deploy the software,
+[00:16:54] find machine, takes software installs it and runs it,
+[00:16:57] and it opens it up to the MIT community.
+[00:17:01] Now, in the case,
+[00:17:04] now let's consider,
+[00:17:05] what you know what could happen, what could go wrong,
+[00:17:08] if actually the file server was compromised,
+[00:17:11] and so was byzantine.
+[00:17:17] Well, the obvious you know problems,
+[00:17:19] a couple of obvious problems you know bad outcomes possible,
+[00:17:23] let's consider them,
+[00:17:28] you know that outcome one,
+[00:17:29] which is the one thing we should be talking about,
+[00:17:31] and also in the previous examples,
+[00:17:33] it is basically the adversary gives arbitrary code to C,
+[00:17:39] adversary provides own code to C,
+[00:17:53] and you know that sort of
+[00:17:55] maybe that adversary slightly subtle about it or clever about it,
+[00:18:00] you know whatever makes it a little bit hard to spot,
+[00:18:03] then actually modified auth.py,
+[00:18:06] for example to delete the MIT certificates,
+[00:18:08] but they're basically you know there's really no way for C to check,
+[00:18:11] that actually got the software that A and B produced
+[00:18:15] and without any modifications from the adversary.
+[00:18:17] So that's sort of the obvious problem we're going to talk a lot about,
+[00:18:20] then there's a second sort of that outcome,
+[00:18:23] which may be a little more subtle,
+[00:18:25] which is that the adversary provides the changes you know to bank.py,
+[00:18:38] without changes to auth.py.
+[00:18:48] And so at this point, this is pretty problematic, correct,
+[00:18:51] because you know bank.py link to TechCash now,
+[00:18:54] but we actually don't have appropriate authentication to users anymore,
+[00:18:59] in fact anybody that actually creates zoobar account
+[00:19:03] can now actually interact with the techcash,
+[00:19:06] and so you know clearly very very undesirable,
+[00:19:09] and harder to spot,
+[00:19:12] because basically the adversary actually doesn't really modify any software,
+[00:19:16] just selectively you know presents you take pieces of it
+[00:19:19] and present that to C,
+[00:19:21] who then actually goes off and deployed.
+[00:19:25] And so it's really you know the attacks
+[00:19:30] the paper considers of course the attack 1 and 2,
+[00:19:35] but there are a lot of some of the subtle issues
+[00:19:37] actually are brought out by the second case,
+[00:19:40] that will be talking about.
+[00:19:44] Any questions so far,
+[00:19:48] you know about the setting, about the motivation,
+[00:19:53] before we're going to try to discuss solutions.
+[00:19:57] So the problem with the second case is that,
+[00:19:59] the user that the authentication does not authenticate?
+[00:20:05] Yeah, it doesn't use MIT certificates anymore,
+[00:20:09] and so we don't really know actually who logs in.
+[00:20:13] Thank you.
+[00:20:15] What about the case where A or like B won't see is like the fork?
+[00:20:25] Let's assume for a second,
+[00:20:26] that A and B actually have talked to each other and divide up the work,
+[00:20:30] so they know they're supposed to be doing it together.
+[00:20:33] Right.
+[00:20:36] May form a team,
+[00:20:37] they're in close collaboration, in contact,
+[00:20:40] you know and they've divided up the work,
+[00:20:43] and so they know you know B tells A,
+[00:20:45] when B done, tells A,
+[00:20:46] when they done and then they tell C,
+[00:20:48] go ahead, we all done.
+[00:20:50] Okay?
+[00:20:52] Okay, so, let's start with considering a simple design,
+[00:20:57] that is too simple, meaning it doesn't work,
+[00:21:00] but it gives us some starting points for more sophisticated design,
+[00:21:08] hopefully might work,
+[00:21:10] and so the simple point is that
+[00:21:13] A and B or any,
+[00:21:16] all the files are going to be signed with person who modified,
+[00:21:21] so when like A modifies you know auth.py,
+[00:21:29] A actually produces a signature,
+[00:21:33] and signed with the public key,
+[00:21:39] which signature signed to the public key of A,
+[00:21:43] and you know that signature covers the data of the file,
+[00:21:52] and so when C downloads you know the auth.py,
+[00:21:57] you know check the signature,
+[00:22:05] and if the signature checks out,
+[00:22:06] you know then that C knows that actually this file was produced,
+[00:22:09] you know this file was produced by A,
+[00:22:12] and you know might all believe that things are good.
+[00:22:17] And that's the basic plan,
+[00:22:18] and we'll talk a little bit about where the keys are coming from,
+[00:22:22] although you know the issue of public key distribution is really an 6.858 topics,
+[00:22:27] so I'm not going to talk too much about it,
+[00:22:28] but just assume for now,
+[00:22:30] that every user has a key, public private key pair,
+[00:22:35] and the private keys are secret and the public keys are public,
+[00:22:40] and every user knows whose public key belongs to who.
+[00:22:45] So now let's consider attacks
+[00:22:51] and see which one sort of you know fail,
+[00:22:53] which ones you know work.
+[00:22:56] So, of course the obvious attack number one,
+[00:22:58] that we talked about on the previous slide,
+[00:23:00] is S modifies file,
+[00:23:06] and that's not a little bit,
+[00:23:08] that's not directly S modified auth.py,
+[00:23:14] that's not really going to be possible anymore,
+[00:23:17] because when C downloads you know the file and the signature,
+[00:23:21] and checks it
+[00:23:23] and it will see that the signature rejection check,
+[00:23:25] because the data that actually was signed
+[00:23:27] is different than the data that actually the server produced,
+[00:23:32] and so it's not really possible for the server really to modify auth.py,
+[00:23:37] without actually being attack or without actually being attack.
+[00:23:40] So you know this is we're sort of in good shape here on this attack,
+[00:23:44] and that's sort of the core attack, right.
+[00:23:47] But there's a lot of other things that S still could do,
+[00:23:51] so let's consider some of the other things,
+[00:23:55] S you know could actually, we describe S send another file,
+[00:24:01] and pretends to be auth.py,
+[00:24:05] and because the signature doesn't really say,
+[00:24:09] you know which actually file the data belongs to,
+[00:24:12] and so S could you know produce some other files,
+[00:24:17] like oh yeah see this is actually auth.py,
+[00:24:19] you can believe me in here,
+[00:24:22] the sign the signature which of course produced by S,
+[00:24:25] so of course this could be fixed,
+[00:24:28] you know maybe the signature should not only include data,
+[00:24:31] but also probably should include the file name,
+[00:24:35] so you know maybe not too, too bad in something,
+[00:24:38] that you could be addressed.
+[00:24:42] Third, you know another yet another possibility is,
+[00:24:45] to for S to basically send the contents of old files, old content,
+[00:24:55] maybe some new,
+[00:25:03] and it does a bit more difficult now,
+[00:25:05] for us to handle correct this to simple plan,
+[00:25:09] because you know there there's no way
+[00:25:13] you know basically the files individually authenticated, but not together,
+[00:25:17] and it's not C gets a consistent picture of the file system,
+[00:25:22] it just gets like sign files,
+[00:25:23] and how do sign files relate to each other in terms of histories,
+[00:25:28] is completely not covered in these too simple design.
+[00:25:31] This is exactly of course gonna issue there's more subtle attack,
+[00:25:35] that now couldn't just completely work out, correct,
+[00:25:37] because you know S could send the,
+[00:25:41] could send the old version of auth.py,
+[00:25:44] it will completely checkout,
+[00:25:47] and then send the new version of the of the bank.py,
+[00:25:53] which actually talks is linked to techcash,
+[00:25:55] and now exactly back in there's a worse some case,
+[00:25:59] where you know with an old version of auth.py
+[00:26:02] or not to change to auth.py,
+[00:26:03] not the certificate changes to auth.py,
+[00:26:06] and the new version that actually link to TechCash.
+[00:26:10] And so this is not so good,
+[00:26:12] so and the simple point that we have here,
+[00:26:14] just doesn't deal with this.
+[00:26:17] There's a similar sort of another version of this,
+[00:26:20] that where you know of course you know S can also just claim that the file doesn't exist,
+[00:26:32] and C doesn't really have any way of checking whether that's actually true or not,
+[00:26:37] because again they should have a global picture,
+[00:26:39] where it's a consistent view of the file system,
+[00:26:42] nobody knows about signatures for each file.
+[00:26:47] And so you see that the simple design may be a good starting point,
+[00:26:50] but we need something more, more complete,
+[00:26:54] and I think we need something that really ties all the file systems,
+[00:26:58] all the files together,
+[00:27:00] that ties directories together,
+[00:27:01] the content of the directories together,
+[00:27:03] and and we have to be able to decide in some way,
+[00:27:06] what is the latest version of the file system,
+[00:27:10] so that C can't be tricked into in this sort of problematic case,
+[00:27:14] where one file is installed and the other file is not installed.
+[00:27:19] So that's really what the SUNDR paper tries to address,
+[00:27:23] and the big idea in the in the paper,
+[00:27:31] and it just turns out to be just a big idea in general,
+[00:27:35] and it's a conceptual idea,
+[00:27:37] even though the paper actually doesn't really implement this big idea directly,
+[00:27:41] implement it in a more indirect way,
+[00:27:43] it is an incredibly powerful idea.
+[00:27:47] So the big idea is to have signed log of operations.
+[00:28:01] And of course you're well familiar with logs of operations,
+[00:28:05] and you and you know you can,
+[00:28:07] and this is basically a sort of [beefed] up version of it,
+[00:28:10] where there signatures on log entries,
+[00:28:13] that both consider cover the entry as well as preceding entries.
+[00:28:17] And this turns out to be,
+[00:28:20] as we've seen in all the previous distributed systems and failure recovery protocols,
+[00:28:25] we talk about the log is actually very powerful idea
+[00:28:29] to think about the correctness of the system,
+[00:28:32] and in the same way that idea is carried for here in this Byzantine context.
+[00:28:39] And so let me draw a simple log,
+[00:28:46] so captures this in the paper,
+[00:28:48] so log whatever have some entries,
+[00:28:50] and let's say you know we're coming up we are talking about,
+[00:28:54] so it's modification,
+[00:28:56] you know mod you know auth.py by A, signed by A,
+[00:29:06] you know there's a mod,
+[00:29:08] if everything goes well,
+[00:29:09] you know there's a mod of the bank.py signed by B.
+[00:29:21] And as we'll talk about in a second,
+[00:29:22] you know it turns out that not only are the modifications in the log,
+[00:29:27] but also the fetch of the read operations,
+[00:29:32] so fetch, fetch the log you know signed by C, auth.py,
+[00:29:44] and then fetch of bank.py, singed by C.
+[00:29:53] We'll talk about those operations, so the fetch operations, a little bit,
+[00:29:56] I first want to talk about,
+[00:29:58] how to operate the preceding operations for modifications.
+[00:30:05] So, first of all, the what's important to realize is that,
+[00:30:09] this signature that is in the record not only covers the current records,
+[00:30:15] but it also covers all the records before.
+[00:30:24] Let me stop for a second here,
+[00:30:25] because I'm not a hundred percent sure if can everybody still hear me.
+[00:30:30] Yeah.
+[00:30:31] Yes.
+[00:30:31] Okay, I got my iPad and I walked out of the Zoom session,
+[00:30:36] I always login twice and my iPad logged out,
+[00:30:40] so I just want to make sure,
+[00:30:42] I'm still talking to you and you can hear me,
+[00:30:46] and start that is the case.
+[00:30:48] Okay, so let's just proceed, the.
+[00:30:52] So, actually.
+[00:31:21] I think we lost Frans.
+[00:32:05] Can people hear me now, does anybody hear me?
+[00:32:12] Yes.
+[00:32:12] Okay.
+[00:32:14] Okay, I don't know if anything weird happens on your end,
+[00:32:17] but my end,
+[00:32:19] I got logged out of Zoom and log back in,
+[00:32:24] maybe there's a Byzantine server at work.
+[00:32:29] Okay, let me, hold on one second, and get myself.
+[00:32:50] And let me see, that video goes off.
+[00:33:07] Camera, okay, let me know if I'm good.
+[00:33:14] Okay, good.
+[00:33:16] No screen sharing yet, but yeah.
+[00:33:17] Okay, I hope this works better.
+[00:33:21] Okay, so it was at this very important point,
+[00:33:24] where the signature just not cover the log entry itself,
+[00:33:28] but also covers all the preceding log entries.
+[00:33:31] And so when you know A as this modification to auth.py to the log,
+[00:33:39] it signs the log records itself plus the preceding log record,
+[00:33:42] so you can think about this,
+[00:33:43] that the preceding log is may be represented by,
+[00:33:46] the content of the preceding log is cryptographic hash,
+[00:33:51] and in the record, basically modification to auth.py,
+[00:33:56] you know the the cryptographic hash the preceding part of the log
+[00:34:01] is included and covered by the signature.
+[00:34:04] Just to be clear, we still can't see the screen.
+[00:34:07] You can't see the screen, screen hasn't changed,
+[00:34:11] but, let me see if I can do something about that.
+[00:34:17] And [] I guess,
+[00:34:21] Zoom still thinks there's actually sharing the screen,
+[00:34:23] but it doesn't look like actually is.
+[00:34:35] How about this?
+[00:34:38] Yep, I can see now.
+[00:34:39] Okay, thank you.
+[00:34:41] Okay, so I didn't change anything yet,
+[00:34:43] other than I think I was going to draw the next arrow,
+[00:34:44] which basically when these signs
+[00:34:47] you know it's actually covered all the preceding entries too.
+[00:34:50] And this is good, correct,
+[00:34:52] because when client you know C actually receives
+[00:34:59] you know or gets actually sees the log entry for B,
+[00:35:02] then it's impossible for the server to drop the log entry of A,
+[00:35:08] because you know that will be detected,
+[00:35:11] when C actually detect signature on the log entry of B.
+[00:35:15] And so we really made a big step forward,
+[00:35:18] in the sense that,
+[00:35:20] it's much harder for the server now to selectively drop log entries.
+[00:35:26] So that's so we're pretty good pretty good,
+[00:35:28] you know the servers cannot drop A,
+[00:35:37] and keep these modifications.
+[00:35:44] So that's actually a big big step forward,
+[00:35:47] so let's look a little bit more in detail,
+[00:35:49] how this actually is going to play out.
+[00:35:51] So we're a client C
+[00:35:54] and you know we're fetching the log
+[00:35:57] to basically rollout you know the distribution of the software
+[00:36:00] to install on a particular machine,
+[00:36:01] the first thing the client does,
+[00:36:03] you know it actually check all the signatures,
+[00:36:14] and you know always the question of course is like,
+[00:36:16] when you know you want to check the signature log entry
+[00:36:19] you know which public key do you use,
+[00:36:22] and because you want to make sure that,
+[00:36:25] you're not being tricked in accepting [] modification by A,
+[00:36:30] but it turns out that actually A was not the person actually signed it,
+[00:36:33] and it turns out basically to figure out which key to use to actually verify the signature,
+[00:36:41] the key uses the owner of the file,
+[00:36:45] so the public key need to correspond to the owner of the file,
+[00:36:51] and ignoring groups for now,
+[00:36:54] you know basically only the owner of the file was allowed to modify a file.
+[00:36:58] So for simple for slightly simplified,
+[00:37:01] we can think about it auth.py is owned by A,
+[00:37:05] and the id of the file is basically the public key of A,
+[00:37:08] and so we know which public key to use
+[00:37:12] and can verify the signature with it,
+[00:37:17] and so if somebody else makes a modification that pretends to be A,
+[00:37:21] that actually is not going to check out.
+[00:37:24] So it's really only A can connects and make modifications,
+[00:37:26] similar for B.
+[00:37:29] So that's part of the you know one thing that's actually clever about SUNDR,
+[00:37:33] I'm not really going to be talking about,
+[00:37:35] some since the file system is actually doubling both as a file system,
+[00:37:38] as a public key public key infrastructure or distribution infrastructure,
+[00:37:46] and so it's actually possible to use SUNDR,
+[00:37:49] basically why we determine like which user has which public key.
+[00:37:53] But I'm not really gonna talk about this,
+[00:37:55] I really want to focus on the consistency aspects
+[00:37:58] and the more distributed systems aspects.
+[00:38:01] The second thing that the client does is check its own last entry.
+[00:38:13] And this is to protect clients from actually being rolled back by the server in time,
+[00:38:18] so the server can actually by the client checks always last entry,
+[00:38:22] if its last entries in the log steal,
+[00:38:24] then you know the only way for the attacker
+[00:38:29] is to actually roll the file system, for A can roll backwards,
+[00:38:32] so C will check whether the any of its previous operations are in it,
+[00:38:36] and confirm that they're still in it,
+[00:38:40] actually it's last entries still in it.
+[00:38:42] Is the question here,
+[00:38:44] this only I think this attack from the server to rollback,
+[00:38:50] would only work if no other client wrote to the log,
+[00:38:57] like after this client's last entry, right,
+[00:39:00] because otherwise checking signatures would figure that out.
+[00:39:05] Yeah, although you know let's talk about in a second,
+[00:39:09] maybe I mean you could always play a fork attack,
+[00:39:12] so you can always split you know the use of the file system in multiple users,
+[00:39:16] but you can at least not roll back the client,
+[00:39:19] once the client saw a particular file system,
+[00:39:21] you can't go backwards in time,
+[00:39:24] the client could, the server it can present different file systems in future,
+[00:39:27] but you can't roll back.
+[00:39:32] Third part,
+[00:39:35] the third part with the [] is a [constructive] file system,
+[00:39:42] so after you know, it knows actually it's not rolled past version of the file system,
+[00:39:47] it basically applies all the modifications,
+[00:39:49] basically builds a file system tree you know on the client,
+[00:39:53] and and then before whatever operation it is,
+[00:39:56] it wants to perform,
+[00:39:57] so let's say in the case of C,
+[00:40:00] what it will do is,
+[00:40:02] you know it will read you know auth.py
+[00:40:05] and append an entry to the log and sign it,
+[00:40:17] so in the case when it reads auth.py,
+[00:40:19] it will, it produce basically a signature or an entry for this log entry.
+[00:40:25] And basically then and then the final step in this protocol is,
+[00:40:29] it uploads the log to the file server,
+[00:40:38] and you know clearly this protocol imcompletely in practical,
+[00:40:41] and and really what it is,
+[00:40:44] it's sort of more conceptual protocol
+[00:40:45] to help us understand
+[00:40:47] why eventually we might even be successful in achieving security,
+[00:40:51] in the context of Byzantine server.
+[00:40:56] Because if we're ridiculous correct to download the log for every operation,
+[00:41:00] and the log contains the history of all the operations ever happened to the file system,
+[00:41:04] in step three,
+[00:41:05] you know the client actually constructs file system
+[00:41:07] and all the, all operations ever performance since the beginning of time,
+[00:41:11] and then finally in step five,
+[00:41:13] upload the whole log back to the server, seems completely ridiculous,
+[00:41:16] and it is ridiculous, in terms of performance,
+[00:41:19] but it will help us understand
+[00:41:22] you know when we look at the implementation of the scheme,
+[00:41:26] when it actually has the same set of properties,
+[00:41:29] that they sort of conceptual design has
+[00:41:32] and we'll see later you know for example, in the case of Bitcoin,
+[00:41:35] that literally does actually have a log,
+[00:41:37] and since the beginning of time, with all operations in it
+[00:41:40] and so, maybe it was a crazy idea,
+[00:41:43] maybe in the context of 2004,
+[00:41:44] but you know people actually do
+[00:41:47] have these sign logs and really maintained it.
+[00:41:51] And so in that sense,
+[00:41:52] you know it's not only a big conceptual idea,
+[00:41:54] that some people do it in practice.
+[00:41:58] Any questions so far?
+[00:42:04] Okay.
+[00:42:07] The one thing you know that you're probably wondering about,
+[00:42:11] it was proposed as question for the reading today,
+[00:42:16] is what is up with these fetches,
+[00:42:19] you know why are the fetches in the log too,
+[00:42:22] and and the because you might think,
+[00:42:26] well, you know the only thing I really care about,
+[00:42:28] if we think about, really care about is
+[00:42:32] only the modifications you have to be in the log,
+[00:42:34] because there are actually things actually modify the file system,
+[00:42:36] reads don't really modify this file system,
+[00:42:38] so what's the what's the problem.
+[00:42:41] And so I think I wanna do a quick breakout room here,
+[00:42:44] and I'm sure if you can bring some of each other,
+[00:42:46] what you thought the answer to this particular question was,
+[00:42:49] and hopefully maybe this initial coverage like SUNDR
+[00:42:56] you know maybe how to improve your understanding,
+[00:42:59] and you know you can sort of figure out what the answer is,
+[00:43:01] or talking about something else,
+[00:43:03] so I would like to take, maybe do a five minutes breakout room.
+[00:49:19] Okay, just checking everybody back?
+[00:49:22] Looks like it.
+[00:49:23] Good, thank you.
+[00:49:25] Okay, so what,
+[00:49:25] I guess, let's start with the homework questions,
+[00:49:28] with [] question why, why are the fetches in the log?
+[00:49:38] Anybody?
+[00:49:41] If you have a read-only server,
+[00:49:44] if there are no fetches,
+[00:49:45] this file system can give it anything.
+[00:49:49] Can it?
+[00:49:50] Can give it, because it,
+[00:49:52] because there are no fetches in the log,
+[00:49:54] that would mean that there are,
+[00:49:58] there be read-only servers would not be doing a lot of the checks,
+[00:50:05] that we talked about before,
+[00:50:06] so they they go back in time,
+[00:50:09] for example might maybe not work,
+[00:50:11] because it did not put anything in the log,
+[00:50:14] because it only fetches.
+[00:50:16] Yeah, okay, good,
+[00:50:17] okay, so I think you're totally on the right track,
+[00:50:20] it was like trying to make it a little bit more precise or make more concrete,
+[00:50:24] and I think you know that is correct.
+[00:50:25] So let's assume this is the log looks like,
+[00:50:27] and the C's fetches are not in it.
+[00:50:29] And let's you know,
+[00:50:31] so this is the log before actually C downloads log,
+[00:50:36] so let's say you know where C fetches, fetches auth.py, correct,
+[00:50:44] the file that was modified by A,
+[00:50:47] and basically what the server does,
+[00:50:49] the server instead of actually providing both the modifications A and B,
+[00:50:55] because it has it,
+[00:50:57] which A and B were done with its modifications,
+[00:51:00] it sends the C basically prefix,
+[00:51:09] since the prefix that excludes the modifications to A and B,
+[00:51:17] so we have mods A and B, right,
+[00:51:23] and so C you know fetches this file,
+[00:51:25] it fetches the log,
+[00:51:27] and so this basically is this part of the log prefix,
+[00:51:33] you know the C checks you know the signature,
+[00:51:36] checks whether it's proceeding operations are in it,
+[00:51:39] you know and they're all there,
+[00:51:41] because C hasn't done any other operation yet,
+[00:51:43] and so basically it will accept the log,
+[00:51:45] and the log as it is or the prefix as it is,
+[00:51:48] and basically returns you know auth.py to whatever application,
+[00:51:53] that is copying this software into the machine,
+[00:51:55] that actually run the installed software.
+[00:51:58] So then C fetches bank.py,
+[00:52:09] and this time around, the server sends the whole log,
+[00:52:19] and you know the C, C looks at these entries,
+[00:52:26] and it's a valid log,
+[00:52:28] in the operations are presumably the prefix,
+[00:52:31] since we didn't care about fetches,
+[00:52:33] you know its all caught in the log,
+[00:52:35] and so everything looks you know good,
+[00:52:38] you know these are valid modifications,
+[00:52:40] the nothing has been changed,
+[00:52:42] and and so you know C you know without the fetches in the log,
+[00:52:48] C will actually accept this log,
+[00:52:50] and basically build a file system,
+[00:52:53] that has, that deploy includes modifications to A and B
+[00:52:59] and returns the results you know to the application for bank.py.
+[00:53:05] So that it can install the machine,
+[00:53:07] that actually is going to run the servers
+[00:53:09] and as you can see you know we're sort of in a bad situation, right,
+[00:53:13] because we took the old version of auth.py
+[00:53:18] and the new version of bank.py,
+[00:53:23] and the one way you can think about this is that,
+[00:53:26] you know from you know C's perspective,
+[00:53:28] what really seemed to have happened is that,
+[00:53:34] while you know it was reading auth.py,
+[00:53:37] you know there were concurrent modifications to A and B,
+[00:53:40] and just happened basically at the same time
+[00:53:42] or at least the server is pretending it happened at the same time,
+[00:53:46] and so and so it gets confused,
+[00:53:49] or can't detect the fact,
+[00:53:51] that these applications were did happen before any time.
+[00:53:55] So this is the, this is the problem,
+[00:53:57] that you know basically putting the fetches in the log [],
+[00:54:01] is like let's make that actually just also concrete,
+[00:54:08] and so see why actually this problem is solved in that case.
+[00:54:14] Professor, I I had a question.
+[00:54:16] Yeah, so I I'm having a little trouble understand,
+[00:54:21] like understanding what the, like sort of like the interface,
+[00:54:26] for like for fetch and modify is like what,
+[00:54:31] I I thought you fetched pretty much like the whole tree,
+[00:54:36] and had to rebuild the whole file system,
+[00:54:38] basic example,
+[00:54:40] but this slide before you're fetching specific files.
+[00:54:45] The server is the one that returns the log, correct,
+[00:54:50] so the server can decide what entries to include.
+[00:54:53] Yeah.
+[00:54:53] And we're already seeing that,
+[00:54:54] it can't really delete anything out in the middle of the log,
+[00:54:57] and that's not really possible,
+[00:54:59] it's always send a prefix of the log,
+[00:55:01] because the prefix is always consistent with itself.
+[00:55:05] And so in this first case, correct,
+[00:55:08] it sends the prefix,
+[00:55:10] and in the second case, sends the whole log.
+[00:55:11] Yeah.
+[00:55:13] So the server can decide to do that,
+[00:55:14] but there's nothing that the client can,
+[00:55:16] or at least it like so far,
+[00:55:18] you know discuss there's nothing that the client,
+[00:55:20] how the client could detect,
+[00:55:21] that it did get like the whole log.
+[00:55:23] Right, I I my question is more towards,
+[00:55:26] like what the interface is for clients to use,
+[00:55:29] like fetch and modify, like,
+[00:55:32] because I thought, initially I thought,
+[00:55:34] okay, fetch fetch is like the whole file system.
+[00:55:37] No, no, fetch is a single file.
+[00:55:39] Okay.
+[00:55:40] And and so basically what the fetch does,
+[00:55:43] it get to the log, like modifications,
+[00:55:45] modifications are all the operations that modify a file,
+[00:55:48] and like if you go back to a slide a little bit earlier,
+[00:55:51] you know in the modification record,
+[00:55:53] it says explicitly which file is being modified,
+[00:55:56] and you know what's being said is,
+[00:55:58] similarly in the fetch,
+[00:55:59] it says which file like this client saw.
+[00:56:03] Okay.
+[00:56:05] And then, so so, so for fetch,
+[00:56:09] like a client goes through the log,
+[00:56:11] but only looks at.
+[00:56:13] Yeah, feath a thing that does actually read the file that actually is looking for.
+[00:56:17] Okay, but does it check every single entry in the log anyways for the signature.
+[00:56:21] Yeah, okay, the first step is always check the whole log,
+[00:56:25] go for and make sure that your last you know operations in it,
+[00:56:30] whether it's a fetch or modify,
+[00:56:32] although in this broken scheme, you know we drop the fetches,
+[00:56:36] it applies all the checks, all the signatures,
+[00:56:40] and then it builds up the file system,
+[00:56:43] by replaying the log from the beginning of time,
+[00:56:45] get a file system,
+[00:56:46] and then it does its operation,
+[00:56:48] and so in this case,
+[00:56:49] the operation is certainly fetched auth.py, is basically reading it.
+[00:56:53] Okay.
+[00:56:53] The reason you know basically that we talk about fetch and modify is,
+[00:56:56] because all operations are basically following one or two [],
+[00:56:59] either to fetch or it is a modification operation,
+[00:57:03] like writing a file, creating a file,
+[00:57:05] there's all modification operations,
+[00:57:07] the fetch operations are reading a file, maybe [] directory status file,
+[00:57:12] that kind of thing.
+[00:57:14] Okay, and then the modify is also,
+[00:57:16] like a modify, like doesn't fetch the,
+[00:57:22] okay, also fetches the log,
+[00:57:23] but then builds the file system.
+[00:57:26] Yeah, so maybe the fetches here, I'm using fetch,
+[00:57:29] I guess in two ways,
+[00:57:30] one describe read-only operations,
+[00:57:32] and actually to obtain or receive the log from the server.
+[00:57:36] Okay, but then modify modifies also one single file.
+[00:57:40] Yes, yeah, for every modification in the file system,
+[00:57:43] you're gonna have a log entry.
+[00:57:45] Okay, thanks.
+[00:57:48] Sorry, I also have a question,
+[00:57:51] I I don't really understand why this scenario is a problem,
+[00:57:57] because as you said,
+[00:57:59] it's it's possible,
+[00:58:00] like from the perspective of the client,
+[00:58:02] it may well be that,
+[00:58:03] A and B got created or modified, for the last fetch.
+[00:58:10] Yeah, in principle, it could have happen, correct,
+[00:58:12] that was [recovering] modification,
+[00:58:13] we do know,
+[00:58:14] because like we were sort of look from the top,
+[00:58:17] and we know that basically C you read the file, after A and B modified,
+[00:58:23] but the server can pretend as if it actually happened concurrently,
+[00:58:26] and in the second, we'll see that,
+[00:58:28] if we stick the fetches in the log,
+[00:58:30] server can not pretend to do that.
+[00:58:33] Okay, but even if the server pretends that,
+[00:58:37] does it, is that even a problem,
+[00:58:40] does it break anything,
+[00:58:42] because.
+[00:58:42] Yeah, this is a example where it shows how to break something, correct,
+[00:58:46] like step one, you know C fetches auth.py,
+[00:58:50] the server gave it one,
+[00:58:52] you know as far as the fetch, it gave the prefix,
+[00:58:56] and so the client constructed file system,
+[00:58:58] executing the operation,
+[00:58:59] returned auth.py to the application,
+[00:59:02] and install the software on the machine,
+[00:59:04] just to make it very [],
+[00:59:06] so now the first, you're reading auth.py that operation is done,
+[00:59:10] finished already executed,
+[00:59:12] and has installed the old version of auth.py on the machine,
+[00:59:19] then the client you know can fetch is bank.py,
+[00:59:23] now the server actually, the client the application want to read bank.py,
+[00:59:29] so the client fetches the log from the server
+[00:59:31] or ask the server, please give me the log,
+[00:59:34] the server this time around gives the whole log,
+[00:59:36] and not just the prefix.
+[00:59:38] Yeah, but.
+[00:59:39] The [] that builds up the whole file system
+[00:59:41] and returns bank.py to the application.
+[00:59:45] But in like, wouldn't this happen in an incorrect implementation of the client,
+[00:59:50] because if the client finds that receives the log,
+[00:59:54] and it sees an additional modification on A,
+[00:59:57] if the client knows that its logic depends on A and B being in sync,
+[01:00:02] it would also fetch A again.
+[01:00:05] Okay, so there's a question,
+[01:00:07] C doesn't know, correct,
+[01:00:09] that, is C,
+[01:00:13] okay, in this particular scenario,
+[01:00:18] the we're trying to establish whether actually,
+[01:00:22] you know C can determine
+[01:00:22] whether actually modification happens concurrently or in the past,
+[01:00:26] before reading,
+[01:00:27] you know we want to be in the case,
+[01:00:29] that actually happened in the past,
+[01:00:30] because actually really happened in the past,
+[01:00:32] but you know what this you know server does,
+[01:00:35] it just pretends that the modification actually happened concurrently,
+[01:00:39] with actually sees operations,
+[01:00:42] and C doesn't really have any way to detect that,
+[01:00:46] other than a new you know maybe A,
+[01:00:49] you know there should have been a modification for A and B together,
+[01:00:52] but that only could have known,
+[01:00:53] if there were sort of communication between C and A and B,
+[01:00:56] and second, let's talk about that in a second,
+[01:00:58] but if C had not talked to A and B
+[01:01:00] and you know yeah it could have gotten,
+[01:01:03] could end up in this scenario,
+[01:01:05] where it installed the old version in auth.py,
+[01:01:09] the new version of bank.py.
+[01:01:11] And we'll see in the second,
+[01:01:12] if we stick the fetches in,
+[01:01:13] then this probably cannot happen.
+[01:01:18] Somebody asked, if we timestamp everything,
+[01:01:20] then we could detect things,
+[01:01:22] hold that thought for a second.
+[01:01:25] Okay, let's look at the with fetches scenario, right,
+[01:01:30] so see what actually happens in that case,
+[01:01:32] so client fetches, what is the fetches of auth.py.
+[01:01:42] Oops, what happened now.
+[01:01:49] Hold on a second, something wrong.
+[01:01:54] I presumably nobody can see my screen.
+[01:02:03] It's black.
+[01:02:04] Yeah, yeah, coming back, hold on a second.
+[01:02:11] I definitely feel today, there's a Byzantine component to 6.824.
+[01:02:32] Okay, I need to stop sharing screen for a second.
+[01:03:22] Alright, we're back hopefully.
+[01:03:25] Okay.
+[01:03:32] Okay, so back to this example,
+[01:03:36] where now the fetches are in the log,
+[01:03:38] C fetches the auth.py.
+[01:03:42] So let me continue, right then,
+[01:03:49] save this for just.
+[01:03:52] C fetches auth.py,
+[01:03:54] the server sends the prefix,
+[01:04:03] so basically sends you know these modifications, correct,
+[01:04:07] the server can just return whatever it likes,
+[01:04:10] then you know in this new plan, correct,
+[01:04:13] where the fetches are being log,
+[01:04:16] then, C constructs file system using A and B,
+[01:04:20] and then returns of course you know auth.py to the client,
+[01:04:25] to the client or to the application,
+[01:04:28] and then it adds a fetch to the log,
+[01:04:36] and uploads that log to the server,
+[01:04:43] and then you know the, that does a fetch of you know bank.py,
+[01:04:52] and you know the server,
+[01:04:54] you know in previous example,
+[01:04:58] first, it sends just a prefix,
+[01:05:02] so here's like prefix,
+[01:05:05] now you know sends, now the client sends the whole thing, right,
+[01:05:10] so sends the whole log,
+[01:05:13] and it, but if modifications are in it,
+[01:05:19] so and we'll have to send the whole log,
+[01:05:21] we'll send the whole log
+[01:05:22] and must include the fetch from C, right,
+[01:05:25] and so,, if it doesn't you know sends fetch C,
+[01:05:32] it actually, C is, C is actually not there, the read operation,
+[01:05:39] and basically the client will reject the log,
+[01:05:45] because actually it's own fetch operation is actually not in it,
+[01:05:47] so it's not possible for the server to pretend
+[01:05:52] you know that to send the log later on,
+[01:05:55] because actually the new log should have included that fetch operation,
+[01:05:59] that was in it and update the C,
+[01:06:02] or the server cannot twice that fetch operation into here,
+[01:06:06] to make it consistent what actually happened before,
+[01:06:09] because that would be detected,
+[01:06:11] because you know the modifications on the records of A and B are not,
+[01:06:14] wouldn't check out.
+[01:06:18] Okay, so basically what this really does is to sort of step back,
+[01:06:23] is that you can think about this attack,
+[01:06:25] that the server sort of pretends that the modification of A and B happen concurrently,
+[01:06:30] with the C reading it,
+[01:06:32] even though we know that actually it's not the case,
+[01:06:35] and by speaking the fetches in it,
+[01:06:36] that attack cannot happen.
+[01:06:43] I have two questions,
+[01:06:46] maybe first just,
+[01:06:48] if you could like define fork consistency and the fetch modify consistency.
+[01:06:53] And then the second is,
+[01:06:54] in this example,
+[01:06:56] so what exactly is stopping the server from placing the fetch in the right place of the log?
+[01:07:04] Because remember every log entry covers all its proceeding entries.
+[01:07:10] Okay, so if.
+[01:07:11] The server could not slice that,
+[01:07:14] you know fetch you know after the prefix before the modification of A and B.
+[01:07:19] So let's say it only wants to send the modification of A,
+[01:07:21] it knows the hash of the modification of A and everything preceding it,
+[01:07:25] and then it could insert the fetch to C there,
+[01:07:28] because it knows that,
+[01:07:29] it's a hash of that, and.
+[01:07:31] Then they couldn't send.
+[01:07:32] Yeah, but then they couldn't send the modification to B,
+[01:07:36] because the modification to B you know is directly after A,
+[01:07:40] and so A must,
+[01:07:41] and so it can't slice it between A and B either.
+[01:07:44] I see, okay.
+[01:07:50] Sorry, what was a problem with having it where it is in the picture?
+[01:07:55] Well, where it is, now the picture is perfect,
+[01:07:57] that's fine, right,
+[01:07:59] in fact you know this basically suggests
+[01:08:01] you know that the fetch of C actually included the modification of A and B,
+[01:08:05] like the blue was the real log,
+[01:08:07] and we have the fetch to C in it,
+[01:08:09] and you know the everything to be perfect.
+[01:08:19] So just to clarify the definition of fork consistent.
+[01:08:22] Yeah, hold on, hold on a second, because I haven't talked the slide,
+[01:08:26] I haven't talked about the definition of fork consistency,
+[01:08:28] I'm gonna do that right now.
+[01:08:30] Okay?
+[01:08:33] So we're going to talk about fork consistency.
+[01:08:44] So, so what we've seen so far is that,
+[01:08:48] the server cannot really manipulate the log,
+[01:08:51] it can only send prefixes or can hide parts,
+[01:08:54] you can hide, it can send prefix back to the client,
+[01:08:58] but it can't really modify the log,
+[01:09:00] so just basically have an opportunity
+[01:09:02] to you know sort of show different logs to different clients,
+[01:09:06] and that is basically what fork consistency is.
+[01:09:10] And so it cannot provide you know the kind of,
+[01:09:13] the server cannot provide the type of consistency
+[01:09:15] that we've seen so far in the past,
+[01:09:17] name likely linearizability and external consistency and things like that,
+[01:09:20] that's just not possible,
+[01:09:21] but it can provide this,
+[01:09:23] what this what the paper calls or introduces is fork consistency.
+[01:09:26] And let me abstract a little bit away and to explain what that is.
+[01:09:31] So let's say we have client A,
+[01:09:33] we have the server S,
+[01:09:35] and it has a log,
+[01:09:39] and let's say I'm just gonna extract everything away,
+[01:09:42] it has entries A B C and D and E,
+[01:09:46] and you know A you know whatever maybe you know append entry to the log
+[01:09:50] and you know and that's basically [].
+[01:09:56] And maybe we have another client B,
+[01:10:01] and what the server can do
+[01:10:04] is sort of give the other client a completely different view of the world,
+[01:10:08] by basically have another copy of the log
+[01:10:11] or its own copy
+[01:10:12] or give a different copy of the log,
+[01:10:14] for example, maybe that log contains the record A,
+[01:10:17] but then every operation of B does,
+[01:10:20] goes into this log you know B1 B2,
+[01:10:23] maybe even some operations from other clients, that also get this view
+[01:10:26] and end up in this log,
+[01:10:27] but they're not actually shown to A,
+[01:10:30] you know A basically A may actually also add more entries to log,
+[01:10:34] like maybe it had B C and E,
+[01:10:36] and those are not actually shown to B,
+[01:10:40] so these two logs to the [] view of A,
+[01:10:44] you know it's completely consistent,
+[01:10:45] because it's unaware of any of these changes,
+[01:10:48] and to B you know this log looks completely consistent,
+[01:10:51] because they don't aware of any A changes, right,
+[01:10:54] in this model of the world,
+[01:10:56] the only sort shared communication place that is, there is the server,
+[01:11:00] you know that is sort of the,
+[01:11:02] you know the thing that you know shows
+[01:11:05] you know what actually is the state of the system.
+[01:11:08] And one way you can think about is,
+[01:11:10] like in terms that we've talked about before,
+[01:11:12] this is sort of like a split brain,
+[01:11:17] you know basically you know A gets see one view of the world,
+[01:11:22] you know cooked up by by log that's consistent with A view,
+[01:11:26] and you know B you know it's another view of the world,
+[01:11:29] and basically the servers sort of keeps them to carefully separate,
+[01:11:33] and and therefore can pretend that,
+[01:11:36] you know A is looking one, sees the left side of split brain,
+[01:11:40] B is actually the right side of split brain.
+[01:11:44] Okay?
+[01:11:46] Does that make sense?
+[01:11:50] So that's sort of what you know basically they're saying is,
+[01:11:52] like you know we can't really do better than fork consistency,
+[01:11:55] because it's always possible for the server to to basically make a copy of the log,
+[01:12:02] and then from then on, you know present different views for these clients.
+[01:12:07] Now, S could not merge the two logs again, correct,
+[01:12:11] these logs have to be separate, you know for A and B,
+[01:12:14] because it could be,
+[01:12:15] it's impossible for S to sort of take you know the logs,
+[01:12:18] let them go for a while,
+[01:12:20] and then basically splice these two logs together again,
+[01:12:23] because you know the, because these entries should protect all these preceding entries,
+[01:12:28] these entries protect all the preceding entries with those
+[01:12:31] and so you can't put them back together,
+[01:12:34] and because the signatures wouldn't check out,
+[01:12:36] because the signatures always covered the current entry for all the preceding entries.
+[01:12:40] And so the only thing they are basically do,
+[01:12:43] the server can do
+[01:12:44] basically split the world, fork the world into different into two different logs,
+[01:12:51] they might have a common log at the beginning,
+[01:12:53] then to sort of fork them,
+[01:12:54] now that you know A and B basically operate in different worlds.
+[01:13:02] So, and that's sort of the definition fork consistency,
+[01:13:04] and that's basically the best
+[01:13:06] you know this particular file system, this particular system can do,
+[01:13:09] if there's, the only communication actually happens between S.
+[01:13:15] Notice is actually by the way,
+[01:13:17] that's sort of fork consistency is good enough
+[01:13:19] for our particular applications zookeeper, correct,
+[01:13:21] because the, either the server shows the old version, you know without A B,
+[01:13:29] or you know the server shows the S you know the modification with A and B.
+[01:13:38] Okay, so what do you do,
+[01:13:39] it seems like you know maybe this is actually problem,
+[01:13:42] how do you detect forks
+[01:13:45] and how could you, so how do you detect fork.
+[01:13:53] Well, there's two schemes, that paper mentions,
+[01:13:58] one is out-of-band communication,
+[01:14:10] it is pretty straightforward,
+[01:14:12] you know if you know A and B ever talk to each other,
+[01:14:17] for example ask each other,
+[01:14:18] hey, what did your last entry in the log,
+[01:14:20] and they get different answers,
+[01:14:23] they know you know that they have been fork,
+[01:14:26] because either they could have different answers,
+[01:14:29] but at least then one should be the prefix of the other,
+[01:14:32] and if that's not the case,
+[01:14:34] then they know that they're actually being exactly fork.
+[01:14:41] So, that's one possible scenario, that they discussed in the paper,
+[01:14:46] basically share the clients periodically exchange the last log entries,
+[01:14:53] the last entry in their log.
+[01:14:55] Another solution which actually has mentioned in the chat is,
+[01:15:00] you know introduce what they call sort of trusted machine,
+[01:15:03] that is time stamp box,
+[01:15:08] and basically like every few seconds,
+[01:15:11] you know it actually ends adds a time stamp to the log,
+[01:15:15] and and every client knows that you know basically it's a file,
+[01:15:21] in the file system that contains you know the current time,
+[01:15:24] everytime the time stamp box,
+[01:15:26] you know every couple seconds time stamp box updates that file,
+[01:15:29] the clients read that file,
+[01:15:31] and they know there should be a new modification like every couple seconds,
+[01:15:35] and that basically you know that that fork,
+[01:15:38] that contains the time stamp box is sort of the fork,
+[01:15:41] the the clients, the server actually has to present to the clients.
+[01:15:52] Okay?
+[01:15:54] So that's the two things that actually the paper discusses,
+[01:15:56] and what's sort of interesting and we'll see on Tuesday,
+[01:15:59] is this, this whole fork detection in fork resolution approach
+[01:16:04] is sort of a key problem basically in Bitcoin,
+[01:16:07] and we will talking Tuesday,
+[01:16:09] but Bitcoin you know we see a way basically to settle on the fork,
+[01:16:16] so even if the file system or the servers,
+[01:16:18] the Byzantine servers actually have created a fork,
+[01:16:22] you know Bitcoin basically has a way of deciding,
+[01:16:25] well, we're gonna reads the consensus
+[01:16:26] on like which fork we're going to actually proceed with.
+[01:16:29] So we'll leave that up to Tuesday,
+[01:16:33] but here sort of a connection between you know SUNDR and actually Bitcoin.
+[01:16:41] Any questions about this?
+[01:16:50] Okay.
+[01:16:52] Okay, I want to talk very quickly,
+[01:16:53] because I got three minutes left,
+[01:16:55] about the other,
+[01:16:59] so I think the key thing I'll get the paper is
+[01:17:02] actually this log conceptual view of the world,
+[01:17:05] of course the impractical as I mentioned earlier,
+[01:17:08] and so some directly has a proposal for how to do better,
+[01:17:11] even though like other systems like going actually do maintain the whole log,
+[01:17:15] and so what does somebody do things better,
+[01:17:18] instead of actually maintaining a log,
+[01:17:20] you know that's actually snapshots,
+[01:17:22] that's similar to sort of snapshots,
+[01:17:25] that we've seen before, in Raft,
+[01:17:27] where we construct the part of the world based on log,
+[01:17:30] we take a snapshot,
+[01:17:31] and that actually forms the the current state,
+[01:17:34] in fact, really what the SUNDR does,
+[01:17:38] it actually doesn't really literally make snapshot,
+[01:17:40] it really maintains a snapshot view of the file system,
+[01:17:43] and does it per user.
+[01:17:46] So one way to think about it is that,
+[01:17:48] that file systems is sharded by user,
+[01:17:50] every user has its own view snapshot of the world,
+[01:17:53] and you know there's a little bit of protocol
+[01:17:55] to make sure that these different snapshots and different users are actually consistent.
+[01:18:00] And let me talk a little bit about,
+[01:18:05] how actually SUNDR actually has makes the snapshot.
+[01:18:10] Basically in SUNDR,
+[01:18:15] and SUNDR basically there's something that's called the user i-handle,
+[01:18:19] and the user i-handle basically uniquely identifies snapshot in the file system,
+[01:18:23] and basically is a cryptographic hash of the i-table,
+[01:18:27] which completes all the inodes in the system,
+[01:18:30] and you know and for every inode,
+[01:18:33] there's a hash inode,
+[01:18:34] it would basically covers all the data, all the blocks belong to that particular inode,
+[01:18:39] so, for example, when say A modifies auth.py in my write one block,
+[01:18:46] the client re-computes the hash of this block,
+[01:18:50] updates the entry here, updates the entry here, updates the entry here,
+[01:18:55] and that's basically a new handle,
+[01:18:57] that describes basically the the capture you know the complete file system,
+[01:19:02] we're going to ignore the group in the directory block for a second,
+[01:19:07] so this basically gives you complete checkpoint,
+[01:19:10] where snapshot of user to view of the file system.
+[01:19:17] Now and then to deal with this issue,
+[01:19:20] of how to get a sort of consistency across users,
+[01:19:24] they have this notion of version vectors.
+[01:19:34] What version vector is pretty straightforward,
+[01:19:37] every version vector has an i-handle,
+[01:19:39] like A has i-handle is in it
+[01:19:41] after it modified say auth.py
+[01:19:47] and then for every user in the system,
+[01:19:50] the version vector has a counter for the number of modifications,
+[01:19:53] that were made by that user,
+[01:19:54] so if A made updated auth.py,
+[01:19:58] that counter is set to 1,
+[01:19:59] you know B didn't make any modifications,
+[01:20:01] you know C didn't make any modifications,
+[01:20:03] 0 0,
+[01:20:04] and this whole thing is signed.
+[01:20:10] And so when B makes modifications,
+[01:20:12] so we use the version vector for B,
+[01:20:14] A version vector, B version vector,
+[01:20:18] it creates a new handle,
+[01:20:20] that includes of course all the modification, represents all the modifications,
+[01:20:25] and in its version handle,
+[01:20:27] it actually opened its version vector,
+[01:20:28] it includes which how many operations are read by a user,
+[01:20:32] so it will record the fact,
+[01:20:33] for example that it actually saw A's modification,
+[01:20:37] it updates B is to be 1, C is 0,
+[01:20:40] and basically signed to this whole thing.
+[01:20:45] You know C, when C actually does an operation,
+[01:20:49] want to read you know auth.py
+[01:20:51] and fetch you know and bank.py,
+[01:20:57] it basically downloads all the version vectors from every user,
+[01:21:01] you know and in this case,
+[01:21:03] it will get the version vector for A and B,
+[01:21:06] takes the latest one, which in this case is B,
+[01:21:09] because actually it includes all the operations of A in it,
+[01:21:13] and that's basically represented version of the file system,
+[01:21:16] from that version, it reads you know auth.py and bank.py,
+[01:21:24] note, you know that basically it's impossible for the server
+[01:21:28] to basically present bank.py, not auth.py,
+[01:21:34] because you know it cannot,
+[01:21:36] you know it can only to sort of version vector can return is,
+[01:21:40] this version vector or this version vector,
+[01:21:42] version vector A doesn't include actually the changes of bank.py,
+[01:21:47] if C actually does get versions of bank.py,
+[01:21:50] it must actually have the versions, the modification A is made,
+[01:21:55] because the version vectors are constructed in that way.
+[01:21:59] And so that's basically the way for using version vectors
+[01:22:03] to detect the S doesn't drop changes,
+[01:22:08] as we as the same way that the logging system is done.
+[01:22:12] Okay, so that's the essence of the version vector plan.
+[01:22:17] So, summary.
+[01:22:23] Okay, Byzantine participants you know sort of a problem
+[01:22:28] you have to handle in decentralized systems,
+[01:22:34] because there's no single institution that sort of,
+[01:22:38] it can be source of trust,
+[01:22:41] and we've seen this notion of signed logs,
+[01:22:43] it's a very powerful tool to deal with malicious servers.
+[01:22:49] And, as I said, on on Tuesday,
+[01:22:53] we're going to continue this discussion,
+[01:22:55] and you'll see how this design logs are used in Bitcoin,
+[01:22:59] in particular like how fork consistency,
+[01:23:01] where how the fact that forks are sort of being created,
+[01:23:05] are being resolved in the case of Bitcoin.
+[01:23:09] Okay, so that was it for an introduction to the decentralized systems,
+[01:23:13] and I hope the paper a little bit more understandable,
+[01:23:18] than maybe when before you start reading it earlier this week or today.
+[01:23:24] Okay, see you on Tuesday.
+[01:23:27] And of course, there's questions, feel free, please feel free to hang around,
+[01:23:31] if you need to go somewhere else, absolutely go somewhere else.
+[01:23:36] I have a question about the data structure,
+[01:23:39] that they use the B+ tree or whatever,
+[01:23:43] like what's the difference between that and like,
+[01:23:46] yeah, like the Merkle, for example.
+[01:23:48] Using Merkle data structure,
+[01:23:50] you know I think the person who sort of credited with his id is Merkle,
+[01:23:55] and that's why it called the Merkle data tree?
+[01:24:00] So this is the same thing?
+[01:24:03] Okay.
+[01:24:04] SUNDR basically uses a Merkle tree.
+[01:24:12] Sorry, when when you are verifying the the signatures,
+[01:24:18] doesn't mean you have to,
+[01:24:19] like, basically, as you go,
+[01:24:23] if you're a hundred entries into the log,
+[01:24:26] you have to compute the hash of all the 100 entries
+[01:24:31] concatenated and then compute, and.
+[01:24:35] Yeah, you need to keep a running hash,
+[01:24:37] okay, let's go back to verify,
+[01:24:46] okay, so here is probably a good place to talk about it.
+[01:24:49] So, so here,
+[01:24:53] so let's say, let's take the last entry, correct,
+[01:24:58] the last entry will have a hash of the preceding entries,
+[01:25:04] so everything you know from the like whatever records,
+[01:25:06] let's say this is 0 1 and 2, 0 1 and 2,
+[01:25:12] where basically has the hash of the previous entry number 2 in it,
+[01:25:18] and that needs to be, that needs to be checked.
+[01:25:23] And the way that being checked is,
+[01:25:27] you know in principle, if you start really from the beginning of the world,
+[01:25:31] and you would have to compute the hash with record 0,
+[01:25:34] you find out what the hash is,
+[01:25:35] and double check that corresponds to the entry,
+[01:25:41] that's in here and that the signature is valid, etc, etc.
+[01:25:46] Of course, you know in the real system,
+[01:25:48] you can remember most of the log
+[01:25:50] and just double check that,
+[01:25:52] like whatever and start from there.
+[01:25:56] Oh, it's inefficient, okay.
+[01:26:00] Yeah, you have to replay from the beginning of time,
+[01:26:01] you basically have to really validate the whole log from the beginning of time.
+[01:26:07] Thank you, it makes sense.
+[01:26:08] You'll see this in the Bitcoin paper.
+[01:26:11] So are the hash is like, almost like a Merkle chain, like.
+[01:26:15] Yes.
+[01:26:16] Okay.
+[01:26:17] Same idea.
+[01:26:19] So, are they,
+[01:26:23] like if like leaf in the sort of tree or chain,
+[01:26:30] like an entire file or like blocks of a file.
+[01:26:33] This is a block, one block,
+[01:26:34] so this 4096 bytes,
+[01:26:44] and all the other hashes don't change, correct,
+[01:26:45] so it's actually not that inefficient.
+[01:26:48] Because if you only change part of the file,
+[01:26:50] that only rehashes that part.
+[01:26:52] Yeah, you just have to rehash that one,
+[01:26:53] and then you have to re-compute the hash of the tree,
+[01:26:57] all the way to the users i-handle.
+[01:27:03] The paper talks about,
+[01:27:04] there's a sort of optimization to make this more efficient,
+[01:27:06] but hashing is generally not that expensive,
+[01:27:09] signing is a more expensive operation.
+[01:27:18] I had a question about version vectors,
+[01:27:21] so we use version vectors
+[01:27:23] to make sure that the system can't return like an old state,
+[01:27:26] why can't the, why can't the system just return the old state and the old version vector,
+[01:27:30] if it keeps a second copy.
+[01:27:32] Yeah, got fork, right?
+[01:27:34] So we only have fork consistency, then.
+[01:27:37] Yeah, version vectors only fork consistent,
+[01:27:39] SUNDR fork consistent, no more.
+[01:27:47] So fork consistency, you need the timestamp?
+[01:27:51] The fork consistency, I mean,
+[01:27:52] you know the server can fork the log at any particular point in time,
+[01:28:01] present a consistent view of the what they can merge logs back together.
+[01:28:08] So, really this picture,
+[01:28:11] that the server can actually construct you know different views of the world,
+[01:28:16] and split you know the world, the multiple world,
+[01:28:19] but can emerge the world back together undetectably.
+[01:28:27] So, the best we can do is fork consistency,
+[01:28:32] which allows for forking,
+[01:28:33] but we can detect forking.
+[01:28:36] So if we detect forking,
+[01:28:38] can we then get something stronger than fork consistency?
+[01:28:41] Well, yep, well, we can settle on a fork,
+[01:28:44] we're gonna have forks,
+[01:28:45] we can try to settle like pick one forks one to go forward with.
+[01:28:50] Okay,
+[01:28:51] but SUNDR doesn't have a way to do that.
+[01:29:00] I mean SUNDR does propose some some methods now?
+[01:29:04] Methods to detect
+[01:29:06] and basically you know basically proposes like you use the timestamp box to use that one.
+[01:29:17] Thanks.
+[01:29:18] You're welcome.
+[01:29:21] The timestamp, timestamp box just a server that appends entries?
+[01:29:26] Yeah, and is trusted, it was not under control of the adversary.
+[01:29:35] Thank you.
+[01:29:38] Can I also ask one final question
+[01:29:40] about the Debian example, you set up in beginning,
+[01:29:44] can you say again what happened there?
+[01:29:47] Yeah, sure,
+[01:29:49] so basically the,
+[01:29:51] this is the source repo or develop machines for Debian Linux in 2003,
+[01:29:58] an attacker compromised broke into this machines and modified files,
+[01:30:05] and this is the distribution that has been sort of handed off,
+[01:30:08] you know which you know if you're on Debian Linux,
+[01:30:10] you know you're you're,
+[01:30:12] anybody who got like the Debian linux after attack,
+[01:30:15] you've got maybe a compromise Debian Linux.
+[01:30:18] And so when they soon as they discovered this,
+[01:30:20] they didn't do any further development,
+[01:30:23] and they were defer to distributions,
+[01:30:24] sorted out like they went to backups,
+[01:30:27] you know started comparing files from backups with files that they have,
+[01:30:31] and you know basically double check that all the changes
+[01:30:34] that were in the repo are actually legit.
+[01:30:38] Okay.
+[01:30:38] Rollback and rollback any changes are not legit.
+[01:30:42] That's pretty bad.
+[01:30:45] Yeah, that's pretty bad,
+[01:30:47] it occasionally happens,
+[01:30:48] this is a real problem,
+[01:30:50] that's a real problem in practice.
+[01:30:52] Thank you so much that was very interesting lecture, thank you.
+[01:30:55] You're welcome.
+[01:30:57] Thank you.

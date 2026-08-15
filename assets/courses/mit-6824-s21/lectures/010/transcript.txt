@@ -1,0 +1,2177 @@
+[00:00:00] Okay, good afternoon, good morning, good evening, good night, wherever you are.
+[00:00:06] Let's get started again.
+[00:00:09] So, today we have a guest lecture,
+[00:00:12] probably speaker needs a little introduction,
+[00:00:15] Russ Cox, is one of the co-leads on the Go project,
+[00:00:21] and we'll talk a lot more about it.
+[00:00:23] Let me say a couple words,
+[00:00:26] not trying to embarrass Russ too much,
+[00:00:28] Russ has a long experience with distributed systems,
+[00:00:33] he was a developer and contributor to Plan 9,
+[00:00:38] when he was a high school student undergrad at Harvard,
+[00:00:41] he joined the PHD program at MIT,
+[00:00:45] which where we met up,
+[00:00:46] and probably if you've taken any sort of PDOS class, if you will,
+[00:00:51] there's gonna be,
+[00:00:53] you will see Russ's touches on it,
+[00:00:56] and certainly in 6.824,
+[00:00:58] you know the Go, switch to Go for us has been a wonderful thing,
+[00:01:03] and but if you differ in opinion,
+[00:01:07] of course feel free to ask Russ questions and make suggestions,
+[00:01:11] he's always welcome to entertain any ideas.
+[00:01:16] So with that, Russ, it's yours.
+[00:01:18] Great, thanks, can you see the slides,
+[00:01:21] is that working?
+[00:01:22] Okay, great.
+[00:01:23] So so we build Go to support writing the sort of distributed systems,
+[00:01:27] that we were building at Google,
+[00:01:29] and that may Go a great fit for,
+[00:01:30] what came next which is now called cloud software
+[00:01:33] and also a great fit for 6.824.
+[00:01:36] So in this lecture,
+[00:01:37] I'm going to try to explain,
+[00:01:38] how I think about writing programs in Go.
+[00:01:41] I'm going to walk through the sort of design and implementation of programs
+[00:01:46] for four different patterns that I see come up often.
+[00:01:49] And along the way, I'm going to try to highlight some hints or rules of thumb,
+[00:01:52] that you can keep in mind when designing your own Go programs.
+[00:01:55] And I know the syllabus links to an older version of the slide,
+[00:01:58] so you might have seen them already,
+[00:02:00] I hope that the lecture form is a bit more intelligible
+[00:02:02] than just sort of looking at the slides.
+[00:02:05] And I hope that in general these patterns are common enough,
+[00:02:08] that maybe they'll be helpful by themselves,
+[00:02:10] but also that you know you'll,
+[00:02:13] the hints will help you prepare for whatever it is you need to implement.
+[00:02:19] So to start, it's important to distinguish between concurrency and parallelism.
+[00:02:24] And concurrency is about how you write your programs
+[00:02:27] about being able to compose independently executing control flows,
+[00:02:31] whether you want to call them processes or threads or goroutines,
+[00:02:34] so that your program can be dealing with lots of things at once,
+[00:02:38] without turning into a giant mess.
+[00:02:40] On the other hand parallelism is about how the programs get executed,
+[00:02:44] about allowing multiple computations to run simultaneously,
+[00:02:47] so that the program can be doing lots of things at once,
+[00:02:50] not just dealing with [lots] of things at once.
+[00:02:52] And so concurrency lends itself naturally to parallel execution,
+[00:02:56] but today the focus is on,
+[00:02:57] how to use Go's concurrency support to make your programs clear,
+[00:03:01] not to make them faster,
+[00:03:03] if they do get faster, that's wonderful,
+[00:03:04] but that's not the point today.
+[00:03:07] So I said, I'd walked through the design and implementation of some programs
+[00:03:11] for four common, excuse me, concurrency patterns that I see often,
+[00:03:17] but before we get to those,
+[00:03:18] I want to start with what seems like a really trivial problem,
+[00:03:21] but that illustrates one of the most important points
+[00:03:23] about what it means to use concurrency to structure programs.
+[00:03:28] A decision that comes up over and over, when you design concurrent programs
+[00:03:31] is whether to represent states as code or as data.
+[00:03:35] And by as code, I mean the control flow in the program,
+[00:03:39] so suppose reading characters from a file,
+[00:03:41] and we need to scan over a C style quoted string.
+[00:03:44] Oh hello the slides aren't changing.
+[00:03:46] Yeah, it will,
+[00:03:48] can you see prologue goroutines for state right now.
+[00:03:51] No, we see the title slide.
+[00:03:52] Oh, no, yeah I was wondering about that,
+[00:03:54] because there was a border around this thing, when I started
+[00:03:58] and then it went away.
+[00:04:00] So let me let me just unshare and reshare.
+[00:04:04] I had to figure out how to do that in Zoom.
+[00:04:11] Unfortunately, Keynote menu wants to be up
+[00:04:13] and I don't know how to get to the Zoom menu.
+[00:04:20] Ah, my screen sharing is paused,
+[00:04:22] why is my screen sharing paused,
+[00:04:25] can I resume,
+[00:04:27] here we go.
+[00:04:28] Alright, I don't know,
+[00:04:29] the Zoom [box] says your screen sharing is paused,
+[00:04:31] so that,
+[00:04:32] now the borders back,
+[00:04:33] so I'll watch that.
+[00:04:36] Alright so, see, I was back here,
+[00:04:40] so so you're reading a string,
+[00:04:43] it's not a parallel program,
+[00:04:44] is reading one character at a time,
+[00:04:45] so there's no opportunity for parallelism,
+[00:04:47] but there is a good opportunity for concurrency.
+[00:04:49] So we don't actually care about the exact escape sequences in the string,
+[00:04:53] that we need to do is match this regular expression,
+[00:04:56] and we don't have to worry about understanding exactly,
+[00:04:58] we'll come back to what it means,
+[00:04:59] but that's basically all you have to do is implement this regular expression.
+[00:05:03] And so you know you probably all know,
+[00:05:05] you can turn a regular expression into a state machine,
+[00:05:07] and so we might use a tool that generates this code,
+[00:05:11] and in this code, there's a single variable state,
+[00:05:13] that's the state of the machine,
+[00:05:15] and the loop goes over the state one character at a time,
+[00:05:18] reads the character depending on the state,
+[00:05:19] and the character changes to a different state,
+[00:05:22] until it gets to the end,
+[00:05:23] and so this is a completely unreadable program,
+[00:05:26] but it's the kind of thing,
+[00:05:27] that you know an auto generated program might look like.
+[00:05:29] And the important point is that the program state is stored in data,
+[00:05:33] in this variable, that's called state,
+[00:05:35] and if you can change it to store the state in code,
+[00:05:39] that's often clearer.
+[00:05:41] So here's what I mean,
+[00:05:43] suppose we duplicate the readChar calls into each case of the switch,
+[00:05:48] so we haven't made any semantic changes here,
+[00:05:50] we just took the readChar that was at the top and we moved it into the middle.
+[00:05:54] Now instead of setting state and then immediately doing the switch again,
+[00:05:58] we can change those into gotos,
+[00:06:02] and then we can simplify a little bit further,
+[00:06:04] there's a goto state1,
+[00:06:05] that's right before the state1 label,
+[00:06:07] we can get rid of that.
+[00:06:08] Then there's, I guess,
+[00:06:11] yeah, so then there's you know there's only one way to get the state2,
+[00:06:15] so we might as well pull the state2 code up
+[00:06:17] and put it inside the if where the goto appears,
+[00:06:19] and then both sides of that if now end in goto state1,
+[00:06:24] so we can hoist that out.
+[00:06:25] And now what's left is actually a pretty simple program,
+[00:06:29] you know state0 is never jumped to,
+[00:06:30] so it just begins there,
+[00:06:32] and then state1 is just a regular loop,
+[00:06:34] so we might as well make that look like a regular loop.
+[00:06:37] And now like this is you know looking like a program,
+[00:06:41] and then finally we can get rid of some variables
+[00:06:44] and simplify a little bit further.
+[00:06:46] And, and we can rotate the loop,
+[00:06:48] so that you know we don't do a return true in the middle of the loop,
+[00:06:51] we do the return true at the end.
+[00:06:54] And so now we've got this program,
+[00:06:56] that is actually you know reasonably nice,
+[00:06:59] and it's worth mentioning that,
+[00:07:01] it's possible to clean up much less egregious examples,
+[00:07:04] you know if you had tried to write this by hand,
+[00:07:06] your first attempt might have been the thing on the left,
+[00:07:08] where you've got this extra piece of state,
+[00:07:10] and then you can apply the same kinds of transformations
+[00:07:13] to move that state into the actual control flow,
+[00:07:16] and end up, { the same program that we have on the right,
+[00:07:19] that's cleaner.
+[00:07:20] So this is a useful transformation to keep in mind,
+[00:07:24] anytime you have state,
+[00:07:25] that kind of looks like it might be just reiterating,
+[00:07:29] what's what's happening in the program counter.
+[00:07:32] And so you can see this if the the original state,
+[00:07:37] like if state equals 0,
+[00:07:38] the program counter is at the beginning of the function,
+[00:07:40] and if state equals 1 or if inEscape equals false and the other version,
+[00:07:44] the program counter is just inside the for loop,
+[00:07:46] and state equals 2 is further down in the for loop.
+[00:07:49] And the benefit of writing it this way instead of with the states
+[00:07:52] is that it's much easier to understand,
+[00:07:54] like I can actually just walk through the code and explain it to you,
+[00:07:57] you know if you just read through the code,
+[00:07:58] you read an opening quote and then you start looping,
+[00:08:01] and then until you find the closing quote,
+[00:08:03] you read a character
+[00:08:04] and if it's a backslash,
+[00:08:04] you skip the next character,
+[00:08:06] and that's it right,
+[00:08:06] you can just read that off the page,
+[00:08:08] which you couldn't do in the original.
+[00:08:11] This version also happens to run faster,
+[00:08:13] although that doesn't really matter for us.
+[00:08:17] But as I mentioned,
+[00:08:18] I'm going to highlight what I think are kind of important lessons
+[00:08:20] as hints for designing your own Go programs,
+[00:08:22] and this is the first one,
+[00:08:23] to convert data state into code state,
+[00:08:26] when it makes your programs clearer.
+[00:08:29] And again like these are all hints,
+[00:08:31] you should you should you know for all of these,
+[00:08:33] you should consider it as,
+[00:08:35] only if it helps you can decide.
+[00:08:38] So one problem with this hint is that,
+[00:08:40] not all programs have the luxury of having complete control over their control flow,
+[00:08:46] so you know here's a different example,
+[00:08:48] instead of having a readChar function that can be called,
+[00:08:51] this code is written to have a ProcessChar method,
+[00:08:54] that you have to hand the character to one at a time,
+[00:08:57] and then ProcessChar has no choice really,
+[00:09:00] but to you know encoded state in an explicit state variable,
+[00:09:03] because after every character, it has to return back out,
+[00:09:06] and so it can't save the state at the program counter and stack,
+[00:09:09] it has to have the state in an actual variable.
+[00:09:14] But in Go, we have another choice, right,
+[00:09:17] because we can't save the state on that stack and in that program counter,
+[00:09:21] but we can make another goroutine to hold that state for us.
+[00:09:25] So supposing we already have this debug readString function,
+[00:09:29] that we really don't want to rewrite in this other way,
+[00:09:32] we just want to reuse it,
+[00:09:33] it works,
+[00:09:34] maybe it's really big and hairy,
+[00:09:35] it's much more complicated than anything we saw,
+[00:09:37] we just want to reuse it.
+[00:09:39] And so the way we can do that in Go is,
+[00:09:41] we can start a new goroutine that does the readString part,
+[00:09:44] it's the same readString code as before,
+[00:09:46] we pass in the character reader.
+[00:09:48] And now here you know the Init method makes this goroutine to do the character reading,
+[00:09:55] and then every time the ProcessChar method is called,
+[00:10:00] we send a message to the goroutine on the char channel,
+[00:10:03] that says here's the next character,
+[00:10:05] and then we receive a message back,
+[00:10:07] that says tell me the current status,
+[00:10:08] and the current status is always,
+[00:10:10] either I need more input
+[00:10:12] or you know basically you know was it okay or not.
+[00:10:17] And so you know,
+[00:10:19] this lets us move the the program counter,
+[00:10:23] that we couldn't do on the first stack
+[00:10:24] into the other stack of the goroutine.
+[00:10:26] And so using additional goroutines is a great way to hold additional code state,
+[00:10:31] and give you the ability to do these kinds of cleanups,
+[00:10:34] even if the original structure of the problem makes it look like you can't.
+[00:10:41] Russ.
+[00:10:42] Go ahead.
+[00:10:43] I assume you're fine with people asking questions.
+[00:10:46] Yeah, absolutely.
+[00:10:47] I just wanted to make sure that.
+[00:10:49] Yeah, definitely, please interrupt.
+[00:10:51] So,so the hint here is
+[00:10:54] to use additional goroutines to hold additional code state,
+[00:10:57] and there's there's one caveat to this,
+[00:11:00] and it's not free to just make goroutines, right,
+[00:11:03] you have to actually make sure that they exit,
+[00:11:05] because otherwise you'll just accumulate them.
+[00:11:07] And so you have to think about,
+[00:11:09] you know why does the goroutine exit,
+[00:11:11] like you know is it going to get cleaned up.
+[00:11:13] And in this case,
+[00:11:15] we know that you know q.parse is going to return,
+[00:11:19] where q.parse go.
+[00:11:22] Sorry that's not right.
+[00:11:26] Oh, sorry, the readString here,
+[00:11:28] readString is going to return,
+[00:11:29] anytime it sends a message, that says need more input.
+[00:11:32] Where it go, there's something missing from this slide.
+[00:11:39] Sorry, I write this until last night.
+[00:11:44] So so as we go in, we go into Init,
+[00:11:47] we kick off this goroutine,
+[00:11:48] that's gonna call readChar a bunch of times,
+[00:11:50] and then we read the status once
+[00:11:51] and that first status is going to happen,
+[00:11:54] because the the first call to readChar from readString
+[00:11:57] is going to saying I need more input,
+[00:11:59] and then we're going to send a character back,
+[00:12:01] we're going to send the character back in ProcessChar,
+[00:12:04] and then every time ProcessChar gets called, it returns a status,
+[00:12:08] and so up until you get, you know need more input,
+[00:12:11] you're going to get the.
+[00:12:15] Sorry, this is not working,
+[00:12:17] you're going to get any more input for every time you want to read a character.
+[00:12:21] And then when it's done reading characters,
+[00:12:22] what I haven't shown you here, what seems to be missing somehow,
+[00:12:26] is when things exit and when things exit.
+[00:12:30] Let's see, if it's on this slide.
+[00:12:31] Yeah, so there's a return Success and a return BadInput,
+[00:12:34] that I'd forgotten about.
+[00:12:35] And so, you know these returning different status and then they're done.
+[00:12:40] So when ProcessChar,
+[00:12:42] in in the readString version,
+[00:12:44] when it returns BadInput or Success,
+[00:12:47] we say that you know it's done.
+[00:12:49] And so as long as the caller is going through,
+[00:12:54] and you know calling until it gets something, that's not need more input,
+[00:12:58] then the goroutine will finish,
+[00:13:00] but maybe if we stop early,
+[00:13:02] if the caller hits an EOF and stops on its own,
+[00:13:04] without telling us that it's done,
+[00:13:06] there's a goroutine leftover,
+[00:13:08] and so that could be a problem.
+[00:13:10] And so you just you need to make sure that
+[00:13:11] you know when and why each goroutine will exit,
+[00:13:15] and the nice thing is that,
+[00:13:16] if you do make a mistake
+[00:13:18] and you leave goroutine stuck,
+[00:13:19] they just sit there,
+[00:13:20] it's like the best possible bug in the world,
+[00:13:22] because they just sit around, waiting for you to look at them,
+[00:13:24] and all you have to do is remember to look for them.
+[00:13:26] And so here's a very simple program,
+[00:13:29] and these goroutines and it runs an http server,
+[00:13:32] and so if we run this,
+[00:13:34] it kicks off a whole bunch of f goroutines,
+[00:13:36] and they all block trying to send to a channel,
+[00:13:39] and then it makes the http server.
+[00:13:41] And so if I run this program, it just sits there,
+[00:13:44] and if I type control backslash on a Unix system,
+[00:13:46] I get a SIGQUIT,
+[00:13:47] which makes it crash and dump all the stacks on the goroutines.
+[00:13:51] And you can see on the slide,
+[00:13:52] you know it's going to print over and over again,
+[00:13:54] here's a goroutine and h call from g call from f,
+[00:13:57] and in the channel send.
+[00:13:59] And if you look at the line numbers,
+[00:14:00] you can see exactly where they are.
+[00:14:03] Another option is that,
+[00:14:04] since we're in an http server,
+[00:14:07] and the http server imports the net http pprof package,
+[00:14:11] you can actually just visit the http server's /debug/pprof/goroutine url,
+[00:14:15] which gives you the stacks of all the running goroutines,
+[00:14:18] and unlike the crash dump,
+[00:14:20] it takes a little more effort
+[00:14:21] and it duplicates the goroutines based on their stacks,
+[00:14:24] and so and then it sorts them by how many there are of each stack,
+[00:14:28] and so if you have a goroutine leak,
+[00:14:29] the leak shows up at the very top.
+[00:14:31] So in this case,
+[00:14:32] you've got a hundred goroutines stack
+[00:14:33] in h called from g called from f,
+[00:14:35] and then we can see there's one of a couple other goroutines,
+[00:14:38] we don't really care about them.
+[00:14:40] And so you know this is a new hint that,
+[00:14:41] it just it's really really useful
+[00:14:43] to look for stack goroutines by just going to this endpoint.
+[00:14:48] Alright, so that was kind of the warm up.
+[00:14:52] Now I want to look at the first real concurrency pattern,
+[00:14:54] which is a publish subscribe server.
+[00:14:57] So publish subscribe is a way of structuring a program,
+[00:14:59] that you decouple the parts,
+[00:15:01] that are publishing interesting events from the things that are subscribing to them,
+[00:15:05] and there's a publish subscribe or pub sub server in the middle that connects those,
+[00:15:08] so the individual publishers and the individual subscribers
+[00:15:11] don't have to be aware of exactly who the other ones are.
+[00:15:15] So you know on your Android phone,
+[00:15:17] an app might publish or make a phone call event,
+[00:15:19] and then the dial might subscribe to that
+[00:15:21] and actually start you know help dial.
+[00:15:25] And so in a real pub sub server,
+[00:15:26] there are ways to filter events based on what kind they are,
+[00:15:29] so that when you publish and make a phone call event,
+[00:15:31] it doesn't go to your email program.
+[00:15:33] But for now,
+[00:15:34] we're just going to assume that the filtering is taken care of separately
+[00:15:37] and we're just worried about the actual publish and subscribe,
+[00:15:41] and the concurrency of that.
+[00:15:43] So here's an API we want to implement,
+[00:15:46] with any number of clients,
+[00:15:47] that can call Subscribe with a channel
+[00:15:50] and afterwards, events that are published will be sent on that channel,
+[00:15:54] and then when a client is no longer interested,
+[00:15:57] it can call Cancel and passing the same channel,
+[00:15:59] to say stop sending the events on that channel,
+[00:16:02] and the way the Cancel will signal that,
+[00:16:04] it really is done sending events on that channel,
+[00:16:07] is it will close the channel,
+[00:16:08] so that the receiver caller can keep receiving events
+[00:16:11] until it sees the channel get closed,
+[00:16:13] then it knows that the Cancel has taken effect.
+[00:16:18] So notice that the information is only flowing one way on the channel, right,
+[00:16:23] you can send to the channel,
+[00:16:25] and then the receiver can receive from it,
+[00:16:27] and the information flows from the sender to the receiver,
+[00:16:29] and it never goes the other way.
+[00:16:30] So closing is also a signal from the sender to the receiver,
+[00:16:35] but all the sending is over,
+[00:16:37] the receiver cannot close the channel
+[00:16:38] to tell the sender I don't want you to send anymore,
+[00:16:41] because that's information going in the opposite direction.
+[00:16:44] And it's just a lot easier to reason about,
+[00:16:46] if the information only goes one way,
+[00:16:48] and of course if you need communication in both directions,
+[00:16:52] you can use a pair of channels,
+[00:16:53] and it often turns out to be the case,
+[00:16:55] that those different directions may have different types of data flowing,
+[00:16:59] like before we saw that,
+[00:17:00] there were runes going in one direction
+[00:17:02] and status updates going in the other direction.
+[00:17:05] So how do we implement this API,
+[00:17:08] here's a pretty basic implementation,
+[00:17:10] that you know could be good enough.
+[00:17:12] We have a Server
+[00:17:13] and the Server state is a map of registered subscriber channels,
+[00:17:17] protected by a lock,
+[00:17:19] we initialize the Server by just allocating the map,
+[00:17:22] and then to publish the event,
+[00:17:24] we just send it to every register channel,
+[00:17:27] to subscribe a new channel,
+[00:17:28] we just add that to the map
+[00:17:30] and to cancel, we take it out of the map.
+[00:17:32] And then, because these are all,
+[00:17:34] these are all methods that might be called from multiple goroutines,
+[00:17:38] we need to call lock and unlock around these to protect the map,
+[00:17:45] and notice that I wrote defer unlock right after the lock,
+[00:17:48] so I don't have to remember to unlock it later,
+[00:17:51] you probably all seen this,
+[00:17:53] you know sort of a nice idiom to just do the lock unlock,
+[00:17:55] and then you know I have a blank line
+[00:17:56] and have that be its own paragraph in the code.
+[00:18:03] One thing I want to point out is that,
+[00:18:05] using defer makes sure that the mutexes gets unlocked,
+[00:18:08] even if you have multiple returns from the function,
+[00:18:10] so you can't forget,
+[00:18:11] but it also makes sure that it gets unlocked if you have a panic,
+[00:18:14] like in Subscribe and Cancel,
+[00:18:16] where there's panic for misuse.
+[00:18:19] And there is a subtlety here about,
+[00:18:21] if you might not want to unlock the mutex,
+[00:18:23] if the panic happened,
+[00:18:25] while the thing that was locked is in some inconsistent state,
+[00:18:28] but I'm gonna ignore that for now,
+[00:18:30] in general, you try to avoid having the things that might panic happen,
+[00:18:35] while you're potentially in inconsistent state.
+[00:18:39] And I should also point out that,
+[00:18:40] the use of panic at all in Subscribe and Cancel,
+[00:18:43] implies that you really trust your clients not to misuse the interface,
+[00:18:47] that it is a program error,
+[00:18:48] worth tearing down the entire program potentially for that to happen.
+[00:18:54] And in a bigger program where other clients were using this API,
+[00:18:58] you probably want to return an error instead,
+[00:19:00] and not have the possibility of taking down the whole program,
+[00:19:02] but panic is simplifies things for now,
+[00:19:05] and you know error handling in general is kind of not the topic today.
+[00:19:11] A more important concern with this code than panic is,
+[00:19:14] what happens if a goroutine is slow to receive events.
+[00:19:19] So all the operations here are done holding the mutex,
+[00:19:22] which means all the clients kind of have to proceed in lockstep.
+[00:19:25] So during Publish, there's a loop that's sending on the channels,
+[00:19:30] sending the event to every channel,
+[00:19:31] and if one subscriber falls behind,
+[00:19:34] the next subscriber doesn't get the event,
+[00:19:36] until that slow subscriber wakes up
+[00:19:38] and actually get the event off of that channel.
+[00:19:41] And so one slow subscriber can slow down everyone else,
+[00:19:45] and you know forcing them to proceed in lockstep this way is not always a problem,
+[00:19:49] if you document the restriction
+[00:19:52] and for whatever reason you know how the clients are written
+[00:19:55] and you know that they won't ever fall too far behind,
+[00:19:57] this could be totally fine,
+[00:19:59] it's a really simple implementation,
+[00:20:01] and it has nice properties,
+[00:20:04] like on return from Publish,
+[00:20:05] you know that the event has actually been handed off to each of the other goroutines,
+[00:20:09] you don't know that they've started processing it,
+[00:20:11] but you know it's been handed off.
+[00:20:13] And so, maybe that's good enough and you could stop here.
+[00:20:16] A second option is that,
+[00:20:18] if you need to tolerate just a little bit of slowness on the subscribers,
+[00:20:22] then you could say that,
+[00:20:24] they need to give you a buffered channel
+[00:20:25] with room for a couple of events in the buffer,
+[00:20:28] so that you know when you're publishing,
+[00:20:31] you know as long as they're not too far behind,
+[00:20:32] there always be room for the new event to go into the channel buffer,
+[00:20:36] and then the actual Publish won't block for too long.
+[00:20:40] And again, maybe that's good enough,
+[00:20:41] if you're sure that they won't ever fall too far behind,
+[00:20:44] you get to stop there.
+[00:20:46] But in a really big program,
+[00:20:48] you do want to cope more gracefully with arbitrarily slow subscribers,
+[00:20:53] and so then the question is what do you do.
+[00:20:56] And so in general you have three options,
+[00:20:58] you can slow down the event generator,
+[00:21:00] which is what the previous solutions implicitly do,
+[00:21:03] because publish stops until the subscribers catch up.
+[00:21:07] Or you can drop events
+[00:21:09] or you can queue an arbitrary number of past events,
+[00:21:12] those are pretty much your only options.
+[00:21:14] So we talked about you know publish and slowing down the event generator.
+[00:21:19] There's a middle ground,
+[00:21:20] where you coalesce the events or you drop them,
+[00:21:24] so that you know the subscriber might find out that,
+[00:21:28] you know hey you missed some events
+[00:21:29] and I can't tell you what they were,
+[00:21:30] because I didn't save them,
+[00:21:31] but I'm at least going to tell you, you missed five events,
+[00:21:34] and then maybe it can do something else to try to catch up.
+[00:21:38] And this is the kind of approach, that we take in the profiler,
+[00:21:41] so in the profiler, if you've used it,
+[00:21:43] if,
+[00:21:44] there's a goroutine,
+[00:21:45] that fills the profile on a signal handler actually with profiling events,
+[00:21:51] and then there's a separate goroutine,
+[00:21:52] whose job is to read the data back out
+[00:21:54] and write it to disk or send it to an http request
+[00:21:57] or whatever it is you're doing with profile data.
+[00:21:59] And there's a buffer in the middle
+[00:22:01] and if the receiver from the profile data falls behind,
+[00:22:05] when the buffer fills up,
+[00:22:06] we start adding entries to, a final profile entry,
+[00:22:10] that just has a single entry,
+[00:22:12] that's that's a function called [runtime last profile data],
+[00:22:15] and so if you look at the profile,
+[00:22:17] you see hey the program spent 5% of its time in [last] profile data,
+[00:22:20] that just means you know the profile reader was too slow
+[00:22:24] and it didn't catch up,
+[00:22:26] and we lost some of the profile,
+[00:22:27] but we're clear about exactly what the error rate is in the profile,
+[00:22:32] and you pretty much never see that,
+[00:22:33] because all the readers actually do keep up,
+[00:22:35] but just in case they didn't,
+[00:22:37] you have a pretty clear signal.
+[00:22:40] An example of purely dropping the events is the OS signal package,
+[00:22:44] where you have to pass in a channel,
+[00:22:49] that will be ready to receive the signal,
+[00:22:51] a signal like SIGHUP or SIGQUIT,
+[00:22:54] and when the signal comes in,
+[00:22:56] the runtime tries to send to each of the channels that subscribe to that signal,
+[00:22:59] and if it can't send to it,
+[00:23:01] it just doesn't, it's just gone,
+[00:23:03] because you know in a signal handler, we can't wait,
+[00:23:05] and so what the callers have to do is
+[00:23:07] they have to pass in a buffer channel,
+[00:23:09] and if they pass in a buffer channel,
+[00:23:11] that has length at least one, buffer length at least one,
+[00:23:15] and they only register that channel to a single signal,
+[00:23:18] then you know that if a signal comes in,
+[00:23:22] you're definitely gonna get told about it,
+[00:23:23] if it comes in twice,
+[00:23:25] you might only get told about it once,
+[00:23:27] but that's actually the same semantics that Unix gives to processes for signals anyway,
+[00:23:31] so that's fine.
+[00:23:32] So those are both examples of dropping or coalescing events.
+[00:23:37] And then the third choice is that,
+[00:23:39] you might actually just really not want to lose any events,
+[00:23:42] it might just be really important that you never lose anything,
+[00:23:45] in which case,
+[00:23:46] you know you can queue an arbitrary number of events,
+[00:23:48] you can somehow arrange for the program
+[00:23:51] to just save all the events that the slow subscriber hasn't seen yet somewhere
+[00:23:56] and give them to the subscriber later.
+[00:23:59] And it's really important to think carefully before you do that,
+[00:24:01] because in a distributed system,
+[00:24:04] you know there's always slow computers,
+[00:24:05] always computers that have fallen offline or whatever,
+[00:24:08] and they might be gone for a while,
+[00:24:10] and so you don't want to introduce unbounded queuing, in general,
+[00:24:13] you want to think very carefully before you do that,
+[00:24:15] and think well you know how unbounded is [] and can I tolerate that.
+[00:24:20] And so like that's a reason why channels don't have an unbounded buffering,
+[00:24:24] it's really almost never the right choice,
+[00:24:26] and if it is the right choice,
+[00:24:28] you probably want to build it very carefully.
+[00:24:31] And so but we're going to build one,
+[00:24:33] just to see what it would look like.
+[00:24:36] And before we do that,
+[00:24:37] I just want to adjust the program a little bit,
+[00:24:40] so we have this mutex in the code,
+[00:24:43] and the mutex is an example of of keeping the state,
+[00:24:47] whether you're locked or not in a state variable,
+[00:24:49] but we can also move that into a program counter variable,
+[00:24:53] by putting it in a different goroutine.
+[00:24:55] And so, in this case,
+[00:24:58] we can start a new goroutine,
+[00:25:00] that runs a program function called s.loop,
+[00:25:03] and it handles requests sent on three new channels,
+[00:25:06] publish subscribe and cancel.
+[00:25:08] And so in Init,
+[00:25:09] we make the channels
+[00:25:10] and then we kick off s.loop.
+[00:25:13] And s.loop is sort of the amalgamation of the previous method bodies,
+[00:25:18] and it just receives from any of the three channels,
+[00:25:21] a request publish subscribe or cancel request,
+[00:25:24] and it does whatever was asked,
+[00:25:26] and now that map, the subscriber map, can be just a local variable in s.loop.
+[00:25:32] And and so it's the same code,
+[00:25:36] but now that data is clearly owned by s.loop,
+[00:25:39] nothing else could even get to it,
+[00:25:40] because it's a local variable.
+[00:25:44] And then we just need to change the original methods
+[00:25:47] to send the work over to the loop goroutine,
+[00:25:49] and so uppercase Publish now sends on lower case publish the channel,
+[00:25:54] the event that it wants to publish,
+[00:25:56] and similarly subscribe and cancel.
+[00:25:58] They create a request that has a channel,
+[00:26:01] that we want to subscribe
+[00:26:03] and also a channel to get the answer back,
+[00:26:05] and they send that into the loop
+[00:26:07] and the loop sends back the answer.
+[00:26:12] And so I referred to transforming the program this way
+[00:26:15] as converting the mutex into a goroutine,
+[00:26:18] because we took the data state of the mutex,
+[00:26:20] there's a lock bit inside it,
+[00:26:21] and now that lock bit is implicit in the program counter of the loop.
+[00:26:26] It's very clear that,
+[00:26:27] you can't ever have a publish and subscribe happening at the same time,
+[00:26:31] because it's just single thread code
+[00:26:33] and just you know executed sequence.
+[00:26:37] On the other hand,
+[00:26:37] the original version had a kind of like clarity of state,
+[00:26:41] where you could sort of inspect it,
+[00:26:42] and reason about well this is the important state,
+[00:26:45] and it's harder in the the goroutine version to see what's important state,
+[00:26:50] and what's kind of incidental state from just having a goroutine.
+[00:26:54] And in a given situation,
+[00:26:56] one might be more important than the other,
+[00:26:58] so a couple years ago,
+[00:26:59] I did all the labs for the class,
+[00:27:01] when it first switched to Go,
+[00:27:02] and raft is a good example
+[00:27:05] of where you probably prefer the state with the mutex,
+[00:27:08] because raft is so different from most concurrent programs,
+[00:27:12] and that each replica is just kind of profoundly uncertain of its state, right,
+[00:27:17] like the state transitions,
+[00:27:19] you know one moment you think you're the leader,
+[00:27:21] and the next moment you've been deposed,
+[00:27:22] like one moment your log has ten entries,
+[00:27:24] and next moment actually you know it only has two entries,
+[00:27:26] and so being able to manipulate that state directly
+[00:27:29] rather than having to somehow get in and out of the program counter,
+[00:27:33] makes a lot more sense for raft.
+[00:27:35] But that's pretty unique in most situations,
+[00:27:38] it cleans things up to put the state in the program counter.
+[00:27:43] Alright, so in order to deal with the slow subscribers,
+[00:27:46] now we're gonna add some helper goroutines,
+[00:27:48] and their job is to manage a particular subscribers backlog
+[00:27:52] and keep the overall program from blocking.
+[00:27:55] And so this is the helper goroutine,
+[00:27:57] and the the main loop goroutine will send the events to the helper,
+[00:28:01] which we then trust, because we wrote it,
+[00:28:03] not to fall arbitrarily behind,
+[00:28:05] and then the helper's job is to queue events it needed
+[00:28:08] and send them off to the subscriber.
+[00:28:11] Alright, so this actually has two problems.
+[00:28:15] The first is that,
+[00:28:16] if there's nothing in the queue,
+[00:28:18] then the select is actually wrong to try to offer queue of zero,
+[00:28:21] and in fact just evaluating queue of 0,
+[00:28:23] at the start of the select will panic,
+[00:28:25] because the queue is empty，
+[00:28:27] and so we can fix these,
+[00:28:29] by setting up the arguments separately from the select,
+[00:28:32] and in particular we need to make a channel sendOut,
+[00:28:36] that's going to be nil,
+[00:28:37] which is never able to proceed in a select,
+[00:28:41] as we know, when we don't want to send,
+[00:28:43] and it's going to be the actual out channel,
+[00:28:45] when we do want to send,
+[00:28:46] and then we have to have a separate variable,
+[00:28:48] that holds the event that we're going to send,
+[00:28:50] it will actually read from queue of zero,
+[00:28:52] if there's something in the queue.
+[00:28:55] The second thing that's wrong is that,
+[00:28:57] we need to handle closing of the channel, of the input channel,
+[00:29:00] because when the input channel closes,
+[00:29:02] we need to flush the rest of the queue,
+[00:29:04] and then we need to close the output channel.
+[00:29:07] So to check for that,
+[00:29:08] we change the select
+[00:29:09] from just doing e equals receiving from in
+[00:29:12] to e, ok equals receiving from in,
+[00:29:14] the comma ok will be told
+[00:29:16] whether or not the channel is actually sending real data,
+[00:29:19] or else it's closed.
+[00:29:20] And so when ok is false,
+[00:29:22] we can set in to nil,
+[00:29:23] to say let's stop trying to receive from in,
+[00:29:25] there's nothing there,
+[00:29:26] we're just gonna keep getting told that it's closed.
+[00:29:29] And then when the loop is fine,
+[00:29:31] when the queue is finally empty,
+[00:29:33] we can exit the loop,
+[00:29:34] and so we change the for condition,
+[00:29:36] to say we want to keep executing the loop
+[00:29:38] as long as there actually still is an input channel,
+[00:29:41] and there's something to write back to the output channel,
+[00:29:43] and then once both of those are not true anymore,
+[00:29:46] it's time to exit the loop
+[00:29:48] and we close the output channel
+[00:29:49] and we're done.
+[00:29:50] And so now we've correctly propagated
+[00:29:52] the closing of the input channel to the output channel,
+[00:29:57] so that was the helper.
+[00:29:58] And the Server loop used to look like this,
+[00:30:01] and to update it,
+[00:30:03] we just changed the subscription map,
+[00:30:05] before it was a map from subscribe channels to bools,
+[00:30:08] it was just basically a set,
+[00:30:09] and now it's a map from subscribe channel to helper channel,
+[00:30:13] and every time we get a new subscription,
+[00:30:15] we make a helper channel,
+[00:30:17] we kickoff a helper goroutine,
+[00:30:19] and we record the helper channel in the subscription map
+[00:30:22] instead of the actual channel.
+[00:30:25] And then the rest of, the rest of the loop actually barely changes at all.
+[00:30:32] So I do want to point out that,
+[00:30:34] if you wanted to have a different strategy
+[00:30:36] for what you do with clients that fall too far behind,
+[00:30:41] that can all go in the helper goroutine,
+[00:30:42] the code on the screen right now is completely unchanged,
+[00:30:45] so we've completely separated the publish subscribe,
+[00:30:48] maintaining the actual [list] of subscribers map,
+[00:30:51] from the what do you do when things get too slow map problem.
+[00:30:56] And so it's really nice,
+[00:30:58] that you've got this clean separation of concerns into completely different goroutines,
+[00:31:02] and that can help you keep your programs simpler.
+[00:31:04] And so that's the general hint is that,
+[00:31:06] you can use goroutines a lot of the time to separate independent concerns.
+[00:31:12] Alright,
+[00:31:15] so the second pattern for today is work scheduler,
+[00:31:19] and you did one of these in lab 1 for mapreduce,
+[00:31:21] and I'm just going to build up to that,
+[00:31:23] and this doesn't do all the RPC stuff,
+[00:31:26] it just kind of assumes that,
+[00:31:27] there's kind of channel, channel based interfaces
+[00:31:29] to all the servers.
+[00:31:31] So you know we have this function Schedule,
+[00:31:34] it takes a fixed list of servers,
+[00:31:36] and a number of tasks to run,
+[00:31:38] and it has just this abstracted function call,
+[00:31:41] that you call to run the task on a specific server,
+[00:31:44] you can imagine, it was doing the RPCs something.
+[00:31:48] So we're gonna need some way
+[00:31:49] to keep track of which servers are available to execute tasks.
+[00:31:53] And so one option is to use our own stack or queue implementation,
+[00:31:57] but another option is to use a channel,
+[00:31:59] because it's a good synchronized queue.
+[00:32:02] And so we can send into the channel to add to the queue
+[00:32:05] and receive from it to pop something off.
+[00:32:07] And in this case, we'll make the queue be a queue of servers,
+[00:32:11] and we'll start off its a queue of idle servers,
+[00:32:13] servers that aren't doing any work for us right now.
+[00:32:16] We'll start off by just initializing it
+[00:32:18] by sending all the known servers into the idle list.
+[00:32:22] And then we can loop over the tasks,
+[00:32:24] and for every task we kickoff a goroutine,
+[00:32:26] and its job is to pull a server off the idle list,
+[00:32:29] run the task, and then put the server back on.
+[00:32:32] And this loop body is another example of the earlier hint to use goroutines,
+[00:32:37] like independent things run independently,
+[00:32:39] because each task is running as a separate concern,
+[00:32:42] they're all running in parallel.
+[00:32:45] Unfortunately, there are two problems with this program.
+[00:32:48] The first one is that the closure that's running as a new goroutine
+[00:32:51] refers to the loop iteration variable, which is task,
+[00:32:54] and so by the time the goroutine starts executing,
+[00:32:56] the loop has probably continued and done a task++,
+[00:32:59] and so it's actually getting the wrong value of task.
+[00:33:02] You've probably seen this by now,
+[00:33:04] and of course the best way to catch this is
+[00:33:07] to run the race detector.
+[00:33:09] And at Google, we even encourage teams
+[00:33:10] to set up canary servers that run the race detector,
+[00:33:13] and split off something like 0.1% of their traffic to it,
+[00:33:17] just to catch you know races that might be in the production system.
+[00:33:21] And you know finding a bug with the race detector
+[00:33:23] is way better than having to debug some corruption later.
+[00:33:28] So there are two ways to fix this race,
+[00:33:30] the first way is to give the closure an explicit parameter and pass it in,
+[00:33:34] and Go statement requires a function call specifically for this reason,
+[00:33:39] so that you can set specific arguments,
+[00:33:42] that get evaluated in the context of the original goroutine
+[00:33:45] and then you know copy to the new goroutine,
+[00:33:48] and so in this case, we can declare a new argument task2,
+[00:33:50] we can past task to it,
+[00:33:53] and then inside the goroutine,
+[00:33:54] task2 is a completely different copy of task,
+[00:33:58] and I only named it task2 to make it easier to talk about.
+[00:34:02] But of course there's a bug here,
+[00:34:03] and the bug is that,
+[00:34:05] I forgot to update task inside the function
+[00:34:07] to refer to task2 instead of task,
+[00:34:09] and so we basically never do that,
+[00:34:12] what we do instead is,
+[00:34:15] we just give it the same name,
+[00:34:16] so that it's impossible now,
+[00:34:18] for the code inside the goroutine to refer to the wrong copy of task.
+[00:34:22] That was the first way to fix the race,
+[00:34:25] there's a second way which is,
+[00:34:26] you know sort of cryptic the first time you see it,
+[00:34:28] but it amounts to the same thing,
+[00:34:30] and that is that,
+[00:34:30] you just make a copy of the variable inside the loop body.
+[00:34:35] So every time := happens,
+[00:34:38] that creates a new variable,
+[00:34:39] so in the for loop, in the outer for loop,
+[00:34:41] there's a := at the beginning,
+[00:34:43] and there's not one the rest of the loop,
+[00:34:45] so that's all just one variable for the entire loop,
+[00:34:47] whereas if we put a := inside the body,
+[00:34:50] every time we run an iteration of the loop,
+[00:34:51] that's a different variable,
+[00:34:53] so if if the Go function closure captures that variable,
+[00:34:57] those will all be distinct.
+[00:34:59] So we can do the same thing we do task2,
+[00:35:01] and this time I remember to update the body,
+[00:35:03] but you know just like before,
+[00:35:05] it's too easy to forget to update the body,
+[00:35:07] and so typically write task := task,
+[00:35:09] which looks kind of magical the first time you see it,
+[00:35:11] but that's what it's for.
+[00:35:14] Alright, so I said there were two bugs in the program,
+[00:35:17] the first one was this race on task,
+[00:35:20] and the second one is that,
+[00:35:22] we didn't actually do anything after we've kicked off all the tasks,
+[00:35:26] we're not waiting for them to be done.
+[00:35:29] And and in particular, we're kicking them off way too fast,
+[00:35:33] because you know if there's a million tasks are going to kick off a million goroutines,
+[00:35:37] and they're all just going to sit waiting for one of the five servers,
+[00:35:40] which is kind of beneficial.
+[00:35:42] And so what we can do is
+[00:35:43] we can pull the fetching of the next idle server up out of the goroutine.
+[00:35:49] And, we pull it up out of the goroutine,
+[00:35:51] now we'll only kick off a goroutine when there is an idle server to use.
+[00:35:56] And then we can kick it off
+[00:35:58] and and you know use that server and put it back
+[00:36:00] and using the server and put it back runs concurrently,
+[00:36:03] but doing the fetch of the idle server inside the loop slows things down,
+[00:36:07] so that there's only ever now number of servers goroutines running
+[00:36:10] instead of number of tasks.
+[00:36:12] And that receive is essentially creating some back pressure to slow down the loop,
+[00:36:16] so it doesn't get too far ahead.
+[00:36:19] And then I mentioned we have to wait for the task to finish,
+[00:36:22] and so we can do that by just at the end of the loop,
+[00:36:24] going over the list again and pulling all the servers out
+[00:36:27] and we've pulled the right number of servers out of the idle list,
+[00:36:30] that means they're all done.
+[00:36:32] And so that's that's the full program.
+[00:36:35] You know to me the most important part of this is that,
+[00:36:38] you still get to write a for loop to iterate over the tasks,
+[00:36:42] there's lots of other languages
+[00:36:43] where you have to do this with state machines or some sort of callbacks,
+[00:36:46] and you don't get the [luxury] of encoding this in the control flow,
+[00:36:50] and so this is a much cleaner way,
+[00:36:53] where you can just use a regular loop.
+[00:36:55] But there are some some changes we could make, some improvements,
+[00:36:59] and so one improvement is to notice that,
+[00:37:02] there's only one goroutine that makes requests of a server at a particular time,
+[00:37:06] so instead of having one goroutine for task,
+[00:37:08] maybe we should have one goroutine per server,
+[00:37:11] because there are probably going to be fewer servers than tasks.
+[00:37:15] And to do that,
+[00:37:15] we have to change from having a channel of idle servers
+[00:37:18] to a channel of yet to be done tasks,
+[00:37:21] and so we've renamed the idle channel to work.
+[00:37:24] And then we also need a done channel
+[00:37:26] to count you know how many tasks are done,
+[00:37:30] so we know when we're completely finished.
+[00:37:32] And so here there's a new function runTasks,
+[00:37:35] and that's going to be the per server function,
+[00:37:38] and we kick off one of them for each server.
+[00:37:40] And runTasks, its job is just to loop over the work channel,
+[00:37:44] run the tasks,
+[00:37:45] and when the server is done,
+[00:37:47] we send true to done,
+[00:37:48] and you know the server tells us that you know it's done,
+[00:37:52] and the server exits when the work channel gets closed,
+[00:37:55] that's what makes that for loop actually stop.
+[00:37:58] So then you having kicked off the servers,
+[00:38:01] we can then just sit there in a loop,
+[00:38:03] and send each task to the work channel,
+[00:38:06] close the work channel and say hey there's no more work coming,
+[00:38:08] all the servers should finish and then and then exit,
+[00:38:10] and then wait for all the servers to tell us that they're done.
+[00:38:15] So in the lab, there were a couple complications,
+[00:38:18] one was that, you might get new servers at any given time,
+[00:38:21] and so we could change that,
+[00:38:23] by saying the servers come in on a channel of strings,
+[00:38:27] and that actually fits pretty well into the current structure,
+[00:38:30] where when you get a new server,
+[00:38:32] you just kick off a new runTasks goroutine,
+[00:38:36] and so the only thing we have to change here is
+[00:38:38] to put that loop into its own goroutine,
+[00:38:40] so that while we're sending tasks to servers,
+[00:38:42] we can still accept new servers
+[00:38:44] and kickoff the runTasks goroutines.
+[00:38:47] But now we have this problem,
+[00:38:48] that we don't really have a good way
+[00:38:49] to tell when all the servers are done,
+[00:38:51] because we don't know how many servers there are,
+[00:38:54] and so we could try to maintain that number as servers come in,
+[00:38:58] but it's a little tricky,
+[00:39:00] and instead we can count the number of tasks that have finished,
+[00:39:03] so we just moved the done sending true done [up align],
+[00:39:07] so that instead of doing it per server,
+[00:39:08] we now do it per task,
+[00:39:10] and at the end of the loop,
+[00:39:11] at the end of the function,
+[00:39:12] we just have to wait for the right number of tasks to be done.
+[00:39:16] And so, so now again we sort of know why these are going to finish,
+[00:39:21] there's actually a deadlock still,
+[00:39:24] and that is that if the number of tasks is is too big,
+[00:39:29] actually I think always,
+[00:39:30] you'll get a deadlock,
+[00:39:31] and if you run this,
+[00:39:32] you know you get this nice thing,
+[00:39:33] where goroutine tells you like hey your goroutines are stop,
+[00:39:36] and the problem is that,
+[00:39:37] we have this runTasks server loop,
+[00:39:41] and the server loop is trying to say hey I'm done,
+[00:39:43] and you're trying to say hey like here's some more work,
+[00:39:45] so if you have more than one task,
+[00:39:47] you'll run into this deadlock,
+[00:39:49] where you're trying to send the next task to a server,
+[00:39:52] I guess it's a few more tasks than servers,
+[00:39:54] you're trying to send the next task to a server,
+[00:39:56] and all the servers are trying to say hey I'm done with the previous task,
+[00:39:59] but you're not there to receive from the done channel.
+[00:40:02] And so again you know it's really nice that the goroutine just hang around,
+[00:40:06] and wait for you know to look at them.
+[00:40:08] And we can fix this,
+[00:40:10] one way to fix this would be to add a separate loop,
+[00:40:14] that actually does a select,
+[00:40:15] that either sends some work
+[00:40:17] or a counts for some of the work being done,
+[00:40:19] that's fine,
+[00:40:21] but a cleaner way to do this,
+[00:40:23] is to take the work sending loop that task sending loop,
+[00:40:26] and put it in its own goroutine,
+[00:40:28] so now it's running independently of the counting loop,
+[00:40:31] and the counting loop can can run
+[00:40:34] and you know unblock servers that are done with certain tasks,
+[00:40:37] while other tasks are still being sent.
+[00:40:41] But the simplest possible fix for this is
+[00:40:44] to just make the work channel big enough,
+[00:40:46] that you're never gonna run out of space.
+[00:40:49] Because we might decide that,
+[00:40:50] you know having a goroutine for task is
+[00:40:53] you know a couple kilobytes for task,
+[00:40:55] but you know an [extra] int in the channel is 8 bytes,
+[00:40:58] so probably you can spend 8 bytes per task.
+[00:41:01] And so if you can,
+[00:41:02] you just make the work channel big enough,
+[00:41:04] that you know that all the sends on work are going to never block,
+[00:41:07] and you'll always get down to the counting loop at the end pretty quickly.
+[00:41:13] And so doing that actually sets us up pretty well for the other [] in the lab,
+[00:41:17] which is that sometimes calls can timeout,
+[00:41:19] and here I've modeled it by the call of returning a false,
+[00:41:22] so just say it didn't work.
+[00:41:25] And so you know in runTasks is really easy to see,
+[00:41:28] like if it's really easy to see,
+[00:41:31] like if the call fails, then,
+[00:41:35] sorry if the call succeeds, then you're done,
+[00:41:37] but if it fails, just put the task back on the work list,
+[00:41:40] and because it's a queue, not a stack,
+[00:41:42] putting it back on the work list
+[00:41:43] is very likely to hand it to some other server.
+[00:41:46] And so that will probably succeed,
+[00:41:50] because it's some other server,
+[00:41:51] and this is all hypothetical,
+[00:41:52] but it's a really,
+[00:41:56] you know it fits really well into the structure that we've created.
+[00:42:01] Alright, and the final change is that,
+[00:42:03] because the server goroutines are sending on work,
+[00:42:05] we do have to wait to close it
+[00:42:07] until we know that they're done sending,
+[00:42:10] and because again you can't close before they finish sending.
+[00:42:14] And so we just have to move the close
+[00:42:16] until after we've counted that all the tasks done,
+[00:42:20] and sometimes we get to this point,
+[00:42:22] and people ask why can't you just kill goroutines,
+[00:42:25] like why not just be able to say,
+[00:42:26] look hey kill all the server goroutines at this point,
+[00:42:28] we know that they're not needed anymore.
+[00:42:30] And the answer is that the goroutines has state
+[00:42:32] and it's interacting with the rest of the program,
+[00:42:34] and if it all of a sudden just stops,
+[00:42:36] it's sort of like it hung, right,
+[00:42:38] and maybe it was holding a lock,
+[00:42:40] maybe it was in the middle of some sort of communication
+[00:42:42] with some other goroutines that was kind of expecting an answer.
+[00:42:45] So we need to find some way to tear them down more gracefully,
+[00:42:48] and that's by telling them explicitly,
+[00:42:49] hey you know you're done, you can go away,
+[00:42:51] and then they can clean up however they need to clean up.
+[00:42:57] You know, speaking of cleaning up,
+[00:42:59] there's there's actually one more thing we have to do,
+[00:43:01] which is to shut down the loop that's watching for new servers,
+[00:43:04] and so we do have to put a select in here,
+[00:43:06] where you know the thing that's waiting for new servers on the server channel,
+[00:43:11] we have to go tell it,
+[00:43:13] okay, we're done, just like stop watching new servers,
+[00:43:15] all the servers are gone.
+[00:43:18] And we could make this the caller's problem,
+[00:43:20] but this is actually fairly easy to do.
+[00:43:24] Alright, so here pattern number 3,
+[00:43:27] which is a client for a replicated server of service.
+[00:43:31] So here's the interface that we want to implement,
+[00:43:34] we have some service that,
+[00:43:37] we want that is replicated for reliability
+[00:43:39] and it's okay for a client to talk to any one of these servers,
+[00:43:43] and so the replicated client is given a list of servers,
+[00:43:48] the arguments to Init is a list of servers,
+[00:43:51] and a function that lets you call one of the servers
+[00:43:54] with a particular argument [] to get a reply.
+[00:43:57] And then being given that during Init,
+[00:44:00] the replicated client then provides a call method,
+[00:44:04] that doesn't tell you what server it's going to use,
+[00:44:07] it just finds a good server to use,
+[00:44:09] and it keeps the same, keeps using the same server for as long as it can,
+[00:44:12] until it finds out that that server is no good.
+[00:44:15] So in this situation,
+[00:44:16] there's almost no shared state that you need to,
+[00:44:19] and so like the only state that persists from one call to next is
+[00:44:22] what server did I use last time,
+[00:44:23] because I'm going to try to use that again.
+[00:44:26] So in this case, that's totally fine for mutex,
+[00:44:28] I'm just going to leave it there,
+[00:44:29] it's always okay to use mutex,
+[00:44:31] if that's the cleanest way to write the code.
+[00:44:34] You know, some people get the wrong impression from how much we talk about channels,
+[00:44:37] but it's always okay to use mutex, if that's all you need.
+[00:44:41] So now we need to implement this replicated Call method,
+[00:44:44] whose job is to try sending to lots of different servers,
+[00:44:48] but first to try the the original server.
+[00:44:51] So, so what does it mean if the try fails,
+[00:44:55] well there's no clear way for it to fail above,
+[00:44:58] it just always returns a reply,
+[00:45:00] and so the only way it can fail is if it's taking too long,
+[00:45:02] so we'll assume that if it takes too long, that means it failed.
+[00:45:06] So in order to deal with timeouts,
+[00:45:08] we have to run that code in the background in a different goroutine.
+[00:45:12] So we can do something like this,
+[00:45:14] where we set a timeout,
+[00:45:16] we create a timer
+[00:45:18] and then we use goroutine to send in the background,
+[00:45:21] and then at the end, we wait
+[00:45:22] and either we get the timeout or we get the actual reply,
+[00:45:26] if we get the actual reply, we return it,
+[00:45:28] and if we get the timeout, we have to do something,
+[00:45:30] we have to figure out what to do.
+[00:45:32] It's worth pointing out that you have to call t.Stop,
+[00:45:37] because otherwise the timer sits in a timer queue,
+[00:45:40] that's going to go off in one second,
+[00:45:42] and so you know if this call took a millisecond,
+[00:45:44] and you have this timer that's going to sit there for the next second,
+[00:45:46] and then you do this on a loop,
+[00:45:48] and you get a thousand timers sitting in that that queue,
+[00:45:51] before they start actually you know a disappearing.
+[00:45:54] And so, this is kind of a work in the API,
+[00:45:57] but it's been there forever and we've never fixed it,
+[00:46:00] and and so you just have to remember to call stop.
+[00:46:04] And then now we have to figure out
+[00:46:06] what do we do in the case of the timeout.
+[00:46:09] And so in the case of the timeout,
+[00:46:10] we're going to need to try a different server,
+[00:46:12] so we'll write a loop,
+[00:46:14] and we'll start at the id, that id 0 it says,
+[00:46:19] and you know if a reply comes in, that's great,
+[00:46:21] and otherwise we'll reset the timeout and go around the loop again,
+[00:46:25] and try sending to a different server.
+[00:46:27] And notice, there's only one done channel in this program,
+[00:46:31] and so on the third iteration of the loop, we might be waiting,
+[00:46:35] and then finally the first server gives us a reply,
+[00:46:38] that's totally fine, we'll take that reply, that's great,
+[00:46:41] and so then we'll stop and return it.
+[00:46:45] And, but if we get all the way through the loop,
+[00:46:47] it means that we've sent the request to every single server,
+[00:46:50] in which case, there's no more timeouts,
+[00:46:51] we just have to wait for one of them to come back,
+[00:46:54] and so that's the [] receive and return at the end.
+[00:46:58] And then it's important to notice that the done channel is buffered now,
+[00:47:03] so that if you know you sent the result to three different servers,
+[00:47:06] you're going to take the first reply and return,
+[00:47:09] but the others are going to want to send responses too,
+[00:47:12] and we don't want those goroutines just sit around forever,
+[00:47:14] trying to send to a channel that we're not reading from,
+[00:47:16] so we make the buffer big enough,
+[00:47:18] that they can send into the buffer and then go away,
+[00:47:20] and the channel just gets garbage collected.
+[00:47:24] We've got a question in the chat,
+[00:47:25] that says,
+[00:47:29] why can't the timer just be garbage collected
+[00:47:31] when nobody's referencing it
+[00:47:32] instead of having to wait when it goes off,
+[00:47:34] when you said that you have multiple waiting,
+[00:47:35] if it goes off in one millisecond.
+[00:47:37] The problem is that timer is referenced by the runtime,
+[00:47:41] it's in the list of active timers,
+[00:47:44] and so calling stop takes it out of the list of active timers.
+[00:47:47] And and so like that's arguably kind of a work in that,
+[00:47:50] like in the specific case of a timer,
+[00:47:52] that's like only gonna ever get used in this channel way,
+[00:47:56] like we could have special case that by having the channel,
+[00:47:59] because inside the timer is this t.C channel, right,
+[00:48:02] so we could have like a different kind of channel implementation,
+[00:48:05] that inside had a bit that said hey I'm a timer channel, right,
+[00:48:08] and and and then like the select on it would like notice to wait,
+[00:48:13] but if you just let go of it, it would just disappear.
+[00:48:15] We've kind of thought about doing that for a while, but we never did,
+[00:48:19] so this is like the state of Go.
+[00:48:21] But but you know the garbage collector can't distinguish
+[00:48:23] between the reference inside the runtime and the reference at the rest of the program,
+[00:48:28] it's all just references,
+[00:48:29] and so until we special case that channel in some way,
+[00:48:33] we can't actually get rid of that.
+[00:48:38] Thank you.
+[00:48:38] Sure.
+[00:48:39] So, so the only thing we have left is to
+[00:48:42] have this preference where we try to use the same id that we did the previous time.
+[00:48:47] And so to do that preference,
+[00:48:51] we you know had the server id coming back in the reply anyway in the result channel,
+[00:48:56] and so you know we do the same sort of loop,
+[00:48:58] but we loop over an offset from the actual id, we're going to use,
+[00:49:01] which is the preferred one,
+[00:49:03] and then we get an answer,
+[00:49:05] we set the preferred one to where we got the answer from
+[00:49:08] and then we reply,
+[00:49:10] and you'll notice that I used a goto statement,
+[00:49:12] that's okay if you need to goto, it's fine,
+[00:49:14] it's not sort of there's no [zealotry] here.
+[00:49:18] Alright, so, the fourth one
+[00:49:21] and then we'll do some questions is protocol multiplexer.
+[00:49:26] And this is the logic of core of any RPC system,
+[00:49:30] and this comes up a lot,
+[00:49:31] I feel like I wrote a lot of these in grad school
+[00:49:33] and sort of years after that.
+[00:49:36] And so the basic API of a protocol multiplexer is that,
+[00:49:39] it's in from some Service,
+[00:49:41] which we're going to pass to the Init method,
+[00:49:44] and then having been initialized with the service,
+[00:49:46] you can call and you can call Call
+[00:49:49] and give a message a request message,
+[00:49:51] and then it'll give you back the reply message at some point,
+[00:49:54] and the things it needs from the service to do multiflexing,
+[00:49:58] is that given a message,
+[00:49:59] it has to be able to pull out the tag that uniquely identifies the message,
+[00:50:03] and will identify the reply,
+[00:50:05] because it will come back in with a matching tag,
+[00:50:07] and then it needs to be able to send a message out and to receive a message,
+[00:50:11] but the send and receive are arbitrary messages are not matched.
+[00:50:17] It's the multiplexer job to actually match them.
+[00:50:21] So, to start with,
+[00:50:23] we'll have a goroutine that's in charge of calling send,
+[00:50:26] and another goroutine that's in charge of calling receive,
+[00:50:28] both in just a simple loop.
+[00:50:30] And so to initialize the service, we set up the structure
+[00:50:33] and it will kick off the send loop and the receive loop
+[00:50:36] and then we also have a map of pending requests,
+[00:50:39] and the map maps from the tag, that we saw the id number in the messages
+[00:50:43] to a channel where the reply is supposed to go.
+[00:50:48] The send loop is fairly simple,
+[00:50:50] you just range over the things that need to be sent
+[00:50:52] and you send them,
+[00:50:53] and this just has the effect of serializing the calls to send,
+[00:50:55] because we're not going to force the service implementation
+[00:50:59] to deal with us sending you know from multiple goroutines at once,
+[00:51:03] we're serializing it,
+[00:51:03] so that it can just be thinking of you sending one packet at a time.
+[00:51:09] And then the receive loop is a little bit more complicated,
+[00:51:12] it pulls a receive, pulls a reply off the service,
+[00:51:16] and again they're serialized, only reading one at a time,
+[00:51:19] and then it pulls the tag out of the reply,
+[00:51:22] and then it says oh I need to find the channel to send this to,
+[00:51:26] so it pulls the channel out of the pending map,
+[00:51:28] it takes it out of the pending map,
+[00:51:30] so that you know if we accidentally get another one,
+[00:51:32] we won't try to send it,
+[00:51:34] and then it sends the reply.
+[00:51:36] And then to do a Call,
+[00:51:38] you just have to set yourself up in the map,
+[00:51:40] and then hand it to send and wait for the reply,
+[00:51:42] so we start off,
+[00:51:44] we get the tag out,
+[00:51:46] we make our own done channel,
+[00:51:48] we insert the tag into the map,
+[00:51:50] and first checking for bugs,
+[00:51:52] and then we send the argument message to send,
+[00:51:56] and then we wait for the reply to come in on done.
+[00:51:58] It's very very simple,
+[00:51:59] I mean like I used to write these sort of things in C
+[00:52:01] and it was it was much much worse.
+[00:52:05] So that was all the patterns that I wanted to show,
+[00:52:08] and I hope that those end up being useful for you
+[00:52:11] in whatever future program yo're writing,
+[00:52:13] and I hope that they're you know just sort of good ideas,
+[00:52:17] even in non Go programs,
+[00:52:19] but that you know thinking about them,
+[00:52:20] and Go can help you when you go to do other things as well.
+[00:52:23] So I'm going to put them all back up.
+[00:52:25] And then I have some questions that Frans sent,
+[00:52:28] that were from all of you.
+[00:52:30] And we'll probably have some time for questions from the chat as well.
+[00:52:36] I have no idea in Zoom where the chat window is,
+[00:52:38] so when we get to that, people can just speak up,
+[00:52:42] I don't use zoom on a daily basis, unfortunately.
+[00:52:46] So, and and normally I know how to use Zoom regularly,
+[00:52:50] but with with the presentation,
+[00:52:51] like Zoom in this minimized thing,
+[00:52:53] that doesn't have half the things I'm used to.
+[00:52:55] Anyway, someone asked how long Go took?
+[00:52:58] And so far it's been about thirteen and a half years,
+[00:53:01] we started discussions in late September 2007,
+[00:53:05] I joined full time in August 2008,
+[00:53:07] when I finished at MIT,
+[00:53:09] we did the initial open-source launch November 2009,
+[00:53:12] we released Go 1, that sort of first stable version in October 2011,
+[00:53:18] sorry the plan was October 2011,
+[00:53:20] Go 1 itself was March 2012,
+[00:53:22] and then we've just been on a regular schedule since then,
+[00:53:25] the next major change of course is going to be Generics,
+[00:53:29] and adding Generics and that's probably gonna be Go 1.18,
+[00:53:33] which is going to be next in February.
+[00:53:37] Someone asks, you know how big a team does it take to build a language like Go?
+[00:53:41] And you know for those first two years, there were just five of us,
+[00:53:45] and that was enough to get us to you know something that we release,
+[00:53:49] that actually could run in production,
+[00:53:52] but it was fairly primitive,
+[00:53:53] you know it was a good prototype,
+[00:53:56] it was a solid working prototype,
+[00:53:57] but it wasn't like what it is today,
+[00:54:00] and over time we've expanded a fair amount,
+[00:54:01] now we're up to something like 50 people,
+[00:54:04] employed directly, employed by Google to work directly on Go,
+[00:54:08] and then there's tons of open source contributors,
+[00:54:10] I mean there's literal cast of thousands,
+[00:54:12] that have helped us over the last 13 years,
+[00:54:14] and there's absolutely no way we could have done it,
+[00:54:16] even with 50 people,
+[00:54:17] without all the different contributions from the outside.
+[00:54:23] Someone asked about design priorities and motivations.
+[00:54:28] And you know we built it for us right,
+[00:54:31] the priority was to build something that was going to help Google,
+[00:54:34] and it just turned out that Google was a couple years ahead,
+[00:54:36] we were just in a really lucky spot,
+[00:54:37] where Google was a couple years ahead of the rest of the industry,
+[00:54:40] on having to write distributed systems right now,
+[00:54:43] everyone using cloud software
+[00:54:45] is writing programs that talk to other programs
+[00:54:47] and sending messages
+[00:54:48] and you know there's hardly any single machine programs anymore,
+[00:54:53] and so you know we sort of [] into at some level,
+[00:54:56] you know building the language,
+[00:54:58] that we the rest of the world needed a couple years later.
+[00:55:02] And then the other thing that was really a priority is
+[00:55:04] making it work for large numbers of programmers,
+[00:55:07] and because Google had a very large number of programmers working in one codebase,
+[00:55:12] and now we have open source,
+[00:55:13] where you know even if you're a small team,
+[00:55:15] you're depending on code that's written by a ton of other people usually,
+[00:55:19] and so a lot of the issues that come up
+[00:55:22] with just having many programmers still come up in that context,
+[00:55:25] so those were really the things we were trying to solve.
+[00:55:28] And you know for all of these things,
+[00:55:30] we took a long time,
+[00:55:32] before we were willing to actually commit to putting something in the language,
+[00:55:35] like everyone basically had to agree in the core original group,
+[00:55:39] and and so that meant that,
+[00:55:41] it took us a while to get the pieces exactly the way we wanted them,
+[00:55:44] but once we got them there,
+[00:55:46] they've actually been very stable and solid and really nice
+[00:55:49] and then work together well.
+[00:55:51] And the same thing is kind of happening with Generics now,
+[00:55:54] where we actually feel,
+[00:55:55] I feel personally really good about Generics,
+[00:55:57] I feel like it feels like the rest of Go,
+[00:56:00] and that just wasn't the case for the proposals that we had,
+[00:56:03] you know even a couple years ago,
+[00:56:05] much less the early ones.
+[00:56:09] Someone said they really liked defer, which is unique to language.
+[00:56:13] And I do too, thank you.
+[00:56:15] But I wanted to point out that,
+[00:56:16] we did absolutely you know create defer for Go,
+[00:56:19] but Swift has adopted it,
+[00:56:21] and I think there's a proposal for C++ to adopt it as well,
+[00:56:24] so you know hopefully it kind of moves out a little bit.
+[00:56:29] There was a question about Go is using capitalization for exporting.
+[00:56:34] And which I know is like something that,
+[00:56:37] you know sort of is [jarring] when you first see it,
+[00:56:40] and the story behind that is that,
+[00:56:41] well, we needed something
+[00:56:43] and we knew that we would need something,
+[00:56:44] but at the beginning, we just said,
+[00:56:46] look everything export, everything publicly visible,
+[00:56:48] we'll deal with it later,
+[00:56:50] and after about a year,
+[00:56:50] it was clear that we needed some way to
+[00:56:53] you know let programmers hide things from other programmers,
+[00:56:56] and you know C++ has this public: and private:,
+[00:57:00] and in a large struct,
+[00:57:02] it's actually really annoying,
+[00:57:03] that you're looking, you're looking at definitions,
+[00:57:06] and you have to scroll backwards
+[00:57:07] and try to find where the most recent public: or private: was,
+[00:57:11] and if it's really big,
+[00:57:12] it can be hard to find one,
+[00:57:13] and so it's hard to tell whether a particular definition is public or private.
+[00:57:17] And then in Java, of course it's at the beginning of every single field,
+[00:57:21] and that seemed kind of excessive too, just too much typing.
+[00:57:25] And so we looked around some more,
+[00:57:26] and and someone pointed out to us,
+[00:57:28] that Python has this convention,
+[00:57:29] where you put an underscore in front to make something hidden
+[00:57:32] and that seemed interesting,
+[00:57:34] but you probably don't want the default to be not hidden,
+[00:57:37] you want the default to be hidden.
+[00:57:39] And then we thought about well we could put a plus in front of names,
+[00:57:45] and then someone suggested,
+[00:57:46] well what about uppercase could be exported,
+[00:57:48] and it seemed like a dumb terrible idea,
+[00:57:51] it really did,
+[00:57:53] but as you think about it,
+[00:57:54] like I really didn't like this idea,
+[00:57:56] and I have a very clear memory of sitting in the room,
+[00:58:00] and what I was [staring] at as we discussed this,
+[00:58:03] but I had no logical argument against it,
+[00:58:04] and it turned out, it was fantastic,
+[00:58:06] it was like it seemed bad just like aesthetically,
+[00:58:10] but it is one of my favorite things now about Go,
+[00:58:12] that when you look at a use of something,
+[00:58:14] you can see immediately,
+[00:58:16] you get that bit of,
+[00:58:17] is this something that other people can access or not,
+[00:58:20] at every use,
+[00:58:21] because if you see code calling a function
+[00:58:23] to do you know whatever it is that it does,
+[00:58:25] you think, oh wow can other people do that,
+[00:58:28] and you know your brain sort of takes care of that,
+[00:58:30] but now I go to C++
+[00:58:31] and I see calls like that,
+[00:58:33] and I get really worried about,
+[00:58:34] is that, is that something other classes can get at,
+[00:58:37] and having that bit actually turns out to be really useful for reading code.
+[00:58:43] A couple people ask about Generics.
+[00:58:45] If you don't know,
+[00:58:46] we have an active proposal for Generics,
+[00:58:48] we're actively working on implementing it,
+[00:58:50] we hope that the released later in the year,
+[00:58:53] towards the end of the year,
+[00:58:54] we'll actually have a full version of Generics,
+[00:58:57] you can, you can actually use,
+[00:58:58] the that'll be a preview release,
+[00:59:01] the real release that we hope it will be in is Go 1.18,
+[00:59:05] which is February of next year,
+[00:59:06] so maybe next class,
+[00:59:08] we'll actually get to use Generics,
+[00:59:09] we'll see.
+[00:59:11] But I'm certainly looking forward to having a generic min and max,
+[00:59:14] the reason we don't have those is that,
+[00:59:15] we have to pick which type they were for
+[00:59:17] or you have a whole suite of them,
+[00:59:18] and it just seems silly,
+[00:59:19] it seems like we should wait for Generics.
+[00:59:23] Someone asked, is there any area of programming,
+[00:59:26] where Go may not be the best language, but it's still used?
+[00:59:29] And and the answer is absolutely,
+[00:59:31] like that happens all the time with every language.
+[00:59:35] I think Go is actually really good all-around language,
+[00:59:38] but you know you might use it for something that's not perfect for,
+[00:59:42] just because the rest of your program is written in Go,
+[00:59:44] and you want to inter operate with the rest of the program,
+[00:59:46] so there's this website called the On-Line Encyclopedia of Integer Sequences,
+[00:59:50] it's a search engine,
+[00:59:51] you type in like 2 3 5 7 11,
+[00:59:53] and it tells you those are the primes,
+[00:59:55] and it turns out that, the backend for that is all written in Go,
+[00:59:59] and if you type in a sequence,
+[01:00:00] it does you know it actually does some pretty sophisticated math on the numbers,
+[01:00:03] all with big numbers and things like that,
+[01:00:05] and all of that is written in Go too,
+[01:00:07] because it was too annoying to shell out to make [] mathematic
+[01:00:10] and sort of do that cross language thing,
+[01:00:12] even though you'd much rather implement in those languages,
+[01:00:15] so you know you run into those sorts of compromises all the time and that's fine.
+[01:00:23] Someone asked about, Go is supposed to be simple,
+[01:00:26] so that's why there's no Generics and no sets,
+[01:00:29] but isn't it also for software developers
+[01:00:31] and don't software developers need all this stuff
+[01:00:33] and it's silly to reconstruct it.
+[01:00:35] And I think that it's true that there's someone intention,
+[01:00:38] but but simplicity in the sense of leaving things out was not ever the goal,
+[01:00:43] so like for sets,
+[01:00:45] it just seemed like maps are so close to sets,
+[01:00:47] you just have a map where the value is empty or a boolean,
+[01:00:51] that's a set,
+[01:00:52] and for Generics,
+[01:00:53] like you have to remember that when we started Go in 2007,
+[01:00:57] Java was like just finishing a true fiasco of rollout of Generics,
+[01:01:03] and so like we were really scared of that,
+[01:01:05] we knew that if we just tried to do it,
+[01:01:07] you know we would get it wrong,
+[01:01:09] and we knew that we could write a lot of useful programs without Generics.
+[01:01:12] And so that was what we did.
+[01:01:14] And then we came back to it,
+[01:01:16] when we felt like okay we've spent enough time writing other programs,
+[01:01:20] we kind of know a lot more about what we need from from generics for Go,
+[01:01:24] and we can take the time to talk to real experts,
+[01:01:27] and I think that you know it would have been nice to have them five or ten years ago,
+[01:01:31] but we wouldn't have had the really nice one that we're going to have now,
+[01:01:35] so I think it was probably the right decision.
+[01:01:40] So there was a question
+[01:01:42] about goroutines and the relation to the Plan 9 thread library,
+[01:01:45] which was all cooperatively scheduled,
+[01:01:47] and whether goroutines were ever properly scheduled
+[01:01:49] and if that caused problems?
+[01:01:51] And it is absolutely the case,
+[01:01:53] that like Go and the goroutine runtime
+[01:01:56] were sort of inspired by previous experience on Plan 9,
+[01:02:00] there was actually a different language called Alef
+[01:02:02] on an early version Plan 9,
+[01:02:04] that was compiled, it had channels, it had select,
+[01:02:08] it had things we called tasks,
+[01:02:10] which were a little bit like goroutines,
+[01:02:11] but it didn't have a garbage collector
+[01:02:12] and that made things really annoying in a lot of cases,
+[01:02:15] and also the way that tasks work,
+[01:02:17] they were tied to a specific thread,
+[01:02:19] so you might have three tasks in one thread
+[01:02:21] and two tasks in another thread,
+[01:02:24] and in the three tasks in the first thread,
+[01:02:26] they only one ever ran at a time,
+[01:02:28] and they could only rescheduled during a channel operation,
+[01:02:30] and so you would write code,
+[01:02:32] where those three tasks were all operating on the same data structure,
+[01:02:35] and you just knew,
+[01:02:36] because it was in your head when you wrote it,
+[01:02:39] that you know it was okay,
+[01:02:40] for these two different tasks to be scribbling over the same data structure,
+[01:02:43] because they could never be running at the same time.
+[01:02:46] And, meanwhile in the other thread,
+[01:02:47] you've got the same situation going on with different data and different tasks,
+[01:02:51] and then you come back to the same program like six months later,
+[01:02:53] you totally forget which task could write to different pieces of data,
+[01:02:57] and I'm sure that we had tons of races,
+[01:02:59] I mean it was just it was a nice model for small programs,
+[01:03:01] and it was a terrible model for programming over a long period of time
+[01:03:05] or having a big program that other people had to work on.
+[01:03:08] So, so that was never the model for Go,
+[01:03:10] the model for Go was always,
+[01:03:11] it's good to have these lightweight goroutines,
+[01:03:14] but they're gonna all be running independently,
+[01:03:16] and if they're going to share anything they need to use locks,
+[01:03:18] or they need to use channels to communicate and coordinate explicitly.
+[01:03:23] And that that has definitely scaled a lot better than any of the plain line stuff ever did,
+[01:03:28] you know sometimes people hear that goroutines are cooperatively scheduled,
+[01:03:32] and they they think you know something more like that,
+[01:03:35] it's it's true that early on,
+[01:03:38] the goroutines were not as preemptively scheduled as you would like,
+[01:03:41] so in the very very early days,
+[01:03:43] the only preemption points when you called into the runtime,
+[01:03:46] shortly after that,
+[01:03:47] the preemption points where any time you entered a function,
+[01:03:51] but if you were in a tight loop for a very long time,
+[01:03:53] that would never preempt
+[01:03:55] and that would cause garbage collector delays,
+[01:03:57] because the garbage collector need to stop all the goroutines,
+[01:03:59] and there be some goroutines stuck in a tight loop,
+[01:04:01] and it would take forever to finish the loop,
+[01:04:03] and so actually in the last couple releases,
+[01:04:06] we've finally started,
+[01:04:07] we figured out,
+[01:04:07] how to get a unique signals to deliver to threads in just the right way,
+[01:04:11] so that and we can have the right bookkeeping
+[01:04:14] to actually be able to use that as a preemption mechanism.
+[01:04:17] And so now things are,
+[01:04:18] I think the preemption delays for garbage collection are actually done finally,
+[01:04:22] but from the start, the model has been that you know they're running preemptively,
+[01:04:27] and they don't get control over when they get preempted.
+[01:04:31] As a sort of following question,
+[01:04:33] someone else asked,
+[01:04:34] where they can look in the source tree
+[01:04:36] to learn more about goroutines and goroutine scheduler.
+[01:04:40] And the answer is that,
+[01:04:41] this is basically a little operating system,
+[01:04:43] like it's a little operating system that sits on top of the other operating system,
+[01:04:46] instead of on top of CPUs.
+[01:04:49] And so the first thing to do is take 6.828,
+[01:04:51] which is like I I mean I I worked on 6.828 and xv6,
+[01:04:56] like literally like the year to before I went do the Go runtime,
+[01:04:59] and so there's a huge amount of situate in the Go runtime.
+[01:05:02] And in the actual Go runtime directory,
+[01:05:05] there's a file called proc.go,
+[01:05:07] which is you know proc stands process,
+[01:05:09] because that's what it is in the operating systems,
+[01:05:11] and I would start there,
+[01:05:13] that's the file to start with
+[01:05:14] and then sort of pull on strings.
+[01:05:18] Someone asked about Python, sort of negative indexing,
+[01:05:21] where you can write x[-1],
+[01:05:24] and that comes up a lot,
+[01:05:25] especially from Python programmers,
+[01:05:27] and and it seems like a really great idea
+[01:05:29] you write these really nice elegant programs,
+[01:05:31] where you want to get the last element,
+[01:05:32] you just say x[-1].
+[01:05:34] But the real problem is that you have x of i,
+[01:05:37] and you have a loop,
+[01:05:38] that's like counting down from from you know n to 0,
+[01:05:41] and you have an off by 1 somewhere,
+[01:05:42] and now x of -1 instead of being x of i,
+[01:05:46] when i is -1,
+[01:05:47] instead of being an error,
+[01:05:48] where you immediately say hey, there's a bug I need to find that,
+[01:05:51] it just silently grabs the element off the other end of the array,
+[01:05:55] and that's where you know the sort of Python,
+[01:05:59] you know simplicity makes things worse,
+[01:06:02] and so that was why we left it out,
+[01:06:03] because it was going to hide bugs too much, we thought.
+[01:06:08] You know you could imagine something,
+[01:06:09] where you say like x of $-1, len-1,
+[01:06:12] not len of x, but just len,
+[01:06:14] but you know it seemed like too much of a special case,
+[01:06:17] and really it doesn't come up enough.
+[01:06:20] Someone asked about,
+[01:06:23] you know what aspect of Go was hardest to implement?
+[01:06:27] And honestly like a lot of this is not very hard,
+[01:06:29] we've done most of this before,
+[01:06:32] we've written operating systems
+[01:06:33] and reading libraries and channel implementations,
+[01:06:35] and so doing all that again was fairly straightforward,
+[01:06:38] the hardest thing was probably the garbage collector,
+[01:06:42] Go is unique among garbage collected languages,
+[01:06:44] and that it gives programmers a lot more control over memory layout,
+[01:06:48] so if you want to have a structure with two different other structures inside it,
+[01:06:51] that's just one big chunk of memory,
+[01:06:53] it's not a struct with pointers to to other chunks of memory.
+[01:06:56] And because of that,
+[01:06:57] and you can take the address of the second field in struct
+[01:07:00] and pass that around,
+[01:07:01] and that means the garbage collector has to be able to deal with a pointer,
+[01:07:04] that could point into the middle of an allocated object,
+[01:07:06] and that's just something that Java and Lisp and other things just don't do.
+[01:07:10] And so that makes the garbage collector a lot more complicated
+[01:07:14] in how it maintains its data structures.
+[01:07:16] And we also knew from the start,
+[01:07:18] that you really want low latency,
+[01:07:20] because if you're handling network requests,
+[01:07:22] you can't, you know just pause for 200 milliseconds while,
+[01:07:26] and block all of those in progress request to do a garbage collection,
+[01:07:30] it really needs to be you know low latency and not stop things,
+[01:07:33] and we thought that multi-core would be a good good opportunity there,
+[01:07:37] because we could have the garbage collector doing one core,
+[01:07:40] and the Go program using the other cores,
+[01:07:42] and that might work really well,
+[01:07:43] and that actually did turn out to work really well,
+[01:07:46] but it required hiring a real expert in garbage collection
+[01:07:49] to like figure out how to do it,
+[01:07:52] and make it work,
+[01:07:53] but now it's really great.
+[01:07:56] I I have a quick question,
+[01:07:58] you said like if it's struct,
+[01:08:01] like it's declared inside another struct,
+[01:08:04] it actually is a big chunk of memory.
+[01:08:06] Yeah.
+[01:08:07] Why, why did you implement it like that,
+[01:08:09] what's the reason behind that?
+[01:08:11] Well, so there's a couple reasons,
+[01:08:13] one is for a garbage collector, it's a service,
+[01:08:16] and the load on the garbage collector is proportional to the number of objects you allocate,
+[01:08:20] and so if you have a struct of five things in it,
+[01:08:22] you can make that one allocation,
+[01:08:24] that's a fifth of the load on the garbage collector,
+[01:08:27] and that turns out to be really important.
+[01:08:28] But the other thing that's really important is cache locality, right,
+[01:08:32] like if you have the processor is pulling in chunks of memory
+[01:08:35] in 64 byte chunks or whatever it is,
+[01:08:37] and it's much better reading memory that's altogether
+[01:08:40] than reading memory that's scattered.
+[01:08:42] And so you know we have a Git server at Google called Gerrit,
+[01:08:46] that is written in Java,
+[01:08:47] and it was just starting at the time that Go was just coming out,
+[01:08:51] and we just missed like Gerrit being written and Go,
+[01:08:54] I think by a year,
+[01:08:56] we talked to the guy who had written Gerrit,
+[01:08:59] and he said that one of the biggest problems in Gerrit was like,
+[01:09:02] you have really [?short one hashes],
+[01:09:04] and just having the idea of 20 bytes,
+[01:09:07] it is impossible to have in Java,
+[01:09:08] you can't just have 20 bytes in struct,
+[01:09:10] you have to have a pointer to an object,
+[01:09:12] and the object like,
+[01:09:14] you, you can't even have 20 bytes in the object,
+[01:09:16] you have to declare five different [] something like that,
+[01:09:19] to get 20 bytes,
+[01:09:20] and there's just no good way to do it,
+[01:09:22] and it's just the overhead of just a simple thing like that,
+[01:09:25] really adds up.
+[01:09:27] And so you know we thought
+[01:09:29] giving programmers control over memory was really important.
+[01:09:35] So, another question was was about automatic parallelization,
+[01:09:39] like for loops and things like that,
+[01:09:40] we don't do anything like that at the standard Go tool chain,
+[01:09:43] there are Go compilers for Go frontend for GCC and LLVM,
+[01:09:47] and so to the extent,
+[01:09:48] Go those do those kind of loop optimization in C,
+[01:09:51] I think you know we get the same from the Go [] for those,
+[01:09:54] but it's not the kind of parallelization that we typically need at Google,
+[01:09:59] it's it's more you know lots of servers running different things,
+[01:10:03] and and so you know that sort of,
+[01:10:05] you know like the sort of big vector math kind of stuff,
+[01:10:08] doesn't come up as much,
+[01:10:08] so it just hasn't been that important to us.
+[01:10:12] And then the last question I have right now,
+[01:10:15] is that someone asked about,
+[01:10:17] how do you decide when to acquire release locks,
+[01:10:19] and why don't you have re-entered locks?
+[01:10:21] And for that, I want to go back a slide,
+[01:10:23] let me see, yeah, here,
+[01:10:26] so like during the lecture,
+[01:10:29] I said things like the lock,
+[01:10:30] like mu protects the map or protects the data,
+[01:10:33] but what we really mean at that point is that,
+[01:10:35] we're saying that a lock protects some collection of invariance,
+[01:10:39] that apply to the data, that are true of the data,
+[01:10:41] and the reason we have a lock is
+[01:10:43] to protect the operations that depend on the invariance,
+[01:10:46] and that sometimes temporarily invalidate the invariance from each other.
+[01:10:51] And so when you call lock,
+[01:10:52] what you're saying is,
+[01:10:54] I need to make use of the invariance that this lock protects,
+[01:10:57] and when you call unlock,
+[01:10:58] what you're saying is I don't need them anymore,
+[01:11:00] and if I temporarily invalidated them,
+[01:11:03] I've put them back,
+[01:11:04] so that the next person who calls lock will see correct invariance.
+[01:11:09] So in the Mux, you know we want the invariant,
+[01:11:11] that each registered pending channel gets at most one reply,
+[01:11:16] and so to do that,
+[01:11:16] when we take done out of the map,
+[01:11:18] we also delete it from the map before we unlock it,
+[01:11:22] and if there was some separate cancel operation,
+[01:11:24] that was directly manipulating the map as well,
+[01:11:26] it could lock the,
+[01:11:28] it could call lock,
+[01:11:29] it could take the thing out, call unlock,
+[01:11:32] and then, if it actually found one it would know,
+[01:11:35] no one is going to send to that anymore,
+[01:11:37] because I took it out,
+[01:11:38] whereas if you know we had written this code
+[01:11:41] to have an extra unlock and relock
+[01:11:44] between the done equals pending of tag and the delete,
+[01:11:47] then you wouldn't have that protection of the invariance anymore,
+[01:11:51] because you would have put things back,
+[01:11:53] you've unlocked and relocked,
+[01:11:54] while the invariance were broken.
+[01:11:56] And so it's really important to
+[01:11:59] correctness to think about locks is protecting invariance.
+[01:12:03] And and so if you have reentrant locks,
+[01:12:06] all that goes out the window,
+[01:12:08] without the reentrant lock,
+[01:12:09] when you call lock,
+[01:12:10] on the next line,
+[01:12:11] you know, okay, the lock just got acquired,
+[01:12:14] all the invariant are true,
+[01:12:16] if you have a reentrant lock,
+[01:12:17] all you know is,
+[01:12:18] well, all the invariants were true,
+[01:12:21] for whoever locked this the first time,
+[01:12:22] we might be way up here on my call stack,
+[01:12:25] and you really know nothing,
+[01:12:27] and so that makes it a lot harder to reason about what can you assume,
+[01:12:32] and so I think the reentrant locks are really unfortunate part of Java's legacy.
+[01:12:36] Another big problem with reentrant locks is that,
+[01:12:38] if you have code where you know you call something
+[01:12:41] and it is depending on a reentrant lock,
+[01:12:43] or something where you've acquired the lock up above,
+[01:12:46] and then at some point you say you know what,
+[01:12:48] actually I want to have a timeout on this
+[01:12:50] or I want to do it you know in some other goroutine,
+[01:12:52] while I wait for something else,
+[01:12:54] when you move that code to a different goroutine,
+[01:12:56] reentrant always means locked on the same stack,
+[01:12:59] that's the only plausible thing it could possibly mean,
+[01:13:02] and so if you move the code
+[01:13:03] that was doing the reentrant lock onto a different stack,
+[01:13:07] then it's going to deadlock,
+[01:13:08] because deadlock is now actually going to be a real lock acquire,
+[01:13:11] and it's going to be waiting for you to let go of the lock,
+[01:13:13] you're not going to let go of it,
+[01:13:14] because you think that code needs to finish running.
+[01:13:17] So it's actually completely fundamentally incompatible with restructurings,
+[01:13:20] where you take code
+[01:13:21] and run it in different threads or different goroutines.
+[01:13:24] And so anyway, my advice there is
+[01:13:26] to just think about locks protecting invariants,
+[01:13:28] and then you know just avoid depending on reentrant locks,
+[01:13:31] it it really just doesn't scale well to real programs.
+[01:13:36] So I'll put this list back up,
+[01:13:37] actually we have that up long enough,
+[01:13:39] I can try to figure out
+[01:13:39] and stop presenting.
+[01:13:41] And then I can take a few more questions,
+[01:13:47] anyone has?
+[01:13:48] I had a question,
+[01:13:50] I mean I I think coming from Python gets very useful, right,
+[01:13:55] it's very common to use like standard functional operations,
+[01:13:59] like map or filter stuff like that,
+[01:14:03] like, like list comprehension,
+[01:14:06] and when you know I switched over to Go and started programming,
+[01:14:11] it's used, I I looked it up
+[01:14:13] and people say you shouldn't do this, do this with Go.
+[01:14:16] Right.
+[01:14:16] I was wondering why.
+[01:14:18] Well, I mean one is that,
+[01:14:20] you can do it the other way,
+[01:14:21] so you might just do the way you can do it,
+[01:14:24] but a bigger a bigger issue is that.
+[01:14:28] Well, there's, that one answer,
+[01:14:30] the other answer is that,
+[01:14:31] you know if you do it that way,
+[01:14:34] you actually end up creating a lot of garbage,
+[01:14:36] and if you care about not putting too much load on the garbage collector,
+[01:14:39] that kind of is another way to avoid that,
+[01:14:42] you know, so if you've got a map and then a filter and then another map,
+[01:14:46] like you can make that one loop over the data
+[01:14:48] instead of three loops over the data,
+[01:14:49] each of which generate a new piece of garbage.
+[01:14:53] But you know now that we have Generics coming,
+[01:14:56] you'll actually be able to write those functions,
+[01:14:58] like you couldn't actually write what the type [] of those functions were before,
+[01:15:01] and so you literally couldn't write them,
+[01:15:03] and python gets away with this,
+[01:15:04] because there's no static types.
+[01:15:07] But now we're actually going to have a way to do that,
+[01:15:09] and I totally expect that once Generics go in there,
+[01:15:11] will be a package slices
+[01:15:12] and if you import slices,
+[01:15:13] you can do slices.map and slices.filter and slices.unique or something like that,
+[01:15:18] and I think those will all happen,
+[01:15:20] and you know if if that's the right thing, then that's great.
+[01:15:26] Thanks.
+[01:15:27] Sure.
+[01:15:29] I have.
+[01:15:30] That one of the hints that you had,
+[01:15:32] it was about running goroutines that are independent like concurrently,
+[01:15:40] and some of the examples of the code,
+[01:15:42] I think I couldn't understand,
+[01:15:45] it seems to me,
+[01:15:45] like you can just like call the function in the same thread
+[01:15:50] rather than a different thread,
+[01:15:52] and I was not sure why you would call it in a different thread.
+[01:15:56] So, usually it's because you want them to proceed independently,
+[01:16:01] so so in one of the one of the examples, we had,
+[01:16:05] like the there was a loop that was sending you know tasks to the work queue,
+[01:16:11] but there was the servers were running in different goroutines,
+[01:16:14] and reading from the work queue and doing work,
+[01:16:16] but then when they were done,
+[01:16:17] they would send, you know hey I'm done now to the done channel,
+[01:16:21] but a sending Go doesn't complete
+[01:16:23] until the receive actually matches with it,
+[01:16:26] and so if the thing that's sending on the work queue
+[01:16:29] is not going to start receiving from the done channel
+[01:16:32] until it's done sending to all the work queues,
+[01:16:34] or sending all the work in all the tasks in the work queue,
+[01:16:37] then now you have a deadlock,
+[01:16:38] because the main thread,
+[01:16:41] the main goroutine is trying to send new work to the servers,
+[01:16:44] the servers are not taking new work,
+[01:16:46] they're trying to tell the main thread that they're done,
+[01:16:48] but the main thread not going to actually start at
+[01:16:50] like reading from the done channel
+[01:16:52] until it finishes giving out all the work,
+[01:16:54] and so there's just staring at each other,
+[01:16:56] waiting for different things to happen,
+[01:16:58] whereas if we take that loop,
+[01:17:00] that if we just put the little goroutine around the loop that's sending the work,
+[01:17:03] then that can go somewhere else,
+[01:17:05] and then it can proceed independently,
+[01:17:07] and while it's stuck, waiting for the servers to to take more work,
+[01:17:11] the servers are stuck waiting for the main goroutine
+[01:17:14] to acknowledge that it finished some work,
+[01:17:17] and now the main goroutine actually gets down to the loop,
+[01:17:20] that pulls it finishes that actually acknowledges that finish the work,
+[01:17:24] that reads from the done channel,
+[01:17:25] and so it's just a way to separate out,
+[01:17:27] you know these are two different things that logically,
+[01:17:29] they didn't have to happen one after the other,
+[01:17:32] and because they were happening one after the other, that caused a deadlock,
+[01:17:35] and by taking one out and moving it, let it run independently,
+[01:17:38] that removes the deadlock.
+[01:17:42] Thank you so much.
+[01:17:43] Sure.
+[01:17:44] Could you talk a little bit about how Go's race detector is implemented?
+[01:17:48] Sure, it is the LLVM race detector,
+[01:17:50] and so that probably doesn't help,
+[01:17:53] but it is exactly the thing that LLVM calls ThreadSanitizer,
+[01:17:57] and, and so we actually have a little binary blob that we link against,
+[01:18:02] because we don't want to depend on all of LLVM,
+[01:18:05] but it's the LLVM race detector.
+[01:18:07] And the way the LLVM race detector works is that,
+[01:18:09] it allocates a ton of extra virtual memory,
+[01:18:12] and then based on the address of of the thing being read or written,
+[01:18:16] it has this other you know spot in virtual memory,
+[01:18:18] where it records information about like the last thread,
+[01:18:23] you know it thinks of threads, but they're goroutines,
+[01:18:26] has when the last thread that did a read or write,
+[01:18:28] and then also every time asynchronizing event happens,
+[01:18:31] like you know communication from one goroutine to another,
+[01:18:35] that counts as establishing,
+[01:18:37] it happens before ends between two different goroutines,
+[01:18:40] and if you ever get something where you have a read a write,
+[01:18:44] and they're not properly sequence, right,
+[01:18:46] like so if you have a read
+[01:18:47] and then it happens before something in another goroutine
+[01:18:49] which then later does the write,
+[01:18:51] that's fine,
+[01:18:52] but if you have a read and a write
+[01:18:54] and there's no happens before sequence that connects them,
+[01:18:56] then that's a race,
+[01:18:58] and it actually you know has some pretty clever ways
+[01:19:02] to dynamically figure out quickly,
+[01:19:04] you know did this read happen,
+[01:19:07] is there happens before [],
+[01:19:08] between this read and write as they happen,
+[01:19:10] and it slows down the program by maybe 10x,
+[01:19:13] but you know if you just divert a small amount of traffic there,
+[01:19:16] that's probably fine,
+[01:19:17] if its for testing, that's also probably fine,
+[01:19:20] it's way better than not finding out about the races,
+[01:19:22] so it's totally worth it.
+[01:19:23] And honestly ten or twenty x is fantastic,
+[01:19:27] the original ThreadSanitizer was more like a hundred a thousand x,
+[01:19:30] and that was not good enough.
+[01:19:32] Well, what's the race detector called, LLVM?
+[01:19:35] It's called ThreadSanitizer,
+[01:19:36] but it's part of LLVM, which is the clang C compiler,
+[01:19:40] the one that almost everyone uses now,
+[01:19:44] is part of the LLVM project.
+[01:19:55] Can you talk about slices and the design choices,
+[01:19:57] having them as [views] on arrays,
+[01:20:00] which like confused me at first.
+[01:20:01] Yeah, it is a little confusing at first,
+[01:20:05] the main thing is that,
+[01:20:07] you want it to be efficient to kind of walk through an array,
+[01:20:09] or like if you can quick sort or merge sort or something,
+[01:20:12] where you have an array of things,
+[01:20:14] and now you want to say,
+[01:20:14] well now sort this half, then sort the other half,
+[01:20:17] you want to be able to efficiently say,
+[01:20:18] like here, this is half of the previous one, like you know sort that,
+[01:20:22] and so, in C the way you do that is,
+[01:20:25] you just pass in
+[01:20:27] you know the pointer to the first element and the number of elements,
+[01:20:30] and that's basically all the slices,
+[01:20:32] and then the other pattern that comes up a lot,
+[01:20:34] when you're trying to be efficient with arrays,
+[01:20:37] is you have to grow them,
+[01:20:39] and and so you don't want to recall reallocate on every single new element,
+[01:20:43] you want to amortize that,
+[01:20:45] and so the way you do that in C again is that,
+[01:20:48] you have a base pointer,
+[01:20:49] you have the length that you're using right now,
+[01:20:51] and you have the length that you allocated,
+[01:20:52] and then to add one,
+[01:20:54] you check and see if the length is bigger than the amount you allocate,
+[01:20:57] if so you reallocate,
+[01:20:58] and otherwise you just keep bumping it forward,
+[01:21:00] and and slices are really just an [encoding of those idioms],
+[01:21:04] because those are the most efficient way to manage the memory.
+[01:21:07] And so in any kind of like C++ vector or something like that,
+[01:21:12] that's what's going on underneath,
+[01:21:14] but it makes it a lot harder to,
+[01:21:16] like the C++ vector,
+[01:21:18] because of ownership reasons,
+[01:21:20] the vector is tied to the actual underlying memory,
+[01:21:23] it's a lot harder to get like a sub vector,
+[01:21:25] that's just the view on the second half for merge sort.
+[01:21:29] So that's sort of the idea,
+[01:21:31] is that just like there are all these patterns
+[01:21:32] for accessing memory efficiently that came from C,
+[01:21:35] and we tried to make them fit into Go,
+[01:21:37] in an idiomatic way, in a safe way.
+[01:21:42] Can you talk about how you decided to
+[01:21:45] implement the Go like remote module system,
+[01:21:48] where you import directly from a URL, which is like.
+[01:21:50] Yeah, I mean I just didn't want to run a service
+[01:21:54] and like like you know a lot of the things like Ruby gems,
+[01:21:58] and those were not as for at the front of my mind at the time,
+[01:22:02] just because they were newer,
+[01:22:03] but I had used Perl for a while
+[01:22:05] and like CPAN, and I just thought it was insane,
+[01:22:08] that like everyone was fighting over these short names like db,
+[01:22:11] you know there probably should be an argument
+[01:22:14] over who gets to make the "db" package.
+[01:22:18] And so putting domain names in the front,
+[01:22:20] seemed like a good way to decentralize it,
+[01:22:22] and it was also a good way for us not to run any server,
+[01:22:24] because you know we could just say,
+[01:22:26] well we'll recognize the hostname,
+[01:22:27] and then Go grab it from source control,
+[01:22:30] from someone else's server,
+[01:22:31] and that turned out to be a really great idea I think,
+[01:22:34] because we just don't have that kind of same infrastructure,
+[01:22:37] that other things depend on.
+[01:22:40] But in the Java world, it's actually really problematic,
+[01:22:43] there are multiple, there's no sort of standard registry,
+[01:22:46] but they all use these short names,
+[01:22:48] and so like maven can be configured to build from multiple different registries,
+[01:22:53] and if you're an open-source software package provider,
+[01:22:56] you actually have to go around
+[01:22:57] and be sure that you upload it to all the different registries,
+[01:23:00] because if you miss one
+[01:23:02] and it becomes popular,
+[01:23:03] someone else will upload different code to that one,
+[01:23:05] and then like maven actually just takes whichever one comes back first,
+[01:23:09] it just sends a request to all of them
+[01:23:10] and whatever comes back first,
+[01:23:12] so you know if someone wants to make a malicious copy of your package,
+[01:23:15] he could do is find some registry other people use that you forgot to upload it to,
+[01:23:18] and like you know they get to win the race sometimes,
+[01:23:21] so it's a real problem,
+[01:23:23] I think having domain there
+[01:23:24] really helps split up the ownership in a really important way.
+[01:23:29] Thank you.
+[01:23:29] Sure.
+[01:23:35] What the, maybe take a quick pause here,
+[01:23:38] if people that have to go can go,
+[01:23:40] I'm sure Russ is willing to stick around for a bit longer
+[01:23:43] and answer any questions,
+[01:23:44] but I do want to thank Russ for giving this lecture,
+[01:23:48] hopefully this will help you writing more good Go programs,
+[01:23:51] with these patterns,
+[01:23:53] and so thank you Russ.
+[01:23:56] You're welcome, it's nice to be here.
+[01:24:00] And then more questions, feel free to ask questions.
+[01:24:03] Yeah.
+[01:24:04] Oh, just a little logistical thing,
+[01:24:06] the slides that are on the 6.824 website
+[01:24:09] are not exactly the same as Russ's slides.
+[01:24:12] I'll get Frans a new PDF.
+[01:24:18] A more general question about,
+[01:24:21] when is writing a new language,
+[01:24:23] the like the best solution to a problem.
+[01:24:26] That's a great question,
+[01:24:27] it's almost never the best solution.
+[01:24:30] But you know at the time we had just an enormous number of programmers,
+[01:24:34] like thousands of programmers working in one codebase
+[01:24:37] and the compilations were just taking forever,
+[01:24:40] because C++ was just not meant for efficient incremental compilation.
+[01:24:46] And so and furthermore at the time like threading library were really awful
+[01:24:53] like people just didn't use threads,
+[01:24:54] I remember like one of the first days I was at MIT
+[01:24:56] and talking to Robert,
+[01:24:57] and Robert said to me,
+[01:24:58] like in 2001, he said to me,
+[01:25:00] like we don't use threads here,
+[01:25:01] because threads are slow.
+[01:25:02] And and that was like totally normal,
+[01:25:04] that was just the way the world at the time.
+[01:25:08] And at Google we're having a lot of trouble,
+[01:25:10] because it was all event based callbacks at C++,
+[01:25:14] and there were these multi-core machines,
+[01:25:16] and we actually didn't know how to get things to work on them,
+[01:25:18] because like Linux threads were not something you could rely on to work,
+[01:25:22] and so we ended up like if you had a four core machine,
+[01:25:25] you just run four different process
+[01:25:27] in completely independent processes of the web server
+[01:25:29] and just treat it as like four machines,
+[01:25:31] and that was clearly not very efficient,
+[01:25:34] so there were a lot of good reasons to try something.
+[01:25:39] But you know it's a huge amount of work
+[01:25:41] to get to the point where Go is today,
+[01:25:43] and I think that, so much is not the language, right,
+[01:25:46] there were important things that we made in the language,
+[01:25:48] that enable other considerations,
+[01:25:51] but so much of the successful languages,
+[01:25:54] the ecosystem that built up around it
+[01:25:56] and the tooling that we built in the Go command,
+[01:25:58] and like all these like not the language things,
+[01:26:00] so, you know primary language,
+[01:26:02] people who are focused on the language itself,
+[01:26:05] I think sometimes get distracted by all the stuff around,
+[01:26:07] like they miss all the stuff around it.
+[01:26:15] Oh, can I ask a lot from that?
+[01:26:17] Yeah.
+[01:26:18] I was wondering how was working on Go different now,
+[01:26:22] since it's more mature than it was before.
+[01:26:26] Oh, that's a great question,
+[01:26:29] you know in the early days,
+[01:26:30] it was so easy to make changes,
+[01:26:32] and now it's really hard to make changes,
+[01:26:34] I think that's the number one thing.
+[01:26:36] You know in the early days,
+[01:26:38] like everything was in one source code repository,
+[01:26:41] literally all the Go code in the world was one source code repository,
+[01:26:44] and so there were days where we changed the syntax,
+[01:26:46] used to have a star before chan everytime you set a channel,
+[01:26:49] because it was a pointer underneath,
+[01:26:50] and it was all kind of exposed,
+[01:26:52] so you'd always say *chan int instead of chan int,
+[01:26:54] and similarly for maps,
+[01:26:56] and at some point we realize like this is dumb,
+[01:26:58] like you have to say the star,
+[01:26:59] let's just take it out,
+[01:27:01] and so like we made the change to the compiler,
+[01:27:03] and I opened up literally like the couple hundred Go source files in the world in my editor,
+[01:27:08] and like the entire team stood behind me,
+[01:27:10] and I typed some regular expressions
+[01:27:12] and we looked at the effect on the files,
+[01:27:14] yep, that looks right,
+[01:27:15] save it, you know compile it, we're done,
+[01:27:17] and like today you know we can't make backwards incompatible changes at all,
+[01:27:22] and even making new changes like it,
+[01:27:25] it affects a lot of people,
+[01:27:27] and so you know you sort of propose something,
+[01:27:31] and you know put all this won't work for me,
+[01:27:33] and you try to adjust that maybe.
+[01:27:35] It's a lot harder,
+[01:27:36] we estimate there's at least a million, maybe two million Go programmers in the world,
+[01:27:40] and is very different from when they were four or five.
+[01:27:52] Not sure if this is a valid question,
+[01:27:53] but what languages Go written,
+[01:27:55] is written in Go also or no.
+[01:27:58] Now it is, now it is,
+[01:27:59] the original compiler runtime write written in C,
+[01:28:01] but a few years ago we went through a big,
+[01:28:04] we actually wrote a program to translate C to Go,
+[01:28:07] and it only worked for our C code, but still was good enough,
+[01:28:10] so that we wouldn't lose all the encoded knowledge in that code,
+[01:28:14] about why things were the way they were and how things work,
+[01:28:16] so we don't got to start from scratch,
+[01:28:18] but now it's all written in Go
+[01:28:19] and a little bit of assembly.
+[01:28:21] And that means that people can,
+[01:28:24] you know people who know Go can help on the Go project,
+[01:28:28] whereas before,
+[01:28:28] like if you wanted to work on the compiler or the runtime,
+[01:28:31] you had to know C really well,
+[01:28:32] and like we weren't getting a lot of people know C really well,
+[01:28:35] there's not actually that many of them proportionately,
+[01:28:37] and furthermore like our entire user bases Go programmers,
+[01:28:40] not C programmers,
+[01:28:41] so moving to Go was a really big deal.
+[01:28:46] I was wondering how do you
+[01:28:48] prioritize what features to add to the language at this point,
+[01:28:51] I know Genetics, like we're asking for that,
+[01:28:55] like did you all know like how you choose what to work on?
+[01:28:59] I mean we've considered language mostly frozen for a while,
+[01:29:02] and so we haven't been adding much,
+[01:29:05] there was a long period,
+[01:29:06] we said we weren't adding anything,
+[01:29:07] and then we added a little bit of things in the last couple years
+[01:29:10] to lead up to Generics just kind of shake the Rust off,
+[01:29:12] like all the what breaks when you change something in the language,
+[01:29:15] so you can put underscores between digits and long numbers now
+[01:29:18] and things like that.
+[01:29:21] But you know Generics has clearly been the next thing that needed to happen,
+[01:29:24] and we just have to figure out how.
+[01:29:26] In general, we try to only add things,
+[01:29:28] that don't have weird kind of interference with other features,
+[01:29:32] and we try to add things that are really important,
+[01:29:34] that will help a lot of people for the kinds of programs,
+[01:29:37] that we're trying to target with Go,
+[01:29:38] which is like distributed systems and that sort of thing.
+[01:29:50] Cool?
+[01:29:51] Thank you.
+[01:29:52] Oh, I had a question actually,
+[01:29:55] so, for I noticed that,
+[01:29:58] like you know Go doesn't have like basic functions like min or max for like,
+[01:30:04] yeah, so is that like something that you're considering
+[01:30:07] like say adding with the Generics stuff,
+[01:30:09] maybe is that why you didn't.
+[01:30:10] Exactly right, because you can't have a min, you have min_int [],
+[01:30:15] but those have different names
+[01:30:16] and that was kind of annoying.
+[01:30:18] So now we can write just a generic name,
+[01:30:20] over any type that has a less than operator.
+[01:30:23] Yeah.
+[01:30:23] That'll be good.
+[01:30:24] And you know honestly like for the specific case of min and max.
+[01:30:28] It's not that hard to code, I know.
+[01:30:30] I was gonna say, I'm starting to feel like we should just make them buildings,
+[01:30:33] like you know print and things like that,
+[01:30:35] so that you can just always have them,
+[01:30:38] but even if we don't,
+[01:30:39] you'll be math.min and that'll be there at least.
+[01:30:42] Yeah.
+[01:30:43] We really didn't want to make them buildings
+[01:30:44] until we could express their types,
+[01:30:46] and we couldn't do that until Generics happened.
+[01:30:48] Because there is actually a min for floating points actually.
+[01:30:52] Yeah, I know it's kind of weird,
+[01:30:53] because the math library is basically copied from the C math.h,
+[01:30:57] set of things.
+[01:31:00] Yeah.
+[01:31:01] That's a good point,
+[01:31:02] we can't actually put them in math,
+[01:31:03] because they're already there.
+[01:31:05] Okay.
+[01:31:06] But.
+[01:31:06] Yeah.
+[01:31:07] We'll figure it out,
+[01:31:08] like I think we should probably just put them in the language,
+[01:31:10] but we have to get generics through first.
+[01:31:12] And another thing,
+[01:31:13] actually I noticed that you did USACO like competitive programming,
+[01:31:16] I did it too, actually.
+[01:31:18] Cool.
+[01:31:18] Yeah, so how did you,
+[01:31:20] so actually I included this in one of the questions that I submitted,
+[01:31:24] let me pull it up,
+[01:31:25] so my question was like,
+[01:31:28] how did how was like how did you, go from doing competitive programming
+[01:31:33] to like doing what you you're doing now at Google working on Go,
+[01:31:37] and how is the transition between like competitive programming to systems,
+[01:31:41] also finally what made you decide to go into system,
+[01:31:44] so how did it relate to programming code?
+[01:31:46] I mean competitive programming at the time that I did,
+[01:31:48] it was not as all consuming as I gather it is now,
+[01:31:51] like, like you know you could just like be able to implement a simple dynamic programming,
+[01:31:56] like little two for loops, and that was fine,
+[01:31:58] and now you have to go with complex algorithms
+[01:32:00] and all that stuff that I can do,
+[01:32:02] so at some point like somehow like it was different.
+[01:32:06] But you know I was actually more interested in the sort of systems
+[01:32:10] you kind of start from the start,
+[01:32:11] and the program contests were just something fun to do on the side.
+[01:32:15] Oh.
+[01:32:16] It wasn't a huge transition there,
+[01:32:18] I was never into implementing complex algorithms,
+[01:32:21] and max flow and all those sorts of things.
+[01:32:24] On the other hand, like when you start a new language,
+[01:32:27] you actually do get to write a lot of core things, right,
+[01:32:31] like someone has to write the sort function,
+[01:32:33] and it has to be a good general sort function,
+[01:32:35] like I spent a while last month,
+[01:32:37] like looking into [dip] algorithms,
+[01:32:39] and that's like matches that background pretty well,
+[01:32:43] so it does come up.
+[01:32:45] But you know it's just it's just a different kind of program.
+[01:32:48] Oh so, you thought of it as more of a side thing,
+[01:32:50] back then, no.
+[01:32:51] Yeah, it was definitely not the sort of main thing I did
+[01:32:54] when I was writing programs.
+[01:32:55] Yeah, because like today it's effectively like the main thing.
+[01:32:58] I know,
+[01:32:58] if if you don't do it full time,
+[01:33:01] like there's just no way you can.
+[01:33:03] Okay, they just want that many people who cared in 1995.
+[01:33:07] Well, yeah, twenty years later.
+[01:33:15] I'm gonna ask a related question to that,
+[01:33:17] so how do you decide to go from like academic work into,
+[01:33:24] I mean your work is still a little bit more different
+[01:33:26] than like the usual like software engining, but still.
+[01:33:32] Yeah, you know I got lucky,
+[01:33:35] I I grew up near Bell Labs in New Jersey,
+[01:33:37] and so that was how I ended up working on Plan 9 a little bit
+[01:33:40] in high school and college.
+[01:33:43] And so you know I I sort of knew
+[01:33:44] I was going to go to grad school,
+[01:33:45] and you know the plan was to go back to Bell Labs,
+[01:33:48] but it kind of imploded, while I was in grad school,
+[01:33:50] with the dot-com bubble, and the dot-com crash,
+[01:33:53] and and so like you know Google was was sort of just [] up PhDs,
+[01:33:59] systems PhD at the time,
+[01:34:01] and and and doing really interesting things,
+[01:34:03] I mean you probably there's,
+[01:34:04] I don't know, I haven't looked at syllabus for this year,
+[01:34:06] but you know there's things,
+[01:34:07] like Spanner and Bigtable and Chubby and and things like that,
+[01:34:11] and you know they they had a whole host
+[01:34:12] of good distributed systems kind of stuff going on.
+[01:34:15] And so it was sort of lucky to be able to go to that, too.
+[01:34:21] And you know at the time I graduated,
+[01:34:23] I was also looking at you know industrial research labs,
+[01:34:25] like Microsoft research and places like that,
+[01:34:27] so you know there's definitely an opportunity there for researching things,
+[01:34:32] but not in academia, if that's what you want,
+[01:34:34] it's a little harder to find, now,
+[01:34:36] I mean most of the places I have,
+[01:34:37] like Microsoft research imploded too, a couple years later.
+[01:34:41] But, you know it's, it's still an option,
+[01:34:45] and and you know just a slightly different path,
+[01:34:49] you end up,
+[01:34:50] the differences I see from academia is
+[01:34:52] like you end up caring a ton more about
+[01:34:55] actually making things work a hundred percent time
+[01:34:57] and supporting them for a decade or more,
+[01:34:59] where as you finish your paper
+[01:35:00] and you kind of get to put it off to the side,
+[01:35:02] and that's really nice actually at some level.
+[01:35:06] It's, it's definitely strange to me
+[01:35:08] to be you know editing source files that I wrote,
+[01:35:12] you know in some cases actually twenty years ago,
+[01:35:15] because I used a bunch of code
+[01:35:17] that I've already written when we start to go.
+[01:35:19] And it's very weird to think that,
+[01:35:21] I've been keeping this program running for twenty years.
+[01:35:26] Thank you.

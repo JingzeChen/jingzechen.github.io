@@ -1,0 +1,1614 @@
+[00:00:03] Okay, good afternoon, good morning or good evening, wherever you are.
+[00:00:09] I want to talk today about primary/backup replication,
+[00:00:12] really sort of an introduction to primary/backup application.
+[00:00:16] And we'll come back to this in multiple lectures during semester,
+[00:00:21] but this is [] or a VMware fault tolerance paper,
+[00:00:29] is a really nice introduction that brings out a lot of issues,
+[00:00:32] that are gonna come up throughout the semester.
+[00:00:36] The plan for lecture today is as follows.
+[00:00:41] I'm just going to talk about failures,
+[00:00:43] that you might hope to tolerate using primary/backup replication,
+[00:00:49] and some that you might not be able to.
+[00:00:52] Then I want to talk a little bit about the main challenges,
+[00:00:55] in sort of any backup scheme,
+[00:00:59] sort of broad speaking.
+[00:01:01] Then talk about two you know dominant approaches, two application,
+[00:01:08] one is what's typically called state transfer replication,
+[00:01:15] and the second is typically called replicated state machines.
+[00:01:25] And today's paper is an example of a replicated state machine approach,
+[00:01:29] and if in fact you know lab 2 or lab 3, lab 4
+[00:01:32] you know also will be using replicated state machine approach,
+[00:01:35] and the fact that the GFS paper is replicating chunks
+[00:01:40] was using a replicated state machine approach.
+[00:01:42] Since it's quite a common approach.
+[00:01:44] And then you know what I sort of make everything a little concrete,
+[00:01:47] by looking at this case the case study,
+[00:01:52] of the VM VMware fault tolerance scheme or implementation or system.
+[00:02:00] Any questions before I get started,
+[00:02:03] just to,
+[00:02:04] I have tried to answer all the questions that you send by email,
+[00:02:10] ones you know they're coming before midnight,
+[00:02:13] generally all answer the ones that come in after midnight,
+[00:02:15] you know try to answer as many as I can,
+[00:02:18] but if I didn't answer your question,
+[00:02:20] then you and the topic comes up at lecture or at any point by the time,
+[00:02:23] you know feel free to interrupt and ask it.
+[00:02:27] Okay, any questions, before we dive in.
+[00:02:42] So let's talk about failures in a very broad sense,
+[00:02:46] you get a sense of
+[00:02:47] like what we might hope for that replication scheme can handle.
+[00:02:59] So, first of all, the typically,
+[00:03:01] the papers that where in the system that we're going to be about building
+[00:03:04] will only deal with some things
+[00:03:06] called were typically called fail-stop failures,
+[00:03:14] and the basic idea is that,
+[00:03:16] the infrastructure failure
+[00:03:17] or component of the computer doesn't really work well,
+[00:03:19] that actually stops the computer,
+[00:03:28] so the assumption is that,
+[00:03:29] basically the computer goes from working to not working, so instantaneously,
+[00:03:33] it doesn't produce like weird results,
+[00:03:35] because the computer is not working, correctly.
+[00:03:37] So it just follows the protocols,
+[00:03:40] you know when does to adds it to register values,
+[00:03:43] you know that produces are correct, add value,
+[00:03:46] and so we're just assuming that,
+[00:03:48] when the computer works, it works correctly,
+[00:03:50] and when there's a failure, it just stops.
+[00:03:53] This covers in many scenarios,
+[00:03:56] for example whatever you know fan of the computer fails,
+[00:04:00] you know the computer overheat,
+[00:04:01] and then the computer shuts down itself,
+[00:04:04] the other cases are where somebody steps over the power cord,
+[00:04:10] and boom, you know the whole computer disappears,
+[00:04:12] or you know cuts the network link,
+[00:04:14] and at that point,
+[00:04:16] you know the computer by keeping running
+[00:04:18] about is completely disconnected.
+[00:04:22] Sometimes you know systems or software on the computer itself,
+[00:04:25] it does best you know to turn these partial failures into a stop fail-stop failures,
+[00:04:30] for example you might software might compute checksums on data,
+[00:04:33] and then if it sees that the checksum is incorrect,
+[00:04:36] you know just stop you know the computer.
+[00:04:39] And so those are quite common
+[00:04:42] and to do so,
+[00:04:43] the basic model of the word is,
+[00:04:46] computer work correctly, then the computer stops.
+[00:04:49] So what does this exclude,
+[00:04:50] you know there's a whole bunch of sort of failures that exclude,
+[00:04:53] for example it doesn't really deal well with logic bugs,
+[00:04:57] like if you have an error in your software,
+[00:04:59] you know whatever you divide by zero
+[00:05:01] and incorrectly you were where you shouldn't have,
+[00:05:05] then you know it is very likely,
+[00:05:06] that the backup will do exactly the same thing,
+[00:05:08] because one of the software which is broken,
+[00:05:10] and so it's broken on the primary, it's broken on the backup,
+[00:05:14] and so nothing you know basically replication really not
+[00:05:17] does not solve that problem for you.
+[00:05:20] Similar, if you have configuration errors,
+[00:05:26] primary/backup is not going to solve you the problem for you,
+[00:05:29] if you know the, the files that you specify the replica said that incorrect,
+[00:05:35] then the system will not work correctly.
+[00:05:38] Similarly, we're not really in this class,
+[00:05:41] we'll talk a little bit at the end of the semester,
+[00:05:43] but we're not dealing with malicious errors,
+[00:05:48] so we're not dealing with attackers you know try to fake the protocol,
+[00:05:53] you know have run servers that send incorrect messages
+[00:05:57] and try to sort of spoof the whole system,
+[00:05:59] we're just not in consideration.
+[00:06:01] So in the for most of the semester,
+[00:06:03] we assume that the software works correctly,
+[00:06:05] does not have logic bugs,
+[00:06:07] that no configuration errors,
+[00:06:09] and the thing that we're focusing on is actually handling stop failures.
+[00:06:13] There's some failures that sort of fail,
+[00:06:16] that could be handled or may be handled with primary/backup replication
+[00:06:22] or or not,
+[00:06:24] as an example, you might think about an earthquake,
+[00:06:30] you know if the primary/backup are physically you know separated,
+[00:06:33] in completely different parts,
+[00:06:35] you know different continents or different parts of the same continent,
+[00:06:38] when that, you might hope that,
+[00:06:40] you might have some hope that,
+[00:06:41] the backup could take over,
+[00:06:44] if the primary fails due to an earthquake,
+[00:06:47] but you know some other primary replication schemes,
+[00:06:51] this is not going to be the case,
+[00:06:52] you know [] primary and the backup on the same data center,
+[00:06:55] and the whole data center disappears,
+[00:06:57] then you know sort of end of story.
+[00:07:00] Okay?
+[00:07:01] So hopefully that gives you a little bit of context
+[00:07:03] of the type of failures you're trying to shoot for.
+[00:07:07] You know, even with this sort of just focusing on stop fail-stop failures,
+[00:07:11] that turns out to be difficult to build fault tolerant systems,
+[00:07:15] we're going to talk a little bit about the general issues that will show up,
+[00:07:18] you know if we're going to build a primary/backup system,
+[00:07:25] and also concrete instances of these problems in in the the VM FT paper.
+[00:07:31] So you know one challenge is
+[00:07:34] you know if a failure happens,
+[00:07:37] you know has the primary actually failed?
+[00:07:48] A issue here you know that makes this challenging is that,
+[00:07:51] in distributed systems,
+[00:07:51] you can't tell the difference between a network partition and a machine failed,
+[00:07:54] so it might be perfectly possible,
+[00:07:56] that the network, that the primary is still up,
+[00:07:59] but you know that some computers cannot talk to the primary,
+[00:08:02] because the network has partitioned,
+[00:08:04] and so for example the backup might decide,
+[00:08:06] that you know the primary is dead,
+[00:08:07] because networks partitioned,
+[00:08:09] but in fact the primary is not that,
+[00:08:11] maybe some of the clients are still able to talk to the primary,
+[00:08:13] so you have to have some story
+[00:08:15] of making sure that you don't end up in a situation where you have two primaries.
+[00:08:21] And again, you know we talked a little bit about last time,
+[00:08:24] it shows up in this paper again,
+[00:08:25] will show up next week too,
+[00:08:27] which is like we want to avoid that we get into a situation,
+[00:08:30] where there's a split-brain system,
+[00:08:35] where we basically have two primaries,
+[00:08:37] and one subset of client talks to one primary,
+[00:08:40] and the other subset of client talks to the other primary,
+[00:08:42] and clearly that's going to diverge you know the state of the system
+[00:08:46] and when the network heals, we are in an incorrect state,
+[00:08:51] so we have to avoid this at all cost.
+[00:08:54] The second general challenge is,
+[00:08:58] how do we keep the,
+[00:09:00] you know how do we keep the primary/backup in sync.
+[00:09:14] Our goal is going to be that,
+[00:09:15] if the primary fails,
+[00:09:18] then we can just gracefully fail over to backup,
+[00:09:20] and the backup just picks up right where the primary left off,
+[00:09:24] that requires that the backup actually is up to date,
+[00:09:26] like the latest things that are primary actually has written to its state,
+[00:09:31] so that actually can pick up seamlessly
+[00:09:34] and don't return errors or responses to the client to completely unexpected,
+[00:09:39] from the client's perspective,
+[00:09:40] really what should look like,
+[00:09:41] you know the whole thing even though it's replicated,
+[00:09:44] like a single computer,
+[00:09:45] just happens to be a little more fault tolerant than a single computer.
+[00:09:49] And that turns out to be difficult,
+[00:09:51] you know first of all,
+[00:09:52] we have to make sure that we apply all changes,
+[00:09:55] we have to apply the changes in the right order,
+[00:10:02] and you know in continuous issue in that,
+[00:10:06] we have to sort of avoid non-determinism,
+[00:10:09] or we have to deal with non-determinism,
+[00:10:14] I mean the same change on the primary behaves different on the backup,
+[00:10:18] because for some reason, that would be not good,
+[00:10:20] you know we got to make sure,
+[00:10:21] that we make a change in the primary/backup
+[00:10:22] very identical effects to the primary/backup.
+[00:10:28] A similar issue that always shows up,
+[00:10:31] you know challenge is fail over,
+[00:10:35] you have actually the primary fails,
+[00:10:38] and we need to fail over to the backup,
+[00:10:40] and of course we've got to make sure that,
+[00:10:43] there are other primary is definitely dead,
+[00:10:45] but for example the primary might have was in the middle of an operation,
+[00:10:50] and it was about to send a packet out,
+[00:10:52] to the response to the client,
+[00:10:54] or maybe not,
+[00:10:55] and so we got to figure out,
+[00:10:56] what that response that being send or not being sent,
+[00:10:58] or is it okay for us to send it again.
+[00:11:04] There's a question in the chat,
+[00:11:06] like when would fail over need to happen,
+[00:11:08] you know fail over need to happen when the primary is gone, right,
+[00:11:11] because then we want to fail over to the backup,
+[00:11:13] that determine all you used.
+[00:11:17] And then often another issue we fail over is,
+[00:11:20] who actually has to know we have multiple backups,
+[00:11:22] which is not the case in today's paper,
+[00:11:24] yeah we actually ask the latest [stage],
+[00:11:26] like for example, maybe they all crash after a few operations,
+[00:11:29] they come back up
+[00:11:30] and and and we're going to make sure that,
+[00:11:34] we're actually talking to one that has the most recent states,
+[00:11:36] this is going to not an issue today so much,
+[00:11:39] as we'll see in a second why,
+[00:11:40] but we'll come up later in other replication protocols.
+[00:11:46] Yeah, so basically fail over means the backup takes over.
+[00:11:51] Okay, so that's sort of the main you know failure,
+[00:11:55] the type of failures that we hope to handle and the main challenges,
+[00:11:59] in we'll deepen those challenges out as we go.
+[00:12:03] You know I want to talk about two two main approaches,
+[00:12:06] that we'll see in a semester,
+[00:12:08] for dealing with primary/backup replication.
+[00:12:19] One is as I mentioned earlier, that is state transfer,
+[00:12:28] you know these reasonable at a high-level very straightforward,
+[00:12:31] you know we've got a primary,
+[00:12:32] you know if you know the clients talk to the primary,
+[00:12:35] and the primary updated state,
+[00:12:37] once updated state in response to client request,
+[00:12:40] and once a while, it sort of makes checkpoint,
+[00:12:48] once a while, basically checkpoints state, it's state to the backup,
+[00:13:01] and of course if we want the backup and the primary to be in sync,
+[00:13:05] that means that every time the primary actually performs the operation,
+[00:13:08] before it responds to the client,
+[00:13:10] it basically has to transfer whatever state changes that were made by the operation to the backup.
+[00:13:15] So that's one scheme.
+[00:13:18] One of high-level approach, second approach is,
+[00:13:22] what is called replicated state machine, state machine replication,
+[00:13:33] often shortened to RSM.
+[00:13:36] And here you know the you know the picture is,
+[00:13:40] we still got the primary,
+[00:13:41] we've got the client talking to the primary,
+[00:13:43] and of course we have the primary talking to backup
+[00:13:46] to keep the backup in sync,
+[00:13:47] but instead it sending the state changes or modifications to the state
+[00:13:52] from the primary to the backup,
+[00:13:53] but we do actually sent the operations to the backup,
+[00:13:59] so before the primary response to the client,
+[00:14:02] you know executing its operation,
+[00:14:03] we sent the operation that the client sent to us to the backup,
+[00:14:07] the backup can execute the operation too,
+[00:14:09] updated state, acknowledge it to the primary,
+[00:14:12] primary actually updates its state too,
+[00:14:14] you know execute the operation,
+[00:14:15] and then sends a response back to the client.
+[00:14:20] And so in all these sort of, in all these both approaches,
+[00:14:25] you know the scheme is the primary of some particular state,
+[00:14:28] we apply changes to the state,
+[00:14:31] and we do exactly the same thing as the backup,
+[00:14:34] so the backup system starts out in the same state as the primary,
+[00:14:37] we apply the same changes to the state,
+[00:14:38] where it's through an operation state transfer,
+[00:14:41] we end up in a new state,
+[00:14:42] and that state has to be identical to the state that the primary has.
+[00:14:45] And so even ever there's a failure,
+[00:14:47] you know, we know that when we fail over to backup,
+[00:14:50] and it's exactly the same state as the primary,
+[00:14:53] and so it can take over.
+[00:14:57] We'll see you know this is actually challenging to actually make happen,
+[00:15:00] but that's the basic plan,
+[00:15:02] the primary both approach is actually reasonable popular,
+[00:15:08] the primary disadvantages, the state transfer approach is that,
+[00:15:11] if an operation generates a lot of state,
+[00:15:14] then it's going to be expensive,
+[00:15:16] for a single operation writes gigabyte of data,
+[00:15:18] then gigabyte of data needs to be transferred to the primary to the backup,
+[00:15:22] and it might be much more expensive, much more, less expensive
+[00:15:25] to basically just send over the operation to the backups,
+[00:15:28] backup can executing operation.
+[00:15:31] So many of the systems that we're talking about,
+[00:15:35] actually they're follow the second approach
+[00:15:37] where they send the operation, but not the state transfer.
+[00:15:41] And in fact if you think about GFS,
+[00:15:46] the discussion from last week,
+[00:15:48] when we just saw that,
+[00:15:49] basically the primary sends the append operations or the write operations to the backups,
+[00:15:55] doesn't do the append and then send the result to the backups,
+[00:15:59] that actually sends the operations,
+[00:16:00] so that's an example of a replicated state machine approach,
+[00:16:03] where we'll be sending operations.
+[00:16:05] And the paper of today also follows this replicated state machine approach,
+[00:16:09] where the operations are not you know append and write,
+[00:16:12] file system append, file system write,
+[00:16:14] but the operations are actually x86 instructions,
+[00:16:17] you know we'll see later,
+[00:16:20] but they both you know send operations.
+[00:16:25] In labs, as I mentioned earlier,
+[00:16:27] lab 3 and 4 are also a replicated state machine approach,
+[00:16:32] where we're gonna be sending operations from primary to backup.
+[00:16:41] As a.
+[00:16:47] Okay, there's a question in chat,
+[00:16:48] why does the client do not send not need to send the data to backup
+[00:16:52] in our replication state machine,
+[00:16:53] because the the idea is that these operations are deterministic,
+[00:16:58] and so the primary and this you know remember,
+[00:17:00] we'll talk about this in much more detail,
+[00:17:01] but the primary/backup are in the same state,
+[00:17:03] same state as the,
+[00:17:06] if the operation is deterministic,
+[00:17:09] and you apply it to the same state,
+[00:17:10] you know they will end up in the same state as primary,
+[00:17:13] and so there's no reason for the application, the client to send the data,
+[00:17:17] in this case,
+[00:17:17] because by just sending this deterministic operation,
+[00:17:20] it is guaranteed,
+[00:17:21] that operation will generate the same data.
+[00:17:27] So subsequent question is,
+[00:17:28] how do you know for all programs and their operations,
+[00:17:30] whether they are deterministic or non-deterministic,
+[00:17:33] to know what information needs to be sent.
+[00:17:35] So the typical approaches do in a replicated state machine approach is
+[00:17:38] to make all operations deterministic,
+[00:17:40] non-deterministic operations are not allowed,
+[00:17:43] and we'll see in a second how to do that.
+[00:17:49] Okay, so before you know go into a little bit more specific,
+[00:17:55] and a hybrid approach,
+[00:17:56] yes you know there a hybrid approach,
+[00:17:59] you know for example you can run sort of
+[00:18:01] by default in a replicated state machine approach,
+[00:18:06] in the fact, so in some ways the paper does this,
+[00:18:09] then if a backup fails or primary fails,
+[00:18:13] and you go back to a single machine,
+[00:18:15] then you need to create a new replica,
+[00:18:17] and often new replica the way you do,
+[00:18:19] it is actually by transferring the state from the existing replica
+[00:18:23] or copy of the state of existing replica to the new replica,
+[00:18:27] without like hopefully less frequent operation.
+[00:18:31] And then actually you know during,
+[00:18:32] then replicating the operations you're doing much more frequently.
+[00:18:40] Also free, feel free to ask questions in real time
+[00:18:43] as opposed to typing in the chat,
+[00:18:45] either way is fine, but.
+[00:18:48] Okay, so, as I hinted,
+[00:18:51] you know with this replicated state machine approach,
+[00:18:53] there's a question about
+[00:18:54] what level of replication are doing
+[00:18:58] or what level of operations to replicate.
+[00:19:13] So one one of possibilities sort of application level operations,
+[00:19:36] so what I mean is,
+[00:19:37] you know think back GFS,
+[00:19:40] like whether it's append file append or write.
+[00:19:51] Another and okay and
+[00:19:55] if you play a game sort of replicate state machine game
+[00:19:58] at the level of these application level operations,
+[00:20:00] that means that the application has to be involved,
+[00:20:02] because it knows what the semantics of these operations are,
+[00:20:05] and then it knows what append actually supposed to do,
+[00:20:08] or what write you're supposed to do,
+[00:20:10] and so, if you're playing a replicated state machine approach
+[00:20:13] at that kind of application level,
+[00:20:15] then the application itself needs to be modified
+[00:20:18] to actually perform or play part of the replicated state machine approach.
+[00:20:23] One thing that's cool about the paper today that we're looking at to,
+[00:20:26] it's like looking at today is,
+[00:20:29] it you know operations at the machine level,
+[00:20:33] or the processor level or computer level,
+[00:20:35] and so the state is registers x86 registers, the memory state,
+[00:20:43] and the operations are just an ordinary computer instructions
+[00:20:48] and by replicating at that level,
+[00:20:52] then you can basically make your application completely transparent,
+[00:20:58] because you can take one computer,
+[00:20:59] run the application operating system on top of it,
+[00:21:02] just runs x86 instructions,
+[00:21:05] and this replicated state machine approach
+[00:21:07] automatically creates backup of that particular execution,
+[00:21:13] so the application doesn't have to be modified at all,
+[00:21:15] in fact, in this paper, the operating system is not modified,
+[00:21:19] the application is not modified,
+[00:21:21] you can take an ordinary application,
+[00:21:22] not even written with fault tolerance in mind,
+[00:21:25] and using this sort of machine level or instruction level replication,
+[00:21:30] it can be transparently replicated.
+[00:21:33] One of the things that's very cool
+[00:21:35] about you know paper of today is completely transparent.
+[00:21:42] You know that makes you wonder you know how to do that,
+[00:21:47] because what happens,
+[00:21:48] if you look at machine
+[00:21:50] and an interrupt happens,
+[00:21:52] you know that interrupt needs to be propagated in some way directly to the backup,
+[00:21:57] because like if you think about the x86 machine,
+[00:22:00] of course the regular instructions that the applications execute,
+[00:22:03] like add, you know whatever divide, you know conditional branch branching procedure calls,
+[00:22:08] but there are also other events like an interrupts,
+[00:22:11] and they need to be you know handled with,
+[00:22:13] so how do you do that.
+[00:22:15] And so a traditional, a way of doing a machine level replication,
+[00:22:22] used to be sort of quite expensive,
+[00:22:24] in the sense that,
+[00:22:26] the you could buy computers or whatever processors,
+[00:22:29] like maybe replicated twice or three times
+[00:22:31] and the hardware itself would organize you know these processors
+[00:22:35] sort of ran exactly in lockstep,
+[00:22:38] and you know there's a lot of hardware machinery to actually make this happen,
+[00:22:42] and this paper has a cool observation that,
+[00:22:45] you don't really need to do really hardware replication,
+[00:22:49] instead you can actually use virtual machines,
+[00:22:58] and that's the way they do it,
+[00:22:59] that pure hardware replication happens too,
+[00:23:02] you know, for example in in [] or whatever [] over,
+[00:23:11] you know often the hardware modules are just like
+[00:23:14] duplex replicated to triple replication
+[00:23:18] and have a hardware voting scheme
+[00:23:20] to keep the processors in sync to detect failures,
+[00:23:23] but that sort of level of fault tolerance,
+[00:23:25] that is not the the level, is that VM-FT paper not actually shooting for,
+[00:23:34] is really thinking about like,
+[00:23:35] you know you got in a business application running on on the computer,
+[00:23:39] and now you want to make that business application more fault tolerant,
+[00:23:43] and the approach to take is to exploit virtualization.
+[00:23:49] So the situation to VM-FT is exploit virtualization,
+[00:23:56] that's the main big idea,
+[00:24:01] that they bring along to this problem,
+[00:24:04] and you know by doing so,
+[00:24:05] they can make this replication transparent to the application,
+[00:24:17] of course, you don't have to design,
+[00:24:18] as an application design and then the replication scheme,
+[00:24:21] where like for example the way it's done in, in GFS,
+[00:24:27] it appears using the scheme,
+[00:24:29] this replication scheme that VM-FT uses,
+[00:24:32] appears basically that the appears to client,
+[00:24:38] but the server is a single machine,
+[00:24:44] meaning just you know seeing in a second how,
+[00:24:48] but basically they're gonna provide very strong consistency,
+[00:24:50] you know the client on the outside can't even tell.
+[00:24:54] And, it actually you know the paper sort of cool paper,
+[00:24:57] because it actually is, it's a real product,
+[00:25:04] and it's still in use,
+[00:25:06] you know you can get this, there's this support if you want to.
+[00:25:14] The current product I think is quite different from the one,
+[00:25:17] that we actually read about in the paper,
+[00:25:20] but you know at a very high level,
+[00:25:22] you know the issues are very similar,
+[00:25:24] in fact you know one of the big shortcomings
+[00:25:28] as many of you noted in the questions,
+[00:25:30] of the the one that [] in the paper,
+[00:25:33] it's a single core solution,
+[00:25:35] so there's no multi-core support,
+[00:25:37] so multiple applications or multiple threads on one computer cannot run in parallel,
+[00:25:42] then we'll talk about in a second,
+[00:25:43] why this solution doesn't really support that,
+[00:25:45] in I think later later versions of FT does actually works,
+[00:25:51] and I think there's no paper detail paper that describes it,
+[00:25:56] but I actually think that,
+[00:25:57] instead of using actually replicated state machine approach,
+[00:26:00] actually using state transfer approach,
+[00:26:03] but I really don't know any really the details.
+[00:26:07] We're going to focus on the replicated state machine approach,
+[00:26:10] because one reason I like this paper is,
+[00:26:11] because it sort of illustrates replicated state machine approach in a very clean manner,
+[00:26:16] and all the you know all the subsequent replication schemes,
+[00:26:20] that were going to be looking at
+[00:26:21] are replicated state machine approaches.
+[00:26:26] Okay, so, so let's sketch out the overview of the system.
+[00:26:37] And so the first thing sort of need to realizes that,
+[00:26:41] there's a virtual virtual machine monitor involved,
+[00:26:44] so what is a virtual machine monitor,
+[00:26:45] well virtual machine monitor basically takes a piece of hardware
+[00:26:48] and it makes it appear you know basically makes n pieces of hardware out of it.
+[00:26:55] So if we look at the x86 box,
+[00:26:59] you know we can take a virtual machine monitor run it on top of it,
+[00:27:03] and you know on top of it, we can have virtual machines,
+[00:27:06] and virtual machine, we're gonna have multiple virtual machines,
+[00:27:09] although most of this paper we're going to be talking about,
+[00:27:12] running one virtual machine on top of the virtual machine monitor.
+[00:27:15] And so for example we might actually have a Linux operating system
+[00:27:19] running on top of the virtual machine with its applications.
+[00:27:28] And you know here is actually the actual hardware.
+[00:27:32] And why you know so and so VM,
+[00:27:36] the terminology used here sometimes called a hypervisor,
+[00:27:39] it's called a virtual machine monitor,
+[00:27:41] and so in our case, you know will the the hypervisor here,
+[00:27:45] this is actually you know VM-FT,
+[00:27:50] so it's a hypervisor modified,
+[00:27:52] you know to include you know the ideas that were VM-FT has.
+[00:27:58] Why is this cool,
+[00:27:58] well, the reason this is cool, because,
+[00:28:00] or useful for replicated state machines is,
+[00:28:03] because even a hardware interrupt actually happens,
+[00:28:06] that hardware interrupt doesn't really go straight to Linux,
+[00:28:09] in fact, the hardware interrupt goes first through the VM monitor,
+[00:28:12] the VM monitor actually decides
+[00:28:14] you know when to deliver you know that interrupt to Linux.
+[00:28:18] And so any external events before they actually sort of observed by the virtual machines
+[00:28:24] actually captured by or can be captured by the hypervisor.
+[00:28:29] And so this gets us out of this mess,
+[00:28:31] you know like what I mentioned a bit earlier,
+[00:28:33] where you know what happens if there's an external interrupt,
+[00:28:37] how can we replicate that,
+[00:28:39] and the way we're going to replicate here is,
+[00:28:41] because the virtual machine monitor just get control over it.
+[00:28:44] And we'll see you know there's going to be an extremely powerful tool
+[00:28:48] to actually make instruction deterministic,
+[00:28:52] you know handle external operations, etc etc.
+[00:28:56] So the basic plan is,
+[00:28:57] like if an interrupt comes in,
+[00:29:00] you know where there's an interrupt from the network
+[00:29:02] or from from the hardware itself, like a timer interrupt,
+[00:29:08] you know basically the timer interrupt is delivered to the virtual machine monitor,
+[00:29:13] virtual machine monitor, then in the case of VMFT, does two things,
+[00:29:18] you know not only delivers it at some point to the application,
+[00:29:20] it also sends it over a logging channel to a backup computer,
+[00:29:25] backup computer is constructed in the same way as hardware,
+[00:29:29] it has virtual machine monitor sitting on top of it,
+[00:29:33] so there's another copy of VM-FT,
+[00:29:36] and on top of is a virtual machine,
+[00:29:38] were identical software running on it like Linux,
+[00:29:42] same version of Linux,
+[00:29:43] you know with whatever some set of applications.
+[00:29:48] Okay?
+[00:29:50] And so like you know these machines both on networks use the logging channel,
+[00:29:58] and maybe your client you know talking basically to the hardware,
+[00:30:03] do the send a packet over the network,
+[00:30:07] the actual hardware you know receive the packet,
+[00:30:10] and then that will and deliver it,
+[00:30:15] you know and the virtual machine monitor just gets control and delivers it,
+[00:30:18] and hardware delivers to the virtual machine monitor,
+[00:30:20] virtual machine monitor will pick it up.
+[00:30:23] And so, if you think about it,
+[00:30:26] you know this, this package, you know results in, in an interrupt,
+[00:30:32] that deliver to the virtual machine monitor,
+[00:30:34] the virtual machine monitor will send that interrupt,
+[00:30:38] you'll see in a second,
+[00:30:39] and go forward to the backup,
+[00:30:41] deliver it, deliver it also to the local virtual machine,
+[00:30:47] the local virtual machine you know it's just Linux running,
+[00:30:50] it saw I got an interrupt,
+[00:30:51] and so it does normal processing,
+[00:30:52] it always will doing an interrupt,
+[00:30:54] and so at some point, you know maybe it will generate a response,
+[00:30:58] and also for example write you know to the network card,
+[00:31:01] or at least it will think it's writing to the network interface card,
+[00:31:04] but really what it is, is a virtual network interface card,
+[00:31:07] that is like emulated by the virtual machine monitor,
+[00:31:10] so when the writes actually you know a bunch of instructions to this you know virtual card,
+[00:31:17] really what it is actually writing to the virtual machine monitor,
+[00:31:19] and the virtual machine monitor seems like you know,
+[00:31:21] here's a operating system trying to actually send the packet,
+[00:31:25] and then the virtual machine monitor can
+[00:31:27] actually send the packet away out of the operating system,
+[00:31:30] by programming the real hardware,
+[00:31:32] and then the real hardware, it sends off in response to the client.
+[00:31:36] Right, that has a normal execution,
+[00:31:38] for what here's the primary, here's the backup,
+[00:31:45] and basically the backup of the same thing happens,
+[00:31:47] you know if the machines started exactly in the same states,
+[00:31:50] you know they take the interrupt you know at the same time,
+[00:31:53] and the virtual machine monitor control when to deliver the interrupt,
+[00:31:56] it can arrange to make sure,
+[00:31:57] that the interrupt to be delivered exactly at the same time,
+[00:32:00] exactly the same instruction, that the primary got it.
+[00:32:03] So it will deliver the interrupt to the,
+[00:32:06] you know will receive the interrupt from the primary,
+[00:32:08] may be buffered for a while,
+[00:32:09] until the backup machine second hits there's a same instruction the primary does,
+[00:32:14] then delivers the interrupt the Linux,
+[00:32:16] Linux is a usual way,
+[00:32:18] it will be,
+[00:32:18] you know since it's exactly the same state as in the primary,
+[00:32:21] it will do exactly the same thing as the primary does,
+[00:32:23] so at some point, you know it will,
+[00:32:25] you know program virtual network card to actually send a response packet,
+[00:32:30] you know all that stuff will happen,
+[00:32:32] and at some points as like you know send a packet,
+[00:32:34] you know the virtual machine monitor will get control,
+[00:32:37] it knows its backup
+[00:32:38] and so it doesn't do anything,
+[00:32:39] it actually doesn't send the packet on the network,
+[00:32:41] because it's the backup.
+[00:32:43] Okay, that's the basic plan,
+[00:32:47] then there's one more component in this story,
+[00:32:51] that is important to realize,
+[00:32:52] which is that there is on the side, on the side,
+[00:32:56] on the machine network,
+[00:32:58] there is a storage server,
+[00:33:08] you can think about this as the hard disk,
+[00:33:10] for these for these two virtual machines or for,
+[00:33:14] and so when an application here writes to a file,
+[00:33:18] really what it turns into is you know the kernel will,
+[00:33:22] you know that file systems may be mounted on the local Linux operating system,
+[00:33:27] the Linux operating system sees this is a remote disk,
+[00:33:30] and will format the packet
+[00:33:32] and then will send a packet you know to,
+[00:33:35] you know, let me draw out maybe in a slightly different,
+[00:33:37] will send a packet to the virtual machine monitor the same place,
+[00:33:40] and virtual machine monitor like send it off,
+[00:33:42] the virtual machine monitor you know go off,
+[00:33:44] and send it over network you know to the storage server,
+[00:33:48] the storage server will respond at some point,
+[00:33:50] in some ways this communication looks identical,
+[00:33:53] as if there's a client sitting on the other side of the network,
+[00:33:56] the only difference being that,
+[00:33:57] in the storage server case, the Linux starts the communication,
+[00:34:03] while in other cases, the client starts the communication,
+[00:34:06] green array represent communication to the storage server,
+[00:34:09] so a network packets being sent
+[00:34:11] from through Linux, through virtual machine monitor to storage server.
+[00:34:16] And so we write by an application to file,
+[00:34:20] basically results in these messages,
+[00:34:21] and then it will whatever update any states,
+[00:34:24] you know persistent state, that you know on the on the storage server.
+[00:34:30] You know as we saw in the paper,
+[00:34:31] the storage server plays an additional role,
+[00:34:35] on top of, on top of basically being storate server,
+[00:34:40] namely, there's sort of a special flag that sits on the side,
+[00:34:45] or there's a block in storage server,
+[00:34:48] that's being used to arbitrate who becomes the primary after a failure.
+[00:34:55] So, so this all comes down to,
+[00:34:59] this is the part of the failure over plan,
+[00:35:02] so let's see you know the logging channel breaks
+[00:35:06] or in the way you know this manifest to the virtual machine monitor is that,
+[00:35:11] it sends periodically packets you know over this logging channel,
+[00:35:15] and it doesn't get any responses from the other side,
+[00:35:20] then assumes that the other side, there's a problem,
+[00:35:24] and of course it can't decide,
+[00:35:25] whether you know just a network is not working,
+[00:35:27] or whether actually the virtual machine monitor you know the computers really crashed.
+[00:35:32] If it's really crashed,
+[00:35:33] of course, it should you know take over,
+[00:35:35] and if it's really not crash,
+[00:35:37] then you know we have to arbitrate in some way,
+[00:35:39] will make sure that only one of them actually proceeds.
+[00:35:42] So let's say the network partitions,
+[00:35:45] and so this is a harder case when the network partitions,
+[00:35:47] instead of like one of them two crashes,
+[00:35:50] so here network partitions,
+[00:35:52] but you know notice that the two could still communicate,
+[00:35:56] both the primary and backup can communicate to the storage server.
+[00:36:00] And so in this particular case,
+[00:36:02] what will happen is,
+[00:36:02] they will notice,
+[00:36:03] you know both sides will notice,
+[00:36:05] the primary and backup will notice,
+[00:36:07] there's some problems,
+[00:36:08] I can't talk to primary anymore [] [],
+[00:36:11] and so at some point to say,
+[00:36:12] well the other guy most probably could be dead,
+[00:36:15] and I want to promote myself to primary,
+[00:36:17] so the backup is like I want to promote myself to primary,
+[00:36:19] or primary says like well I just want to really continue serving client request
+[00:36:25] and I just want to ignore the backup for now.
+[00:36:28] So basically says this is what they call they want to goes live,
+[00:36:33] basically we go back into single mode
+[00:36:35] and we want to and we want one primary.
+[00:36:38] And so the way this happens is that,
+[00:36:41] both of them you know send try to read,
+[00:36:43] they call test-and-set operation.
+[00:36:49] I'll talk a little bit about it in more detail,
+[00:36:51] but basically both reach out to the storage server,
+[00:36:53] and try to write a flag saying set to 1,
+[00:36:57] and if the flag was already set to set to 1,
+[00:37:01] then it end,
+[00:37:02] like the the other guy 1 was earlier,
+[00:37:05] actually goes from 0 to 1.
+[00:37:07] They both try to do this atomically,
+[00:37:09] one is gonna go first,
+[00:37:11] you know that will succeed setting to 1,
+[00:37:13] and we could return to old value 0,
+[00:37:16] so it knows that nobody else succeeded actually in writing to flat to 1 yet,
+[00:37:20] and therefore I should become the primary to keep it running.
+[00:37:23] And the second guy, you know what's the primary/backup,
+[00:37:26] you know that comes in second,
+[00:37:28] you know we'll see,
+[00:37:29] we will try to set the flag to 1,
+[00:37:30] is already set to 1,
+[00:37:31] the return value would be 1,
+[00:37:32] because that's the old value,
+[00:37:34] by the time you know did test-and-set operation,
+[00:37:37] and therefore it will decide,
+[00:37:38] well, I'm going to give up,
+[00:37:39] because you know there's already somebody else who took over for me,
+[00:37:44] and basically you know as the paper calls, you know they terminate itself.
+[00:37:50] Okay?
+[00:37:51] So that's sort of the high-level operation,
+[00:37:54] high-level operation failure.
+[00:37:58] There's a quick question in chat is a good question,
+[00:38:01] and when is the flag reset to 0.
+[00:38:03] Well, there's sort of basically a whole separate story,
+[00:38:06] that I'm talking about yet, you know see it get through,
+[00:38:09] is that once you know the primary runs,
+[00:38:12] on when we have one server running now,
+[00:38:15] would like to make a second backup,
+[00:38:17] you know and so get into position that we're basically having backup again,
+[00:38:21] we have to do what's called repair,
+[00:38:22] because we don't do repair,
+[00:38:23] then you know the start with two computers,
+[00:38:26] one fails, then we have one computer,
+[00:38:27] and a little bit later,
+[00:38:28] one computer may fail, then we have no computers anymore.
+[00:38:31] So it has to be the case,
+[00:38:32] there has to be a repair plan,
+[00:38:34] and in VMFT, repair plan is executed manually,
+[00:38:38] if somebody you know monitors, where monitor software sort of noticed this,
+[00:38:44] and basically creates a new replica,
+[00:38:46] or based on the VM image of the the first one,
+[00:38:51] ensures that in sync,
+[00:38:53] and then you know it reset that flag,
+[00:38:57] and you know in log log starts again,
+[00:39:00] and then the flag is reset,
+[00:39:02] so once that second primary completely backup,
+[00:39:05] yeah and following the protocol, then the flag reset.
+[00:39:10] Okay?
+[00:39:14] Okay.
+[00:39:18] Okay, great, there's a great question,
+[00:39:19] like why, you know may be logging channel broke,
+[00:39:21] that maybe the the the the channel to the server broke too,
+[00:39:28] and and so you know we're not gonna get a response,
+[00:39:32] and that basically that point the system just stops,
+[00:39:35] if you will, until something repairs,
+[00:39:38] because nothing can be done,
+[00:39:39] so at that point from then on,
+[00:39:40] no clients request actually process,
+[00:39:42] because we don't know what state we are,
+[00:39:46] and maybe at some point network link will get repaired,
+[00:39:50] and that point things get started moving forward again,
+[00:39:53] so this is a disaster case,
+[00:39:54] where you know disaster case is,
+[00:39:57] actually the primary backup or both actually up and running,
+[00:39:59] but all the network cables broken.
+[00:40:01] And which is sort of similar basically to the case,
+[00:40:03] where both the primary backup failed at the same time.
+[00:40:09] Okay.
+[00:40:09] Question, could you explain again real quick,
+[00:40:13] when the client is reading from the storage server.
+[00:40:17] The client never read really from the storage server,
+[00:40:19] that's the Linux that might,
+[00:40:22] or the application running on top of Linux
+[00:40:23] might be running from the storage server,
+[00:40:24] and that's the one case.
+[00:40:25] And the second case,
+[00:40:27] the VM-FT might be running from the storage server
+[00:40:29] to read that flag or test-and-set flag.
+[00:40:32] So that like green arrow at the bottom
+[00:40:33] from the storage server to C, is a.
+[00:40:38] I'm sorry, that green, that's a bad green arrow,
+[00:40:42] that should have gone all the way.
+[00:40:44] Okay, thank you.
+[00:40:45] And just going over the network
+[00:40:46] and not intended to go to C,
+[00:40:47] it was intended to go over the network.
+[00:40:50] Thanks for clarifying that, and realize that.
+[00:40:53] Okay, so.
+[00:40:57] So what I'd like, so I want to,
+[00:40:59] maybe if we take a quick break at this point,
+[00:41:03] or do a breakout room,
+[00:41:04] in particular, would like you to do,
+[00:41:06] and talk a little bit about the homework question,
+[00:41:09] which we sort of covered at this instance,
+[00:41:13] but I want you to think about it,
+[00:41:16] understand or argue with each other,
+[00:41:18] and you know convince yourself,
+[00:41:19] that the scheme actually provides avoids this sort of [],
+[00:41:24] you know split-brain syndrome,
+[00:41:26] in the sense, that there's never going to be two primaries.
+[00:41:29] The second thing you know maybe to debate is,
+[00:41:32] this a reasonable design,
+[00:41:33] because it looks like what we've done is,
+[00:41:35] we put all the real hard part of fault tolerance into the storage server,
+[00:41:38] and it's not really the case,
+[00:41:39] why is that not the case.
+[00:41:41] So that seems like two things that I'd like you to discuss,
+[00:41:45] in these breakout rooms.
+[00:41:46] So I'm going to stop the sharing.
+[00:41:51] And I'm gonna, participants,
+[00:41:56] I'm gonna make Lily host,
+[00:41:59] so that you can set up the breakout rooms,
+[00:42:03] and you know enjoy talk to each other.
+[00:42:08] Lily, you got this under control.
+[00:46:19] Testing to see if I can join a different room this time,
+[00:46:28] it's not looking good though.
+[00:47:04] Well, yes, I'm stuck here.
+[00:49:55] The screen again,
+[00:50:01] can everyone see my screen?
+[00:50:06] Yes.
+[00:50:07] Okay, good.
+[00:50:10] So I hope you had a good discussion,
+[00:50:11] and hopefully get more new students in the class than you knew before.
+[00:50:18] And let's sort of proceed,
+[00:50:20] talking a little bit about the the design of of the VMFT,
+[00:50:28] and there's like summarize quickly, you know.
+[00:50:30] Sorry could you repeat like when the flag is reset to 0,
+[00:50:34] I feel like some of us might have missed explanation.
+[00:50:37] Okay, okay, so okay, good good good.
+[00:50:40] Okay, so let me,
+[00:50:41] okay, so here let's draw the picture again,
+[00:50:44] it's sort of similar way,
+[00:50:45] here's our primary with the VM, everything in it,
+[00:50:48] here's the backup, with everything in it,
+[00:50:51] you know and just logging channel in between,
+[00:50:54] you know connected to a storage server.
+[00:50:56] And you know one thing to think about this,
+[00:50:58] that the storage servers to playing two roles,
+[00:51:00] so let's separate the two roles,
+[00:51:02] one is you knwo to storage you know for,
+[00:51:05] disk basically for you know the primary and backup,
+[00:51:08] when we could just split that,
+[00:51:09] and attach the disk to the primary backup,
+[00:51:12] then where basically have the role here is really the arbitration server,
+[00:51:20] and it has a flag,
+[00:51:24] and the flag was initially 0, right.
+[00:51:26] And so now let's say,
+[00:51:27] there's a partition to primary backup
+[00:51:30] can actually not talk to each other anymore,
+[00:51:33] so they're going to talk to arbitration server,
+[00:51:35] basically to try to promote themselves to the single to go live,
+[00:51:40] and sort of do single server, server the client request.
+[00:51:43] So they both send the packet to the test-and-set operation,
+[00:51:47] one get 0 back,
+[00:51:48] the other get 1 back,
+[00:51:49] one gets 1 back, knows that it was actually the second who tried,
+[00:51:52] and then, and so the first one will succeed, and will go alive,
+[00:51:57] so let's say this guy goes live,
+[00:51:59] and this guy just disappears,
+[00:52:01] the virtual machine is terminate itself and is done,
+[00:52:07] and so now the flag is set 1.
+[00:52:12] And of course now at this point,
+[00:52:13] there's no arbitration necessary more,
+[00:52:15] because there's no secondary replica,
+[00:52:16] there's no backup at all,
+[00:52:18] so really the question is like what happens next,
+[00:52:21] and in terms of repair,
+[00:52:22] that has to be the case,
+[00:52:23] that the second backup, new backup is brought up to alive, correct,
+[00:52:26] and section 3.1 the paper talks about this in quite a bit of detail,
+[00:52:30] and the way it works is that,
+[00:52:32] you know on the user interface,
+[00:52:34] you know to the system, you know VMware motion,
+[00:52:37] you're basically saying like,
+[00:52:38] hey I want to clone this primary,
+[00:52:40] and the clone operation basically,
+[00:52:46] well, basically stop processing processing client,
+[00:52:49] during cloning, the primary won't actually worried about,
+[00:52:52] the one system still running,
+[00:52:53] one actually serve any client request,
+[00:52:55] the the VMotion thing makes them VM clone
+[00:53:01] and basically copies the state of this VM up to tho backup,
+[00:53:06] so here we have an identical copy of the backup, of the primary,
+[00:53:09] that becomes the backup,
+[00:53:11] and so the state of the virtual machine is identical.
+[00:53:14] Once you know the sort of cloning operations happened,
+[00:53:17] then it's free,
+[00:53:19] user user interface is free to set this guy back to 0 too,
+[00:53:24] client requests are still not being processed,
+[00:53:27] when that has actually happened,
+[00:53:28] then this system can go sort of live again,
+[00:53:30] but now with two machines, with a primary and a backup,
+[00:53:34] and the client requests are being processed,
+[00:53:36] they are sent over the channel and etc etc,
+[00:53:38] so we're back in business.
+[00:53:40] So answer the question?
+[00:53:48] I hope it does.
+[00:53:49] If not, I'm happy to revisit this actually,
+[00:53:52] and maybe at the end of the lecture is still confusing.
+[00:53:56] Okay.
+[00:53:57] Okay good.
+[00:53:58] Okay, I want to go back now
+[00:54:00] to sort of like the overall architecture of this system,
+[00:54:04] now I want to dive in a little bit more,
+[00:54:06] and talk you know we decided to think,
+[00:54:09] you know this arbitration scheme allows you to at least point to split-brain syndrome,
+[00:54:13] but you know this sort of larger issue,
+[00:54:16] that if you know two machines are running,
+[00:54:19] you know, our goal is going to be,
+[00:54:23] basically behave like a single machine.
+[00:54:30] So from the client perspective,
+[00:54:31] it should not be possible to really discern,
+[00:54:34] or at least in a sort of demonstrate a bad way,
+[00:54:37] that we actually have two machines, right.
+[00:54:41] And so there's this big step back,
+[00:54:43] if we think at a very high level,
+[00:54:45] you know we have here primary,
+[00:54:47] and it has you know like machine registers, the virtual machine registers,
+[00:54:52] there's memory,
+[00:54:53] and our basic plan is to sort of forward
+[00:54:56] to make sure that basically executes exactly the same instructions.
+[00:55:03] Boom, boom, boom, here's our own,
+[00:55:05] here's backup, here's primary,
+[00:55:09] and you know basically you know when the, when the primary,
+[00:55:14] so we started to map in the same state,
+[00:55:16] and they start executing instructions,
+[00:55:18] like maybe the first instruction is inc,
+[00:55:20] second instruction is dec,
+[00:55:22] you know third instruction is branch,
+[00:55:25] and if they start all in the same state, correct,
+[00:55:28] then at the third instruction is branch,
+[00:55:30] that will branch into the same direction,
+[00:55:31] and so maybe the branch to some instruction,
+[00:55:34] and then we know whatever the next instruction is divide etc, etc.
+[00:55:40] You know all these instructions are deterministic,
+[00:55:42] so that's pretty straightforward, right,
+[00:55:44] like if you know we both start at the same state,
+[00:55:46] they execute exactly the same set of instructions in the same order,
+[00:55:51] then we're going to end up in state S',
+[00:55:54] and those two states have to be identical, right.
+[00:55:59] Now the thing that is sort of a challenge in design,
+[00:56:04] where any sort of replication scheme is,
+[00:56:06] there might be sources of divergence,
+[00:56:09] you know so our goal is to actually get them exactly the same state S',
+[00:56:14] but you know there source or sources of divergence.
+[00:56:23] And it's pretty obvious, correct, what those are,
+[00:56:25] for example instructions that are non-deterministic our problems,
+[00:56:35] and so what are one example of non-deterministic instruction?
+[00:56:42] Getting the time.
+[00:56:44] Yeah, getting the time, why is it non-deterministic?
+[00:56:47] Because it didn't,
+[00:56:50] and the machines are not like the backup is not executing.
+[00:57:00] Yeah the issue here correctly is that,
+[00:57:02] if there's the primary and the backup,
+[00:57:05] you know at some point will execute this you know get time of day instruction,
+[00:57:08] if you will,
+[00:57:09] and they might not execute it exactly at the same time,
+[00:57:11] so the values returned by the instruction is going to be different, right,
+[00:57:16] so that's a source of, the potential source of divergence,
+[00:57:22] that we need to control.
+[00:57:24] In fact,
+[00:57:25] we basically have to turn every non-deterministic instruction into a deterministic instruction,
+[00:57:29] we'll see in a second and how, how could that be done.
+[00:57:33] Similarly, inputs, packet inputs,
+[00:57:36] like when packet the arrives over the network,
+[00:57:39] you know the primary,
+[00:57:40] you know we got to make sure,
+[00:57:42] that you know the that packets executed or processed,
+[00:57:47] the interrupt goes along with that packet is exactly delivered
+[00:57:50] exactly the same point in the instruction stream, right.
+[00:57:53] So we go back to our previous paper, at previous page,
+[00:57:56] and like the backup is also executing these instructions,
+[00:57:59] and dec, blah blah blah,
+[00:58:01] exactly the same order,
+[00:58:02] so if the primary for example,
+[00:58:04] you know we get the interrupt is delivered between instruction 1 2,
+[00:58:08] we've got to make sure that,
+[00:58:09] the backup it also delivered between 1 and 2,
+[00:58:12] because it really delivered exactly the same point in the instruction stream,
+[00:58:16] the interrupt handler will run and will do this,
+[00:58:18] they both execute the same instructions again.
+[00:58:22] However, if you know for example the backup you know would process
+[00:58:26] this timer interrupt or is packet arrival interrupt
+[00:58:29] a little bit later in a different side of stream,
+[00:58:31] then the state of the system might be different,
+[00:58:33] and therefore the result of you know computation might be different,
+[00:58:37] so we can't have that,
+[00:58:38] so it has to be the case,
+[00:58:39] that interrupts whatever packets and timers all get delivered exactly at the same time,
+[00:58:45] for the same input in the instruction stream,
+[00:58:47] so input packets or timer interrupts,
+[00:58:56] need to basically be delivered at the same point in the instruction stream.
+[00:59:03] And so those are sources of divergence,
+[00:59:05] that we need to handle,
+[00:59:06] any other source of divergence that?
+[00:59:09] So I think, like I think it was mentioned in the paper,
+[00:59:13] that concurrency also can produce non-determinism,
+[00:59:15] but from my understanding here,
+[00:59:17] since the hypervisor actually controls the interrupts,
+[00:59:20] and since we have a unique processor,
+[00:59:22] wouldn't the thread switch be conducted to the hypervisor by by interrupts,
+[00:59:27] so if we control the interrupts,
+[00:59:28] and we can transmit them exactly at the right location,
+[00:59:32] wouldn't we also control the non-determinism from concurrency.
+[00:59:35] Yeah, so I think there's a great observation,
+[00:59:37] so let me,
+[00:59:38] it's a potential diverge,
+[00:59:40] okay, so first of all,
+[00:59:40] let's first agree that it's a potential source of divergence,
+[00:59:45] so multicore.
+[00:59:49] And let's see,
+[00:59:50] you know basically the way the solution in this particular paper
+[00:59:54] to avoid this problem is to say,
+[00:59:55] well, there's disallow, we're not allow to have that,
+[01:00:00] and so just only uniq processor,
+[01:00:02] let's say we had multi-core,
+[01:00:04] and you know what just to make sure that we understand what the issue is,
+[01:00:08] the issue here is correct,
+[01:00:09] we have two threads running on the same processor,
+[01:00:12] sort of on different cores,
+[01:00:14] and they arranged for example to grab grab a lock,
+[01:00:18] and one of them is going to win,
+[01:00:19] and so that's the thread that's going to run next,
+[01:00:22] and the other one is going to be stopped for a little while,
+[01:00:24] if we want to do this replicated state machine approach at the backup,
+[01:00:27] the same thing would have to happen, right,
+[01:00:29] where if the two threads run, you know race for that lock at the same time,
+[01:00:33] then we got to be arrange that whatever winner on the primary,
+[01:00:36] also the winner on the backup.
+[01:00:38] And so that requires a whole bunch of machinery,
+[01:00:41] that you know additional machinery complexities,
+[01:00:44] that you know the paper clearly didn't want to address
+[01:00:46] or didn't know how to address,
+[01:00:48] and basically just said, like,
+[01:00:49] okay, we're just gonna exclude that possibility of divergence,
+[01:00:52] but just declaring that the processor uni-processor.
+[01:00:56] And so then thread switching and all that kind of stuff doesn't matter anymore,
+[01:00:58] there's always one you know computation running on the computer, on the processor,
+[01:01:02] and it will switch,
+[01:01:03] if the primary switches to a different thread,
+[01:01:05] the backup switch also to the same different thread,
+[01:01:08] because it's a single [instruction],
+[01:01:10] and they get their external inputs exactly at the same time.
+[01:01:16] That makes sense?
+[01:01:18] So in some ways a little bit lame,
+[01:01:19] they just give up on multi-core.
+[01:01:22] And as I mentioned later systems,
+[01:01:25] in the more recent systems of this product, do handle multi-core.
+[01:01:30] And you know and yeah I want to talk to,
+[01:01:33] I don't actually understand exactly how they do it,
+[01:01:36] potential difference potential difference schemes,
+[01:01:38] that you could think of doing,
+[01:01:39] people have gone multi-core replay,
+[01:01:43] which I really want the thing that is necessary,
+[01:01:45] so, but I don't really know exactly,
+[01:01:47] I'm not gonna talk about that at all,
+[01:01:48] I'm just gonna talk about that focus on the first three items,
+[01:01:51] and see how they handle it in this case.
+[01:01:58] Okay, any questions?
+[01:02:03] Oh, sorry, just make sure,
+[01:02:04] it only transmits the instructions that the the application makes, right,
+[01:02:11] it doesn't transmit the instructions that Linux makes.
+[01:02:17] Yeah, exactly,
+[01:02:18] so here's interesting thing we'll see in a second,
+[01:02:21] but let me make it more clear right away,
+[01:02:24] the, in fact, these instructions inc dec branch
+[01:02:28] are not sent to the primary backup at all,
+[01:02:30] they basically have their own copy, right,
+[01:02:32] and we're just starting them at the same point in the program,
+[01:02:34] and so therefore they run exactly the sort of lockstep,
+[01:02:37] almost there's [no] one running lockstep,
+[01:02:40] but they execute them in the same order,
+[01:02:42] only something special has to happen
+[01:02:44] at these points of diversion possible divergence,
+[01:02:47] and you know the assumption that sort of paper makes,
+[01:02:49] the most instructions are deterministic,
+[01:02:51] so we don't really have to do anything,
+[01:02:53] it's only the instructions were things that could potentially go wrong,
+[01:02:56] we have to do something.
+[01:02:57] And so one of those sources where something could go wrong is interrupts.
+[01:03:02] So let's talk a little bit about interrupts.
+[01:03:11] And so here basically the virtual machine sort comes to
+[01:03:14] rescue and really helps solve this problem,
+[01:03:18] so let's say here we have our hypervisor,
+[01:03:23] and interrupt happens,
+[01:03:26] that the interrupt will show up at the hypervisor,
+[01:03:29] and the hypervisor knows exactly at,
+[01:03:31] what instruction the application was
+[01:03:34] or where the VM was at this level,
+[01:03:36] so here Linux running inside of this VM,
+[01:03:39] the interrupt happens,
+[01:03:40] of course you know the the the hypervisor already has taken over control,
+[01:03:46] and it knows where it stopped you know Linux to actually take the interrupt.
+[01:03:50] So maybe you know whatever it took it,
+[01:03:53] it has executed a hundred instruction so far,
+[01:03:56] and then this interrupt comes in,
+[01:03:58] and the hypervisor that wants to
+[01:04:00] deliver that interrupt basically instruction after 100,
+[01:04:04] and before doing that actually,
+[01:04:06] it just sends over the logging channel,
+[01:04:07] a message you know to the backup,
+[01:04:10] so here's backup FT,
+[01:04:13] and in that message,
+[01:04:14] it basically says like okay at instruction 100,
+[01:04:17] you know when you get the instruction 100,
+[01:04:19] you know delivered this interrupt,
+[01:04:21] and maybe some data associated with the interrupt.
+[01:04:25] So this is just two things interrupt comes in,
+[01:04:27] sees what the instruction number was,
+[01:04:28] and then it sends to backup this message,
+[01:04:30] saying like hey you know at some point,
+[01:04:32] when you get to instruction 100,
+[01:04:33] you know process you know this interrupt.
+[01:04:37] And you know some point later, this interrupt 1 and interrupt 2 comes in,
+[01:04:42] and so then the hypervisor exactly the same thing you know again,
+[01:04:47] they'll send out, say this is instruction 200,
+[01:04:52] you know will send a message 200 interrupt,
+[01:04:54] perhaps and any data associated the interrupt to the FT.
+[01:05:00] So when you know the backup gets the first message,
+[01:05:05] just buffers the message,
+[01:05:07] because it doesn't know how long it can run after that message,
+[01:05:10] until it knows what the next point is that it has to deliver something.
+[01:05:15] So at the point that the second message comes in,
+[01:05:17] you know for the second interrupt,
+[01:05:18] it knows you know it's perfectly fine to start a computer,
+[01:05:22] and instruction 100 delivered to interrupt,
+[01:05:24] and basically keep running into instruction 200.
+[01:05:28] And the way it does,
+[01:05:29] it is basically most processors have this,
+[01:05:31] but x86 has this too,
+[01:05:33] where you can basically program the x86
+[01:05:35] and say well you should stop after executing 100 instruction,
+[01:05:38] so the processor will stop where executing after 100 instructions,
+[01:05:42] and this give back control to the operating system,
+[01:05:45] in this case, the virtual machine monitor.
+[01:05:48] And so you know so this is the scheme,
+[01:05:51] this is a scheme that VM-FT uses
+[01:05:54] to basically you know deliver interrupts,
+[01:05:56] both at the primary and the backup,
+[01:05:58] exactly at the same instruction,
+[01:06:00] so that they sort of stay in exactly
+[01:06:03] execute the instructions exactly the same order.
+[01:06:06] To arrange this,
+[01:06:07] of course going to backup which needs lag behind one, lag behind one message.
+[01:06:20] Okay?
+[01:06:24] So just to be clear,
+[01:06:25] so the deterministic operations don't
+[01:06:27] don't get communicated through the logging channel,
+[01:06:29] it's only the operations that perhaps might diverged.
+[01:06:34] Exactly.
+[01:06:35] Usually got.
+[01:06:36] Exactly, what it does,
+[01:06:37] so let's look at one more actually get the flavor,
+[01:06:39] then we'll talk.
+[01:06:40] Yeah, go ahead.
+[01:06:42] Sorry, so deterministic operations,
+[01:06:45] is that don't get communicated through the logging channel.
+[01:06:48] No, there's no need for them,
+[01:06:50] because both of them of course have a copy of all the instructions,
+[01:06:54] like the binary that, like whatever Linux runs, correct,
+[01:06:57] but you know the instructions are not communicated over logging channel,
+[01:07:00] only the non-deterministic wants.
+[01:07:02] So like in this interrupt and we'll see in a second,
+[01:07:05] here let's talk about the second one, non-deterministic instructions,
+[01:07:11] like you get the timer, get timer of day.
+[01:07:14] So the way that works is,
+[01:07:16] so here's we got our Linux running in the VM,
+[01:07:19] we got our FT running,
+[01:07:22] and basically when you know this Linux use a image,
+[01:07:27] program image that Linux runs,
+[01:07:30] and maybe you know here's are non-deterministic instruction,
+[01:07:34] and basically what FT has done,
+[01:07:36] before it started Linux,
+[01:07:38] you sort of gone through the Linux binary
+[01:07:41] and found all the instruction that the non-deterministic,
+[01:07:44] like get time of day,
+[01:07:45] and basically ensure you know turn them in sort of invalid instruction,
+[01:07:49] and so when Linux execute, executes that non-deterministic instruction,
+[01:07:53] it actually controls transfers control to the hypervisor,
+[01:07:58] this is the trap.
+[01:08:00] And now the hypervisor knows,
+[01:08:01] okay, well this was whatever instruction 341,
+[01:08:05] I know that is a non-deterministic instruction,
+[01:08:07] because I wrote you know those bits you know that caused the trap,
+[01:08:11] and it will emulate that instruction,
+[01:08:14] and so it will do all the effects that instruction has,
+[01:08:17] but record what the results of the effects are,
+[01:08:20] so for example, you know whatever we record what the result execution instruction,
+[01:08:24] the result stays goes into a0,
+[01:08:27] it records the value a0
+[01:08:29] and then basically sends to the backup,
+[01:08:32] you know the outcome you know of that instruction,
+[01:08:34] so whatever its value in a0 is whatever 221,
+[01:08:39] then of all you know send back,
+[01:08:41] you know saying you know there's non-deterministic instruction,
+[01:08:44] result of it is 221,
+[01:08:48] and at some point, correct,
+[01:08:49] you know the backup legs behind,
+[01:08:51] it will you know execute,
+[01:08:54] because it's executing these instructions in the same order, in the same way,
+[01:08:57] it will also execute the non-deterministic instruction,
+[01:09:00] that will trap into the kernel,
+[01:09:02] and that usually wait
+[01:09:03] until you know since legs behind,
+[01:09:06] the already receives probably the message
+[01:09:08] and basically make sure that it sticks the same value,
+[01:09:11] you know returns the same value as it did on the primary, right.
+[01:09:15] So this is how non-deterministic instructions are handled.
+[01:09:21] Sorry, so that happens,
+[01:09:24] like the modification of the binary,
+[01:09:26] it happens when it creates the virtual machines?
+[01:09:30] Yeah, we think about it, when it to boot to the VM.
+[01:09:34] Okay.
+[01:09:36] But so the the backup re-executes the non-deterministic instruction,
+[01:09:42] and then just verifies the result?
+[01:09:44] No, what it actually does is,
+[01:09:46] if the virtual machine monitor executes the instruction,
+[01:09:51] and then you know,
+[01:09:53] actually virtual machine monitor that doesn't execute instruction at all,
+[01:09:56] it knows that this instruction needs to be executed,
+[01:10:00] and it knows what things will be changed,
+[01:10:01] like what registers need to be updated,
+[01:10:03] as a result of this instruction,
+[01:10:05] and it sticks the value from the message into the register,
+[01:10:09] so that the Linux running on the backups
+[01:10:12] is exactly the same effect as a Linux running on the primary.
+[01:10:21] And so like this assumes that the hypervisor will do some work before
+[01:10:24] even or while putting up VM
+[01:10:26] just where the locations of these non-deterministic.
+[01:10:29] Yeah that with hypervisor does these [].
+[01:10:33] So this is a standard hypervisor stuff,
+[01:10:35] there's nothing new to FT,
+[01:10:37] other than these guys a ton of experience do hypervisor,
+[01:10:41] because VMware,
+[01:10:42] and so they understand like what what it takes,
+[01:10:46] and which instructions are non-deterministic.
+[01:10:51] Okay, so.
+[01:10:52] I I had one more, one more question,
+[01:10:56] so if you know it's a program of fully like deterministic instructions,
+[01:11:02] could, could the backup run faster than the primary.
+[01:11:08] Okay, so you know there's a whole discussion in the paper
+[01:11:11] about like the speed of the primary and backup,
+[01:11:13] and making sure that run roughly at the same speed,
+[01:11:16] because you don't want to get one far ahead and one far behind,
+[01:11:20] I think you should think about them,
+[01:11:21] they're running on the sort of identical hardware,
+[01:11:23] and so they're running roughly at the same speed.
+[01:11:25] It's also the case that,
+[01:11:28] there's going to be always some communication over this channel,
+[01:11:31] because interrupts are happening periodically, right,
+[01:11:35] like every you know whatever you know a couple of milliseconds,
+[01:11:39] or maybe a hundred milliseconds or ten milliseconds,
+[01:11:41] depending on how Linux what rate Linux program the hardware timer,
+[01:11:45] there will be a timer interrupt,
+[01:11:47] and timer interrupt will be propagated to the backup,
+[01:11:50] and sort of be sync points if you want.
+[01:11:54] Right, but my question is like,
+[01:11:56] for example say you have a bunch of deterministic instructions, right,
+[01:12:01] instructions that are sent through the logging channel,
+[01:12:04] which means you know the primary and backup
+[01:12:08] can run those instructions at at their own pace, correct.
+[01:12:11] Yes.
+[01:12:12] So, say what I mean,
+[01:12:14] I don't know if this could happen,
+[01:12:15] but say like it's you know a 100 instructions,
+[01:12:19] and the primary goes to like instruction 50
+[01:12:24] and gets gets a timer interrupt,
+[01:12:27] but the backup is already a timer like 60 or something,
+[01:12:30] could could that.
+[01:12:32] It could not happen, right,
+[01:12:33] because remember the backup legs behind one of these messages.
+[01:12:38] So the backup won't start executing the next log until the primary has finished.
+[01:12:43] Okay.
+[01:12:44] This is why this is why it lags behind one.
+[01:12:48] Hmm.
+[01:12:51] Like, to ensure that the backup is like lagging behind one instruction,
+[01:12:56] that does that mean.
+[01:12:57] No not one instruction, one message on the channel.
+[01:13:00] But the interrupt is [interrupt], right,
+[01:13:02] so if we have,
+[01:13:03] as you said, if we have a hundred lines of instructions,
+[01:13:06] and running on the backup as well as the primary, then.
+[01:13:10] The primary backup would not have started yet, right,
+[01:13:12] so the primary runs 200 instructions,
+[01:13:15] the backup actually wait
+[01:13:16] until the primary actually just completed whatever those 100 instructions,
+[01:13:22] before it starts running those 100 instructions.
+[01:13:26] So just one way to think about,
+[01:13:27] it always runs like one epoch behind.
+[01:13:29] Oh, so it's kind of a batching kind of scheme.
+[01:13:33] Yeah.
+[01:13:34] Alright, thank you.
+[01:13:35] Okay, so I want to talk a little bit about failure over,
+[01:13:37] because there's a couple interesting,
+[01:13:38] there's one more rule that needs to be ensured,
+[01:13:40] that we actually get the right behavior.
+[01:13:44] And so, so let's walk through some scenarios,
+[01:13:47] here's the primary,
+[01:13:48] here's our hypervisor correct FT,
+[01:13:51] here's our logging channel, FT,
+[01:13:56] you know they both on the network,
+[01:13:57] here's a client,
+[01:13:59] and here's our backup.
+[01:14:04] And I'm going to talk about a couple of scenarios,
+[01:14:07] so the first scenario are the normal case,
+[01:14:11] a client sends a message you know to the primary,
+[01:14:16] where the servers running on the primary,
+[01:14:18] you know that's delivered of course to the primary,
+[01:14:21] also sent you know to on the channel.
+[01:14:24] And let's assume for a second,
+[01:14:26] that actually the message you know arrives you know at the hypervisor,
+[01:14:31] so it actually knows that this was an interrupt,
+[01:14:33] some packet arrived,
+[01:14:36] and so now let's say the primary who sent a response back,
+[01:14:41] and at that point, the computer crashes,
+[01:14:45] so the primary fails,
+[01:14:46] the client has not gotten a response yet.
+[01:14:49] Now, this turns out to work out perfectly fine,
+[01:14:51] because before you know the backup actually takes over,
+[01:14:54] it first processes all it's message that has received yet,
+[01:14:59] because lags one behind, as we talked before,
+[01:15:02] so you know this thing will be delivery.
+[01:15:05] So it will, sorry.
+[01:15:13] Okay, let me a little bit more careful,
+[01:15:15] okay, so it gets delivered to the primary backup does it,
+[01:15:18] but it actually won't send any response,
+[01:15:21] because it's still,
+[01:15:22] so you know doing exactly what the primary has done,
+[01:15:25] gets through that particular point and stops.
+[01:15:28] Then point you know []
+[01:15:29] you know or like the backup becomes the primary,
+[01:15:31] you know through the arbitration server,
+[01:15:33] and the client will just timeout and retry,
+[01:15:35] because like TCP packet, then get a response,
+[01:15:38] so retry actually trying to work out perfect.
+[01:15:41] The interesting case is,
+[01:15:43] what happens in the following scenario,
+[01:15:46] where the client sends a request,
+[01:15:51] it can it arrives at the primary,
+[01:15:52] primary does the operation,
+[01:15:55] or whatever process the client request,
+[01:15:56] since the message to fault tolerance server,
+[01:15:59] in the meantime,
+[01:16:00] okay, it was also sent on the logging channel,
+[01:16:03] but let's say we got unlucky,
+[01:16:04] and the message actually never made it over the logging channel,
+[01:16:08] and,
+[01:16:13] but the primary actually you know sends a response,
+[01:16:17] before just sends a response and then it fails, right,
+[01:16:23] and so for example like,
+[01:16:24] maybe you know this request was to increase the variable from 10 to 11,
+[01:16:29] so inc the old state was 10 and now the new state is 11, right.
+[01:16:38] And is this problematic, this scenario?
+[01:16:42] Yeah, because when the backup takes over,
+[01:16:45] it won't know about that increase,
+[01:16:50] and so it'll just continue execution as if it didn't happen,
+[01:16:54] and this provides like inconsistent output
+[01:16:59] to the external like [facing] world I guess.
+[01:17:02] Yeah, exactly, right,
+[01:17:04] because the primary will takeover, the backup will take over,
+[01:17:06] the value still be 10,
+[01:17:07] and now if the client does inc,
+[01:17:10] it can actually gets 11 back,
+[01:17:12] instead of 10, instead of 12, right.
+[01:17:15] So this is no good,
+[01:17:16] and so how is this avoided this problem?
+[01:17:19] The primary will send things to the backup
+[01:17:24] and then wait for acknowledgement,
+[01:17:25] and once that acknowledgement is received,
+[01:17:29] it can send output,
+[01:17:32] and it doesn't matter whether the backup actually runs the command,
+[01:17:35] it just has to have it,
+[01:17:37] so that if it ever needs to take over as primary,
+[01:17:40] it has that and it's logs,
+[01:17:42] and it will catch up before actually like become primary.
+[01:17:46] Exactly right, so this is what's called the output rule,
+[01:17:52] and the rule is that you know before you can output,
+[01:17:55] you got to make sure that,
+[01:17:56] the preceding messages that you were sent to the backup
+[01:18:00] actually have been received by the backup.
+[01:18:03] So this scenario I just drew out going actually never happen,
+[01:18:06] because you know at that point,
+[01:18:08] you know the primary wants to send a response out on the network,
+[01:18:11] the FT, the primary FT will wait
+[01:18:14] until this message actually has has been received by the backup,
+[01:18:19] and only when it received an acknowledgement from the backup FT,
+[01:18:25] and now knows you know that basically the backup has a copy of this input,
+[01:18:31] and so whatever you know whatever it fails,
+[01:18:34] you know the backup will you know process that input,
+[01:18:37] and basically get a computer in the same state as the primary,
+[01:18:40] so at that point and actually safe to send out the reply.
+[01:18:45] And so this is the output rule,
+[01:18:47] is that you don't output
+[01:18:49] until all preceding messages that you send over log channel
+[01:18:53] actually have been received by the backup.
+[01:18:56] And so just to clarify,
+[01:18:57] it seems that the output rule is here to solve the inconsistency,
+[01:19:02] that could happen if we have some non-determinism,
+[01:19:05] so like let's say that we have the output operation to be instruction 60,
+[01:19:10] and we do not have the output rule,
+[01:19:14] and so the backup actually did not,
+[01:19:16] let's say for some reason did not receive the output operation,
+[01:19:20] or it did not receive up until the output operation,
+[01:19:24] if the instructions are deterministic between the point,
+[01:19:27] where the backup did not receive messages
+[01:19:30] until the point where we have an output operation,
+[01:19:33] do we still run into the problem of the inconsistency?
+[01:19:36] Yeah, because the client might observe that, right,
+[01:19:39] the client might have observed that actually value is now 11.
+[01:19:44] And so when it actually talks to the backup after the primary has failed,
+[01:19:48] you know then the value should only 10,
+[01:19:51] and you know that can't be true,
+[01:19:53] so that you know that reveals that is not behaving like a single system.
+[01:19:58] I see.
+[01:19:59] It's the external thing you know the external client that will observe something wrong,
+[01:20:04] and this is why the output rule exists,
+[01:20:06] in any replication system,
+[01:20:08] that we'll see this semester
+[01:20:09] has something like the output rule.
+[01:20:11] And it turns out to be,
+[01:20:12] you know for example you'll see in the, even in the raft paper,
+[01:20:17] but also in the zookeeper,
+[01:20:19] there's sort of this notion,
+[01:20:21] that you know sometimes you want to like respond to reads immediately,
+[01:20:25] but you can't really do that,
+[01:20:26] because you run this risk
+[01:20:27] and sort of an equivalent of an output rule,
+[01:20:30] that tries to avoid you know problems like like that.
+[01:20:36] So does the client re-execute the command,
+[01:20:41] like do they get some sort of signal that,
+[01:20:43] because the command was never ack by the backup.
+[01:20:48] Okay, okay so let's say we did not get the ack, right,
+[01:20:53] so, I've got to backup but not to the ack,
+[01:20:56] then the client will not
+[01:20:59] you know this response would have not been sent to the client yet, right,
+[01:21:03] the backup will take over,
+[01:21:05] the client presumably will timeout,
+[01:21:06] and do whatever it needs to do,
+[01:21:08] either you know does nothing,
+[01:21:09] you know if you know that's part of their,
+[01:21:12] that's part of the protocol between servers and clients,
+[01:21:14] most likely the client will re-send the TCP connection,
+[01:21:19] the response packet didn't get received,
+[01:21:22] and so it will you know try to re-send,
+[01:21:25] and so it will re-send to backup,
+[01:21:28] and then finish the operation,
+[01:21:31] but it won't observe an old value.
+[01:21:38] Okay?
+[01:21:51] Okay, now I want to talk one thing a little bit,
+[01:21:56] then so this system I think it's actually very cool,
+[01:21:59] it's a very clean version of state machine replication,
+[01:22:05] it brings out this issue of non-determinism,
+[01:22:08] the issues like the output rule,
+[01:22:10] that we'll see in a version of that,
+[01:22:12] we'll see a similar in in other systems,
+[01:22:17] but I want to talk a little bit about performance,
+[01:22:19] because like one downside of this system is,
+[01:22:23] you know because you're doing things
+[01:22:25] at the level of the machine instructions or level interrupts,
+[01:22:29] there you pay performance hit.
+[01:22:33] So like 1 and 2 tables that are in the paper,
+[01:22:38] and one the first thing to observe is that,
+[01:22:40] actually the left table is extremely good,
+[01:22:43] so the backup and the primary,
+[01:22:45] you run the backup primary performance was very close to
+[01:22:48] as if you were not running with a backup,
+[01:22:51] which is very very impressive,
+[01:22:53] and in fact including the fact that you're running a virtual machine,
+[01:22:56] the more, the more troublesome part is this side of things,
+[01:23:03] where if you don't run in a primary/backup mode,
+[01:23:07] you know like your bandwidth and receiving and sending actually pretty high,
+[01:23:11] you know at least in the particular experiment they did.
+[01:23:13] But you know when you're running the backup mode,
+[01:23:16] things are actually not so good, right,
+[01:23:17] you know these numbers are quite different,
+[01:23:19] in fact like 30% reduction in performance.
+[01:23:23] And where is that 30% coming from,
+[01:23:25] like why, why is that the case.
+[01:23:34] Because the primary is actually the one receiving inputs from outside.
+[01:23:39] Yeah, I think there's two cases,
+[01:23:41] in on receiving a case,
+[01:23:43] where the primary receiving input from the outside,
+[01:23:46] where does that need to go.
+[01:23:48] If you see a packet from the from the client,
+[01:23:51] so that packet has to be sent to the to the backup, sort of.
+[01:23:58] Wait, but the primary is also the one sending output back to the clients,
+[01:24:04] so is that what's using the bandwidth.
+[01:24:06] Yeah, well, there's that one reason,
+[01:24:11] but the real thing I think is going on here is that,
+[01:24:13] the primary has to wait
+[01:24:15] until it can send a response to a client
+[01:24:18] until the backup actually has acknowledged it.
+[01:24:21] And so just came like process packets,
+[01:24:23] the same speed as good without actually backup.
+[01:24:28] And therefore we should see a reduction in performance.
+[01:24:32] Nevertheless, this performance is pretty impressive,
+[01:24:34] but you know there's a performance cost.
+[01:24:38] And this is one reason,
+[01:24:38] that people play this game replicated state machines not at the instruction level,
+[01:24:44] but at the application level,
+[01:24:46] and basically be able to get higher performance,
+[01:24:49] but that requires modification to the applications,
+[01:24:51] as we saw in GFS.
+[01:24:56] Okay, I think I'm running a little bit over time,
+[01:24:58] so I'm gonna stop right now,
+[01:24:59] so I hope people that actually needed to leave already left,
+[01:25:04] but I'll stick around,
+[01:25:05] and see if people have more questions,
+[01:25:07] I'll be happy to answer those.
+[01:25:13] And I'll talk to you on Tuesday.
+[01:25:15] Thank you.
+[01:25:18] I had a question about the previous image,
+[01:25:24] that you drew with, with the,
+[01:25:27] yeah that one,
+[01:25:29] I was confused because,
+[01:25:32] wasn't it the case that,
+[01:25:34] if that number 10, it just sits in the memory,
+[01:25:38] then we do an increment,
+[01:25:40] we don't need to send anything to the backup right.
+[01:25:46] There, okay, so there's two things going on here,
+[01:25:48] so we do see,
+[01:25:49] at the at the point that the message comes in,
+[01:25:51] like this increment comes in from the client,
+[01:25:55] arrives at the FT at the hyper, the primary hypervisor,
+[01:26:01] it needs to forward that message to the backup FT,
+[01:26:06] so that it can process,
+[01:26:08] it needs to be processed when it needs to be processed,
+[01:26:10] when it processes exactly the same point in this instruction stream, right.
+[01:26:17] So it sends it off,
+[01:26:18] and then you know delivers it to the primary,
+[01:26:20] and then the primary goes up and does its thing,
+[01:26:22] primary you know may respond with a message,
+[01:26:25] and so if the primary responds with a message,
+[01:26:27] the output of that message is stop
+[01:26:30] or hold until the backup as acknowledged the reception of this increment,
+[01:26:40] which will ensure that if the backup has to take over,
+[01:26:42] whatever it will process that increment first,
+[01:26:45] and it also will be 11 before response sent.
+[01:26:52] Okay, okay, thank you.
+[01:26:55] One thing I'm confused about is,
+[01:26:59] is the goal of the system to to help with like bucking up an actual server,
+[01:27:05] where because it's not easy to handle the interrupt without a hypervisor
+[01:27:10] or is it actually to help distribute virtual machines themselves.
+[01:27:16] And it's purely to make an app,
+[01:27:18] like you have a business application that runs on a single machine,
+[01:27:22] and you want to make it more fault tolerance,
+[01:27:24] and the what this scheme does is,
+[01:27:27] it makes it fault tolerance for you transparently,
+[01:27:30] you run the business applications and both machines on the on the FT hypervisor
+[01:27:35] and FT hypervisor will ensure that,
+[01:27:37] you know basically these applications more or less not literally running lockstep,
+[01:27:41] but basically you know fault tolerance replicated.
+[01:27:47] So the VM using the VM itself is kind of a design decision.
+[01:27:50] Yes, and that is a good design decision,
+[01:27:53] because it allows you to do this replication at a transparent level.
+[01:27:58] Got it, thanks so much.
+[01:27:59] You're welcome.
+[01:28:03] Yeah, the question in the chat,
+[01:28:04] about can be a the output rule,
+[01:28:07] is it possible that the client sees the same response twice.
+[01:28:09] And the answer is yes,
+[01:28:11] it's absolutely possible,
+[01:28:12] that the client will see you get the response twice,
+[01:28:15] and basically what they argue that's okay,
+[01:28:19] because in sort of the fault tolerant model of the network,
+[01:28:22] it is always assumed the network can actually duplicate messages anyway,
+[01:28:26] and so protocols like TCP are totally designed to deal with duplicate messages.
+[01:28:32] So yes, it's okay, because TCP,
+[01:28:35] or whatever replication duplication scheme,
+[01:28:39] the application uses, where the client uses.
+[01:28:43] I was curious about [] question,
+[01:28:45] which is primary like sort of goes down for a few minutes,
+[01:28:51] backup goes live,
+[01:28:52] then sets up its its own backup,
+[01:28:57] you know switches the bit back to 0,
+[01:29:02] and then suddenly somehow the first primary goes back,
+[01:29:08] like goes back.
+[01:29:09] Yeah, I think we're going to have the case,
+[01:29:10] that first primary is definitely terminated,
+[01:29:12] it's cleaned up and gone.
+[01:29:15] Hmm, nice, thanks.
+[01:29:22] To ask a question something similar,
+[01:29:24] may be too broad question,
+[01:29:25] but like will you ever need to store more things
+[01:29:29] besides an arbitration flag and the server,
+[01:29:32] I mean besides the flag an arbitration server,
+[01:29:37] if you have like multiple like backups.
+[01:29:42] Oh yeah, like this is a scheme [] to at one backup,
+[01:29:45] not more than one backup,
+[01:29:46] so if you had more backups,
+[01:29:47] you know, you know, there's other issues that we need to resolve,
+[01:29:52] in fact we'll come back to this, on Tuesday,
+[01:29:54] you know with more sophisticated protocols,
+[01:29:56] that handle those cases much cleaner.
+[01:29:58] Okay, that was just perfect cool, thank you.
+[01:30:04] I have one question about the performance,
+[01:30:08] so can you go back to that table?
+[01:30:11] Yes, my question is,
+[01:30:12] is it the delay only be viewed on the first packet,
+[01:30:16] like after the first packet,
+[01:30:17] it will just flow through the channel,
+[01:30:20] and there's no extra delay on the link,
+[01:30:23] so the bandwidth should be roughly the same, or no.
+[01:30:26] No, okay for every packet received correctly by the primary,
+[01:30:30] you know that packet has to be forwarded to the backup,
+[01:30:33] for every response you know backup the left wait
+[01:30:36] for the primary has to wait
+[01:30:36] until the output rule is satisfied,
+[01:30:38] then it can send a response.
+[01:30:42] So there's some lag processing on the backups,
+[01:30:46] backup server to before getting back to the primary.
+[01:30:49] Yeah, so they talk a little bit about that, correctly,
+[01:30:52] the particular processing that needs to be done is,
+[01:30:53] actually acknowledging the reception of the packet on the logging channel.
+[01:30:58] And they talk a little bit about how to reduce the delay
+[01:31:02] to make sure that sort of acknowledgment is very quick.
+[01:31:07] I see, I see okay, thank you.
+[01:31:10] I have a question about the logging channel,
+[01:31:13] so they they mentioned that they use UDP,
+[01:31:16] and I assume that's mostly for performance,
+[01:31:19] but then so basically if a single failure happens, the primary,
+[01:31:24] if a single packet is unacknowledged,
+[01:31:27] then it assumes that the backup failed,
+[01:31:29] without any like retransmission.
+[01:31:31] No, no, yeah, because there's a timer interrupt,
+[01:31:36] and the timer interrupt goes off like every ten milliseconds or something,
+[01:31:40] there's always multiple packet,
+[01:31:43] one packet sent,
+[01:31:44] that packet doesn't get no heartbeat coming back,
+[01:31:48] then it will do a couple of these time interrupt,
+[01:31:50] before it gives up.
+[01:31:52] Okay, and the heartbeats, are they [] from the primary
+[01:31:57] or it was going to apply it from somewhere else in the system.
+[01:32:00] Well, they sort of come from the timer,
+[01:32:02] when the heartbeat basically an indirect side effect,
+[01:32:05] because every ten milliseconds,
+[01:32:07] you're gonna send an interrupt message to the over logging channel anyway.
+[01:32:12] I see, okay.
+[01:32:16] Alright, thank you.
+[01:32:17] You're welcome.
+[01:32:22] Actually I wanted to follow up on that,
+[01:32:23] I think it said that it's gonna wait a couple a few seconds.
+[01:32:28] Yeah, yeah, it can wait a while,
+[01:32:31] you know they do a couple of heartbeats and wait a while,
+[01:32:33] and if they're really, none of them come through,
+[01:32:35] then it will stop.
+[01:32:37] Okay, and is a few seconds that's a lot, right.
+[01:32:41] I don't remember exactly all the numbers,
+[01:32:43] so you could be right in a few seconds,
+[01:32:44] I would imagine a bit shorter, but maybe it's not.
+[01:32:47] I think, I'd like something in the order of a few seconds,
+[01:32:51] but is it bad?
+[01:32:54] That much longer for the cloning,
+[01:32:57] but you know I can't remember it like.

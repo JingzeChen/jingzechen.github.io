@@ -1,0 +1,1661 @@
+[00:00:01] So the topic for today is raft replication protocol,
+[00:00:09] we'll discuss it quite a bit of detail,
+[00:00:11] in fact we're going to spend multiple lectures on it,
+[00:00:15] and one,
+[00:00:15] because it's one of the core elements of examples of distributed replication protocol.
+[00:00:23] So, today been mostly focusing on
+[00:00:28] you know the material that is necessary for labs 2A and 2B,
+[00:00:33] so the election of the leader as well as you know pushing the logs around,
+[00:00:37] and then next week,
+[00:00:43] we're focusing more on 2C and 2D,
+[00:00:46] namely the snapshots and log compassion,
+[00:00:50] you know give us opportunity to any other aspect of raft.
+[00:00:53] In fact, we'll talk about raft one more time in the week after,
+[00:00:58] we'll have a Q&A lecture on you know 2A and 2B,
+[00:01:06] and so talk about the actual solutions to the labs 2A 2B.
+[00:01:11] Okay?
+[00:01:12] That's the plan.
+[00:01:14] And so I'm going to just dive in with with a starting point for today,
+[00:01:20] the place probably start is
+[00:01:22] to observe that in some of the previous case studies of replicated systems,
+[00:01:28] we've seen as sort of pattern,
+[00:01:32] you know look at GFS, mapreduce, virtual VM-FT,
+[00:01:38] they all have a single point of failure,
+[00:01:41] so even though they're replicated systems,
+[00:01:45] and they do replication for fault tolerance,
+[00:01:48] all of them actually has a single point of failure,
+[00:01:52] you know in case of you know mapreduce was the coordinator,
+[00:01:59] in the case of GFS you know the master, that hands out the leases for example,
+[00:02:05] and you know in the VM-FT case, the storage server really the test-and-set server.
+[00:02:15] And the reason why as we be discussed in the previous lecture,
+[00:02:21] the reason that actually there are you know single machine instead of replicated machines
+[00:02:25] is to avoid you know split-brain syndrome.
+[00:02:37] And you know for many systems,
+[00:02:39] in sort of one way [] sort of bummer,
+[00:02:41] we're building a high performance,
+[00:02:43] building a very fault tolerant systems,
+[00:02:45] and and all these designs actually,
+[00:02:48] we do actually still have a single point of failure,
+[00:02:50] even though where replication is used for many other aspects of the system designs,
+[00:02:54] and for many of the systems that we talked so far about,
+[00:02:58] you know this to avoid this split-brain syndrome
+[00:03:02] and actually to do a single point of failure or maintain a single point of failure,
+[00:03:06] those are perfectly acceptable in many cases,
+[00:03:09] because in many of these cases,
+[00:03:11] like the storage server, or you know the master goes down,
+[00:03:16] you know hopefully it's only a single machine,
+[00:03:19] so the chance of going down is smaller than any at of the chunk servers,
+[00:03:23] and you know probably there's somebody ready you know to be [] up,
+[00:03:27] you know indicates that the master goes down, comes back up
+[00:03:29] and we'll make sure there's only one master online,
+[00:03:32] so, you know many many circumstances is perfectly fine,
+[00:03:36] you know will lead maybe to a very short downtime.
+[00:03:39] But you know some systems,
+[00:03:41] it's really nice, it would be really nice, actually if this,
+[00:03:44] we didn't need have have the single points of failure,
+[00:03:47] that maybe we could reduce downtime even further
+[00:03:49] and increase uptown.
+[00:03:54] And so, and that's really were you know the protocols,
+[00:03:59] so that kind of protocols that raft you know fits into come into play.
+[00:04:03] But just before diving into talking about sort of the key ideas of the protocol,
+[00:04:08] let's remind ourselves why the sort of single point of failure leads,
+[00:04:13] why actually replicating,
+[00:04:16] the sort of crucial single point of failures, like test-and-set server,
+[00:04:20] can lead you know to this split-brain problem.
+[00:04:24] And so you might think,
+[00:04:25] why just not replicate the single point of failure too.
+[00:04:29] So let's try to do that,
+[00:04:31] and then we'll quickly see what the problem is,
+[00:04:34] so let's replicate the test-and-set server.
+[00:04:48] And so, so let's do a simple straightforward case,
+[00:04:54] we'll just have one replicated, one test-and-set server S1,
+[00:04:59] and here we have S2, the other replicated test-and-set server,
+[00:05:03] and usally remind correct like test-and-set,
+[00:05:07] it takes an argument new and returns the old value.
+[00:05:13] And the goal is that if two clients at the same time call test-and-set,
+[00:05:17] you know one wins,
+[00:05:17] you know gets basically false back as the old value,
+[00:05:21] and the other one will lose,
+[00:05:22] because it will get true back as, as the old value.
+[00:05:26] So let's see how this might work play out,
+[00:05:28] so we have a client that calls test-and-set,
+[00:05:31] and communicates with the first server,
+[00:05:38] communicates to the second server,
+[00:05:42] and we don't really know,
+[00:05:44] actually does get a response for the second server.
+[00:05:48] So there's sort of two cases now, right,
+[00:05:50] where you know why, if S2 doesn't response,
+[00:05:54] you know there's two possible reasons why that could be the case.
+[00:05:57] So one case could be,
+[00:05:59] S2 didn't respond, because S2 failed,
+[00:06:06] and in some cases,
+[00:06:07] that's scenario really what we'd like to be doing is that,
+[00:06:10] at that point, basically C1 just declares victory,
+[00:06:14] since nobody else can actually see observe value S2,
+[00:06:19] you know we should be done, we could proceed.
+[00:06:23] But the problem is that,
+[00:06:24] there's the second case,
+[00:06:26] in the second case is that,
+[00:06:28] there's network partition,
+[00:06:32] there's a network partition between C1 and C and S2,
+[00:06:38] so in that case, really C1 cannot proceed,
+[00:06:42] because there could be another client you know C2
+[00:06:45] and actually communicating with S2,
+[00:06:48] and it would be terrible, correct,
+[00:06:52] C1 proceeds in this case,
+[00:06:53] because you know it might update S1,
+[00:06:56] get basically the false value, think it succeeds,
+[00:07:00] at the same time, S2, communicates with S2,
+[00:07:03] and also succeeds [during] the test-and-set,
+[00:07:05] and so now we're violating our contract with the test-and-set.
+[00:07:09] So this is this issue of this split-brain,
+[00:07:11] when there's a network partition,
+[00:07:13] we can end up in a situation,
+[00:07:15] where both servers are up running
+[00:07:18] and serve different subset of clients
+[00:07:20] and thereby violating the contract,
+[00:07:22] the specification of the system that we're building.
+[00:07:25] And the real challenging part here is that,
+[00:07:27] C1 just cannot tell the difference between these two situations,
+[00:07:31] it doesn't know,
+[00:07:36] where it actually is,
+[00:07:39] you know S2 is not reachable,
+[00:07:40] because it failed or because of the network partition,
+[00:07:43] and so that's sort of the conundrum,
+[00:07:45] and that that you know, that's behind all this the previous systems,
+[00:07:52] and why they used a single,
+[00:07:54] why they don't replicate you know these crucial services,
+[00:07:57] that need to be up to avoid,
+[00:08:02] to avoid split-brain syndrome.
+[00:08:05] So what can be done about this,
+[00:08:08] and really the key problem here,
+[00:08:10] what do we do about network partition,
+[00:08:13] how could we handle them.
+[00:08:15] And so there's a key idea,
+[00:08:17] that sits in raft and in many other protocols that underlies,
+[00:08:25] basically the solution or why those protocols actually might succeed.
+[00:08:30] And really what it is,
+[00:08:31] you know sort of in a nutshell, it is this majority rule.
+[00:08:38] And sort of give an example,
+[00:08:39] in the context of test-and-set you know server,
+[00:08:42] instead of actually running the server with two replicas,
+[00:08:45] which I conveniently did,
+[00:08:47] I'm gonna run it with three,
+[00:08:49] so I'm gonna have S1 S2 S3,
+[00:08:55] and the rule that was going to be the like,
+[00:08:56] server, a client can consider an operation succeeded,
+[00:09:01] if at least can update a majority of the servers.
+[00:09:04] So in this case,
+[00:09:05] you know we can send you know message to S1, for doing test-and-set,
+[00:09:08] we send message to S2, for doing test-and-set,
+[00:09:10] now we get back positive responses for both of them,
+[00:09:14] like a false in both cases,
+[00:09:16] then we'll return a false to actually application,
+[00:09:19] and application considered the test-and-set succeeded.
+[00:09:23] And of course we do it also to the third one,
+[00:09:25] but the third one may actually,
+[00:09:26] you know the message actually might not arrive
+[00:09:28] or the server might be down,
+[00:09:29] we don't really know, actually we don't really care,
+[00:09:32] which is because consider the following situation, scenario,
+[00:09:35] where we have the second client that also trying to do test-and-set,
+[00:09:40] well, to be able to succeed,
+[00:09:41] it has to talk to the majority of the servers,
+[00:09:46] so, whatever majority is going to talk to,
+[00:09:49] it is going to include either S1 or S2,
+[00:09:52] and for S1 and S2,
+[00:09:53] both of these operations actually have succeeded by S C1,
+[00:09:57] so S2 or C2 always observe the result of C1's operation,
+[00:10:04] because there's sort of an overlap.
+[00:10:22] And you'll see this basically raft,
+[00:10:25] this is exactly the same thing as roughly what's going on, right,
+[00:10:28] like when a leader accepts,
+[00:10:30] or enters the operation in a lot of the majority of the followers,
+[00:10:37] then it means that a subsequent leader that's going to come out in the next term,
+[00:10:41] you know will also try to acquire majority to get voted as leader,
+[00:10:46] and as part of that voting,
+[00:10:47] there's going to be one server or one follower,
+[00:10:50] that actually has seen the last operation,
+[00:10:52] performed by the last leader.
+[00:10:56] So that is going to basically be able to building stone
+[00:10:58] on on which we can build the fault tolerance services,
+[00:11:04] that can handle network partitions
+[00:11:05] in and failures of servers,
+[00:11:10] while still achieving strong consistency.
+[00:11:13] Another way to think about this majority business is that,
+[00:11:18] if the network partitions,
+[00:11:20] there can be only one partition that has majority,
+[00:11:25] there can be no other partition that has majority
+[00:11:28] and so only the partition that actually has the majority can actually proceed.
+[00:11:35] Another way of saying that,
+[00:11:36] in another implication of that is,
+[00:11:39] it could also be the case,
+[00:11:40] there's multiple partitions
+[00:11:43] and there's no majority anywhere,
+[00:11:45] and in that particular case,
+[00:11:46] you know the system can just not proceed
+[00:11:49] and the clients talking to it basically have to wait
+[00:11:53] until the network is healed enough,
+[00:11:55] that at least there's one,
+[00:11:57] there's going to be at least one partition with majority of services.
+[00:12:04] The another sort of a quick observation here is that,
+[00:12:08] of course you may want to use this particular scheme,
+[00:12:10] that I just described three servers,
+[00:12:12] only tolerate one server going down, correct,
+[00:12:15] the two servers going down,
+[00:12:16] nobody can actually obtain majority,
+[00:12:18] and so therefore nobody can actually
+[00:12:20] or no client can actually get the operation through,
+[00:12:24] clearly it's easy to extend this idea,
+[00:12:26] by what's typically called into 2f+1 replication.
+[00:12:30] So if you want to tolerate f faults instead of 1,
+[00:12:34] you need 2f+1 server or server,
+[00:12:37] so that at least you have always majority majority if f fails.
+[00:12:41] And so in case you know here f is 1
+[00:12:44] and so we're running the 3 servers,
+[00:12:45] you want f to be 2, you have 5 servers, etc etc,
+[00:12:49] you want f to be 3, you have 7 servers.
+[00:12:52] Okay?
+[00:12:53] One other thing, this may be important to point out,
+[00:12:57] and I came up a lot in the questions,
+[00:12:58] and what is actually the majority,
+[00:13:01] and the majority is the majority of all the services that are there,
+[00:13:06] both up ones and down ones.
+[00:13:09] And so when you take majority,
+[00:13:11] you don't take the majority of the 2,
+[00:13:12] if there are only 2 alive,
+[00:13:13] you take the majority of all the servers in the system.
+[00:13:20] Any questions about this sort of key idea of?
+[00:13:24] Could there be an even number of servers,
+[00:13:27] like if you have 4 servers with the majority,
+[00:13:29] than be 3.
+[00:13:30] If you will see that in a couple cases, correct,
+[00:13:33] in the graph,
+[00:13:36] that you know if you know the number of servers
+[00:13:38] is reduced from 7 to 6 and 1 is down
+[00:13:40] and you still want to proceed,
+[00:13:42] you need a majority,
+[00:13:42] which you still need you know 4 server to actually proceed.
+[00:13:47] But if you can get 4 servers,
+[00:13:48] then you can keep going.
+[00:13:55] Okay.
+[00:13:58] So I also have a question about the majority,
+[00:14:00] so does the majority consider the server itself,
+[00:14:04] so supposing raft does like the server itself considering this?
+[00:14:08] Yeah, it's part of it,
+[00:14:09] so like you know often as we've seen raft, correct,
+[00:14:12] the leader vote immediately vote for itself,
+[00:14:15] or the candidate vote for itself,
+[00:14:17] and in the leader,
+[00:14:18] when it appends you know its own log,
+[00:14:19] it counts as one,
+[00:14:21] so it's part of it.
+[00:14:29] Okay, so,
+[00:14:32] there's quite a number of protocols using this idea,
+[00:14:40] and sometimes these ideas referred to as quorum or quorum protocols,
+[00:14:50] pretty obvious reason,
+[00:14:53] and there sort of two,
+[00:14:55] the state of [] for a long time
+[00:14:56] until the early 90s or late 80s,
+[00:14:59] was there's basically no protocol,
+[00:15:01] so basically we're always in the situation of this single point of failure.
+[00:15:06] And then in the early 90s,
+[00:15:07] there were two protocols come came,
+[00:15:10] were invented roughly at the same time,
+[00:15:12] one is called Paxos,
+[00:15:13] which is mentioned in the paper quite a bit,
+[00:15:15] and the other one is called View-Stamped replication,
+[00:15:24] sometimes called VR,
+[00:15:25] and basically these were invented around around 1990.
+[00:15:30] They didn't actually get much attention at that point in time,
+[00:15:34] because people didn't really have pressing need
+[00:15:37] to [] to sort of completely automatic and fault tolerant systems.
+[00:15:41] But that changed in the last 15 years,
+[00:15:44] over the last 15 years,
+[00:15:46] with much use of these protocols.
+[00:15:57] And in fact sort of interesting to observe, correct,
+[00:16:00] that in the last 15 years.
+[00:16:06] And that's basically sort of 15 years after these protocols were invented,
+[00:16:09] you know so basically they sat on the table or sat on the shelf for 15 years
+[00:16:13] until people actually have a real use case for that.
+[00:16:16] The protocol that we're going to be mostly we're gonna be implementing in the lab,
+[00:16:22] and we're going to discuss in the lecture,
+[00:16:24] and which the topic of the paper
+[00:16:25] is falls in this [] protocol in this called raft.
+[00:16:31] And it was I think which came about or was written up in 2014,
+[00:16:36] the papers from 2014,
+[00:16:38] and this is one of the more complete descriptions,
+[00:16:41] you know it touches on a lot of different aspects,
+[00:16:42] that you're gonna be build complete replicated state machine,
+[00:16:45] and explains those clearly,
+[00:16:47] that's one of the reasons why we're using it for the labs,
+[00:16:50] and you know for this particular lecture.
+[00:16:56] Any questions about the history here around protocols,
+[00:17:03] before I dive into raft.
+[00:17:11] Okay, so before actually diving into raft,
+[00:17:18] let me first talk a little bit about
+[00:17:20] how you one would use raft to build a replicated state machine,
+[00:17:24] because that's at the ends our end goal,
+[00:17:28] and it will help reasoning about what raft that should be doing for us.
+[00:17:34] And so the basic way you would use raft,
+[00:17:37] and we'll actually do this in lab 3.
+[00:17:39] Let's say you have a server,
+[00:17:44] and raft is basically nothing else than a library,
+[00:17:47] and so in our setting is going to Go package,
+[00:17:50] and you know you can write a replicated state machine
+[00:17:53] by basically importing that package,
+[00:17:55] so here's we got,
+[00:17:57] you know here's a raft at the bottom,
+[00:18:03] and you know you build a server using raft,
+[00:18:07] and so for example in lab 3,
+[00:18:10] we're going to build a key-value server using raft,
+[00:18:15] and clients you know talk you know to the key-value server,
+[00:18:24] and you know it's a bit you know put and get operations,
+[00:18:29] and the key-value servers,
+[00:18:31] when it receives one of these put and get operations,
+[00:18:34] it basically hands it off to raft,
+[00:18:37] and so it basically puts the raft
+[00:18:40] and actually sticks it in a,
+[00:18:41] what we'll see much more detail,
+[00:18:44] it will put it in the log,
+[00:18:46] actually draw this slightly differently,
+[00:18:49] so appends it to the log,
+[00:18:55] it appends to the end of the log,
+[00:18:58] and then raft internally is going to talk to other servers
+[00:19:01] to basically replicate that log.
+[00:19:03] And so here are some other servers,
+[00:19:06] they basically structured to exactly the same way,
+[00:19:08] they have a raft library component,
+[00:19:11] and the key-value server,
+[00:19:13] like many other replicated state machines we've ever seen,
+[00:19:17] you know they're identical key-value server,
+[00:19:21] and we're gonna play the same game,
+[00:19:23] as I know, the other previous replicated state machines machine
+[00:19:25] were basically feeding operations to the key-value servers
+[00:19:28] in the same order everywhere,
+[00:19:32] and as a result,
+[00:19:33] you know the keys replicates all applied operations in exactly the same order,
+[00:19:37] we should see the same key-value stores being built, right,
+[00:19:42] so we have a key-value store here,
+[00:19:44] whatever key 20 has some value,
+[00:19:47] we're applying updates to this in a table
+[00:19:49] exactly the same order and all replicas,
+[00:19:51] things should be should be good,
+[00:19:53] we're gonna have identical replicas.
+[00:19:56] So the way you know raft instructed is that
+[00:19:58] one of the replica is the leader,
+[00:20:00] so let me this for convenience,
+[00:20:03] you know that's going to be the first one on this side,
+[00:20:05] and actually the clients do talk to the leader,
+[00:20:08] and then, what happens next is that,
+[00:20:13] the client talks to one of the leader,
+[00:20:16] the leader kv server kv server,
+[00:20:19] appends a log entry to the raft log of the leader,
+[00:20:24] and then you know basically communicates with the other raft libraries,
+[00:20:30] and there's raft libraries do exactly the same thing,
+[00:20:32] basically they append you know the operation to the log,
+[00:20:36] to their logs,
+[00:20:40] and send a response back you know to the leader.
+[00:20:46] And you know of course you know all these state is stored,
+[00:20:51] you know the log and some other state stored on disk,
+[00:20:53] so that if any one of them fails,
+[00:20:55] they at least have the last part of their log still available
+[00:21:00] and can build from there.
+[00:21:03] So once basically and we'll talk a little bit more in detail,
+[00:21:07] but once the entry where the log entries replicated on 3 servers,
+[00:21:12] then they can actually be delivered in order to the key-value server.
+[00:21:18] So every committed operation,
+[00:21:21] there every log is an index,
+[00:21:22] wherever operation index 0 or actually 1 2 3 4 whatever in order,
+[00:21:27] and they're going to be delivered in order to key-value servers,
+[00:21:30] once an operation commited,
+[00:21:31] it's going to be delivered to the key-value server,
+[00:21:34] the key-value server performs the operation,
+[00:21:36] maybe updates you know the key-value table,
+[00:21:40] and then since actually the leader alone sends a response back to the client.
+[00:21:45] So that's sort of roughly the sequence of events that happens,
+[00:21:48] so client sends request to the leader,
+[00:21:50] leader put in [] raft,
+[00:21:52] raft you know chit chats with the other servers,
+[00:21:56] once you know it's replicated enough machines,
+[00:22:00] then you know the it's considered to be committed,
+[00:22:03] and we'll talk a little bit more precisely what commit means,
+[00:22:06] and then an committed operation is delivered to the key-value servers,
+[00:22:10] and then they execute the operation and respond to the client,
+[00:22:14] leader response to the client.
+[00:22:17] So what happens on the failure,
+[00:22:24] failure, the new leader is elected,
+[00:22:31] and it will take over the role of the old leader,
+[00:22:34] and so for example like in this particular picture,
+[00:22:36] you know it might be the case that,
+[00:22:38] you know this leader crashes,
+[00:22:41] and you know this becomes the new leader in the next term,
+[00:22:45] we'll see exactly what that means,
+[00:22:47] and then the clients basically fail over,
+[00:22:49] you know they will see, they don't get a response,
+[00:22:51] so they will time out,
+[00:22:52] and they fail over to the second leader, the new leader,
+[00:22:56] and basically retry their operation.
+[00:22:58] And so they insert you know that new leader will take their operation,
+[00:23:02] insert it back into raft,
+[00:23:04] you know the same thing happens as before,
+[00:23:06] and maybe this time we get lucky,
+[00:23:08] and we actually get the operation without any failures.
+[00:23:12] If you think a little bit careful about this,
+[00:23:13] that does mean that,
+[00:23:15] a client operation might end up twice in the log, right,
+[00:23:18] because actually may be the case that the first time it succeeded,
+[00:23:21] but just didn't get the response,
+[00:23:23] and so it doesn't know that it succeeded,
+[00:23:24] it will retry,
+[00:23:25] you know this new leader will put the log,
+[00:23:29] put the new retry operation also in the log
+[00:23:32] and it will pop out at some point in at kv key-value servers,
+[00:23:37] and actually be a duplicate,
+[00:23:40] and so as you will see later in the lab 3,
+[00:23:46] actually it turns out that the you know what,
+[00:23:49] you need to do duplication, detect duplicates.
+[00:24:01] But that's mostly an issue for lab 3,
+[00:24:03] so it's not going to be a main issue for now,
+[00:24:05] but it's important to know,
+[00:24:06] you know that this is the sort of general style,
+[00:24:09] in which you know one would actually use raft to build a replicated state machine.
+[00:24:19] Any questions about sort of how to use raft for replicated state machines?
+[00:24:25] We have a question in the chat.
+[00:24:26] Yeah.
+[00:24:28] What is typical number of clients contacting the leader?
+[00:24:34] Well, there could be many,
+[00:24:36] there's no real limit on it,
+[00:24:39] what you'll see,
+[00:24:41] you know it could be the case that a single machine can [],
+[00:24:43] maybe that's implicitly,
+[00:24:44] but the question is,
+[00:24:45] it could be the case that a single leader can just not tolerate,
+[00:24:49] is not capable of handling that many clients,
+[00:24:53] and so, what happens then is that,
+[00:24:55] basically the servers gets sharded,
+[00:24:57] you know shard key-value servers in multiple raft groups,
+[00:25:02] so for example shard 1 would be one raft instance,
+[00:25:05] shard 2 is one raft instance,
+[00:25:06] shard 3 is one raft instance,
+[00:25:08] and the clients to talk to the appropriate shard to to apply their operations,
+[00:25:15] and in that way, we can scale the server to many clients,
+[00:25:18] and in fact that is what lab 4 does.
+[00:25:23] How does the client know
+[00:25:24] how to communicate with the new leader after the old leader fails?
+[00:25:27] The client basically has a list of all the servers that are in the system,
+[00:25:32] so in this case,
+[00:25:33] we're running with three servers,
+[00:25:34] everybody agrees there only three servers in the [world],
+[00:25:36] clients know about the three servers,
+[00:25:38] and did they try one randomly,
+[00:25:41] if that is not the client, it will redirect,
+[00:25:44] that's not the leader,
+[00:25:45] it will redirect the client to the appropriate one, the actual leader.
+[00:25:51] Yeah, the answer is quite clear.
+[00:25:54] But do we assume the servers are like in geographically close,
+[00:25:58] like close to each other or could they be.
+[00:26:00] They could in principle be far apart,
+[00:26:03] there's no real restriction on that side,
+[00:26:06] the only issue of course,
+[00:26:07] if it serves a very spread around the world,
+[00:26:11] the delays to actually get in a log record appended,
+[00:26:15] you know will take a little while,
+[00:26:17] and so the delays will be long.
+[00:26:23] What is the log entry being executed in the kv storage?
+[00:26:28] When, once it's committed in by raft,
+[00:26:32] so once raft has decided that,
+[00:26:34] you know all there enough replicates have received it,
+[00:26:36] and it's now no way possible that one has to back out of that operation,
+[00:26:40] then, it's headed to the key-value server.
+[00:26:46] So the leader will first like execute this command,
+[00:26:49] and the leader will tell the followers that this command is committed,
+[00:26:53] and then the follower.
+[00:26:54] The leader knows, well as soon as the operations committed,
+[00:26:58] actually get handed off the key-value server.
+[00:27:00] Let me, let's talk about it right now,
+[00:27:02] I'll go in more detail as we go,
+[00:27:05] so like more of an overview of the protocol.
+[00:27:08] So previous board was sort of an overview
+[00:27:10] of how you use raft to build a replicated state machine,
+[00:27:15] now let's look at the raft itself a little bit more detail.
+[00:27:18] So we here some timelines,
+[00:27:20] we got a leader, we got two followers,
+[00:27:25] so we're running three.
+[00:27:26] The client you know talk to the leader,
+[00:27:29] the leader has a log,
+[00:27:34] you know all the put and get operations,
+[00:27:37] you know when it gets a new one,
+[00:27:39] you know appends it you know to the end of the log,
+[00:27:42] then it actually sends it,
+[00:27:44] you know sends the log entries to,
+[00:27:48] the new log entries to the followers.
+[00:27:56] And you know let's say you know that follower 2,
+[00:27:58] here follower 1, here follower 2,
+[00:28:00] follower 1 actually received this log entry,
+[00:28:03] everything is okay,
+[00:28:03] appends at the end of the log,
+[00:28:05] it sends basically an ack back,
+[00:28:07] saying yes you know I appended it.
+[00:28:10] And at this point in the raft the world,
+[00:28:15] two servers actually have the log entry,
+[00:28:19] and so raft actually the leader can actually commit the log entry,
+[00:28:24] and so at this point,
+[00:28:26] you know the the the leader can actually hand off that request just received,
+[00:28:33] that can actually hand it off to the kv server.
+[00:28:37] And the way actually the lab does this
+[00:28:39] or this lab [] does this is
+[00:28:41] that basically we have a channel Go channel,
+[00:28:44] one single Go channel were basically Raft Goroutines,
+[00:28:49] and the Raft Goroutine actually decide that
+[00:28:51] a particular operation is committed,
+[00:28:54] it just sends that operation on the apply channel,
+[00:28:58] so that the key-value server can actually apply it.
+[00:29:02] You know some point later,
+[00:29:03] so notice at this point,
+[00:29:05] the leader basically has committed the operation,
+[00:29:09] and it's perfectly safe for the leader to commit this operation,
+[00:29:13] because the majority of the servers,
+[00:29:16] actually majority of the peers actually have received the operation, correct,
+[00:29:19] so there even if there was a failure,
+[00:29:22] and we elect a new leader,
+[00:29:23] that's the case that,
+[00:29:24] that leader are one of the servers,
+[00:29:26] that is remaining actually has the last operation,
+[00:29:29] that was appended to the log by the previous leader.
+[00:29:34] So everything is good,
+[00:29:35] of course the last guy,
+[00:29:37] the first follower also at some point respond and you know said yes.
+[00:29:43] So this point, basically from the point of view of the leader,
+[00:29:46] the operations committed, except the followers don't really know it yet,
+[00:29:50] because the followers you know, they only know that they got it,
+[00:29:54] and that the leader probably has it,
+[00:29:57] but they you know they don't really know,
+[00:29:59] and so what actually happens is that,
+[00:30:01] the subsequent operation, when another client request comes in,
+[00:30:05] the leader will append another log entry,
+[00:30:08] and basically sends you know a new operation or new append entry to the followers,
+[00:30:14] and that append entry does basically two things,
+[00:30:17] it you know provides the new log entry for the new operation,
+[00:30:22] but it also confirms that all the preceding operations,
+[00:30:26] tells us which operations actually have committed so far.
+[00:30:29] And so when F1 and F2 receive you know this this operation, this RPC,
+[00:30:34] they know that the operation has been committed by the leader,
+[00:30:38] and therefore at that point,
+[00:30:40] they can also deliver it to their key-value instance,
+[00:30:44] and know that this operation is committed.
+[00:30:50] I I had a quick question,
+[00:30:53] so, so when the leader sends an operation over
+[00:31:00] and server replies,
+[00:31:03] does that mean,
+[00:31:04] that means it's in the log, right,
+[00:31:07] but what happens,
+[00:31:09] if you get a majority, like a slight majority,
+[00:31:12] and then one of those logs like one of those servers crash,
+[00:31:15] like our logs, the logs have to be in storage, like in disk.
+[00:31:19] Yep, so that's a very good question, correct,
+[00:31:21] the every change to the log,
+[00:31:24] so you look at the Raft paper in detail,
+[00:31:26] the some state is must be stable,
+[00:31:31] and the log is one of those pieces of information, that must be stable,
+[00:31:34] as well as the term number and a bunch of other things.
+[00:31:37] And so if a server crashes,
+[00:31:40] no big, no big deal really,
+[00:31:42] because you know the majority of the servers does have that entry on their disk,
+[00:31:48] and when they come back up, they'll find it.
+[00:31:53] I have a question?
+[00:31:55] Yeah.
+[00:31:55] So what happens,
+[00:31:57] if for example follower 1 replies with yes and later commits,
+[00:32:03] just before it sends the next command to the remaining followers to also commit,
+[00:32:10] it crashes,
+[00:32:10] now there are many followers don't know that they need to commit,
+[00:32:14] because the leader has crashed,
+[00:32:16] so wouldn't this cause problems?
+[00:32:18] They will commit,
+[00:32:19] because one follower will have it in its log,
+[00:32:22] and as we'll see in the leader election rules,
+[00:32:25] it will become the leader,
+[00:32:26] and it will propagate that append entry you know to the other servers,
+[00:32:32] and then they will apply too.
+[00:32:34] Okay, I see, okay, thanks.
+[00:32:37] Okay, so that brings me maybe,
+[00:32:38] this is a good sort of [] to the next topic,
+[00:32:41] why logs,
+[00:32:45] last three questions are all about that.
+[00:32:47] Yeah.
+[00:32:48] I actually as a follow-up to the last question,
+[00:32:51] so the server crashing after it has like consensus, crashing,
+[00:32:57] right, like right before committing,
+[00:33:00] it could delay committing, right?
+[00:33:03] What do you mean with committing?
+[00:33:05] So so, like after it has consensus on a [],
+[00:33:09] right after it has a majority,
+[00:33:13] and it can like the paper said,
+[00:33:16] you [] you essentially tell other ones, like other servers,
+[00:33:21] you tell them okay, this is ready for,
+[00:33:23] or sorry it's committed it's ready for like,
+[00:33:26] like execution right into the state machine,
+[00:33:31] so if it crashes,
+[00:33:32] before it tells all the servers, that it's ready for execution,
+[00:33:36] it could delay execution, right.
+[00:33:38] It could delay execution,
+[00:33:40] okay, first of all,
+[00:33:41] if the leader fails at that point, nothing happens, right,
+[00:33:44] at least the clients can't proceed with any other more operations,
+[00:33:48] and so basically the if you want to think about,
+[00:33:50] at that point, raft reconfigure itself,
+[00:33:52] elects a new leader,
+[00:33:54] and that's going to be you know F1 or F2,
+[00:33:57] one of the two is going to be the new leader,
+[00:33:59] and the other one is going to be the follower, right,
+[00:34:01] and one of the two actually has received,
+[00:34:03] you know the append entry that the leader might already have committed,
+[00:34:07] in fact it's kv might already have executed,
+[00:34:10] no problem, correct,
+[00:34:11] because one of them has it,
+[00:34:12] that one will become the leader,
+[00:34:14] as we'll see later with the leader election rules,
+[00:34:17] and that one will submit to its kv server,
+[00:34:20] and will replicate it to the other follower,
+[00:34:23] and then it will apply to each kv server,
+[00:34:25] in the end, all will apply all the operations in the same order.
+[00:34:29] I I I agree, like eventually it'll happen,
+[00:34:31] but it could be delayed right?
+[00:34:40] Yeah could be delayed absolutely,
+[00:34:40] [] a complete log to all the followers,
+[00:34:43] it will you,
+[00:34:45] the way it works is actually,
+[00:34:46] it will try to send the end of its log,
+[00:34:49] if one of the followers doesn't recognize the end of the log,
+[00:34:52] go back off,
+[00:34:53] and you know send more and more you know earlier entries,
+[00:34:56] we'll talk about it later.
+[00:34:58] But, in the end it could be the case,
+[00:35:00] that the leader will replay its complete log to one of the followers,
+[00:35:04] if one of the followers has missed all the log entries.
+[00:35:08] I gotta get me back to logs.
+[00:35:10] So one reason you might wonder why you have logs at all,
+[00:35:15] it because like kv server, it has a database too,
+[00:35:19] you know have some table with all the information,
+[00:35:22] and so why do we need actually you know sort of this information twice,
+[00:35:25] ones in the logs and ones in the kv table.
+[00:35:29] And so a couple reasons for that,
+[00:35:31] one,
+[00:35:32] a couple that already came up in the questions basically,
+[00:35:35] one for retransmission,
+[00:35:44] so when the leader sends one of these append entries you know to one of the followers,
+[00:35:49] that message might get lost,
+[00:35:51] and so the leader must be able to retransmit,
+[00:35:53] so we need to keep a record of all the log entries,
+[00:35:56] that, that are sort of being in flight.
+[00:36:00] Second reason that's probably the primary reason,
+[00:36:03] first is like we need order,
+[00:36:05] and every append operation or every commands must be delivered
+[00:36:10] in the same order at the same at all the replicas,
+[00:36:14] and the log is a very convenient way for us
+[00:36:17] to actually maintain that order,
+[00:36:18] so the second reason retransmission.
+[00:36:21] The third reason is we need persistence,
+[00:36:25] you know one of the followers might crash,
+[00:36:28] or actually all of them might crash,
+[00:36:30] and then they come up again,
+[00:36:32] and we still need to be in a position,
+[00:36:34] that we can basically retransmit log entries
+[00:36:36] to bring everybody up to date,
+[00:36:37] and so log must also be persistent.
+[00:36:42] And finally we need sort of space
+[00:36:45] for tentative operations or tentatively commits, tentative commands,
+[00:36:50] so as we noted earlier,
+[00:36:53] as it came up in the earlier questions,
+[00:36:55] when the leader sent an operation to a follower,
+[00:36:59] the follower doesn't really know at that point,
+[00:37:01] what that operation will be committed,
+[00:37:02] so just stick around for a little while
+[00:37:04] until it actually learns that operation is committed,
+[00:37:07] and so we need some space for tentative operations,
+[00:37:10] the log is convenient place to actually do that.
+[00:37:13] In the end, you know what will happen correct is,
+[00:37:17] that the logs are identical on all servers,
+[00:37:28] you know there may be out of sync during periods of time,
+[00:37:33] you know, one might have more entries than other logs,
+[00:37:36] but like if you sort of keep running the system,
+[00:37:38] and then stop the clients,
+[00:37:40] then at some point in time,
+[00:37:41] all the logs will be completely identical,
+[00:37:44] and that means that basically those,
+[00:37:46] since they all have the same order,
+[00:37:48] all the operations all the operations will
+[00:37:49] be fit to the client the kv servers in the same order,
+[00:37:53] and then kv server well end up in the same state.
+[00:37:57] Okay?
+[00:38:04] Okay, let me talk a little bit about an individual log entry.
+[00:38:17] So really you know whatever,
+[00:38:19] we're gonna draw many pictures like this,
+[00:38:20] where there's a bunch of log log entries,
+[00:38:23] you know starting 0 1 2 blah blah,
+[00:38:27] and if we look inside of one of these log entries,
+[00:38:29] there's gonna be a command,
+[00:38:33] which we're mostly going to sort of ignore,
+[00:38:34] we're gonna really think about much about it at all,
+[00:38:36] and that's the thing that's actually being delivered to the application,
+[00:38:39] so that's an example to put or get operation with its arguments.
+[00:38:43] And then the second thing that's in there is term,
+[00:38:48] and this is basically the leader's term,
+[00:38:55] so the term in which this particular command actually was appended to the log,
+[00:39:00] one way you can think about this is that,
+[00:39:03] basically the term identifies uniquely the leader that appended the operation to the log,
+[00:39:10] during every term, there's only one single leader,
+[00:39:13] and so the term id really basically implicitly signals
+[00:39:19] who leader was actually appended to to that log entry,
+[00:39:26] the number that goes along here,
+[00:39:28] so if this is n or maybe like me use i here,
+[00:39:32] you know that's the log index,
+[00:39:39] so the combination of the log index plus term number,
+[00:39:42] basically uniquely identifies the content of that particular entry,
+[00:39:45] there could be no two log entries,
+[00:39:49] that have the same index, the same term and have different commands,
+[00:39:52] because only a single leader,
+[00:39:54] you know could have been in charge in that particular term,
+[00:39:57] and that leader commits appends operations.
+[00:40:03] Will uncommit log entries will be overwritten?
+[00:40:06] Yeah, they might get overwritten,
+[00:40:07] we'll talk about it later,
+[00:40:09] but that's certainly possible.
+[00:40:13] Okay, so if we look at this picture,
+[00:40:16] so there are two things that in this part of it,
+[00:40:19] I guess my answer to this question,
+[00:40:20] and there are two things that need to happen,
+[00:40:22] we need to elect leader for a particular term,
+[00:40:29] and we need to actually ensure that the,
+[00:40:34] ensure logs become identical,
+[00:40:39] and we have [] leaders and we have leader changes,
+[00:40:44] and so we're going to talk about both of these topics,
+[00:40:47] and we're gonna start with leader election,
+[00:40:50] and then talk about the making logs identical a little bit later.
+[00:40:57] Okay, election,
+[00:41:03] election is really the topic of lab 2a,
+[00:41:06] and you know really the story is some way straightforward,
+[00:41:09] you know we have you know,
+[00:41:11] say here we are, system with three entries,
+[00:41:13] we have a leader in you know term 10,
+[00:41:18] we have the follower term 10,
+[00:41:19] so we're sort of stable situation,
+[00:41:21] another follower in term 10,
+[00:41:23] and let's say the leader crashes
+[00:41:27] or gets partitions you know from network,
+[00:41:29] so you know can't talk anymore,
+[00:41:31] what will happen is that,
+[00:41:33] the followers will start an election.
+[00:41:36] And the reason they start an election is because,
+[00:41:39] they're missing heartbeats from the leader,
+[00:41:47] you know the job of the leader is to periodically,
+[00:41:51] it's sort of fixed interval send append entry to the followers,
+[00:41:57] you know normally you know that might be happen,
+[00:42:00] because a lot of clients are active,
+[00:42:02] and so the followers continuously get append entries,
+[00:42:06] but if the leader doesn't receive any commands from the clients,
+[00:42:11] then it's actually supposed to send in heartbeat periodically,
+[00:42:15] and telling the basically to inform the followers that actually still the leader,
+[00:42:21] and the heartbeat basically takes form of normal append entry,
+[00:42:25] except no new log entries,
+[00:42:27] and so the leader tells, leader to tells in the heartbeat,
+[00:42:31] like my log is you know this long,
+[00:42:34] this is my last entry,
+[00:42:37] if you know those match and then everything is good.
+[00:42:41] So if the leader fails,
+[00:42:44] then after a couple of heartbeats,
+[00:42:45] and we'll talk a little bit more in detail about this,
+[00:42:49] there will be an election timeout.
+[00:42:52] So the followers have a timer running,
+[00:42:56] and they reset the timer,
+[00:42:59] every time they get a heartbeat or append entry,
+[00:43:02] but if they don't receive any heartbeats or append entries,
+[00:43:06] then at some point of time,
+[00:43:07] after this election timeout, the timer goes off,
+[00:43:11] and at that point, follower starts an election,
+[00:43:13] and just let's assume that,
+[00:43:15] the first follower reaches that point first,
+[00:43:18] and what it will do,
+[00:43:19] it will send,
+[00:43:20] it will increase its term number,
+[00:43:21] so we'll set the term number to 11,
+[00:43:24] it will you know talk to itself, if you will,
+[00:43:28] and be part of the and will vote for itself,
+[00:43:33] and then you know will contact you know the other follower,
+[00:43:36] also tried to contact the leader,
+[00:43:38] presumably the leader, let's say the leader is down,
+[00:43:41] so the leader doesn't respond,
+[00:43:42] but the second follower does respond,
+[00:43:44] and so at that point, it gets two votes,
+[00:43:46] one from himself and one from the follower,
+[00:43:48] and at that point, actually it becomes the new leader,
+[00:43:51] it becomes the leader for term 11,
+[00:43:56] and then you know start basic clients fall over to that leader,
+[00:44:00] and you know the things you just proceed as before.
+[00:44:03] Okay?
+[00:44:04] Now maybe it's slightly there's a couple problems,
+[00:44:08] and you might worry about,
+[00:44:09] one of them could be the following situation,
+[00:44:12] we it turns out there was a network partition between leader 10,
+[00:44:16] where the leader for term 10 and the followers for term 10.
+[00:44:19] And so at some point, that network you know partition heals,
+[00:44:22] and so maybe the client request came in still to leader,
+[00:44:28] for leader for term 10,
+[00:44:30] and now of course, now it looks like oops,
+[00:44:33] we might have actually two leaders,
+[00:44:36] and we're back into the split syndrome problem,
+[00:44:40] that turns out not to be the case,
+[00:44:42] because when the leader tries to actually
+[00:44:45] you know send append entries to the followers,
+[00:44:48] to followers that are now in term 11,
+[00:44:51] they will just reject those append entries,
+[00:44:55] and they will tell the old leader,
+[00:44:57] that you know too bad,
+[00:44:58] you know he's not the leader anymore,
+[00:45:01] in fact they'll send a message back,
+[00:45:03] saying, no I cannot do the append,
+[00:45:06] and here is my current term number 11,
+[00:45:12] the leader receives that,
+[00:45:14] sees the term number 11 is bigger than this term number 10,
+[00:45:17] and basically steps down as leader and becomes a follower.
+[00:45:21] And they take up another election,
+[00:45:22] or to basically become part of term that has all three of them,
+[00:45:27] but basically there's no chance of split brain problem,
+[00:45:31] because you just can't actually get any operations through,
+[00:45:36] so no split brain.
+[00:45:43] And the reason that we avoid split brain is,
+[00:45:44] because of this majority rule as well as these term numbers.
+[00:45:51] Okay, that's of course not the only problem,
+[00:45:54] that we might have another challenge is,
+[00:46:02] we might end up with split vote.
+[00:46:09] So like it was a particular picture,
+[00:46:11] we had a leader,
+[00:46:12] maybe here was leader in 10,
+[00:46:15] is partition of the network,
+[00:46:16] here are two followers in 10,
+[00:46:23] and if we're not careful,
+[00:46:25] you know maybe they will actually
+[00:46:26] start you know elections very close to each other,
+[00:46:30] and so you know F10 you know vote for itself,
+[00:46:34] first leader follower votes itself,
+[00:46:36] the second leader, second follower of votes itself,
+[00:46:39] then you know they sent you know vote request with each other,
+[00:46:44] and the rule is that you know you can vote, one vote per term.
+[00:46:55] So when you know the first follower voted for itself,
+[00:46:58] and it has voted for itself,
+[00:46:59] when it receives a second vote request,
+[00:47:00] it actually cannot vote for that request,
+[00:47:03] because it already voted for itself,
+[00:47:05] and so at this point, we're gonna have split votes,
+[00:47:08] like this guy is going to have one vote,
+[00:47:09] and this guy is going to have one vote,
+[00:47:11] it won't do anything,
+[00:47:13] in but at some point again later,
+[00:47:16] there will be timeout,
+[00:47:18] and then this process starts again,
+[00:47:21] and of course you know part of that process,
+[00:47:24] you know this is election 11, 11 result in 12,
+[00:47:27] if you want to go to election number 12,
+[00:47:30] and you know start trying to trying to do this again,
+[00:47:34] now if you not care for correct,
+[00:47:35] this could just happen over over and over endlessly,
+[00:47:39] basically everytime,
+[00:47:40] you know the two followers roughly at the same time start this election,
+[00:47:44] and we're not going to make forward progress.
+[00:47:47] And so we need to avoid this problem
+[00:47:49] is that the election timeout are randomized,
+[00:48:08] and so when the followers you know set the election timer,
+[00:48:15] in the paper, they talk about
+[00:48:18] picking a value between 150 milliseconds and 300 milliseconds,
+[00:48:23] random number in that interval,
+[00:48:26] and everytime you know these followers basically reset their election timeout,
+[00:48:31] they pick a new number, random number in that interval,
+[00:48:34] and only when that timer goes off, they run the election,
+[00:48:38] and if basically you know,
+[00:48:41] if this interval is wide enough,
+[00:48:43] that it's unlikely,
+[00:48:45] that's like the first person or the first follower that actually gets the,
+[00:48:48] the first follower whose election timer runs out,
+[00:48:53] you know the interval is wide enough that you know,
+[00:48:55] there's a good chance that actual succeed complete, complete election,
+[00:49:00] before the second timer goes off,
+[00:49:03] before another follower,
+[00:49:05] so this avoids you know the sort of endless split votes,
+[00:49:08] you know we might get unlucky,
+[00:49:10] and we get maybe one or two split votes,
+[00:49:12] but over time, you know that has to be the case,
+[00:49:14] that in the end we will succeed.
+[00:49:20] There are a couple sort of,
+[00:49:21] this is important maybe for the lab 2,
+[00:49:24] there's a couple pressures on these election timeouts,
+[00:49:33] you don't want to make an election timeout is too short, right,
+[00:49:40] because if it's too short,
+[00:49:41] and for example short than heartbeat,
+[00:49:45] you know you might lose one message,
+[00:49:47] and immediately you start running an election,
+[00:49:49] and nothing bad happens,
+[00:49:51] because you know we'll elect a new leader,
+[00:49:53] you will go to a new term and all that kind of stuff,
+[00:49:55] but basically you know during this election,
+[00:49:59] this system is actually not usable,
+[00:50:01] the clients are actually blocked.
+[00:50:03] So you don't want unnecessarily cause elections,
+[00:50:08] and so one of the things you want to do
+[00:50:09] actually basically probably take value
+[00:50:14] at least bigger than a few timeout, a few heartbeats,
+[00:50:22] perhaps in a,
+[00:50:24] maybe a data center will take a few milliseconds to do an RPC,
+[00:50:28] and we may want to wait
+[00:50:30] at least you know so maybe three four rpc around [] times,
+[00:50:32] so that we get a chance to a retry RPC,
+[00:50:36] without actually having election timer go off,
+[00:50:40] so we can cover from temporary network fails.
+[00:50:44] Then you know we want to presumably add some random value to that,
+[00:50:51] random value to avoid you know the split votes,
+[00:50:54] and so one hand we want to make the random values big as possible,
+[00:50:58] because we make it big,
+[00:50:59] then a very little chance that actually we run into a split vote problem.
+[00:51:06] But the other hand if we do that,
+[00:51:08] then there's a chance that you know the system may be down for a longer period of time,
+[00:51:12] we might take a big value for the election timeout,
+[00:51:15] and that means down time from the point of view of the clients,
+[00:51:18] so we want to keep this short enough,
+[00:51:27] the down time is short,
+[00:51:36] in the paper in [] election does quite a bit of work,
+[00:51:39] on sort of validating, in order for reasonable values,
+[00:51:42] for their particular setting,
+[00:51:43] and then that's how they got 250 to 300 milliseconds,
+[00:51:47] in the lab, we're going to be use more generous,
+[00:51:48] basically if you recover within a second,
+[00:51:52] you're more or less going to be good,
+[00:51:54] with for our test cases.
+[00:52:03] Okay, I want to make one more point about the, about the elections,
+[00:52:12] so another scenario that is important to consider is,
+[00:52:16] you know we have a follower，
+[00:52:17] we have the leader, leader goes down,
+[00:52:20] so this is 10, this is 10, here's follower 10.
+[00:52:25] And we already talked a little bit about it,
+[00:52:28] when let's say this guy goes first, vote for itself,
+[00:52:33] and you know we the protocol records you know on stable storage,
+[00:52:39] why who we voted for,
+[00:52:42] so the record records on the this follower 1, this follower 2,
+[00:52:47] and record voted for in term 11, you know for follower 1,
+[00:52:55] why is it recorded on stable storage,
+[00:52:59] and why does you know follower need to remember that,
+[00:53:06] that is voted in term 11 for itself.
+[00:53:14] This way doesn't vote twice, if it fails.
+[00:53:18] Yeah, it might crash, right here, and come backup,
+[00:53:26] and it should remember that and something might have been,
+[00:53:29] let's say it was actually third one guy in here, follower whatever 3,
+[00:53:34] and already voted for follower 3,
+[00:53:37] then it can actually not change in mind, right,
+[00:53:42] and so because in the end, we at the end of the term,
+[00:53:45] we need to have have to be in a position,
+[00:53:47] that per term there's only one leader and never never two,
+[00:53:52] and so to ensure that every follower must remember
+[00:53:57] for which candidate voted and never change its mind.
+[00:54:08] Okay, I guess all discussion in the chat about the timeout numbers,
+[00:54:14] in relation to the lab,
+[00:54:15] so people can look there, are confused about this,
+[00:54:19] otherwise we can talk about elections a bit more,
+[00:54:23] because this is the last thing I want to say about elections.
+[00:54:28] Any questions about the elections?
+[00:54:37] Have a bit more general question,
+[00:54:39] so, in like the figure two of the lab,
+[00:54:42] that says that for each server
+[00:54:46] storing like the current term and then who voted for,
+[00:54:50] but not the like current state of the server,
+[00:54:53] like if its candidate or follower or leader.
+[00:54:58] So I'm wondering how they like,
+[00:55:00] is that implied
+[00:55:01] or is there another way to figure that out?
+[00:55:03] I guess when you come back up,
+[00:55:06] and you come back up as a follower,
+[00:55:09] and you're starting an election,
+[00:55:13] and then that will in the end, at the end of the election,
+[00:55:16] you know what you are,
+[00:55:18] you either a follower or the leader.
+[00:55:24] I see, okay, thank you.
+[00:55:26] That makes sense?
+[00:55:27] One warning about figure two,
+[00:55:32] mostly positive and then there's maybe negative [statement].
+[00:55:36] Anywhere in the figure two,
+[00:55:37] when it says like you know you should do this,
+[00:55:39] you should really do it,
+[00:55:40] so you cannot [] any detail that actually is in figure two,
+[00:55:44] if you do that,
+[00:55:45] then undoubtedly going to fail some of the test cases,
+[00:55:48] unfortunately, figure two is not complete,
+[00:55:51] and so you still have to do something,
+[00:55:53] so particularly figure two doesn't really say not much about,
+[00:55:56] how the replies are handled,
+[00:55:58] the vote RPC and append RPC,
+[00:56:00] and so, you will have to do something to fill in the missing details,
+[00:56:05] and so, so there's two points here like figure two,
+[00:56:10] anything that's in there you better deal with it,
+[00:56:13] and but there still might be things missing,
+[00:56:15] that you will have to resolve for yourself,
+[00:56:20] you'll be looking at figure two a lot.
+[00:56:26] So from the description of the election process,
+[00:56:29] there seems to be,
+[00:56:30] even for lab 2a, which deals only with election,
+[00:56:33] there seems to be some state that we need to store on persistence,
+[00:56:37] look for example like who you voted for and the term number.
+[00:56:41] Yeah.
+[00:56:41] But, when you look at the code of lab 2,
+[00:56:44] all of the code that has to do with saving the persistent state,
+[00:56:47] it says above it lab 2c,
+[00:56:49] so is it that it's not that crucial,
+[00:56:52] maybe to care about persistent storage,
+[00:56:54] or should we absolutely start [].
+[00:56:57] Yeah, I think the first couple tests,
+[00:57:00] we don't actually crash machines,
+[00:57:03] and so therefore it's not important,
+[00:57:04] and in 2c where definitely crashing machines.
+[00:57:08] Okay, awesome, thank you.
+[00:57:13] Okay, how are you doing, everybody on board?
+[00:57:25] Okay, here we go, next step.
+[00:57:28] Okay, so one important thing to realize
+[00:57:32] and this came up earlier in the questions,
+[00:57:34] and when I [] that now that topic hard
+[00:57:36] is that logs may diverge diverge.
+[00:57:48] And they can be quite dramatic,
+[00:57:50] but just let's get into it, for basic understanding
+[00:57:54] and then discuss in more detail.
+[00:57:58] So let's do a couple simple examples,
+[00:58:00] so I'm going to write things and using the following notation,
+[00:58:03] we're going to have three servers as before,
+[00:58:07] but I'm going to cut all the timeline business
+[00:58:10] and just like draw the logs.
+[00:58:16] And you know we have indexes,
+[00:58:20] so let's say these are indexes,
+[00:58:21] you know there's preceding part to it,
+[00:58:23] when we're talking about 10 11 12,
+[00:58:27] and so you know there is an term entry in each one of them,
+[00:58:32] so let's say all three servers
+[00:58:34] committed or appended an operation in term 3 to index 10,
+[00:58:42] and you know and same thing happens in with index 11.
+[00:58:50] So one way to think,
+[00:58:51] one way you could get this, correct,
+[00:58:53] that server 1 would be the leader,
+[00:58:54] server 1 appended to its own log,
+[00:58:57] then replicates it to S2 and S3,
+[00:58:59] same thing happens for index 11,
+[00:59:01] then the next 12 maybe also successful
+[00:59:04] appends one operation in that index for it's term,
+[00:59:09] so that's term 3,
+[00:59:10] but then it crashes.
+[00:59:12] Okay, so now we're in a situation,
+[00:59:14] where one server actually has an extra log entry in its log
+[00:59:20] and the other ones don't,
+[00:59:21] or maybe that one of them has two,
+[00:59:23] but they are definitely not identical.
+[00:59:27] But that's a simple case, correct,
+[00:59:28] not merely particular step we're going on,
+[00:59:30] but there's much more interesting cases going on.
+[00:59:33] So, another case could be
+[00:59:36] one server, again S1 here we go,
+[00:59:39] same scenarios S2 S3,
+[00:59:43] and let's say we have the following logs,
+[00:59:55] so this is the situation we have in index 10,
+[01:00:00] we have entries and all servers for term 3,
+[01:00:04] index 11, the first server has no entry,
+[01:00:07] the other two have an entry for term 3,
+[01:00:11] and then last one number 12,
+[01:00:14] you know we have entries in index 4 at servers 2 and 3
+[01:00:20] with term numbers 4 and 5.
+[01:00:22] So the first question that we need to ask ourselves
+[01:00:24] is this possible,
+[01:00:26] can raft end up producing logs in this way,
+[01:00:31] were they in the same log entry,
+[01:00:34] we have two different term numbers and same log index.
+[01:00:38] Yeah, that's possible.
+[01:00:41] So basically, it looks like.
+[01:00:46] So it like what scenario that produced?
+[01:00:47] Yeah, so it looks like,
+[01:00:49] server 2 or server 3 was leader for term 3,
+[01:00:55] and then got some logs out to server 1,
+[01:00:59] and then shared another log with only one of the two servers,
+[01:01:05] after which point it went down,
+[01:01:08] and then S2 got elected as leader for term 2,
+[01:01:13] which is still possible,
+[01:01:14] because its log is like up to date as as up to date as others,
+[01:01:19] and then.
+[01:01:20] And [] again to make sure,
+[01:01:21] so S2 got elected for term 4.
+[01:01:25] Yes.
+[01:01:25] Okay, not term 2.
+[01:01:28] Okay, so S2 get elected for term 4,
+[01:01:30] and using S1 as a backup, correct,
+[01:01:33] basically as the follower?
+[01:01:36] Yes, I think,
+[01:01:39] and then S3 gets elected for term 5
+[01:01:42] before S2 can put anything in the logs.
+[01:01:44] Yeah, another way of saying,
+[01:01:45] it's like maybe S2 crashed, right away,
+[01:01:47] right after I got elected to term 4
+[01:01:51] and so then there's a timeout,
+[01:01:53] then let's say S3 is partition but now is back,
+[01:01:57] in that point, it will become,
+[01:02:00] it will, it come into a term 5, right.
+[01:02:04] Yeah.
+[01:02:06] Okay, good, so that's possible,
+[01:02:08] so turns out there are quite a bit of [] variations possible,
+[01:02:12] so we'll look at the,
+[01:02:16] so here's the figure 6 or figure 7 sorry from the homework,
+[01:02:21] and oops,
+[01:02:28] and and the homework ask basic questions about the form,
+[01:02:33] like well what happens like this guy in the figure 6 itself, figure 7 whatever it is,
+[01:02:38] I think figure 7,
+[01:02:40] the scenarios being discussed,
+[01:02:43] is like this guy becomes, the top one becomes new leader
+[01:02:46] and in the homework, we ask the question,
+[01:02:48] what happens if this leader just goes away,
+[01:02:52] and what are the possible outcomes,
+[01:02:55] you know and the possible outcomes,
+[01:02:56] like for every log index you know the question is,
+[01:03:01] which one gets rejected,
+[01:03:06] which one will be accepted for sure,
+[01:03:11] and which ones depends.
+[01:03:16] And I think there's an important thing exercise to do,
+[01:03:19] because what we have to understand,
+[01:03:21] what all log entries are possible, their possible outcomes,
+[01:03:23] it's gonna do a whole really firm up like our understanding,
+[01:03:25] about how raft actually supposed to be operating,
+[01:03:29] what I'd like to do is like do a quick breakout room,
+[01:03:31] and I'd like you to identify the two possible outcomes,
+[01:03:38] that not guaranteed,
+[01:03:40] and in the corresponding scenario,
+[01:03:44] so let me let's take a quick breakout room session here
+[01:03:49] and let's try to figure out the answer to the homework question in 5 minutes.
+[01:04:01] Lily you're able to.
+[01:04:02] You want me to.
+[01:04:04] Yeah, oh, yeah.
+[01:04:06] Yeah, yep, let me actually make you participants host,
+[01:04:20] now you're host.
+[01:11:58] Hey, ones.
+[01:12:10] Okay, can everybody hear me again?
+[01:12:15] Can I get a positive signal.
+[01:12:18] Yes.
+[01:12:19] Okay [],
+[01:12:20] okay, so hope everybody gotta have a good time discussing this,
+[01:12:27] and so let's this is really a discussion about log divergence
+[01:12:32] and we see here correcting this figure,
+[01:12:34] there are pretty wild variations,
+[01:12:37] in what can happen,
+[01:12:40] and these are all possible
+[01:12:41] as the caption of the figure explains,
+[01:12:44] they're all possible scenarios,
+[01:12:48] so the question in the homework
+[01:12:51] and just to quickly review that,
+[01:12:52] I'm sure most of you already.
+[01:12:54] I don't think we can see your screen.
+[01:12:56] Oh, that be too bad,
+[01:12:58] that's because I forgot to click share yes,
+[01:13:02] okay, let me fix that right,
+[01:13:05] appreciate that.
+[01:13:15] Okay, do you see much of it on the screen?
+[01:13:19] Yeah.
+[01:13:19] Okay, okay, thank you sorry about that,
+[01:13:21] okay, so go so going back to this caption of figure 7,
+[01:13:26] figure 7 explains like these all possible situations,
+[01:13:30] and what we want to figure out,
+[01:13:31] you know before talking about the details about how the logs gets repaired,
+[01:13:35] you know what actually is possible,
+[01:13:37] so soon actually this top guy did not get elected leader,
+[01:13:42] so the caption of the figure,
+[01:13:46] but basically what outcomes are possible,
+[01:13:48] and they're going to be,
+[01:13:49] what I mean with that is,
+[01:13:51] like for example we look at f,
+[01:13:53] you know it has 2 an index of an entry from term 2 index 4,
+[01:13:59] and the question that we want to ask and understand is,
+[01:14:02] the clear this is possible,
+[01:14:04] because this could have happened,
+[01:14:05] you know what will happen next,
+[01:14:07] you know is it possible that this entry will survive,
+[01:14:11] so we reconfigured like the leader,
+[01:14:13] basically you know logs get being you know put together in [synchronized],
+[01:14:17] where you know the leaders force logs could be identical,
+[01:14:21] is there a scenario,
+[01:14:22] in which actually the log entry, the entry from term 2 will survive.
+[01:14:30] No.
+[01:14:31] No, correct,
+[01:14:32] this will definitely be rejected, correct,
+[01:14:34] and why is that the case?
+[01:14:37] There are entries from term 6 that are already committed,
+[01:14:42] so f will never be elected.
+[01:14:45] Yeah, f will never be elected,
+[01:14:46] and so somebody else will be elected,
+[01:14:48] and nobody has 2 in term 2 index 4,
+[01:14:51] so it will be overwritten,
+[01:14:52] with what value will be overwritten?
+[01:14:58] There will be a 4 overwritten.
+[01:15:02] There will be, this will become a 4,
+[01:15:04] so when later on when we talk about sort of log,
+[01:15:07] you know synchronization were forcing logs on the followers,
+[01:15:10] it has to be the case,
+[01:15:11] that these 2 turns into 4 at f.
+[01:15:14] Good, so, so, this also answers the second question,
+[01:15:18] like the entry from the index 4 from term 4 is definitely going to be accepted.
+[01:15:27] Okay, then maybe more interesting is discussion about depends,
+[01:15:34] you know, so we know at least one entry term that's definitely going to reject it,
+[01:15:38] we know one term that's definitely going to accept it,
+[01:15:40] and you know are there any sort of in terms and indexes that maybe possibly accepted?
+[01:15:48] Oh, the 7s maybe.
+[01:15:50] Yeah, 7s.
+[01:15:52] So when would this 7s not be accepted?
+[01:15:55] Okay, so the easy scenarios,
+[01:15:57] the 7s will be accepted correct,
+[01:15:58] because d gets elected leader,
+[01:16:00] and then it will force it log on everybody else,
+[01:16:03] so that's the case where 7s gets appected,
+[01:16:05] when I get this 7 getting rejected?
+[01:16:09] If c gets elected leader and then d is down,
+[01:16:13] it is overwritten.
+[01:16:15] Yeah, so d goes down, c becomes leader,
+[01:16:19] and then c's log entries are being pushed on everybody else entries,
+[01:16:23] and then whenever d
+[01:16:25] and so we're going to be term 7, correct,
+[01:16:28] at some point, it will be longer,
+[01:16:29] and ever d comes back up,
+[01:16:31] you know it's you know entries are going to be overwritten, right.
+[01:16:35] Is a possible.
+[01:16:36] So 7 is definitely possible, but not guaranteed,
+[01:16:40] any other case?
+[01:16:42] I had a question, a could become leader too, right?
+[01:16:47] a?
+[01:16:49] Yeah.
+[01:16:50] Yeah, a could be a leader if c and d are down.
+[01:16:55] Well, d don't even have to be down for a to be elected leader, right,
+[01:16:59] it just goes to [].
+[01:17:01] The first one.
+[01:17:03] If the longest log,
+[01:17:05] if two terms equal at the end,
+[01:17:08] then you pick the longest log.
+[01:17:10] But, I think,
+[01:17:14] if a is the first one to call for an election, right,
+[01:17:18] like potentially be.
+[01:17:20] Yeah, if c and d are down and a could win the election.
+[01:17:26] But if they're alive, can it also still win the election?
+[01:17:30] Ah, so let's say c,
+[01:17:33] okay let's d is down,
+[01:17:34] let's do that for sure, correct,
+[01:17:35] because we know that d will win the election period,
+[01:17:38] d done.
+[01:17:39] Does it have to,
+[01:17:40] like we know, we know, we know,
+[01:17:42] it won't get a vote from d right for sure,
+[01:17:47] but, but what does it have to win.
+[01:17:52] Why, what do you think?
+[01:17:55] What if a received the vote from b e and f first
+[01:18:00] and then received the vote from.
+[01:18:05] Yeah, you can get a majority without actually d participating.
+[01:18:19] Even if d participated in the election,
+[01:18:21] it's possible for a to get the majority votes, right.
+[01:18:29] Yes, I think we just answered that.
+[01:18:35] Isn't isn't there a mechanism though where,
+[01:18:38] if the candidate sees a message
+[01:18:42] from another server of the higher term number like stands down.
+[01:18:48] From a higher term number, but a has,
+[01:18:52] if d is down.
+[01:18:57] It doesn't have to be down, right,
+[01:18:58] we just have to get them first, just.
+[01:19:01] Yeah, exactly.
+[01:19:06] But it will step down when it gets to vote for 7 for d.
+[01:19:11] Wait, are you sure about that,
+[01:19:13] because I don't think so.
+[01:19:16] Well, what okay, if d at some point,
+[01:19:18] well, it depends, they're gonna start racing, right,
+[01:19:22] the, okay, let me ask this very important topic,
+[01:19:27] and so I don't want to do it in ten seconds,
+[01:19:30] and let me come back to this,
+[01:19:32] at the start of the next lecture,
+[01:19:33] okay, this is a great point to stop.
+[01:19:39] I think the state machine in figure 4 clarifies it,
+[01:19:42] like a candidate goes back to follower,
+[01:19:44] if discovers a higher terms,
+[01:19:47] so if d wasn't down,
+[01:19:49] it will go back to follower at once,
+[01:19:51] trying to elect.
+[01:19:53] Wait, but I thought that it would only go back to a follower state,
+[01:19:58] if it received an append entries from a current leader,
+[01:20:03] like a request vote, is not the same.
+[01:20:07] So it is worth,
+[01:20:09] and there's a difference between the term number the servers at and the term of the most recent entry in the log.
+[01:20:16] Oh, yeah.
+[01:20:18] Like server a, it has most recent entries the log be 6, the term 6,
+[01:20:23] but have its current term number be 7.
+[01:20:27] And current term can actually be arbitrarily high.
+[01:20:30] Yes.
+[01:20:31] Correct, that's correct,
+[01:20:32] and so a could start term 8,
+[01:20:36] and then get elected in term 8,
+[01:20:38] and that and whatever these tells it doesn't matter,
+[01:20:42] because if these most recent term is 7,
+[01:20:45] it won't go back to follower,
+[01:20:47] because it's a higher term than 7.
+[01:20:50] I see, so it could be a higher term arbitrary.
+[01:20:54] Wait, could could a going to into term 7,
+[01:21:00] its own term 7,
+[01:21:02] if d was like partition,
+[01:21:04] like if there was a network partition
+[01:21:06] and it didn't know about d.
+[01:21:09] I think confused,
+[01:21:11] like even if it does know about d,
+[01:21:12] why does that matter, it shouldn't matter.
+[01:21:19] If a promotes itself to candidate,
+[01:21:22] and then sends out a request, a vote request,
+[01:21:29] then, like d could come back and say like,
+[01:21:32] oh well, my latest log entry was at this index for term 7,
+[01:21:38] but I don't think that a,
+[01:21:42] wait, actually, it doesn't even see that, right,
+[01:21:45] in in their response to a request for RPC,
+[01:21:48] basically says like its current term which would be 7, which matches a's,
+[01:21:54] because that way that's our hypothesis and then.
+[01:21:57] Yeah a started the election in term 7,
+[01:22:04] with a and d would not vote for a.
+[01:22:07] Yes, that's true,
+[01:22:08] but I don't know,
+[01:22:10] I think it's totally fine,
+[01:22:12] if d is alive
+[01:22:13] and gives a a response to a's vote request,
+[01:22:18] I don't think that deters a from being a candidate.
+[01:22:22] Someone just put in the chat,
+[01:22:24] I think the answer to that,
+[01:22:25] so I grant said that,
+[01:22:27] as soon as d rejects the vote,
+[01:22:30] a will revert to being a follower,
+[01:22:33] because it will realize that it has a lower term number.
+[01:22:36] But, okay.
+[01:22:37] Not necessarily,
+[01:22:38] because again the remember that the most recent term on their log
+[01:22:42] is not the same thing as the most recent term that the server keep track of,
+[01:22:48] you can have a higher current term than the most recent thing on the log,
+[01:22:52] and so if a tries to elect itself in term 7,
+[01:22:56] yes when it tries to contact d,
+[01:22:59] it will give up,
+[01:23:01] but if a tries elect itself in term 8,
+[01:23:03] which it would if it's already seen that the d has reached term 7,
+[01:23:08] then like a can get elected.
+[01:23:11] Wait, but, if d,
+[01:23:13] if we assume that d is in term 7,
+[01:23:15] like if a tries to elect itself for term 7,
+[01:23:20] then the we don't actually have this case,
+[01:23:23] because if the RPC request response contains a term,
+[01:23:27] which is strictly greater than the current term you give that,
+[01:23:29] but if they're the same,
+[01:23:30] then it doesn't matter,
+[01:23:31] it will just proceed as normal.
+[01:23:34] That's correct.
+[01:23:35] Yes.
+[01:23:36] The d's entris get replaced by whatever a telling it.
+[01:23:40] So, at the end of section,
+[01:23:43] like the election restriction section 5.4.1,
+[01:23:47] if the raft determines which of the two logs is more up to date
+[01:23:51] by comparing the index in terms of the last entries in the log,
+[01:23:55] so wouldn't that mean that d has to become the leader,
+[01:24:00] if we're comparing.
+[01:24:02] No, because d just vote no,
+[01:24:05] but other people might vote yes.
+[01:24:09] Yeah.
+[01:24:12] So.
+[01:24:12] What, what about the case where e runs for election in term 5 [] 5, yeah,
+[01:24:23] and then it gets a vote from d saying no,
+[01:24:27] it would then update its term right and stop running.
+[01:24:31] Hold on, like so you're thinking about e starting the election for 5.
+[01:24:34] Yeah, and if it gets a response from almost anybody,
+[01:24:39] it's going to see that it's behind a term, right,
+[01:24:41] so, it does update its term in that case, right,
+[01:24:44] to append.
+[01:24:45] So another way to ask this question,
+[01:24:47] who can become leader, correct,
+[01:24:49] this you know from this,
+[01:24:51] you know whatever from these 6 a b c to f who can become leader?
+[01:24:58] Can what f become leader?
+[01:25:00] No.
+[01:25:03] Can e become leader?
+[01:25:07] Also no, the only ones that can become leader are a c and d.
+[01:25:11] That's correct, possible leaders.
+[01:25:18] But can, can a become a leader, if d is alive,
+[01:25:22] because the because the safety section says,
+[01:25:25] that the RPC, the request for RPC implements the restriction,
+[01:25:29] that it compares the last log entries,
+[01:25:32] and the one with the highest log entry should become the leader.
+[01:25:36] I I only think it doesn't vote for someone.
+[01:25:42] Exactly.
+[01:25:43] So like they will never vote for a, right for anything else.
+[01:25:47] That's exactly right.
+[01:25:48] I mean it's also not true,
+[01:25:50] that like if you have an entry in a higher term than another node,
+[01:25:56] like you're actually sort of like better [],
+[01:26:00] because I mean you can be like becoming leader,
+[01:26:04] and trying to append entries into the log,
+[01:26:07] what they like don't go through, so.
+[01:26:10] Well, d is like when you go through,
+[01:26:12] okay, d is like, correct,
+[01:26:14] d voted again, a becomes leader,
+[01:26:16] d actually tries to,
+[01:26:18] well, a won't contact d,
+[01:26:22] if actually didn't vote for it.
+[01:26:28] And so they would just proceed.
+[01:26:31] So why could they have logs in terms 7,
+[01:26:34] if it's not a leader in terms 7?
+[01:26:38] d must have been the leader in term 7, right.
+[01:26:42] Yeah, I agree.
+[01:26:44] Otherwise, you would have no log entries.
+[01:26:54] When you pass log [] I think I forgot.
+[01:26:58] So in this case, was d was d a leader in term 7,
+[01:27:07] who got disconnected,
+[01:27:08] and then the new leader got elected the one at the top.
+[01:27:13] Yeah, I think so.
+[01:27:15] Actually, let me take that back,
+[01:27:16] I don't really remember exactly sequence,
+[01:27:18] I didn't really pay attention much to the top guy,
+[01:27:21] but I presume that is the case.
+[01:27:24] It does say, that it's neither for term 8 and [] a log.
+[01:27:33] I think the case we're looking at，
+[01:27:35] the one where a has a higher term number than d is,
+[01:27:38] the [contradiction] case in the safety argument, they mentioned,
+[01:27:41] like I think they proved that this is not possible.
+[01:27:46] What one is not possible?
+[01:27:48] Like that, a could be elected,
+[01:27:51] b missing an entry and have a higher term than d,
+[01:27:54] which is the case here,
+[01:27:55] I think there's like step proof that this is a contradiction.
+[01:28:00] I I don't think so,
+[01:28:01] I think it's totally fine for [] to be elected leader.
+[01:28:04] Yeah, I think the, I think the safety proof says that,
+[01:28:07] a future leader cannot have, needs to have all of the log commited.
+[01:28:14] Commited, yeah.
+[01:28:16] And 7 is not committed.
+[01:28:17] Exactly.
+[01:28:19] I could use a whole bunch of operations here,
+[01:28:20] they're not committed, right,
+[01:28:21] they're just tentative,
+[01:28:22] and so anything can happen to them,
+[01:28:24] then nothing wrong will happen in the end.
+[01:28:27] And the reason that the whole committed thing works is,
+[01:28:30] because if it's committed than more than the majority have,
+[01:28:35] those entries
+[01:28:36] and so someone who doesn't have the committed entries could never become elected, right.
+[01:28:40] Yes.
+[01:28:41] That's exactly right.
+[01:28:49] Yeah, they they discussed like,
+[01:28:51] yeah, like in terms of only someone who has older committed entries can get elected,
+[01:28:57] I think it gets more complicated with
+[01:28:59] you know within the people who have all committed entries which ones can get elected,
+[01:29:05] that's.
+[01:29:06] Yeah, some ways it doesn't matter.
+[01:29:09] Yeah.
+[01:29:15] So all.
+[01:29:16] All the commits after term 4 are not committed then here, right.
+[01:29:22] So these two 4s, those are not.
+[01:29:27] The first, the first two 4s.
+[01:29:30] Those are, where your question,
+[01:29:32] they will be committed.
+[01:29:33] Yeah, those would be committed,
+[01:29:34] but done everything after wouldn't be?
+[01:29:37] Two 5 will be committed.
+[01:29:39] Two 6.
+[01:29:40] And two 6 also be commited.
+[01:29:43] Okay, you only need exactly,
+[01:29:45] it's okay,
+[01:29:46] exactly how it's okay, okay.
+[01:29:48] No, another one.
+[01:29:49] Over 4.
+[01:29:52] Yeah, so the 5 and 6 wouldn't be committed,
+[01:29:55] oh, but you have another leader right.
+[01:29:58] Yeah yeah.
+[01:29:59] Okay, well let's not forget about those right,
+[01:30:02] I got it.
+[01:30:04] Okay, okay, I'll come back to this,
+[01:30:07] at the beginning of next lecture,
+[01:30:08] because some some of you probably have to run to another class,
+[01:30:12] but, I'll come back to this,
+[01:30:14] if you have more questions, feel free to stick around,
+[01:30:16] you know we'll resume this.
+[01:30:23] Oh, can you say the log duplication again,
+[01:30:27] when, when could there be log duplication.
+[01:30:31] What, what I mean is that,
+[01:30:33] the leader at some point forces its log on the followers.
+[01:30:42] I think I think you meationed on some of the previous slides.
+[01:30:46] Okay, so maybe, yeah maybe I I can't remember I said.
+[01:30:55] It is a little more, maybe a little more.
+[01:31:10] Oh, is there is there deleted duplicates?
+[01:31:13] Detect duplicates.
+[01:31:15] Yeah, it's difficult.
+[01:31:17] Yeah, this is, this is not a raft issue correct,
+[01:31:20] this is really a kv, a key-value service issue,
+[01:31:24] where a client request, you know might be [],
+[01:31:29] a client may, client might not get a response,
+[01:31:32] even though you know that request actually went through raft,
+[01:31:36] because what happened is that,
+[01:31:37] the leader may be applied to operation to its state,
+[01:31:40] before responding to the client, it crashed,
+[01:31:44] so the client will retry,
+[01:31:46] and we will send this request to the new leader,
+[01:31:48] the new leader will run it through raft,
+[01:31:50] and it will pop out of raft again.
+[01:31:53] And so it has to be the case,
+[01:31:54] that the kv server does duplicate detection.
+[01:31:58] Oh, this is like only if the client didn't get the response.
+[01:32:02] Yeah, exactly.
+[01:32:04] Okay, okay I see, thank you.
+[01:32:06] You will do this in lab 3.
+[01:32:13] I think I also ask questions during the lecture,
+[01:32:15] but I don't think I fully understood the answers,
+[01:32:18] so I just repeat the question,
+[01:32:21] the question is that,
+[01:32:22] you said that a way commits work is that,
+[01:32:26] once the leader commits, it waits for a new client message,
+[01:32:31] and then it just appends that message to the log entry,
+[01:32:34] and send append entry to the remaining followers,
+[01:32:37] with an additional message saying that,
+[01:32:39] they should also commit all the previous entries, correct.
+[01:32:42] Yeah, there's indirectly the protocol the [] correct.
+[01:32:44] Right, so my question is that,
+[01:32:46] what if the leader commits all the entries,
+[01:32:51] and right before it is able to send this message to the remaining followers,
+[01:32:55] the leader crashes.
+[01:32:56] It cannot commit
+[01:32:58] until have a majority response from majority of the followers.
+[01:33:04] I see, so it it first like even.
+[01:33:07] It sticks to a log,
+[01:33:09] but it doesn't actually deliver to the kv servers yet.
+[01:33:13] I see,
+[01:33:13] so it waits from a reply of commit from all the remaining followers,
+[01:33:17] and then it commits its own.
+[01:33:20] Okay, okay.
+[01:33:21] So there's the basic,
+[01:33:22] there's a variable last applied commited index, right,
+[01:33:25] that is actually maintaining,
+[01:33:27] it only increases the commited index,
+[01:33:29] and once it receives a response from the majority of the followers.
+[01:33:33] And all of the followers say that they have committed their own,
+[01:33:36] like they have committed the log entries on their own servers.
+[01:33:40] They will commit their log entries,
+[01:33:42] once they know that the leader actually has committed it.
+[01:33:48] Right, so that's my question,
+[01:33:50] like how would they know,
+[01:33:51] if the leaders unable to send that message to the remaining.
+[01:33:54] Well, yeah, so then we basically,
+[01:33:56] we end in situations that we just saw in this figure 7,
+[01:33:58] there's going to be tentative log entries in their logs,
+[01:34:03] and depending who becomes new leader,
+[01:34:06] and what the log situation is,
+[01:34:07] you know that operation may get committed or may not get committed.
+[01:34:11] I see,
+[01:34:13] okay, yeah, I get it.
+[01:34:16] Hi, I had a follow-up question on this,
+[01:34:18] so if says a leader pushes a log entry,
+[01:34:22] it's accepted by majority,
+[01:34:23] but it crashes,
+[01:34:25] then later on, this log entry can be committed, right,
+[01:34:29] by some other leader.
+[01:34:30] It can, also may not.
+[01:34:33] Yeah, but say if it's get committed,
+[01:34:35] then, how does the new leader know,
+[01:34:37] who was the client,
+[01:34:38] who requested for this log entry
+[01:34:40] or the client be qualified.
+[01:34:50] The, the, what okay,
+[01:34:54] so there's really a question
+[01:34:55] about actually how the kv servers actually store information with raft,
+[01:34:59] so the scenario is,
+[01:35:01] client talk to the leader,
+[01:35:03] the the client, leader actually committed, did executive this operation or not,
+[01:35:10] they did not know,
+[01:35:12] they did not know with,
+[01:35:13] so then one of the followers later will get this operation,
+[01:35:18] maybe apply it,
+[01:35:20] won't send a response,
+[01:35:22] because it doesn't know about the client,
+[01:35:24] but the client will retry, right,
+[01:35:25] because it actually haven't gotten response,
+[01:35:27] it will contact the new leader,
+[01:35:29] and basically enter the same operation in the, in the raft again,
+[01:35:33] and will pop out again,
+[01:35:35] and then the server will send,
+[01:35:38] as we'll see in the lab 3,
+[01:35:40] will send the last response, right,
+[01:35:41] in fact, servers remember the last value that they send back.
+[01:35:47] Okay.
+[01:35:48] If get request,
+[01:35:52] you know the first get request is executed,
+[01:35:54] there's no response to be sent back,
+[01:35:56] and get request actually will store the response in the in the kv server,
+[01:36:02] will remember the response.
+[01:36:04] So when it sees you duplicate,
+[01:36:06] then will send a response,
+[01:36:08] so there will be duplicate detection table,
+[01:36:11] that includes the response.
+[01:36:13] Okay, yeah, makes sense, thanks.
+[01:36:17] You're welcome.
+[01:36:19] I I was a little curious,
+[01:36:21] I think I asked,
+[01:36:21] roughly this is my question,
+[01:36:23] like pre lecture questions well,
+[01:36:25] like how raft compares to other like consensus algorithm
+[01:36:29] in terms of like optimization you could do,
+[01:36:32] and as an example I was thinking the only thing I could think of was batching.
+[01:36:36] Yeah.
+[01:36:37] It seemed like raft is like perfect for batching,
+[01:36:39] because the leader could just like put more than one entry on its log,
+[01:36:43] wait a little before sending its next entries,
+[01:36:45] then send [] entries with whatever batch set of operations
+[01:36:50] or whatever it wants the replicas to do,
+[01:36:52] just trying to figure out what what the deficiencies of raft,
+[01:36:56] like from performance point of view.
+[01:36:58] Well, raft does not do that [], right,
+[01:37:01] and you know maybe it could,
+[01:37:02] but it would make protocol more complicated
+[01:37:04] and so they decide nothing.
+[01:37:06] I guess,
+[01:37:06] okay, I guess the way I happen to have written my raft lab code,
+[01:37:10] like I sort of did batching implicitly,
+[01:37:12] because I'll just wait a little bit sometimes,
+[01:37:14] before sending append entry,
+[01:37:16] so I guess I felt like,
+[01:37:17] you don't really need to do anything
+[01:37:18] other than just like maybe wait if you feel like it before.
+[01:37:21] Yeah, you can have.
+[01:37:24] So yeah like.
+[01:37:28] Yeah, yeah, I I think it all comes down to performance,
+[01:37:34] so you know there's a whole bunch of optimization that raft doesn't do,
+[01:37:36] you know that some other systems do,
+[01:37:38] you know for example you might be able to [communicate] your operations,
+[01:37:40] because doesn't matter in what order you do them,
+[01:37:43] so there's a slew of optimizations,
+[01:37:46] and in raft basically do none of it.
+[01:37:49] Okay, thanks.
+[01:37:52] It might be perfectly fine for like use case, right.
+[01:37:55] Right.
+[01:37:59] You mentioned something a couple minutes ago,
+[01:38:02] that log entry could be lost,
+[01:38:05] so is it possible that a client request could never be executed,
+[01:38:08] but raft guarantees that,
+[01:38:10] all the servers will execute the same set of log entries in the same sequence.
+[01:38:16] And so that means raft does not cannot be usable for all applications,
+[01:38:21] we can only afford the some lost requests.
+[01:38:27] Well, you know we have to assume that
+[01:38:30] you know the responses from the from the raft servers as a whole, correct,
+[01:38:35] kv servers plus raft,
+[01:38:36] may get lost anyway,
+[01:38:37] because the network gets lost,
+[01:38:39] network network may lost responses,
+[01:38:41] so the client has to be able to repeat,
+[01:38:44] the client must resend, must retry.
+[01:38:49] I see,
+[01:38:49] so like when it actually commits log entry,
+[01:38:52] and excuses it replies to the client,
+[01:38:55] that it did actually do.
+[01:38:56] Yeah, so this is like we're a little bit earlier we talked about,
+[01:38:58] the duplicate detection table,
+[01:39:00] the duplicate detection table has the response that was sent,
+[01:39:04] or was constructed in response to executing that operation.
+[01:39:09] Okay.
+[01:39:14] Any further questions?
+[01:39:18] Okay, thank you so much.
+[01:39:20] Alright, welcome, it's great to ask so many questions.

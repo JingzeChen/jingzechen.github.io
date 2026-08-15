@@ -1,0 +1,1465 @@
+[00:00:01] Okay, so good morning, good afternoon or good evening or wherever you are,
+[00:00:07] and the plan for today is to talk about the Frangipani,
+[00:00:11] this is a paper from 1997,
+[00:00:14] so it's a bit of an older paper,
+[00:00:17] the context of this paper is network file systems,
+[00:00:30] and you know you should think about systems such as you know Athena AFS,
+[00:00:34] that you know the file system like Athena,
+[00:00:36] Dropbox, a more modern version of this,
+[00:00:40] but the general goal here is
+[00:00:42] to basically share files between a collection of users.
+[00:00:46] Frangipani itself you know it's not widely used
+[00:00:50] or wasn't widely used outside of the [].
+[00:00:53] And so the view to focus,
+[00:00:55] you know the things you should get out of this paper today are three ideas
+[00:01:00] and ideas that actually will show up over and over in a couple of, next couple of weeks.
+[00:01:05] First of all cache coherence, protocols for cache coherence,
+[00:01:13] second, distributed locking,
+[00:01:23] and third, distributed crash recovery.
+[00:01:33] And these are gonna be, three ideas are gonna be,
+[00:01:35] as I mentioned show up in the, in the next couple of weeks,
+[00:01:38] in particular, we're going to read,
+[00:01:40] you know starting next week,
+[00:01:42] you know two sort of heavy-duty transaction systems,
+[00:01:44] and they build a lot on
+[00:01:48] get some of the techniques or to use some of the techniques,
+[00:01:51] that actually Frangipani also uses.
+[00:01:54] And so Frangipani is sort of a more gentle introduction to these three topics,
+[00:01:59] before we get to heavy-duty transaction systems.
+[00:02:03] And the idea is also Frangipani's itself is an interesting design,
+[00:02:06] from distribute system perspective,
+[00:02:10] it is a cool system.
+[00:02:12] Let me make that point
+[00:02:14] by sort of [] sort of the traditional designs for network file system,
+[00:02:20] so traditional or the most common network file system design,
+[00:02:26] since if you think about like AFS on Athena,
+[00:02:30] if you have a set of clients,
+[00:02:34] and this is a very simple picture
+[00:02:36] of a set of clients you know connected to some network,
+[00:02:39] represent the network basically a single wire,
+[00:02:42] you know sharing a number of file servers,
+[00:02:45] and the file servers have data on disk.
+[00:02:53] And basically all the all the complexity, all the,
+[00:02:58] okay, I'll get to cache coherence in a detail in a second,
+[00:03:02] the, all the complexity in the design is basically here,
+[00:03:07] at the file servers,
+[00:03:09] file servers implement you know the file system operations,
+[00:03:12] open close read write you know stat on everything,
+[00:03:15] and they write things to disk in the crash resilient or resistant way,
+[00:03:21] and the clients are really sort of dumb or simple,
+[00:03:24] they didn't really do much,
+[00:03:25] you know perhaps do some caching as they do in AFS,
+[00:03:28] but you know most of these is,
+[00:03:30] they're relaying file system operations from client, from programs that are running,
+[00:03:35] like whatever Vi on client 1,
+[00:03:37] and it does open close,
+[00:03:38] and most of what the client does
+[00:03:40] relaying those operations to file servers.
+[00:03:43] And one reason that the design is popular is,
+[00:03:45] because you know like [] from security perspective,
+[00:03:48] it is a nice design,
+[00:03:50] because most of the file servers have to be trusted,
+[00:03:53] but the clients don't have to be trusted.
+[00:03:57] And certainly in a setting like MIT,
+[00:03:58] where like machines are just in public,
+[00:04:00] and who knows who installs what kind of software on it,
+[00:04:03] you know that is a nice property.
+[00:04:06] Frangipani has a very different design,
+[00:04:09] a much more decentralized design.
+[00:04:14] And in Frangipani actually a lot of the file server,
+[00:04:18] it's really there's actually no real file server
+[00:04:21] in this literally the word,
+[00:04:23] but the the clients basically implement run the file server code itself.
+[00:04:29] So let's say you know two clients
+[00:04:31] and most of the file system code itself,
+[00:04:34] like the thing that actually has inode managers,
+[00:04:37] inode updates you know files, creates directories,
+[00:04:40] all the code instead of living on the file server,
+[00:04:43] looks like it lives on the clients,
+[00:04:46] you know the only thing that really the the file server share is a big virtual disk.
+[00:04:59] And if you will,
+[00:05:00] you know may be a good image you have in your head
+[00:05:02] or a conceptual image you have in your head is that,
+[00:05:04] the virtual disk is basically like a big SSD drive,
+[00:05:08] and so the file servers,
+[00:05:10] there's basically share one SSD,
+[00:05:12] you know one disk with each other,
+[00:05:15] now of course internally,
+[00:05:17] this virtual disk is implemented using a system called Petal,
+[00:05:21] and you know consists actually of many machines,
+[00:05:24] and but you know you know the machine replicate you know disk blocks,
+[00:05:29] there are Paxos internally to make sure that,
+[00:05:32] like you know opertations can apply in the right order
+[00:05:35] and all that kind of stuff,
+[00:05:36] but from the outside perspective,
+[00:05:38] you know the interface is really read block, or write block,
+[00:05:42] and so it just looks like an ordinary disk.
+[00:05:45] And as over those interesting in this you know design,
+[00:05:48] you know contract to design's,
+[00:05:50] actually a lot of complexity in this design is on the client side.
+[00:05:56] And you know one reason that you like that,
+[00:05:58] or why is that,
+[00:06:00] you know you can grow the file system with the number of workstations,
+[00:06:04] so if you increase the number of clients,
+[00:06:06] you basically get more CPU power,
+[00:06:08] because you get more clients,
+[00:06:09] and you know each of the clients can run on its own file system.
+[00:06:13] And so a lot of the really heavy-duty computation
+[00:06:15] can all be done on the client machines
+[00:06:17] and doesn't involve any file server at all,
+[00:06:20] and it is true,
+[00:06:21] that in the left side,
+[00:06:22] the network, traditional network file system design is often the case,
+[00:06:25] that you know the performance bottlenecks arise you know in the, in the file server,
+[00:06:31] when the number of clients actually becomes too large,
+[00:06:35] and often in that case for example,
+[00:06:36] we split the file system across different files servers.
+[00:06:41] Okay, that's sort of the,
+[00:06:43] so from our perspective,
+[00:06:44] at least from a distributed systems design,
+[00:06:47] Frangipani is interesting,
+[00:06:49] because it's much more decentralized,
+[00:06:50] than sort of the traditional network file system design.
+[00:06:56] And the reason they wanted to explore this design
+[00:07:01] has a lot to do with the use case,
+[00:07:03] that they imagine or that they were targeting,
+[00:07:05] and I want to say a little bit about the use case,
+[00:07:07] because, there were a lot of questions related to that in email.
+[00:07:11] So, so what is the use case,
+[00:07:15] the use case is basically
+[00:07:18] a number of researchers and engineers
+[00:07:24] you know compiling, compiling editing their programs or writing documents.
+[00:07:40] So it's really designed you know paper from a famous research lab [],
+[00:07:46] and [] like tens of, researcher like 50 to 100,
+[00:07:51] and you know really what they're doing is
+[00:07:53] designing a file system for their use case,
+[00:07:57] so everybody is trusted,
+[00:07:59] all the machines are trusted,
+[00:08:01] all the software running trusted,
+[00:08:03] and so the security side of things is really not an issue for that,
+[00:08:07] all the these researchers are heavy-duty computer users,
+[00:08:12] and you know and so they want to,
+[00:08:14] but mostly, they're working on their own private files,
+[00:08:16] and they're writing their own programs,
+[00:08:18] they're writing their own documents,
+[00:08:20] and so [] want to interact with the files with high performance file system.
+[00:08:25] Of course, you know they might share,
+[00:08:27] otherwise sharing would not be interesting,
+[00:08:33] so they both potentially share files and directories,
+[00:08:36] and it shows up in two ways,
+[00:08:39] you know they may work together,
+[00:08:40] collaborate together around writing a paper,
+[00:08:42] like paper that we're reading today,
+[00:08:44] and so they want access to a shared files
+[00:08:48] for the directory that holds that particular paper,
+[00:08:51] and so this user to user sharing.
+[00:08:58] And then there's a second form of sharing,
+[00:08:59] like the same user might login to multiple workstations,
+[00:09:11] more than one workstation,
+[00:09:13] so again whatever,
+[00:09:14] user one of the researchers goes to the public library of [] or their library,
+[00:09:18] and the [] public workstation with [],
+[00:09:21] and wants to be able to read or write their files from that machine too.
+[00:09:25] So that's use case,
+[00:09:27] and in this use case has a number of design implications,
+[00:09:33] or you know design choices that were motivated by use case.
+[00:09:40] And so the one of the primary ones,
+[00:09:44] that was motivated by this use case is caching.
+[00:09:52] So instead of leaving the data for example all in Petal
+[00:09:55] and every read or write operation goes through Petal,
+[00:09:57] they want to arrange it,
+[00:09:58] so the mostly [actually] actually happens in the workstations,
+[00:10:01] and so that the researchers,
+[00:10:03] since they're mostly working on their own private files,
+[00:10:06] it seems to make a lot of sense,
+[00:10:07] they're sort of cache the data locally on the workstation,
+[00:10:10] then as you read or write files,
+[00:10:12] there's basically no network traffic really necessary,
+[00:10:15] and you can sort of write at high performance.
+[00:10:19] And one reason, one way they avoid having a lot of traffic to Petal
+[00:10:24] is to have a write back-cache instead of write-through,
+[00:10:29] so if operations happen actually stay in the cache,
+[00:10:31] and at some point later, they percolated to Petal,
+[00:10:34] as we'll see in a second.
+[00:10:38] So, combine that,
+[00:10:40] like even though they're mostly,
+[00:10:41] you know workloads are going to be used for private,
+[00:10:43] where they're not sharing going on,
+[00:10:46] or in the case they do share,
+[00:10:48] they want to have strong consistency,
+[00:10:50] or sometimes called you know coherence.
+[00:11:01] And so the meaning,
+[00:11:03] for example, if one user writes a file,
+[00:11:07] then another user, a lot of workstation reads the file,
+[00:11:11] and [] that user actually saw the changes,
+[00:11:14] that the other workstation the other user has made,
+[00:11:18] and so they want strong consistency.
+[00:11:22] So, those are the two design choices that really drive this design
+[00:11:29] as well as this basically performance.
+[00:11:42] So it may be helpful to think a little bit about,
+[00:11:46] like what other use cases could you have for file systems,
+[00:11:49] and so maybe one good one that we talked a lot about is
+[00:11:53] to think about GFS,
+[00:11:54] you know would GFS be a substitute for Frangipani
+[00:11:58] or the other way around how do they contrast?
+[00:12:01] And one way to think about this is,
+[00:12:02] that GFS is really file system designed for mapreduce applications,
+[00:12:07] and so it's a file system where files are not cached,
+[00:12:13] in fact the files tend to be so big,
+[00:12:15] that they wouldn't even fit in the type of cache that we're talking about,
+[00:12:18] it's also basically sort of read sequentially from begin to end,
+[00:12:21] and that's it,
+[00:12:22] and maybe you know some other computer will read that file,
+[00:12:26] because some other mapreduce application running on.
+[00:12:29] So think, you think about GFS,
+[00:12:31] there's really no data caching going on at all,
+[00:12:33] there's a little bit of caching going on to keep track of
+[00:12:36] where a chunk servers were,
+[00:12:39] but there's actually no caching of data going on at all in GFS,
+[00:12:42] so there's also no cache consistency probably in GFS,
+[00:12:45] and so there's a type of applications that they were targeting,
+[00:12:48] that just didn't make sense at all.
+[00:12:50] Similarly, in GFS,
+[00:12:51] GFS actually it's not really a real file system,
+[00:12:54] in the sense of the here,
+[00:12:56] was not intended to run like VI, GCC,
+[00:12:59] and so didn't provide straight sort of POSIX or Unix compatibility,
+[00:13:03] in Frangipani, you can just run your standard Unix applications
+[00:13:07] and things should work out,
+[00:13:09] and the application behave in the same way as if there was not a distributed file system,
+[00:13:14] basically single file system.
+[00:13:17] Again in GFS,
+[00:13:19] you know there is basically a little bit of library,
+[00:13:24] you know actually application used to read or write files in GFS,
+[00:13:29] but it was not 100% Unix compatible at all.
+[00:13:33] So that give you a sense,
+[00:13:34] that you know these workloads drives really the design of these different systems,
+[00:13:39] you know in case GFS,
+[00:13:41] mapreduce application that drive the design,
+[00:13:44] in case of you know Frangipani or the shared file system
+[00:13:47] is a question of users working on shared file system,
+[00:13:50] but most of the operations you know their performing,
+[00:13:53] probably just files [] own and performed locally.
+[00:13:58] That makes sense in terms of contrast in settings,
+[00:14:01] so you see actually there are quite a different number of file systems around,
+[00:14:04] like zookeeper yet another sort of provides file system interface,
+[00:14:07] but it's not really a file system,
+[00:14:08] you know it's like more intended as a coordination service,
+[00:14:11] you wouldn't store big files in zookeeper.
+[00:14:16] Any questions about this setting?
+[00:14:22] Can you briefly repeat,
+[00:14:24] why having the file server code running on the client machine enhances scalability,
+[00:14:30] versus having the client and the file server
+[00:14:32] being on different machines or on different.
+[00:14:36] Yeah, so, for example you know,
+[00:14:37] like to go back to this previous slide here,
+[00:14:40] on the left the network file system,
+[00:14:42] so there's many many many clients,
+[00:14:43] let's figure there's only one,
+[00:14:45] there's let me simplify this picture for a second,
+[00:14:47] and ignore the second file server, one one file server,
+[00:14:50] so everybody can share the files from the file server,
+[00:14:53] then all these clients will be handling on that single file server,
+[00:14:56] and so all the read or write operations are going to be sent to the file server,
+[00:14:59] the file server directly lookout,
+[00:15:02] it opens files and does security checks
+[00:15:06] and all that kind of stuff,
+[00:15:06] so all the computation really for the file system itself,
+[00:15:10] it's all happening on the file server itself
+[00:15:12] in the traditional network file system design,
+[00:15:15] in the Frangipani, that's not the case,
+[00:15:17] in Frangipani, all the file system operations are executed on the workstations.
+[00:15:21] And so we have multiple workstations
+[00:15:24] are basically you know the workload that the file system can scale
+[00:15:27] or it can support scales with the number of workstations.
+[00:15:31] I see,
+[00:15:32] and then be a traditional architecture,
+[00:15:34] so every file server contains or stores,
+[00:15:37] let's say a section of the the entire file system, right,
+[00:15:41] so it so it's not the case,
+[00:15:42] that every single file server has a copy of the entire system,
+[00:15:47] is that it might be partitioned cross file servers.
+[00:15:50] Yeah, that might be cross,
+[00:15:52] for example AFS you know there are different volumes
+[00:15:54] and file servers managed different volumes,
+[00:15:58] and the data of all users MIT spread across different volumes,
+[00:16:02] but all the data for one volumes are going to be one file server,
+[00:16:05] and so that file volume gets hit hard,
+[00:16:07] you know you're going to get performance bottlenecks.
+[00:16:10] Okay, awesome, thank you.
+[00:16:14] Any more questions about sort of the setting here,
+[00:16:16] before we dive in to more Frangipani?
+[00:16:26] Okay, good.
+[00:16:27] So now the design choice they made,
+[00:16:30] immediately leads to a number of challenges,
+[00:16:34] so I wanna talk a little bit about the challenges.
+[00:16:41] And the main one that drives almost of a ton of the design is,
+[00:16:48] let's say you have one workstation, workstation 1,
+[00:16:52] in those days, people had workstations,
+[00:16:55] and laptops were actually not not really existed yet,
+[00:16:58] today probably will be all kinds of laptops,
+[00:17:00] but you know there's a workstation
+[00:17:02] and somebody like whatever read a file, read file f whatever,
+[00:17:07] you know maybe the grades database, the grades file,
+[00:17:10] and so basically,
+[00:17:12] that means that that file actually is cached inside of the workstation.
+[00:17:16] And so the client you know whatever program running VI,
+[00:17:20] you know get to update and manipulate the file,
+[00:17:23] and then you know sometime later,
+[00:17:25] the result will be written back to Petal,
+[00:17:28] the disk, as you will.
+[00:17:30] And so the challenges that are basically around this model are 3 [],
+[00:17:34] one, somebody else workstation 2,
+[00:17:39] maybe at some point,
+[00:17:40] do cat of f,
+[00:17:42] get the file f,
+[00:17:44] and of course it should be the case that,
+[00:17:46] you know at least normally expected we have a traditional Unix file system,
+[00:17:50] that you know you will see the last write to that particular f,
+[00:17:54] so even though the write might have happened at a different workstation,
+[00:17:57] when the second workstation reads the file,
+[00:18:00] we would like to see that data show up,
+[00:18:03] and this is what they were going to be roughly,
+[00:18:06] this roughly comes to cache coherence,
+[00:18:11] and other words synonyms for coherence are cache consistency,
+[00:18:15] which is like the term we've seen more in the previous papers,
+[00:18:20] but in the sort of, at the computer architecture world,
+[00:18:23] actually the the term coherence comes, comes from that world,
+[00:18:28] and so you can think about them as synonyms.
+[00:18:33] Two, the second problem that you know you that's going to occur,
+[00:18:38] and we need to deal with is that,
+[00:18:40] let's say that workstation 1 and workstation 2
+[00:18:44] both want to create a file in the share directory,
+[00:18:47] so here's workstation 1 creates a file f in the directory d,
+[00:18:52] workstation 2 also creates a file g in directory d.
+[00:18:58] And now we want to be arranged at least,
+[00:19:00] like workstation 1 makes the changes
+[00:19:02] and then workstation 2 makes the changes,
+[00:19:04] like both files here,
+[00:19:06] and that like one file doesn't overwrite say the directory of the other
+[00:19:12] or basically overwrite directory in a way that actually other files disappears.
+[00:19:16] So this has to do the second topic, really is atomicity,
+[00:19:23] these operations creating a file,
+[00:19:25] really have to be has to be sort of an atomic operation,
+[00:19:28] so they don't get interleaved,
+[00:19:29] then we get wrong results.
+[00:19:32] And then the final problem,
+[00:19:34] that we need to deal with is that,
+[00:19:37] you know workstation 1 you know might crash,
+[00:19:41] while doing one of these complex file system operations,
+[00:19:50] and so it has to be story,
+[00:19:52] you know how actually the file system recovers,
+[00:19:55] and so this is really a story about crash recovery.
+[00:20:02] So, for example like in this first case,
+[00:20:04] where like workstation makes a file in directory d,
+[00:20:07] there's actually a complex operation,
+[00:20:09] you know the directory needs to be modified,
+[00:20:11] and inode needs to be allocated
+[00:20:12] and inode to be initialized,
+[00:20:15] and then the inode number needs to be written into the directory,
+[00:20:17] so there's multiple sort of file system operations involved in it,
+[00:20:20] and we wanted to be the case that,
+[00:20:21] if the file system crashes between any of these steps,
+[00:20:25] in this sort of complex file system operation,
+[00:20:27] there better be the case that,
+[00:20:28] the file system recovers correctly.
+[00:20:30] And what I mean,
+[00:20:31] you know file system recover correctly,
+[00:20:32] at least its internal data structures are correct,
+[00:20:35] and so for example the inode does not lost,
+[00:20:37] because it doesn't show up in the directory, etc etc,
+[00:20:40] or like even the whole of the internal structures are consistent,
+[00:20:44] so this is the topic of crash recover.
+[00:20:46] And so Petal basically were in Frangipani need to address all these problems,
+[00:20:51] and my plan is just go walk through in one by one,
+[00:20:56] and discuss how Frangipani addresses them.
+[00:21:01] Any questions about the top level challenges?
+[00:21:10] Okay, let's you know proceed.
+[00:21:12] So the first thing is caching coherence or cache consistency.
+[00:21:28] And, so the key aspect in the solution that Frangipani uses
+[00:21:36] actually a lock server somewhere,
+[00:21:39] and so, and the lock server basically has a table,
+[00:21:46] and for every file and actually inode number for every file,
+[00:21:52] who has to lock at this particular point of time,
+[00:21:55] so who's the owner.
+[00:21:58] So we might have a file f
+[00:22:00] and it basically says you know workstation for which,
+[00:22:02] the lock server has a record
+[00:22:04] of the workstation 1 owns that particular lock,
+[00:22:07] and the lock server itself is a distributed service,
+[00:22:14] you can almost think about it almost like zookeeper,
+[00:22:16] you know it, it provides acquire release locks,
+[00:22:21] it's fault tolerant,
+[00:22:23] in the case of Frangipani,
+[00:22:25] that use Paxos based implementation,
+[00:22:28] and what you know spread across multiple machines, highly fault tolerance, etc, etc.
+[00:22:36] So that's the the the lock server,
+[00:22:41] and it turns out,
+[00:22:42] that the workstation should also keep a table for their locks,
+[00:22:47] so here's workstation 1,
+[00:22:49] and you know it might be,
+[00:22:51] you know let's say workstation 1 cache file f and g,
+[00:22:56] you know maybe h cached by workstation workstation 1,
+[00:23:00] h maybe cached by workstation 2,
+[00:23:03] and then the workstation 1 has a similar table,
+[00:23:06] and that list for every file, for every lock that holds,
+[00:23:11] where it's either busy or idle,
+[00:23:14] so it maybe f you know lock status is busy,
+[00:23:19] and it really means that actually the file server is just operating on that file,
+[00:23:22] so it's actually using that file,
+[00:23:26] the second state namely,
+[00:23:28] let's say we have file g, which also cache there,
+[00:23:30] and maybe g is actually in the state that call idle,
+[00:23:34] that means actually the g at that point is not being modified,
+[00:23:38] and were not being worked on by the files, for that particular instant time,
+[00:23:43] but it's basically what they call a sticky lock.
+[00:23:47] So that if you know the file server at some point [],
+[00:23:51] it's gonna use file g again,
+[00:23:53] it can actually do so,
+[00:23:54] without actually having to communicate with Petal
+[00:23:56] or reload it's cache or anything like that at all,
+[00:23:59] because it has a sticky lock,
+[00:24:00] it knows that nobody else actually has required,
+[00:24:02] no other workstation has required the lock in the meantime.
+[00:24:06] So that's the sticky lock
+[00:24:09] and it turns out that,
+[00:24:10] the the you know these are two building locks,
+[00:24:15] that are then being used to what they call,
+[00:24:17] what's what is called cache coherence protocol.
+[00:24:21] And set of messages or set of rules that are being followed
+[00:24:24] to actually get cache consistency,
+[00:24:27] and the basic rule is that,
+[00:24:29] you know guiding rule is
+[00:24:32] to cache a file,
+[00:24:39] you first must acquire a lock,
+[00:24:44] you'll see that rules stepping stone
+[00:24:47] for actually getting cache consistency or cache coherence.
+[00:24:52] I'm going to make a small simplification,
+[00:24:55] in the paper,
+[00:24:56] they describe you know locks basically being exclusive or read-write locks,
+[00:25:01] I'm just going to assume,
+[00:25:02] for the rest of the lecture,
+[00:25:03] the [exclusive] it doesn't really matter,
+[00:25:05] but there's an optimization,
+[00:25:06] based on multiple workstations can have a file cache in read-only mode.
+[00:25:13] Okay, so with that,
+[00:25:14] let me talk a little bit about,
+[00:25:15] let's catch out the protocol that Frangipani uses.
+[00:25:22] And again you know cache coherence or cache consistency,
+[00:25:28] the goal actually for even though the file systems distributed,
+[00:25:32] it should behave like a single file system,
+[00:25:34] so you only have one file server,
+[00:25:36] you want to basically the same results
+[00:25:39] will be returned by the distributed file system,
+[00:25:41] so you can't tell the difference whether it's distributed or not,
+[00:25:44] and so this is you know remind me of linearizability,
+[00:25:47] so in fact, you know I I believe actually what Frangipani shoot for,
+[00:25:53] it's actually linearizable file system operations.
+[00:25:56] Okay, so we got the lock server,
+[00:26:01] we got workstation 1,
+[00:26:04] and there's workstation 2.
+[00:26:08] And there sort of four messages that are important here,
+[00:26:11] there's namely requesting a lock, granting a lock
+[00:26:15] and revoking a lock and actually releasing the lock,
+[00:26:18] so those are the four messages that fly between back and forth,
+[00:26:21] between workstations and lock server
+[00:26:23] and lock server and other workstations.
+[00:26:26] So let's look at this,
+[00:26:27] let's say lock server has,
+[00:26:30] nobody has any locks at any time,
+[00:26:32] so let's draw some timelines,
+[00:26:34] and workstation 1 wants to request,
+[00:26:38] wants to read write file f,
+[00:26:41] you know basically sends a request for a lock,
+[00:26:44] you know to the lock server for file f,
+[00:26:47] so workstation that can't do anything really at this point yet,
+[00:26:50] the lock server you know checks it's table,
+[00:26:53] and sees that f actually is not used by anybody at all,
+[00:26:56] you know list workstation 1 as the lock owner,
+[00:26:59] sends basically message back and granting the lock for f,
+[00:27:06] so at this point, workstation 1 requires the lock for f,
+[00:27:10] now it can actually read or write,
+[00:27:12] where now it can actually read the file from Petal,
+[00:27:19] actually can make modifications to it too,
+[00:27:22] now those modifications just stay local, nothing really happens,
+[00:27:25] is a write-back cache, not a write-through cache,
+[00:27:29] and so it just stays happily on the on the client side.
+[00:27:33] In fact, the workstation can even release the lock,
+[00:27:36] you know here in basically go from busy to idle,
+[00:27:42] and so it actually would need to lock again,
+[00:27:45] for example once write after write again,
+[00:27:47] we can actually do the complete local
+[00:27:49] without any interaction with the lock server.
+[00:27:53] That's a slight simplification here,
+[00:27:54] you know actually we'll see in a second,
+[00:27:56] that the lock has a lease associated with it,
+[00:27:58] so the client at least has to refresh the lease periodically,
+[00:28:01] but it doesn't have to read write or reread the file f from actually Petal,
+[00:28:06] if the lease has expired.
+[00:28:09] Okay, so the instant case of course happens,
+[00:28:11] like what if workstation 2 wants to read the file f,
+[00:28:16] so you know what will happen,
+[00:28:17] with workstation 2 want to read,
+[00:28:19] and basically it will do the same thing,
+[00:28:20] it will send acquire or request message,
+[00:28:24] request message to lock server,
+[00:28:26] saying I want f,
+[00:28:28] and the way it works is that,
+[00:28:29] the lock server actually looks at this table,
+[00:28:32] sees the f is actually owned by workstation 1,
+[00:28:36] and then will send the revoke message to workstation 1,
+[00:28:40] asking you know the lock back,
+[00:28:43] so that will revoke f,
+[00:28:45] and at this point,
+[00:28:46] Petal actually do a little bit more of,
+[00:28:48] Frangipani actually little bit of work,
+[00:28:51] because we have to make sure the workstation 2 observes the writes,
+[00:28:55] that workstation 1 is done,
+[00:28:56] and so the way that is done is
+[00:28:57] that basically this instant of time,
+[00:29:02] the workstation 1 writes actually f you know to Petal,
+[00:29:06] and we'll see in a second,
+[00:29:07] actually writing f to Petal actually a slightly complicated operations,
+[00:29:10] more sophisticated than I'm just making it out to be,
+[00:29:12] but just think about it,
+[00:29:13] at this point,
+[00:29:14] workstation 1 is basically flushing its states really to f, to Petal,
+[00:29:20] once that actually completed,
+[00:29:21] so like once Petal are acknowledged,
+[00:29:23] that actually it actually has received all the data,
+[00:29:25] and actually sends a message back, release f,
+[00:29:32] and you know once lock server gets the release of f,
+[00:29:35] you know that can update its table
+[00:29:37] and allocate the lock the workstation 2
+[00:29:40] and sends you know a grant for f to 2.
+[00:29:45] Oops.
+[00:29:52] And at this point,
+[00:29:54] workstation 2 requires lock,
+[00:29:56] and now it can actually read all the information from the file f Petal,
+[00:30:01] at that point it is guaranteed that we'll see the latest changes to the file f,
+[00:30:07] because the previous owner must have flushed the state you know to the Petal,
+[00:30:14] before it actually released the lock and gave it back to the lock server,
+[00:30:18] and workstation 2 is guaranteed to actually observe those changes,
+[00:30:21] and so here's where are strong consistency comes in,
+[00:30:24] these strong consistency are tied to the lock management.
+[00:30:30] Any questions about this?
+[00:30:34] There's a question in chat.
+[00:30:37] Okay,
+[00:30:40] we need to write,
+[00:30:41] one question in the chat,
+[00:30:42] let me address the first,
+[00:30:44] we need to write to Petal,
+[00:30:46] when releasing both read and write locks,
+[00:30:48] why do we need to write to Petal when releasing a read lock?
+[00:30:51] Let's ignore read write,
+[00:30:54] the distinction between read and write,
+[00:30:56] exclusive locks and read write locks,
+[00:30:59] in the, and just focus on exclusive locks,
+[00:31:04] you know read you know read thing is just a small [app],
+[00:31:07] as it happens an important optimization,
+[00:31:09] but it doesn't really change the design system dramatically.
+[00:31:17] Any other questions?
+[00:31:19] So this sort of design, would be really inefficient,
+[00:31:22] if we have like two different workstations,
+[00:31:24] that are both modifying the same file.
+[00:31:26] Yeah.
+[00:31:27] You just get like cache bouncing back and forth.
+[00:31:30] Yeah, you maybe if you're two workstations or two different engineers,
+[00:31:33] that server would be banging on the same file,
+[00:31:36] you know the file would go back and forth.
+[00:31:38] And so is not really suitable,
+[00:31:41] so you can see here,
+[00:31:42] the influence of like the workload that they're designing for,
+[00:31:46] you know they're really assumption is that,
+[00:31:48] basically most engineers are working on their private files,
+[00:31:52] and you know once in a while, they'll share files,
+[00:31:54] but they were probably not banging on the same shared file.
+[00:32:03] You know we're using git,
+[00:32:04] but you could imagine if you have a share your code repositories,
+[00:32:07] or you check out your own copy of the code repository,
+[00:32:10] make your own modifications,
+[00:32:11] and some point you write it back.
+[00:32:15] I'm sorry, just to make sure you say,
+[00:32:17] you can release the lock while you still have the file in the cache?
+[00:32:23] You can, okay, so I'm going to be very careful with,
+[00:32:28] when I mention with releasing the lock there,
+[00:32:30] is not releasing it to the lock server,
+[00:32:32] but locally you know changing the states from busy to idle,
+[00:32:37] and since you know the lock is sticky,
+[00:32:39] you know it still sits at workstation 1,
+[00:32:41] and lock server still thinks actually workstation 1 has the lock.
+[00:32:49] Is that answer your question?
+[00:32:51] Yeah, yeah, thank you.
+[00:32:55] So what happens,
+[00:32:57] if the request from 2 comes while it's busy?
+[00:33:02] Yes, good question, what do you think happens?
+[00:33:10] Does it just reject them?
+[00:33:12] No, that's I think it doesn't reject it, just waits,
+[00:33:15] and waits until workstation 1 is done,
+[00:33:18] modifying the file f or executing its file system operation,
+[00:33:22] and then the Frangipani code will release locally the lock,
+[00:33:28] will see that someone is waiting for it,
+[00:33:30] and so does change it to busy,
+[00:33:33] but actually starts flushing all the operations to Petal
+[00:33:36] and then releases the lock.
+[00:33:39] So this comes actually nicely to the second point,
+[00:33:41] which is this atomicity point,
+[00:33:43] so maybe that will make it more clear.
+[00:33:45] Let me talk a little bit about atomicity,
+[00:33:47] because it also use the same locks
+[00:33:50] to achieve atomic file system operations,
+[00:33:56] atomicity, using locks.
+[00:34:03] So when for example you do create operation,
+[00:34:07] like you execute the create file system operation or whatever create f,
+[00:34:13] you know whatever the usual arguments,
+[00:34:15] and there's of course internally,
+[00:34:17] even though the application makes this create file system call,
+[00:34:19] this internally actually has multiple file system modifications,
+[00:34:24] you know for example the directory needs to be modified,
+[00:34:27] actually let me do it in a slightly different order,
+[00:34:30] we need to allocate an inode you know for f,
+[00:34:34] we need to initialize that inode, write the inode,
+[00:34:40] and then you know update the directory,
+[00:34:44] update the directory to add an entry basically for you know the [] f,
+[00:34:50] and whatever inode number was allocated for f,
+[00:34:54] so this is typical way in which Unix file system implements files,
+[00:34:58] and so we need to arrange that these operations happen atomically,
+[00:35:02] because we don't want to sort of intermediate results be visible to other workstations,
+[00:35:06] in the way that happens is using by acquiring those locks,
+[00:35:10] acquire the lock for this particular inode,
+[00:35:15] you know for example inode inode 10,
+[00:35:17] so you require a lock for f,
+[00:35:19] I'm just gonna use "f" the lock I think,
+[00:35:22] but you know it's gonna be inode number,
+[00:35:24] and then at some point,
+[00:35:25] it releases file system at [],
+[00:35:28] itself releases the lock,
+[00:35:30] and again this releases a local release operation,
+[00:35:33] it doesn't really mean immediately releasing it back to the lock server,
+[00:35:38] just changing the status from busy to idle.
+[00:35:42] And so, so if at any particular point in time,
+[00:35:46] as we just ask,
+[00:35:47] you know there's a request coming in for revoke the lock,
+[00:35:56] you know revoke f,
+[00:35:57] that request is not actually being served,
+[00:36:00] until the file system, the local Frangipani file system at workstation 1,
+[00:36:05] has called the local release operation,
+[00:36:08] and then it sees that when does the local release operation,
+[00:36:11] it sees that there's a revoke waiting,
+[00:36:15] so at this point,
+[00:36:16] it's going to flush its cache state, cache state you know to Petal,
+[00:36:26] and once that actually have flush cache state to Petal,
+[00:36:29] it will grant basically revoke or accept the revoke
+[00:36:34] and send back a release to lock server,
+[00:36:36] so then the lock can there be assigned to workstation 2. Is that makes sense?
+[00:36:49] So just make sure,
+[00:36:50] so in this create operation here,
+[00:36:52] we have to modify the inode for,
+[00:36:54] so we have to modify the inode for f,
+[00:36:57] and inode for the directory that contains f,
+[00:36:59] because we have to update the references,
+[00:37:01] and so that means that,
+[00:37:03] is like technically speaking, we're actually holding two locks,
+[00:37:08] and we have to release both of them,
+[00:37:10] before we reply back to the revoke request.
+[00:37:12] Yes, absolutely,
+[00:37:15] so hold a second about sort of read the paper
+[00:37:16] and then really talk about what they do,
+[00:37:17] but basically they sort of have,
+[00:37:19] not very coarse-grained locks,
+[00:37:21] but also very fine-grained lock, [] locks,
+[00:37:24] they basically have a lock you know per inode,
+[00:37:26] and you know the directory's inode, file's inode,
+[00:37:29] and in fact the directory is nothing else than a file
+[00:37:32] with specific a format, format,
+[00:37:35] and so really create f,
+[00:37:37] we actually have to allocate,
+[00:37:39] first allocate the lock or acquire the lock in the directory d,
+[00:37:43] and then you know would allocate or acquire the lock on inode for f,
+[00:37:50] and so do hold two locks.
+[00:37:52] And as you probably have noticed,
+[00:37:54] you know of course you soon as you have to acquire multiple locks,
+[00:37:57] there's a potential risk of deadlock,
+[00:38:00] if one workstation allocates locks in a different order,
+[00:38:04] you can have a deadlock,
+[00:38:05] so Frangipani follows rules,
+[00:38:07] that basically all locks ordered in a particular way,
+[00:38:10] be acquire the locks in a fixed order.
+[00:38:14] I see, thank you.
+[00:38:15] I think the locks ordered by lock, inode number.
+[00:38:21] So does that makes sense?
+[00:38:24] Yeah, so there's a bunch more complexity there.
+[00:38:29] Okay, so the,
+[00:38:32] you know, so having discussed atomicity file system operations,
+[00:38:36] at least during crashes,
+[00:38:38] you know if there's no crashes,
+[00:38:39] you know at least it's guaranteed that these operations happen atomically,
+[00:38:43] because the locks ensure atomicity,
+[00:38:46] of course it could be the case,
+[00:38:48] that like we're unlucky, right,
+[00:38:49] and so the workstation 1 crashes,
+[00:38:52] right in the middle of these operations,
+[00:38:54] for example as allocated allocated the inode,
+[00:38:57] it actually has not updated the directory yet.
+[00:39:00] And let's say the crash happens here,
+[00:39:04] you know and if we don't do anything special,
+[00:39:07] like what is the the concern that we might have.
+[00:39:17] Okay, let me concern we might have,
+[00:39:20] you know some file system operation actually is only partially apply to Petal,
+[00:39:24] and you know that becomes more clear,
+[00:39:27] if we actually think about the scenario,
+[00:39:29] what actually happens in this particular state,
+[00:39:31] like when the state of the cache actually flushed to Petal.
+[00:39:37] And so this is the topic of crash recovery.
+[00:39:50] It turns out that actually updating the state in, updating state in Petal,
+[00:39:56] also follows actually pretty careful protocol,
+[00:39:59] and this protocol some is typically called write-ahead logging,
+[00:40:22] and this is you know probably the term we've already seen
+[00:40:24] and you've seen probably in 6.033,
+[00:40:27] and you know Petal use it too,
+[00:40:29] it's a very common technique,
+[00:40:31] and it will also play a big important role
+[00:40:33] in subsequent papers that we'll see,
+[00:40:35] and so Petal is actually a nice reintroduction
+[00:40:38] to this idea of write-ahead logging,
+[00:40:41] and a way to think about write,
+[00:40:43] you know gonna Petal designed to write-ahead logging,
+[00:40:47] use of wirte-ahead logging is very similar to any other write-ahead logging scheme.
+[00:40:51] And so you know the way to think about it as follows,
+[00:40:53] you know we have our disk, virtual disk,
+[00:40:56] we can just think about disk as like a long [], long array of blocks,
+[00:41:02] and what they've done is, part of the disk is reserved as the log,
+[00:41:08] in fact, in the case of Petal,
+[00:41:10] there's a log per server,
+[00:41:11] but let's, for now, let's just assume there's like one single log,
+[00:41:15] and then there's the file system,
+[00:41:17] so there's part of the disk is reserved for logging,
+[00:41:20] you know part of the disk is the file system,
+[00:41:22] and the file system contains inodes,
+[00:41:25] you know and some data block, etc, etc.
+[00:41:28] And the rule is that,
+[00:41:30] when you update the state in Petal,
+[00:41:33] the first thing you do is actually your first log update,
+[00:41:44] so when, if we go back to the previous picture,
+[00:41:47] and after the point, that the Frangipani on workstation 1,
+[00:41:54] and want to give back the lock you know to the lock server,
+[00:41:56] it first has to write its state you know to Petal,
+[00:41:59] and that goes in two steps,
+[00:42:01] the first step is log the update,
+[00:42:04] the [distribution] of the update you know to the log, the log [],
+[00:42:08] here for example, we get a record,
+[00:42:11] that's says you know create basic describes the create operation,
+[00:42:15] so that will have you know whatever allocate inode, inode number,
+[00:42:20] whatever basically the result that would have happen,
+[00:42:23] if you allocate inode number and the directory change,
+[00:42:31] it will be a little bit more specific in a second,
+[00:42:33] but that's sort of the the update contains the modifications,
+[00:42:36] need to be made to happen to the file system blocks,
+[00:42:40] to actually reflect the change.
+[00:42:43] So first log to the, first log the update,
+[00:42:46] and then once you have update the log,
+[00:42:50] then we, the second operation of the client executes,
+[00:42:53] the workstation executes is actually installing the update,
+[00:43:03] and the reason you know for doing sort of two steps is that,
+[00:43:09] you know once you've log all your changes,
+[00:43:12] then it's completely safe to update the data blocks,
+[00:43:16] because they always will end up and update the file system,
+[00:43:19] and it should always will end up in a consistent state,
+[00:43:23] and the way to see this is basically,
+[00:43:25] let's assume you know the client workstation,
+[00:43:28] that was actually flushing it's data to Petal,
+[00:43:31] crashes right here.
+[00:43:37] Is that okay?
+[00:43:44] Yes, because since everything is log,
+[00:43:46] they what was it called the demon recovery service.
+[00:43:52] Yeah, the demon just gonna go back to,
+[00:43:56] there's gonna be a demon,
+[00:43:57] when there's a crash,
+[00:43:57] there's basically demon, sees if there's anything in the log,
+[00:44:00] if there's anything in the log,
+[00:44:01] just applies to the file system.
+[00:44:04] And why actually do this in the way,
+[00:44:07] why not just write immediately or update the file system?
+[00:44:15] Because we can crash in the middle of that update,
+[00:44:17] and we don't know what we've done [].
+[00:44:20] Yeah, exactly, correct,
+[00:44:21] so in sort of our previous example,
+[00:44:23] you know allocating inode is presumably you know to making some change somewhere,
+[00:44:28] like onto inode block,
+[00:44:30] and actually adding the directory to
+[00:44:32] or adding the file f to particular directory,
+[00:44:36] updates directory block, data block somewhere,
+[00:44:38] so these are two separate writes, right, two separate disk writes,
+[00:44:41] and they're not atomic,
+[00:44:42] so we would crash between one of the two,
+[00:44:44] then we might have allocated the inode,
+[00:44:46] but not [] in the directory,
+[00:44:48] then basically what will happen if we crash and recover,
+[00:44:51] basically lose the inode,
+[00:44:53] unless we could scan the whole disk,
+[00:44:55] but that's very expensive.
+[00:44:57] And so they said what we're doing is,
+[00:44:59] we're basically logging the two changes first,
+[00:45:01] we're logging records describing both changes first
+[00:45:05] and then apply the changes.
+[00:45:09] So how do we ensure the operation is atomic,
+[00:45:11] so the first log to update.
+[00:45:13] The first log update,
+[00:45:14] yeah that's interesting,
+[00:45:15] so the paper [] 100% correspond this,
+[00:45:18] but there's a couple ways of doing it,
+[00:45:21] they mention that every log record has a checksum,
+[00:45:26] and so they use checksum to see, if there's actually,
+[00:45:31] before the read log record, you know read log record,
+[00:45:33] we compute a checksum,
+[00:45:35] just to make sure that the whole record is complete.
+[00:45:39] I see, thank you.
+[00:45:40] Another way of doing it,
+[00:45:41] which is a couple way of doing it,
+[00:45:42] as you write you know a couple blocks like 1 2,
+[00:45:45] and then you write a commit record,
+[00:45:47] and the assumption is that,
+[00:45:48] writing a single block, a single 512 sector is an atomic operation,
+[00:45:53] so either happens or it doesn't happen,
+[00:45:55] so you need to commit records,
+[00:45:56] writes are done or writes are not done,
+[00:45:58] and so you can just look at the commit record,
+[00:46:00] and if the commit records is not there,
+[00:46:03] then you know the operation is not completely recorded yet,
+[00:46:07] and you shouldn't execute any of it.
+[00:46:10] I see,
+[00:46:11] and also to double-check on the previous slide,
+[00:46:14] if the crash happens before we flush things to Petal,
+[00:46:18] then this is not a problem right,
+[00:46:19] because if the workstation crashes,
+[00:46:22] well, the crash goes with the workstation,
+[00:46:23] but there's no inconsistent state for any other workstation.
+[00:46:26] That's correct, just data would be lost,
+[00:46:29] if it's not written to the Petals,
+[00:46:31] won't be any visibility problem.
+[00:46:34] So it's really you know the crash crash here, correct,
+[00:46:37] that one doesn't really matter in some ways,
+[00:46:40] the one that actually matters is the crash during this flush operation.
+[00:46:44] Mhm, thank you.
+[00:46:51] Okay, so, you know there's one subtly in Frangipani,
+[00:46:56] which we'll talk about in a second a little bit more detail,
+[00:46:59] namely that in Frangipani, there's a lock per server,
+[00:47:07] that's sort of unusual,
+[00:47:09] and we'll see in a second,
+[00:47:11] you know how the one that actually creates some problems,
+[00:47:14] and so we'll see,
+[00:47:17] there's a small extension to the protocol
+[00:47:19] to actually make this all work out.
+[00:47:23] Okay, let me say a little bit about [],
+[00:47:25] what is in one of those log records,
+[00:47:33] it turns out to be important for the crash recovery,
+[00:47:37] particularly because we have Frangipani multiple logs per server.
+[00:47:43] So every log has a,
+[00:47:45] so your log, basically you know there are records in it,
+[00:47:48] they have a sequence number,
+[00:47:51] you know whatever number 2, 1 2,
+[00:47:55] and you know what the end of the log is,
+[00:47:57] if the next sequence number is now higher, one higher than yours.
+[00:48:01] So there's another way they mark it up,
+[00:48:03] basically in one of these records is array of updates,
+[00:48:13] describe the file system operation,
+[00:48:16] and so it contains the block number, that needs to be updated,
+[00:48:19] for example in our case, that would usually be the inode number,
+[00:48:24] the block that contains the inodes,
+[00:48:26] that would be allocated a version number,
+[00:48:29] because in that record,
+[00:48:30] we've seen second, why that is important,
+[00:48:32] and basically the new bytes for that block number.
+[00:48:38] And so, for example, in the case of creating file, create f,
+[00:48:42] it's gonna be you know two entries in this array,
+[00:48:46] two entries,
+[00:48:49] one describing the update to the inode block,
+[00:48:53] one describing the update to the directory block, the data block of the directory.
+[00:49:05] And so basically what happens on replication,
+[00:49:07] just to like make this abundantly clear,
+[00:49:10] when request to revoke comes in,
+[00:49:13] you know the first thing that happens is force the log to Petal,
+[00:49:21] once that is done,
+[00:49:22] send the, updates were sent the blocks, the updated blocks to Petal,
+[00:49:35] and then release the lock.
+[00:49:42] And this ensures that,
+[00:49:43] you know there's a couple things that we need to think about,
+[00:49:46] if if there's no crashes in the middle,
+[00:49:49] then you know this is always as previously described,
+[00:49:53] really you know interesting cases,
+[00:49:54] when a crash happens,
+[00:49:57] right after forcing the log to P, but before updating Petal.
+[00:50:03] So let's talk a little bit about that.
+[00:50:07] Sorry, what do you mean by new bytes?
+[00:50:10] Good, let me go back,
+[00:50:14] so with another mean, changes to inode blocks,
+[00:50:17] so for example the inode block,
+[00:50:19] you know maybe you know updating you know some part of the inode,
+[00:50:23] then you sort of write down the bytes have changed,
+[00:50:27] like bytes 0 to 5 and 12 have the following value,
+[00:50:31] or bytes 10 to 20 have the following new value.
+[00:50:36] But can those changes be like,
+[00:50:38] because each one of these blocks is at most 512 bytes,
+[00:50:42] but the modifications that you make can be a lot larger than 512 bytes,
+[00:50:48] there's gonna be a record for every block.
+[00:50:52] So, in fact, in the, okay, so a couple points,
+[00:50:55] first of all,
+[00:50:57] data writes actually are not going through the log,
+[00:51:00] so there's an important point,
+[00:51:01] so thank you, thank you for asking that question,
+[00:51:03] so when you write a file,
+[00:51:05] and the application calls like write file f and a whole bunch of data,
+[00:51:10] all that data actually does not go through the log,
+[00:51:13] that just goes straight to Petal,
+[00:51:15] like once you flush the state,
+[00:51:18] the only changes that go through the log are meta update changes,
+[00:51:23] so metadata changes,
+[00:51:26] and what metadata means is really information about files,
+[00:51:31] so inodes directories, that kind of stuff,
+[00:51:34] that actually goes through the log.
+[00:51:36] And so the description that you see in here is,
+[00:51:40] really you know the updates to the metadata blocks of the file system,
+[00:51:44] so inodes and directory data.
+[00:51:48] And the application level data,
+[00:51:50] like the file blocks that actually constitute a file,
+[00:51:54] and that actually those blocks are just written straight to Petal,
+[00:51:57] and no go through a log.
+[00:52:00] So it's interesting to contemplate what is the implications of that,
+[00:52:03] like that design choice,
+[00:52:07] what's the downside of not writing everything through the log?
+[00:52:12] Assel.
+[00:52:17] The updates to the data they can be lost.
+[00:52:21] They can get lost, yeah,
+[00:52:23] what other sort of scenarios are possible,
+[00:52:25] so let's say you know the file consists of 10 blocks,
+[00:52:28] we're start writing the 10 blocks,
+[00:52:31] you know what's in what states can file actually end up?
+[00:52:37] Be inconsistent.
+[00:52:39] Yeah, well, yeah, inconsistent,
+[00:52:40] could have some of the writes, none of the writes, all of them,
+[00:52:43] who knows what, right,
+[00:52:45] but it not guarantee that all 10 of them will be applied together.
+[00:52:48] This is, so this is important,
+[00:52:51] when you have like like this like need for atomic write.
+[00:52:58] Yeah, like if you didn't need atomicity,
+[00:53:02] with this, like could we get rid of that of the log?
+[00:53:08] The, I think so,
+[00:53:10] holds on the question a second,
+[00:53:11] let's first talk about the applications,
+[00:53:12] and then we'll come back to that.
+[00:53:15] So, okay, the.
+[00:53:23] So the applications can't really write you know their data atomically to the log,
+[00:53:28] because the data is not written for log,
+[00:53:30] and so not written to log and then apply,
+[00:53:32] so so that means that,
+[00:53:34] for example if an application you want atomicity of of your writes into particular file,
+[00:53:40] then you have to arrange that for yourself,
+[00:53:42] and this actually turns out to be the case on most Unix files in anyway,
+[00:53:46] so in that way from Frangipani,
+[00:53:47] it doesn't really change the game,
+[00:53:49] you know you write a file in the Unix file system,
+[00:53:52] you write like a VM image,
+[00:53:54] it's not guaranteed like the whole image is written consistently,
+[00:53:58] in one single shot you know to the file system,
+[00:54:02] even when there crashes.
+[00:54:03] So the typical way you know people solve this problem in applications is that,
+[00:54:09] it first write a temporary file,
+[00:54:10] write everything in a temporary file,
+[00:54:12] and then do an atomic rename to the destination file name.
+[00:54:16] So Frangipani basically relies exactly on the same set up,
+[00:54:21] sort of normal Unix would do,
+[00:54:23] like Frangipani doesn't change the game,
+[00:54:25] and this is why the writes of files are actually not logged through the log.
+[00:54:32] And what is the advantage of not logging,
+[00:54:34] so clearly there's a downside, right,
+[00:54:35] because you can't do a file writes atomically using the log,
+[00:54:38] you have to have your own plan for atomicity,
+[00:54:41] but what is the advantage?
+[00:54:46] Well, performance,
+[00:54:47] because metadata is very small compared to the actual user data.
+[00:54:51] Yeah.
+[00:54:51] And also memory, as well.
+[00:54:53] Yeah, exactly,
+[00:54:54] so do the, like if you write a gigantic file, correct,
+[00:54:58] saying gigabyte file,
+[00:54:59] that really means you have to write two gigabytes,
+[00:55:01] first you know write gigabyte to the log,
+[00:55:03] and then write gigabyte you know to the disk,
+[00:55:06] and so basically this cuts you know performance in a pretty dramatically,
+[00:55:09] and so which is why you know typically the user data is not written through log.
+[00:55:16] Yeah, it's very important portion of come back to this earlier question,
+[00:55:19] is very important that the internal file system structures are kept consistent,
+[00:55:23] where you're not you're not inconsistent,
+[00:55:27] and so therefore, the metadata updates all go through the log,
+[00:55:32] so basically you know like when you create the file,
+[00:55:34] you need to update the inode block,
+[00:55:35] and you need to update the directory block,
+[00:55:37] that's guaranteed to happen together.
+[00:55:42] So would the data block [] go between step 2 and 3?
+[00:55:48] Yeah, I think they just send them out,
+[00:55:52] probably they probably after 1,
+[00:55:55] they probably sent the data blocks in parallel
+[00:55:57] to as part of step 2
+[00:56:00] and straight to Petal,
+[00:56:02] to the file system area.
+[00:56:14] Okay?
+[00:56:16] So I I had a question,
+[00:56:18] I think, I don't remember exactly how big the log was,
+[00:56:22] but I believe it could span like two blocks.
+[00:56:27] It can log is multiple records, yeah.
+[00:56:32] Yeah, that's right, up to to terabytes,
+[00:56:35] so what happens if we, if we send,
+[00:56:40] like a log like part of a log
+[00:56:43] and then it crashes,
+[00:56:44] as you're sending log,
+[00:56:45] when we get like an issue with like.
+[00:56:48] That's exactly what I want to talk about, thank you.
+[00:56:53] So there's a bunch of crashes that could happen right,
+[00:56:56] like so so, if we crash,
+[00:56:59] consider a bunch of cases,
+[00:57:00] like we write, a crash before writing to the log.
+[00:57:12] So what, in that case, what's the outcome?
+[00:57:19] Hmm, it's lost.
+[00:57:21] Yeah, lost.
+[00:57:25] So, then we go the scenario,
+[00:57:28] like we crash after writing the log,
+[00:57:40] what happens then?
+[00:57:42] It's actually a slightly complicated scenario.
+[00:57:45] Is this after writing like the log to Petal?
+[00:57:50] Then the demon steps then.
+[00:57:53] Yes, then the demon steps,
+[00:57:54] it's a little bit of a complicated story, correct,
+[00:57:56] because you know how, how does this all recover,
+[00:57:59] what actually happens.
+[00:58:01] So presumably what happens if somebody else wants the lock correct on this file,
+[00:58:06] that you know that the crashed workstation holds,
+[00:58:10] and you know here's where leases come important,
+[00:58:12] so every lock has a lease,
+[00:58:15] and what the lock server will do,
+[00:58:17] it will not grant,
+[00:58:19] you know the lock server will ask workstation 1,
+[00:58:22] please give me lock f back,
+[00:58:25] workstation 1, it doesn't respond, because it's crashed,
+[00:58:28] and what the lock server does,
+[00:58:32] it waits until the lease expires on the lock.
+[00:58:37] And why does it wait until the lock, the lease is expired?
+[00:58:44] I I think I think in this case,
+[00:58:46] the the server,
+[00:58:53] yeah, the server that crashed like also knows,
+[00:58:56] it didn't like renew its lease,
+[00:58:58] so it can clean up by its own.
+[00:59:01] Yeah, clean up its own stuff,
+[00:59:03] what's the fundamental problem here,
+[00:59:04] that we're actually trying to challenge,
+[00:59:05] almost like the scenario,
+[00:59:06] that we've seen over and over in previous lecture,
+[00:59:09] there's always a challenge.
+[00:59:11] The partition.
+[00:59:12] Partition, exactly,
+[00:59:15] could be the case,
+[00:59:17] that you know actually workstation 1 did not crash,
+[00:59:20] but the lock server can't talk to the workstation,
+[00:59:24] because of the network partition,
+[00:59:25] but the log, the workstation can talk to Petal,
+[00:59:28] and so it might still may make changes, right,
+[00:59:31] but whatever we guaranteed, as you just pointed out,
+[00:59:34] once the lease expires,
+[00:59:35] workstation 1 will definitely not make any changes.
+[00:59:39] Okay, it is not allowed to,
+[00:59:40] follow the protocol,
+[00:59:41] is not allowed to make any changes anymore.
+[00:59:44] And so this is why the lock server waits until the lease expires,
+[00:59:48] then at that point and knows for sure that nobody holds a lock anymore
+[00:59:52] or couldn't hold the lock if nobody's writing to Petal anymore,
+[00:59:55] and so at this point, it will ask one of the remaining workstations to,
+[01:00:00] basically what they call the demon, recovery demon, the recovery demon,
+[01:00:11] and the recovery demon basically will apply,
+[01:00:13] will read the the log the workstation 1 its log
+[01:00:18] and basically apply the operations that are in that log.
+[01:00:22] Okay?
+[01:00:25] You know the way to think about the demon,
+[01:00:28] it's sort of like, this is terminology,
+[01:00:31] it's typically just a service or a server or server process,
+[01:00:36] that basically does sort of house cleaning or house cleaning tasks,
+[01:00:40] and those kind of services that are not really used continuously,
+[01:00:45] they're often called demons,
+[01:00:49] so once the demon is done,
+[01:00:50] then actually the lock you know can be,
+[01:00:53] lock server can reassign the lock,
+[01:00:55] or grant the lock to somebody to another workstation.
+[01:00:59] But just to double check,
+[01:01:00] so, if you crash after writing the log,
+[01:01:03] then you'll get you're going to have a consistent state,
+[01:01:05] when it comes to the metadata,
+[01:01:06] but the user is not guaranteed to have finished writing the user data.
+[01:01:10] Yeah, absolutely, no guarantees about the user data.
+[01:01:13] So the only thing the the guarantees,
+[01:01:15] that like really the logging system helps achieving is
+[01:01:19] basically consistency of the internal file system data structures.
+[01:01:24] Okay, sounds good.
+[01:01:27] Which is important, correct,
+[01:01:28] because it would be pretty bad,
+[01:01:29] if file internal file system data structures are messed up,
+[01:01:32] you know, everybody might lose their data.
+[01:01:37] Okay, so then there's another [] case,
+[01:01:41] what can happen,
+[01:01:43] okay, so writing the log to P,
+[01:01:45] what happens if we crash during writing the log?
+[01:02:05] Is this what you mentioned before that their checksums
+[01:02:09] and we can check whether it was a complete or not.
+[01:02:11] Yeah, good point,
+[01:02:14] so what happens in this case,
+[01:02:17] that a prefix might end up in the,
+[01:02:21] the prefix might end up in the log, right,
+[01:02:24] but each of the prefix might contain multiple log records
+[01:02:30] with multiple operations, correct,
+[01:02:32] you know whatever sequence number 1, sequence number 2, the multiple records,
+[01:02:36] if we crash during one of these records updates,
+[01:02:40] you know then the checksum won't checkout,
+[01:02:42] and so will basically stop you know the the recovery demon will stop at that record.
+[01:02:47] So what will be in the log,
+[01:02:49] will be correct prefix of the operations,
+[01:02:53] so for example you know the create of file f is in there,
+[01:02:57] maybe to create file g is in there,
+[01:02:59] but the create file h is not in there,
+[01:03:02] but each individual record that describes one atomic you know file system operation,
+[01:03:07] you know is in there and is complete.
+[01:03:10] And so what will happen is,
+[01:03:11] that basically we apply the prefix of the operations at the workstation is doing,
+[01:03:17] and we basically lose the end of the prefix,
+[01:03:20] or the end of its updates,
+[01:03:21] but you know undesirable, but you know totally okay,
+[01:03:24] because, you know in the other case,
+[01:03:26] we might have lost all updates,
+[01:03:31] but in the first case,
+[01:03:33] we were crashed before the log,
+[01:03:34] we would have nothing on this.
+[01:03:41] Does that make sense?
+[01:03:47] Okay, there's one, one more tricky case,
+[01:03:51] you know we need to consider,
+[01:03:53] and that has to do with the fact,
+[01:03:55] that actually Petal has a lock per server or log per server.
+[01:04:00] So I talked a little bit about that,
+[01:04:01] and these are related to the question you know post you know for the reading.
+[01:04:07] And this is about many logs,
+[01:04:09] and so let's say we have workstations,
+[01:04:12] each with their own log,
+[01:04:14] so here's workstation 1, workstation 2, workstation 3.
+[01:04:19] And workstation 1, at some point, does a delete of file f,
+[01:04:24] that happened to exist before,
+[01:04:27] then workstation 2 does a create d/f
+[01:04:35] and but that create remember has written to his own log,
+[01:04:38] so this delete is written to the log of workstation 1,
+[01:04:43] this create is written to the log of workstation 2.
+[01:04:47] Now, let's say, workstation 1 crashes in,
+[01:04:54] and then workstation 3 you know basically you know the recovery demon runs,
+[01:05:08] you know for workstation 1,
+[01:05:15] and you know the bad possible outcome, correctly,
+[01:05:17] that would delete, replay the delete,
+[01:05:20] which would overwrite the changes,
+[01:05:22] that workstation 2 make to Petal, right.
+[01:05:26] So that's the context,
+[01:05:28] and the question is how is this fixed,
+[01:05:30] and I think this the way I would like to address this is
+[01:05:33] by actually having you spend a couple minutes in the breakout room,
+[01:05:36] debate this with each other or any other aspect of Petal,
+[01:05:39] if you want to.
+[01:05:42] And so Lily or anybody else, any other TAs,
+[01:05:48] so send people to breakout rooms.
+[01:06:02] Should I do it, or.
+[01:06:03] Yeah, it'll be great.
+[01:06:04] Okay cool, right.
+[01:06:12] I'll close them in about five minutes.
+[01:06:14] Yeah, five minutes.
+[01:06:16] Cool.
+[01:12:22] Everybody back?
+[01:12:32] Okay, so just, just quickly summarize,
+[01:12:37] so we have 3 workstations,
+[01:12:39] workstation 1 at some point deleted the file that's in the log,
+[01:12:43] workstation 2 at some point later create create a file f,
+[01:12:48] it is in his log,
+[01:12:50] and then 1 crashes
+[01:12:51] and workstation 3 actually runs recovery demon on the log of workstation 1,
+[01:12:56] and of course, it would be disaster,
+[01:12:57] if the delete would be replayed,
+[01:12:59] because later create has happened on another workstation,
+[01:13:02] but it's in another log,
+[01:13:03] so demon doesn't know what,
+[01:13:05] how is this problem solved,
+[01:13:08] or how this potential disaster avoided?
+[01:13:15] We said version numbers.
+[01:13:17] Yeah.
+[01:13:19] Yes, you could say a little bit more, if you want to.
+[01:13:22] Sure, so like it's guaranteed,
+[01:13:26] because we had the lock,
+[01:13:27] that the operations have already completed for server 1,
+[01:13:35] and so the like the version number for the log is written in the Petal,
+[01:13:42] like the last operation,
+[01:13:44] and so the recovery demon won't do anything previous to the current version number.
+[01:13:51] Yeah, that's absolutely right,
+[01:13:53] so just summarize,
+[01:13:55] so we have two logs, correct,
+[01:13:57] actually importance,
+[01:13:59] and we have some file system state,
+[01:14:01] that's in the Petal, right,
+[01:14:03] so these are the logs,
+[01:14:04] and then here's the actual file system,
+[01:14:08] and here was you know like this is directory d,
+[01:14:11] you know and directory d was modified and the file f was deleted,
+[01:14:15] that has a log number i say 10,
+[01:14:20] and this is workstation 2,
+[01:14:23] and here is d,
+[01:14:25] those deleting d, f in d and creating f in d,
+[01:14:28] and what log number will be in this entry, version number, sorry.
+[01:14:38] 11?
+[01:14:41] 11, yep basically totally ordered
+[01:14:43] and locking protocols ensured they totally ordered.
+[01:14:46] And on the, in the file system with the metadata blocks,
+[01:14:49] like for example if the inode block for f,
+[01:14:52] inode f the version number is going to be on the disk or in Petal?
+[01:15:04] 11?
+[01:15:06] Yeah, in the case that,
+[01:15:07] actually the operation was applied to the file system will be 11, correct.
+[01:15:12] And so when the demon we,
+[01:15:15] what rule does the demon follow?
+[01:15:21] Never replace something that's already been applied.
+[01:15:25] Yeah, that just decided it's applied?
+[01:15:29] Like a version number.
+[01:15:30] Yeah, version number, right,
+[01:15:31] so if the version number,
+[01:15:32] and only replay an entry,
+[01:15:34] if the version number in the log record,
+[01:15:37] log version number is higher than the inode or the metadata version number,
+[01:15:46] you know then replay, okay?
+[01:15:50] So in this case,
+[01:15:51] you know the recovery demon will see the version number in the log record is 10,
+[01:15:56] which is smaller than 11 or equals 11, doesn't matter,
+[01:15:59] and so it won't replay it,
+[01:16:00] and so this problem cannot appear.
+[01:16:02] So does the 10 necessarily not,
+[01:16:04] does it okay such that like that 10 is not on the ws workspace 2's log?
+[01:16:12] Yeah, it's not there.
+[01:16:15] So like in the work,
+[01:16:16] because the workstation 2 wrote actually the inode after workstation 1,
+[01:16:22] so its version number be 11,
+[01:16:25] basically what you do to prepare and update,
+[01:16:27] the version number in the update record
+[01:16:29] is always one plus you know the current version number in the inode.
+[01:16:38] Okay?
+[01:16:38] This is a small question,
+[01:16:39] what does the d stand for?
+[01:16:41] It's directory,
+[01:16:45] creating a file in the directory d,
+[01:16:47] deleting a file from the directory d,
+[01:16:50] and the update must include you know some information about the directory.
+[01:16:57] Okay.
+[01:16:58] Sorry, I had a quick question,
+[01:17:00] so are the version numbers like always tied to the specific inode that's being edited?
+[01:17:06] Yes.
+[01:17:07] Okay.
+[01:17:09] Absolutely, the version number for every update, right,
+[01:17:11] like there's a version number for directory,
+[01:17:13] there's a version number for the file,
+[01:17:14] like showing a little bit [wrong] here,
+[01:17:16] like if you go back to the log record,
+[01:17:19] here, basically there's array of updates,
+[01:17:22] and every update in the array,
+[01:17:24] completes block number version number in the new bytes.
+[01:17:29] Thanks.
+[01:17:32] Okay, so just stepping back, and closing off the discussion of this paper.
+[01:17:38] It's probably the first paper that we've read,
+[01:17:41] that basically in order, the system itself is not the one,
+[01:17:43] you know it's not going to be dominant use,
+[01:17:45] and therefore it's [] interesting to talk about,
+[01:17:47] but what is interesting about this system is the ideas in it,
+[01:17:51] and so cache coherence protocol or cache consistence protocol,
+[01:18:03] distributed locking, lock servers, leases,
+[01:18:11] granting requiring revoking,
+[01:18:16] and distributed recovery,
+[01:18:19] where one workstation crashes,
+[01:18:21] but like demon on another workstation actually does the recovery,
+[01:18:25] and what particularly interesting is that,
+[01:18:27] what's interesting is the interaction between the three pieces,
+[01:18:32] then they interact.
+[01:18:35] And what we'll see in the next you know couple of papers,
+[01:18:38] next week particularly not on the Thursday day,
+[01:18:41] but the papers after that,
+[01:18:43] which we're going to talk about
+[01:18:44] some of the heavy-duty pretty involved transaction systems,
+[01:18:47] we'll see these three topics that come up too,
+[01:18:51] and so hopefully this will help you in reading those papers,
+[01:18:54] understand actually what cache coherence is,
+[01:18:56] what's you know crash recovery is
+[01:18:58] and you know distributed lock.
+[01:19:02] And the other probably point it's interesting to make is that,
+[01:19:06] you know Petal is really good
+[01:19:09] for useful for the particular setting they designed it for,
+[01:19:16] there's the performance part of the papers,
+[01:19:19] but hard to understand,
+[01:19:20] because it's like from 1999,
+[01:19:22] but I give a look at the graph,
+[01:19:23] you'll see that the file system basically
+[01:19:27] workload can increase with the number of workstations,
+[01:19:29] you know that's exactly what we're shooting for,
+[01:19:32] and and they achieve that goal,
+[01:19:36] anyway I hope you find this design interesting,
+[01:19:38] sort of not your usual design,
+[01:19:40] and so I hopefully will have thought provoking.
+[01:19:42] And with that I'll stop,
+[01:19:45] of course you know stick around, if you want to ask more questions
+[01:19:48] and otherwise I'll see you Thursday day.
+[01:19:53] Can I can I ask two questions,
+[01:19:56] so, my first question was just
+[01:19:58] in general the cache coherence protocol here,
+[01:20:02] it's not have one file cache in two places, right?
+[01:20:08] Yep.
+[01:20:09] Okay, and my other question was about the,
+[01:20:12] there was a page with the log,
+[01:20:17] in you have the log records, there.
+[01:20:22] Yep, let me go back here.
+[01:20:24] Yeah, I was, I was wondering,
+[01:20:28] you said that each, each like record is atomic,
+[01:20:35] but each record has a number of updates too, right?
+[01:20:39] Yes, again I think the paper slightly vague here,
+[01:20:43] what exactly what it does,
+[01:20:44] either it always fits in 512 bytes,
+[01:20:46] and then the single sector 512 bytes is atomic,
+[01:20:51] or they use this checksum trick,
+[01:20:55] so, you read to five [] sectors,
+[01:21:00] re-compute checksum and compare it with the checksum stored,
+[01:21:03] it's right, then it must be a complete record.
+[01:21:07] Okay, okay, so if it's shorter than,
+[01:21:09] good, if it's not then you do the trick,
+[01:21:11] okay, I see.
+[01:21:12] Yeah, I'm not sure what exactly they do.
+[01:21:15] Okay, okay, thank you so much.
+[01:21:18] You're welcome.
+[01:21:22] Any more questions?
+[01:21:29] If you go back or forward three slides?
+[01:21:34] Yep, here?
+[01:21:36] It was.
+[01:21:37] Oh, maybe back one slide,
+[01:21:39] there's a section where you talked about how,
+[01:21:41] if crash happens during the middle of a write
+[01:21:45] and we get like yeah prefix in the log log,
+[01:21:48] that's like okay or something,
+[01:21:49] do you mind repeating what you meant there?
+[01:21:52] Yeah, okay, so so let's go back to this last picture,
+[01:21:56] I just showed earlier here,
+[01:21:59] so we have our,
+[01:22:00] so the workstation 1 could have executed many, many file system operations, correct,
+[01:22:06] each one of them described by one of these log,
+[01:22:09] by an entry in the log,
+[01:22:11] so like the first entry it might be creating file f,
+[01:22:14] second entry in the log might be creating file g,
+[01:22:17] you know whatever the third one might creating deleting file f.
+[01:22:20] And so there's a whole sequence of operations,
+[01:22:22] because remember the workstation just keeps executing file system operations,
+[01:22:28] as long as it holds locks,
+[01:22:29] and nobody else wants the lock,
+[01:22:32] and so the lock could be a contained a whole bunch of file system operations,
+[01:22:37] now for each file system operation,
+[01:22:39] for each individual one, there's a log record,
+[01:22:42] and the log records you know is the atomic file system operations,
+[01:22:47] description of the changes,
+[01:22:48] that need to be made to the actual file system blocks
+[01:22:50] to reflect that file system operation.
+[01:22:55] And so what could happen, right,
+[01:22:56] is that the revoke message comes in,
+[01:23:00] the workstation 1 starts writing its log you know to Petal,
+[01:23:05] but it just doesn't get the whole way to the end,
+[01:23:07] it just happens to crash,
+[01:23:08] like somewhere in the middle like anywhere, right,
+[01:23:11] in that case,
+[01:23:12] the prefix of the workstation log is on the disk or in Petal,
+[01:23:19] and that means that,
+[01:23:20] basically the last couple file system operation are just logs,
+[01:23:27] and only the prefix will be replayed.
+[01:23:31] I see and we're just saying that's okay.
+[01:23:33] Yeah, we're accepting that outcome.
+[01:23:36] Got it, thank you.
+[01:23:37] Because we're already accepted to that outcome earlier,
+[01:23:39] because it could in the case,
+[01:23:40] that we've got the file system crashed
+[01:23:42] right before or right after you got the revoke message,
+[01:23:45] but it actually didn't write any log entries to Petal.
+[01:23:57] Any more questions?
+[01:24:02] I have a completely unrelated question to 6.824,
+[01:24:07] but I was wondering if you knew anything about 6.858 for next semester,
+[01:24:15] I saw professor Zeldovich is going to be teaching 6.S060.
+[01:24:20] Yeah, I think we're,
+[01:24:22] the current plan does not offer 6.858 in the Fall,
+[01:24:27] but we're hoping to offer it in the Spring.
+[01:24:32] Okay, awesome,
+[01:24:33] do you know what 6.S060 is,
+[01:24:36] I I couldn't find much information for.
+[01:24:40] Yeah, that's a good question,
+[01:24:43] it's intended to be a undergraduate class.
+[01:24:48] Okay.
+[01:24:50] Okay, nice.
+[01:24:51] So like 6.858, but undergrad.
+[01:24:57] Yeah, sort of like, maybe an intro to both 6.857 and 6.858.
+[01:25:05] Okay, what's the number?
+[01:25:08] It's an experimental number,
+[01:25:10] it's one of these experimental,
+[01:25:11] because the class doesn't exist yet,
+[01:25:13] and will be offered for,
+[01:25:14] you know the goal is to offer it for the first time in the Fall.
+[01:25:18] Okay, so, is it gonna be mostly content from,
+[01:25:23] like is 6.858 gonna keep its original form, or is it.
+[01:25:27] You're asking me questions, I don't.
+[01:25:30] Sorry.
+[01:25:31] Yeah, I think the people involved in in designing the class
+[01:25:38] or people that are involved in 6.857,
+[01:25:40] and the people involved in 6.858.
+[01:25:41] Yeah.
+[01:25:42] I'm not actually involved.
+[01:25:43] Okay.
+[01:25:44] Yet another reason,
+[01:25:45] but and they're trying to work out with the curriculum exactly it's going to be
+[01:25:49] and then of course it going to have some [] for 6.858 6.857.
+[01:25:54] Okay, sounds good.
+[01:25:56] But 6.858, 6.857 not gonna go away, that's the.
+[01:26:02] Great, thanks.
+[01:26:03] You're welcome.
+[01:26:04] I have a question,
+[01:26:06] I don't know how quick it is,
+[01:26:07] but in the paper, at the end of page,
+[01:26:12] like right before section seven,
+[01:26:14] they talk about a case failure,
+[01:26:18] where with like the lease expiring,
+[01:26:21] and the server not really crashing.
+[01:26:23] Yeah.
+[01:26:23] And then talk about like,
+[01:26:27] basically that there's no real solution.
+[01:26:30] Well, there is a solution,
+[01:26:31] there is a real solution.
+[01:26:33] Like human intervention.
+[01:26:37] Yeah, okay, so I think the problem here
+[01:26:39] in the sort of the theme of the paper works,
+[01:26:40] like Petal and Frangipani are designed independently,
+[01:26:44] and that has a lot of nice properties,
+[01:26:46] and this is going to where one one place,
+[01:26:48] where it would be very helpful,
+[01:26:49] helpfully that you know Petal has some support to help Frangipani along,
+[01:26:54] and that support would be actually have a timestamp on the writes to Petal,
+[01:26:58] so that Petal could see where write actually is out basically too old.
+[01:27:04] Okay.
+[01:27:05] So unless you do that,
+[01:27:06] you need to like [fiddle] around with like the margin.
+[01:27:11] Okay.
+[01:27:12] And what happens if,
+[01:27:15] like that error occurs,
+[01:27:18] like outside of the bounds of the margin.
+[01:27:21] It'll be that's [cool],
+[01:27:23] you know basically you get an older writes,
+[01:27:26] you know show up in the,
+[01:27:27] basically somebody else might have that point gotten the lock on the file, correct,
+[01:27:31] start writing to it,
+[01:27:32] and then there's old write shows up,
+[01:27:34] and basically presumably overwrite some part of it.
+[01:27:37] Okay.
+[01:27:39] So will break consistency.
+[01:27:42] I see, thank you.
+[01:27:43] You're welcome.
+[01:27:49] Okay, because we'll stop that.

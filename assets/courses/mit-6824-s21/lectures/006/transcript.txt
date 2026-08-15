@@ -1,0 +1,1376 @@
+[00:00:05] Alright, well, it's five after,
+[00:00:07] so I'll just go ahead started.
+[00:00:09] So today's lecture is the Q&A on the first lab,
+[00:00:14] the MapReduce lab,
+[00:00:15] and also some just general coding Q&As for Go programming,
+[00:00:19] that might help in future labs.
+[00:00:21] So feel free to stop at any time
+[00:00:23] or put questions in the chat,
+[00:00:24] and I'll be checking it occasionally,
+[00:00:27] and I'm sure like other [] can also help as well,
+[00:00:32] if you are unmuted and typing,
+[00:00:34] it would be helpful if you muted,
+[00:00:38] but yeah.
+[00:00:39] Alright, so the agenda for today,
+[00:00:41] the first thing I'm going to do is,
+[00:00:42] actually walk through a solution of lab 1,
+[00:00:45] and this is my personal solution,
+[00:00:47] it's probably not perfect,
+[00:00:49] but it's an example of what you could have done,
+[00:00:52] second, we're going to discuss some alternative solution designs,
+[00:00:57] someone is still typing.
+[00:01:01] [], stop typing.
+[00:01:03] Alright, it's helpful to, [],
+[00:01:07] third, we're going to discuss some of the common design mistakes and some of the bugs,
+[00:01:12] that you guys had in your solutions,
+[00:01:15] four, just over some general tips,
+[00:01:18] and then finally we're going to, if there's time, go to some Q&As,
+[00:01:22] both questions you might have right now
+[00:01:25] and also questions that you submitted before lecture.
+[00:01:32] So first for the lab solution walkthrough,
+[00:01:36] let me know if the fonts too small,
+[00:01:39] I'll just stick with this.
+[00:01:41] Alright, so I basically, one step by step,
+[00:01:46] and I'll show how I developed my solution.
+[00:01:49] So the first thing I did was,
+[00:01:52] this is rpc.go,
+[00:01:54] and the first thing I did was figure out the API,
+[00:01:57] in which I wanted my worker and coordinator to communicate,
+[00:02:01] and so the first thing I did was define what types of tasks there are,
+[00:02:06] and so there Map and Reduce tasks,
+[00:02:08] and in order to signal that,
+[00:02:11] the coordinator has, things the is done, is the Done task,
+[00:02:15] and so, these are the types of task.
+[00:02:18] Zoom in a bit, can you zoom in a bit, the files?
+[00:02:22] Yeah, is that okay?
+[00:02:26] Yeah, thanks.
+[00:02:29] Cool, yeah, it's hard for me to tell how it looked,
+[00:02:34] yeah, so I hopefully this is good.
+[00:02:36] And so the there two RPCs I decided to implement,
+[00:02:43] the first is a worker asking the coordinator to give it a task,
+[00:02:47] so one of Map Reduce or Done in please exit,
+[00:02:50] and basically there's like the argument,
+[00:02:54] you know don't really have any arguments or just asking for a task,
+[00:02:57] and the coordinator replies with what task is this,
+[00:03:01] which task of that type should you do,
+[00:03:05] and also some extra data that's needed for the Map or Reduce tasks,
+[00:03:10] such as the number of Map tasks in the system
+[00:03:13] or the number of Reduce tasks.
+[00:03:15] And the second RPC is a finished task RPC,
+[00:03:19] that the worker uses to notify the coordinator,
+[00:03:22] that it has finished the task,
+[00:03:24] and it passes as arguments which task has finished,
+[00:03:28] and they don't actually really need to get a reply for this.
+[00:03:32] So that's the first step of the implementation,
+[00:03:38] so [].
+[00:03:40] Alright, so as a second step,
+[00:03:42] what I did is implement the handlers for all these RPCs,
+[00:03:46] and so that's in coordinator,
+[00:03:49] so, first I had to actually populate the coordinator with the coordinator state
+[00:03:54] and so there's the Mutex, which protects the state from concurrent access,
+[00:03:58] because the coordinator will have multiple threads running concurrently,
+[00:04:02] then the second part is to keep track of just like the files that we need for Map task,
+[00:04:08] and the number of Map and Reduce tasks,
+[00:04:11] and this metadata is used to track which tasks have we issued,
+[00:04:17] and which tasks have finished,
+[00:04:19] the once that we've issued, we keep track of the timestamps,
+[00:04:23] that we know if these tasks haven't completed within a certain amount of time,
+[00:04:26] to reissue them,
+[00:04:28] and finally we have the, like has all,
+[00:04:33] has a coordinator finished boolean.
+[00:04:37] So to handle the GetTask RPC, we have a handler,
+[00:04:41] that essentially what it does is,
+[00:04:44] it will set the reply fields,
+[00:04:47] right now, I haven't yet implemented the part, that actually issues the task,
+[00:04:52] and if all the Map and Reduce tasks are done,
+[00:04:55] it will send a Done task to the worker and exit.
+[00:04:59] And then we have the the handler for the FinishedTask RPC,
+[00:05:06] and what this does is,
+[00:05:07] it basically depending on what task it was,
+[00:05:11] set that flag to true,
+[00:05:14] that has that task has finished.
+[00:05:18] So that's the second step,
+[00:05:19] which is implementing the handlers with RPCs.
+[00:05:24] So the third step I have is actually sending the RPCs,
+[00:05:30] and so that happened is the work here.
+[00:05:36] So, top of this is,
+[00:05:42] we provided what it does is,
+[00:05:44] it starts up this loop,
+[00:05:46] that basically for every loop,
+[00:05:48] it calls the handler for GetTask in the coordinator,
+[00:05:53] and depending on what task it gets,
+[00:05:54] it will either perform Map task with the relevant data
+[00:05:58] or metadata that needs perform the Reduce task,
+[00:06:01] or in the case of done, it will exit.
+[00:06:04] And so it's very simple,
+[00:06:06] and once it's finished that task,
+[00:06:07] it will send a FinishedTask RPC to the coordinator.
+[00:06:12] So this is just the skeleton code for the worker sending RPCs.
+[00:06:19] Alright, so we have RPCs, we have handlers, we have the senders,
+[00:06:22] and so now, let's actually implement some stuff.
+[00:06:25] So in step four,
+[00:06:30] it's I just added a ton of handlers to manage this intermediate file,
+[00:06:37] which a lot of you also did,
+[00:06:39] and basically it uses like os.Rename,
+[00:06:42] it gets a temporary file,
+[00:06:45] so it's not too interesting,
+[00:06:47] and then the next step,
+[00:06:49] let's actually implement some of the worker functionality.
+[00:06:52] So, we're back in the worker,
+[00:06:56] and now let's implement the performMap function,
+[00:07:00] and what this does is, as many you have to do is
+[00:07:05] read the file, map them to keys,
+[00:07:08] and then create temporary files, write them to the intermediate files,
+[00:07:12] and then we use an atomic rename
+[00:07:15] to ensure that maps aren't conflicting
+[00:07:18] as they process the keys and write them.
+[00:07:21] So this is pretty much taken from the sequential implementation
+[00:07:25] and how you would apply the Map function.
+[00:07:29] And then similarly, we implement the Reduce function,
+[00:07:35] so here's a performMap,
+[00:07:37] and then we have performReduce,
+[00:07:39] and so what that does is,
+[00:07:40] it gets all the intermediate files with the appropriate,
+[00:07:44] from all the Map tasks, for this Reduce tasks,
+[00:07:49] and sorts them, so sorting happens in the, in the worker,
+[00:07:55] because the worker needs,
+[00:07:57] the reducer needs access to all keys of that type,
+[00:08:00] and then to sort them.
+[00:08:03] It wouldn't make sense for the mapper,
+[00:08:05] just sort them before,
+[00:08:06] because the mapper only has access some the keys.
+[00:08:10] And then we apply the reduce function to all values of the same key,
+[00:08:14] and then we atomically rename the temporary reduce file to the final reduce file.
+[00:08:20] So, now this loop we've implemented basically,
+[00:08:25] the actual perform the task,
+[00:08:27] and we're basically done with the worker implementation.
+[00:08:32] So one last step remains,
+[00:08:33] and that's actually implementing,
+[00:08:35] how this coordinator tells the worker which tasks to do,
+[00:08:40] and this is probably
+[00:08:41] where you ran into the most complexity with synchronization in the coordinator.
+[00:08:49] So, go back to the coordinator,
+[00:08:52] so nothing has changed in the state,
+[00:08:55] so, but now what we've done is,
+[00:08:57] we've added a loop in the coordinator,
+[00:08:59] that handles sending the task to the worker.
+[00:09:03] And when we're issuing the Map task,
+[00:09:07] so first we want to issue all the Map task,
+[00:09:10] and so essentially what this loop does here is,
+[00:09:14] until there's a task to issue,
+[00:09:17] the coordinator will just iterate to this loop,
+[00:09:22] and if we're done with all the Map tasks,
+[00:09:24] that will break out the loop,
+[00:09:27] and then, if all the Map tasks are done,
+[00:09:29] then we issue Reduce task,
+[00:09:31] which is what's in here.
+[00:09:35] So, yeah, I have, I guess I have one last step,
+[00:09:41] which is actually what we do,
+[00:09:43] when the maps or reduces, when there's no task to issue
+[00:09:48] and so we want to do then,
+[00:09:50] is the coordinator should just wait for a task issue,
+[00:09:54] and once it, there's a task issue,
+[00:09:57] or to another issue iteration the loop
+[00:09:59] and then actually issue the task.
+[00:10:02] I'll continue until all the Map were all Reduce tasks are done,
+[00:10:07] and after done, I'll return again,
+[00:10:09] so let me go to.
+[00:10:14] Right, so in order to support that waiting,
+[00:10:20] what my solution does is it uses a condition variable,
+[00:10:25] and essentially what that does is,
+[00:10:30] if there are no Map task issue,
+[00:10:33] but the mappers, but there,
+[00:10:38] because we've assigned all of them, for example,
+[00:10:40] and we're waiting for them,
+[00:10:42] and they haven't timed out yet,
+[00:10:43] then we want to do is wait,
+[00:10:46] because we cannot issue a Reduce task,
+[00:10:49] if all the mappers have not finished,
+[00:10:51] so we're just going to wait here,
+[00:10:53] and then once we get some type of signal,
+[00:10:56] we're just going to go back to the top of this loop,
+[00:10:59] and check whether we can issue a task again.
+[00:11:03] Similarly, if all the reducers aren't done,
+[00:11:06] but we can't actually issue the worker a task,
+[00:11:09] we're going to wait for there to be some type of signals,
+[00:11:13] so when does the signal actually happen?
+[00:11:15] Well, we want to signal any time
+[00:11:19] either a task has done or for too long and we haven't heard back,
+[00:11:23] so there might have been a failure,
+[00:11:25] or if the, if a worker has actually completed a task,
+[00:11:30] because for example that might mean all the Map tasks has finished,
+[00:11:33] we can move on to a Reduce task.
+[00:11:35] So in order to do that,
+[00:11:39] what we have are,
+[00:11:45] we have a goroutine here,
+[00:11:47] that's kind of spawn off immediately as the coordinator starts,
+[00:11:53] and what this does is every once in awhile,
+[00:11:57] after some you know maybe every second or so,
+[00:12:01] when a task might have finished,
+[00:12:03] or maybe this is ten seconds, I can't remeber,
+[00:12:05] actually it doesn't really matter,
+[00:12:07] it just wants to wake up the coordinator every so often,
+[00:12:09] so the coordinator will do another check
+[00:12:12] to see whether there is a task to issue,
+[00:12:14] and so it just loops around,
+[00:12:16] and every second it will broadcast to wake up the coordinator.
+[00:12:23] And the other time we want to signal when a task is finished,
+[00:12:27] so that's actually going to happen in this HandleFinishedTask,
+[00:12:31] which is called when a worker like [] FinishedTask task RPC,
+[00:12:38] and so here we have a Broadcast
+[00:12:41] right after we set the [] to done or to complete it to done,
+[00:12:48] and when the coordinator goes back to go check one of these loops,
+[00:12:53] and see whether there's a task to finish,
+[00:12:55] it will see that updated Done status.
+[00:12:59] So that's essentially my solution,
+[00:13:03] it uses cond vars and Mutex to protect shared state of coordinator.
+[00:13:11] So this is only one possible solution
+[00:13:14] and I'll get back to here,
+[00:13:17] and so this is the kind of layout of the steps I took.
+[00:13:23] Are there any questions on that particular solution before I move on?
+[00:13:31] Can you please elaborate a little more on the conditional variable?
+[00:13:37] Sure, so, what exactly, I guess like a conditional variable is,
+[00:13:48] very useful,
+[00:13:49] for when you want to wait for a particular predicate or particular condition to become true,
+[00:13:55] so in this case, condition variable is a natural,
+[00:14:01] let me just go to where I use,
+[00:14:05] is a natural way to implement waiting for there to be a task available,
+[00:14:11] because you know it's a particular condition,
+[00:14:15] and it occurs asynchronously,
+[00:14:19] so for example a task is available,
+[00:14:22] when a worker has finished a task,
+[00:14:26] or task might be available when the, when a failure occurs,
+[00:14:34] and we need to reissue the task,
+[00:14:36] so you can think of,
+[00:14:38] any case in which, you need to wait for a particular condition,
+[00:14:45] that's where condition variables become very helpful.
+[00:14:49] Does that help a little bit?
+[00:14:52] Yeah, thank you.
+[00:14:56] You can also,
+[00:14:57] like all of these higher level,
+[00:15:01] like channels, condition variables,
+[00:15:03] all these higher level synchronization primitives actually,
+[00:15:06] they're built on top of locks,
+[00:15:08] so they're all implemented using locks,
+[00:15:10] is just there,
+[00:15:12] kind of a higher level way of thinking about synchronization,
+[00:15:15] that allows you to [reason] for example about conditions.
+[00:15:22] Would that have the same effect,
+[00:15:24] as for example sleeping in that loop,
+[00:15:28] that you have in the GetTask function
+[00:15:32] instead of like having a condition variable,
+[00:15:36] that makes the loop run every second,
+[00:15:40] I guess.
+[00:15:41] Yeah, so, it it is, like it's essentially the same as sleeping,
+[00:15:46] the, so the loop here, the timeout loop here,
+[00:15:56] the difference is that,
+[00:15:59] for example, the condition variable,
+[00:16:02] or you could be woken up by a task that has completed,
+[00:16:06] where in a loop, in which you sleep for example a second every single loop,
+[00:16:11] you have to wait a second,
+[00:16:14] whereas with a condition variable,
+[00:16:16] you could be woken up after you know like ten milliseconds,
+[00:16:19] because the worker has completed a task,
+[00:16:22] so it potentially has better liveness properties.
+[00:16:28] By this case, we do like say,
+[00:16:30] if every task always takes over like five seconds or something,
+[00:16:35] then yes, this is essentially very similar to sleeping for one second every loop.
+[00:16:44] I have a question,
+[00:16:46] I think I missed the part where you run,
+[00:16:49] how you handle, when a request comes for a task,
+[00:16:53] but you're like there's no tasks to give out currently,
+[00:16:56] like you, how do you tell the worker to like sort of either come back
+[00:17:00] or do you keep them waiting
+[00:17:02] and sort of [tangentially] to that,
+[00:17:06] I'm curious why you chose this like sleep way of doing it,
+[00:17:10] instead of just like checking the time when you get request for tasks,
+[00:17:15] and seeing, like when you get a request,
+[00:17:18] what has timed out and reissuing it,
+[00:17:20] then instead of like constanly checking.
+[00:17:24] Yeah, okay, so,
+[00:17:27] yeah, so I'll just your first question first,
+[00:17:30] so basically how I handle the completed the task,
+[00:17:37] is once all Map tasks have finished,
+[00:17:42] once all Reduce tasks have finished,
+[00:17:45] then the task that we return to the worker,
+[00:17:49] because the worker has called us task for task
+[00:17:52] is this extra task type, that I called Done,
+[00:17:57] and then I also set that the coordinator isDone to true,
+[00:18:02] and so in the workers,
+[00:18:04] I'll go to the worker,
+[00:18:06] and the worker we have this loop,
+[00:18:10] that basically as the worker is asking for tasks,
+[00:18:14] if it that returned tasks is a Done task, then it exits.
+[00:18:19] So that's how I handle conveying to the worker,
+[00:18:22] that it should exit.
+[00:18:24] I guess I was asking like,
+[00:18:25] sorry, if you know let's say you're still finishing up on your Map tasks,
+[00:18:31] and you get requests for a task,
+[00:18:33] and you still can't give out your Reduce tasks,
+[00:18:36] how do you tell the worker?
+[00:18:38] Oh, so, a lot of you are,
+[00:18:43] an alternative design is to,
+[00:18:46] basically if the worker, if there's no task to give the worker,
+[00:18:50] then the coordinator returns a reply to the worker immediately,
+[00:18:54] and the worker sleeps in its loop,
+[00:18:57] but you can see here, right,
+[00:18:59] the worker loop, there is no sleep,
+[00:19:02] and the reason for this is,
+[00:19:03] because this call will block until the coordinator replies,
+[00:19:09] and in my solution,
+[00:19:11] going back to the coordinator,
+[00:19:14] for example like if you look at mapDone,
+[00:19:17] in this solution, the coordinator handler will not return that reply to that call,
+[00:19:25] unless it has a task to return,
+[00:19:29] so it's, we're waiting in the coordinator rather than in the worker.
+[00:19:35] So the coordinator is the one,
+[00:19:37] that is constantly checking to see whether there's a task and sleeping,
+[00:19:42] whereas the worker just simply blocks on this call,
+[00:19:47] until the coordinator returns to it.
+[00:19:50] Is there any advantage to doing it in the coordinator?
+[00:20:00] So I think one advantage is that,
+[00:20:05] all the workers aren't constantly sending RPCs,
+[00:20:10] you send an RPC,
+[00:20:11] it's one RPC per task, right,
+[00:20:14] whereas if the worker is constantly looping and sleeping and constantly reply,
+[00:20:18] you have a lot more network traffic.
+[00:20:21] Okay.
+[00:20:22] Yeah, I think that's, but definitely both solutions are feasible,
+[00:20:27] and they both work.
+[00:20:29] Great.
+[00:20:30] I had one other question,
+[00:20:32] which is I I I see you use a defer for the locking quite a bit,
+[00:20:40] while I was doing my implementation,
+[00:20:42] I I realized,
+[00:20:43] I mean in a straightforward function,
+[00:20:45] it, it's clear,
+[00:20:47] when it gives up control of the lock,
+[00:20:50] but for example if you, like have a goroutine created from within the function,
+[00:21:00] it's not very clear, when it gives up control.
+[00:21:05] So, a goroutine runs on a separate thread,
+[00:21:08] so the goroutine never starts with the lock acquired,
+[00:21:11] even if you spin off the goroutine, while you hold the lock.
+[00:21:15] Okay.
+[00:21:16] Yeah.
+[00:21:17] If we, if we issue like a Go, if we create a goroutine,
+[00:21:21] it'll just spin up a thread,
+[00:21:23] and from the beginning, it won't have a lock, right?
+[00:21:26] Yeah, it's actually just like,
+[00:21:29] you know you think about another thread
+[00:21:31] just starting to run that Go, like Go func, that function.
+[00:21:36] Yeah.
+[00:21:38] Yeah, go ahead.
+[00:21:38] And then defer unlocks at any return, like any return statement there?
+[00:21:45] Yep, yeah, it's pushed onto a,
+[00:21:47] like basically like the functions to run when the,
+[00:21:52] there's a stack of functions,
+[00:21:54] that the returning from like HandleGetTask will run,
+[00:21:59] so, I also have this in the slides,
+[00:22:02] so you'll be able to refer to this later,
+[00:22:04] but defer just ensures that when this function exits,
+[00:22:08] you over you around unlock,
+[00:22:10] and then I could also do something, like unlocking,
+[00:22:17] and like I could just do something, like before the last printf or println,
+[00:22:25] so these are all pushed onto a stack,
+[00:22:28] and then they're popped off in FIFO order, no, LIFO order.
+[00:22:33] What FIFO?
+[00:22:36] First in first out, no they're run in last in first out, yeah,
+[00:22:45] so it's a stack right,
+[00:22:46] so this will run before unlocking,
+[00:22:50] which will actually run before the lock,
+[00:22:53] so if you're ready to use multiple defers,
+[00:22:55] be careful in the order, then use them,
+[00:22:58] but defer the unlock at least is a very useful strategy,
+[00:23:03] that will come in handy.
+[00:23:05] Okay, so the last thing is,
+[00:23:08] if we call a function within within our our function,
+[00:23:17] where we acquire the lock,
+[00:23:18] it doesn't return the lock, right,
+[00:23:21] when it goes to the other function,
+[00:23:24] the other function returns to this function,
+[00:23:27] and then until we, like the thread keeps a lock, like through like jumping around.
+[00:23:35] Yeah, so like a function,
+[00:23:36] that's just like a normal function call within one thread,
+[00:23:39] will be called with the lock out, yes.
+[00:23:44] Cool, thanks.
+[00:23:46] Yep.
+[00:23:49] Alright, so you guys have already kind of discussed
+[00:23:51] some of the alternate synchronization designs,
+[00:23:54] like waiting in the worker rather than the coordinator,
+[00:23:56] and we've talked about some of the pros and cons of that,
+[00:23:59] using time,
+[00:24:00] actually I think already covered all of these except for channels maybe,
+[00:24:05] so there's one thing I wanted to know,
+[00:24:07] because there are a couple questions about this,
+[00:24:09] so waiting for map has to be done
+[00:24:12] or like any synchronization that we've shown
+[00:24:15] is on a single server,
+[00:24:17] so cross-server communication between the worker and the coordinator,
+[00:24:22] they're only, it's only done ever by RPCs,
+[00:24:26] so for example like locking in the coordinator
+[00:24:28] has nothing to do with locking on the worker,
+[00:24:30] or on interactive implementation locking on different servers,
+[00:24:34] like don't interfere with each other,
+[00:24:37] I just want to be clear about that.
+[00:24:39] So one thing I thought would be interesting is,
+[00:24:43] for you to see a kind of an example using channels,
+[00:24:47] because there are also some questions using channels, about using channels.
+[00:24:52] So this is kind of,
+[00:24:54] is a not complete implementation of using channels,
+[00:25:00] but it's a potential way to,
+[00:25:03] but you could think about having used channels in MapReduce.
+[00:25:07] And so in this example,
+[00:25:09] the input to the coordinator actually includes a channel,
+[00:25:14] in which the coordinator is told of what workers exist,
+[00:25:19] and this is to handle the possibility that workers are failing,
+[00:25:26] and then some client is telling the coordinator,
+[00:25:29] hey, this other worker joined our cluster,
+[00:25:31] here's a new worker, that you can give tasks to,
+[00:25:33] so it's slightly different than what we had in the lab.
+[00:25:38] So the coordinator has two channels,
+[00:25:42] one in which it will send tasks to workers
+[00:25:48] or it won't send tasks to workers,
+[00:25:50] will send tasks to a thread, that will issue tasks to workers,
+[00:25:55] and then it has a done channel.
+[00:25:57] So again, just like,
+[00:26:01] I I know I said something a little strange,
+[00:26:04] which I was like you can send tasks to workers over the channel,
+[00:26:07] but you actually can't,
+[00:26:08] the channel is only on the coordinator on your server,
+[00:26:11] and we'll see how that works in a second.
+[00:26:14] So the first thread of the coordinator that we create is a goroutine,
+[00:26:18] that basically will for every worker, start the issueWorkerTaskThread.
+[00:26:26] So, what this does is,
+[00:26:28] as workers are you know coming and going,
+[00:26:31] because they're failing and then restarting,
+[00:26:34] this channel basically says,
+[00:26:35] okay, we want to, for any of these workers,
+[00:26:38] start a thread that will issue this worker tasks.
+[00:26:42] So this is one goroutine here,
+[00:26:47] then the coordinator what it does is it,
+[00:26:49] for all the tasks that were giving,
+[00:26:51] it just push those tasks onto this tasks channel,
+[00:26:55] and this tasks channel,
+[00:26:56] we actually made it a buffer channel,
+[00:26:59] so that we know it will hold exactly numTask tasks,
+[00:27:02] which are the that's the limit of the number of tasks,
+[00:27:06] that will exist on the system,
+[00:27:08] so what this also means is that,
+[00:27:10] we can push the numTask tasks onto this channel without blocking,
+[00:27:17] so the coordinator will not block on pushing task to the tasks channel.
+[00:27:22] And then the coordinator will read from this done channel
+[00:27:27] until it has done so numTask times,
+[00:27:31] in which case, it knows it's done,
+[00:27:34] in this case, where I'm not separating map or reduce tasks,
+[00:27:37] let's just imagine that there are,
+[00:27:39] some number of tasks that the coordinator needs to run.
+[00:27:43] And once it knows that tasks, all the tasks have finished,
+[00:27:46] it closes the tasks channel, and then basically will exit.
+[00:27:54] And so the, where some of the interesting part comes in is,
+[00:27:59] these worker task threads,
+[00:28:01] which I've separated out and just function here.
+[00:28:04] So, these all run on sub goroutines,
+[00:28:08] and what it does is for,
+[00:28:12] as long as there are tasks in the task queue,
+[00:28:15] it will pull a task out,
+[00:28:17] and then oops, I didn't mean to that,
+[00:28:21] and then call basically an RPC,
+[00:28:26] that will send the task to the worker,
+[00:28:28] so note that,
+[00:28:29] this channel actually is talking to another thread of the coordinator,
+[00:28:34] and that thread is actually the one that's in charge of calling the worker,
+[00:28:42] and then once it's done with the task, it says it's done,
+[00:28:47] if it's not able to, if the call fails,
+[00:28:50] for some reason, for example it times out,
+[00:28:52] then, what this loop does is,
+[00:28:55] it'll push that task back onto the tasks channel,
+[00:28:58] so another worker or potentially this thread again could pick up that task.
+[00:29:03] So just to clarify how the channel communication works,
+[00:29:07] so the worker sends tasks on the tasks channel,
+[00:29:10] which is read through these loops,
+[00:29:13] and this loop will exit when the coordinator closes the channel,
+[00:29:20] done, it's sent on these worker, issue worker threads,
+[00:29:26] and it's read by the coordinator, the original coordinator thread
+[00:29:30] and this exit equals true,
+[00:29:33] will basically tell the coordinator,
+[00:29:36] like, oh, I don't need to listen for any more workers coming or workers starting up,
+[00:29:40] so it will cause this other goroutine to exit.
+[00:29:45] So I know that this is a pretty complex example,
+[00:29:47] it's also not quite what we specified in the lab,
+[00:29:52] but as an example of how channels can be used,
+[00:29:54] to implement something like MapReduce or something similar to MapReduce.
+[00:30:00] There is a question in the chat,
+[00:30:03] about where's exit define in this code?
+[00:30:09] That is a good question,
+[00:30:10] it's not,
+[00:30:12] so it'll, it'll be exactly the same thing is done,
+[00:30:16] it will just be another channel that's a boolean, yeah,
+[00:30:23] that's a good, a good catch.
+[00:30:27] Oh, can I?
+[00:30:28] I've seen.
+[00:30:29] How do you add things to the workers channel,
+[00:30:32] or when you add things to the workers channel,
+[00:30:33] like how do you handle them in this case?
+[00:30:35] Yeah, so in this case,
+[00:30:37] worker, the workers channel is provided to the coordinator,
+[00:30:41] so imagine that, for example,
+[00:30:44] and you know how your Coordinator
+[00:30:47] was actually called or created by the MR coordinator in main,
+[00:30:55] in the that [],
+[00:30:57] so we would imagine that in MR coordinator,
+[00:31:01] we would create a workers channel,
+[00:31:04] and MR coordinator would basically be in charged of tracking,
+[00:31:09] when workers crash and when workers join,
+[00:31:12] so this is for example in a case,
+[00:31:15] where you know maybe new servers are added to our cluster at some later point
+[00:31:20] or some worker crashed and then came back,
+[00:31:23] and MR coordinator would be constantly sending,
+[00:31:27] like these worker ids to our Coordinator,
+[00:31:31] in order to tell it, hey, like there's new worker,
+[00:31:33] you should start issuing it tasks,
+[00:31:36] so that part is not shown.
+[00:31:38] Got it, yeah, I just I just wondering like,
+[00:31:42] so that's really cool,
+[00:31:44] I was just wondering inside the lab 1,
+[00:31:47] like how I think it's like call worker and you've sends RPC to the worker,
+[00:31:52] if if that's something we could have done in lab 1?
+[00:31:57] It's possible it,
+[00:31:59] but it definitely was not what we pushed you toward,
+[00:32:02] because you would basically,
+[00:32:04] instead of setting up the coordinator as being RPC server,
+[00:32:07] you would have to set up like RPC servers on the workers,
+[00:32:11] you can also think of,
+[00:32:14] in this implementation, call_worker could have handlers actually for each worker,
+[00:32:20] and each worker could be sending the coordinator like that task RPCs,
+[00:32:26] but a little, that's a little [],
+[00:32:30] so in this example is actually more natural to imagine,
+[00:32:33] that call_worker, the coordinator is a client,
+[00:32:36] and the workers are the ones that are handling that RPCs.
+[00:32:42] Yeah, okay, thanks, very cool.
+[00:32:45] I have two questions,
+[00:32:47] first is just a generally Go question,
+[00:32:49] so in that second for loop on the left, at the bottom,
+[00:32:54] if you don't use i, will Go complain for, in a for loop?
+[00:32:59] So I run like all the Go linter and all that stuff
+[00:33:05] and it's fine, I think,
+[00:33:08] like, in this case, you do you need to have i,
+[00:33:13] because you're incremented and keeping the state of i around through the.
+[00:33:19] Can you do the same thing,
+[00:33:21] with like a like a while loop,
+[00:33:24] like just for empty for loop with a select,
+[00:33:27] where it's like popping off of done.
+[00:33:32] So, you can't actually,
+[00:33:38] well, you still need to keep track of how many times you've read from done, right,
+[00:33:43] because you can't just read once,
+[00:33:46] you have to read numTask times.
+[00:33:52] I see, okay.
+[00:33:52] Yeah, yeah, so you do need some type of state that will track that.
+[00:34:03] And then for for the one on the right,
+[00:34:05] like where you're reading from tasks and re-populating it,
+[00:34:08] is there like any downside to that,
+[00:34:13] if you're like just constantly reading and adding back and forth to the same channel?
+[00:34:20] I don't, I can't think of that the top my head,
+[00:34:23] so in this case, at least you won't block,
+[00:34:26] because every time you read it,
+[00:34:28] you're popping something off the channel,
+[00:34:30] every time you add it, you're pushing something,
+[00:34:33] so because we have that the tasks is a buffer channel,
+[00:34:38] but you'll never block on that.
+[00:34:41] So, in terms of like performance,
+[00:34:45] I think, I mean channels are built using locks,
+[00:34:49] so locks are usually more lightweight,
+[00:34:52] but I don't think, I don't think, you'll see a huge performance in fact,
+[00:34:58] doing something like this.
+[00:35:00] Okay, I guess, I've like a,
+[00:35:02] sorry, just like a general question of like,
+[00:35:05] what's your like calculus for choosing
+[00:35:06] between Mutex and channels or like a hybrid,
+[00:35:11] at the very beginning.
+[00:35:14] Yeah, so Mutex are very natural for just protecting a piece of state,
+[00:35:19] so like your Coordinator or like your Raft servers have a log,
+[00:35:24] I want to protect everytime I append the log,
+[00:35:27] that seems very difficult or it seems very unnatural
+[00:35:33] to try and do using channels,
+[00:35:34] because essentially, you'd be using the channels lock,
+[00:35:38] you'd want to ensure that no one else is modifying the state,
+[00:35:41] while you're modifying it,
+[00:35:43] and then you would have to essentially before you modify it,
+[00:35:46] try to read on the channel to ensure that no one else,
+[00:35:49] alright, like someone would have to send something on the channel,
+[00:35:51] just show that they've done,
+[00:35:53] they've been finished modifying so and so forth.
+[00:35:56] So, in that case, it's actually very hard to imagine how you do channel,
+[00:36:01] where Mutex would make that completely straightforward,
+[00:36:05] where channels come in very handy is,
+[00:36:08] like I think our implementation already has this apply channel,
+[00:36:13] is where you have to wait for,
+[00:36:17] in some ways, it's almost like a specific instance of a condition variable,
+[00:36:23] in which you want to wait for something to be ready,
+[00:36:26] or a, like a very specific type of command to be finished,
+[00:36:35] so for something like issuing tasks is actually not a bad example
+[00:36:42] or something like blocking until you have something on a queue,
+[00:36:47] like is you can almost think of it as like a queuing system,
+[00:36:50] or at least that's how I like to think about it,
+[00:36:52] but, for almost all modifications to shared state,
+[00:36:56] like the race conditions [], encounter locks are much simpler
+[00:37:03] and in some ways, a lot easier to reason about,
+[00:37:08] but, yeah.
+[00:37:10] Thank you.
+[00:37:12] Sorry, I have a follow up question to this slide,
+[00:37:15] what happens if the,
+[00:37:17] so you call the Go issueWorkerTaskThread,
+[00:37:20] which spins up another goroutine,
+[00:37:23] I mean, it goes through all the tasks in the channel,
+[00:37:26] what if it fails,
+[00:37:28] when it's what if the goroutine fails,
+[00:37:30] when it's sitting on the if call_worker.
+[00:37:35] So, if it fails,
+[00:37:41] then I guess you've taken a task out and not put back,
+[00:37:49] I'm actually not sure, that seems like,
+[00:37:54] like you're not,
+[00:37:55] you're saying like the entire thread crashes, rather than as call_worker,
+[00:38:00] not like returning fails or something.
+[00:38:03] Yeah, like the goroutine crashes,
+[00:38:06] or is that possible for a single goroutine to fail
+[00:38:10] or would like the entire thing just blow up?
+[00:38:14] Hey, Frans, you know?
+[00:38:15] I think the model you should have is that,
+[00:38:17] if a goroutine crashes, the process crashes.
+[00:38:22] Yeah, that would solve it.
+[00:38:26] Sorry, so if just the worker crashes,
+[00:38:30] then you pick a different task,
+[00:38:34] but, should you,
+[00:38:36] I guess you would still have the same worker,
+[00:38:40] like worker number,
+[00:38:45] so you still connect to the same worker, even though they have failed.
+[00:38:50] Yeah, so in this case,
+[00:38:51] basically call_worker would just continue returning false,
+[00:38:55] and you know this goroutine that's specific for this worker,
+[00:39:00] we just continue to loop,
+[00:39:03] and eventually when the map,
+[00:39:07] when the coordinator has determined that all the tasks have finished,
+[00:39:10] it'll close the channel and then this goroutine will exit.
+[00:39:13] So there could potentially like,
+[00:39:16] if all your workers continue crashing,
+[00:39:18] you have like hundreds of new workers joining,
+[00:39:21] like you could potentially have a lot of goroutines just there,
+[00:39:24] just like I can't contact my worker,
+[00:39:25] I can't contact my worker,
+[00:39:27] but once the task is finished,
+[00:39:29] this all of them will exit properly.
+[00:39:39] Cool, alright,
+[00:39:40] so that's an example with channels,
+[00:39:43] and now let's move on to some of the
+[00:39:47] more like your questions and bugs and things like that.
+[00:39:50] So some common but passing design mistakes that we saw
+[00:39:53] was pushing too much work to the coordinator,
+[00:39:56] so essentially making the coordinator bottleneck,
+[00:39:59] and this included both the coordinator [],
+[00:40:03] sorting the results or the coordinator reading file contents,
+[00:40:07] whereas a lot of the kind of beauty of MapReduce is that,
+[00:40:12] all the state, all the computation happens on the workers.
+[00:40:18] And another con, it's not really a mistake,
+[00:40:22] but potentially something to think about is,
+[00:40:24] how many RPCs are you sending,
+[00:40:26] and like, do you really need to send that many RPCs.
+[00:40:31] So for example sending an RPC to check whether there's a Map task available,
+[00:40:35] and then sending another RPC to ask like give me a task,
+[00:40:39] is a little redundant
+[00:40:41] and you want to try and reduce the number and types of,
+[00:40:45] like reduce the API between the master, the coordinator and the worker,
+[00:40:50] but these were, like they were passed the test,
+[00:40:53] and it's just things we wanted to point out.
+[00:40:58] So now, okay cool, what about like how I do lecture.
+[00:41:02] So, for the next, say like 5 6 minutes,
+[00:41:06] what we're going to do breakout rooms,
+[00:41:08] let let me stop sharing actually,
+[00:41:11] alright, so do breakout rooms,
+[00:41:13] and oh shoot, let's see,
+[00:41:22] I think Zoom just crashed on me.
+[00:41:28] We could still hear and see you.
+[00:41:30] Alright, I'm back,
+[00:41:31] yeah, I upgraded Zoom before this lecture,
+[00:41:35] that was a bad idea,
+[00:41:36] but, alright, for the next 5 or 6 minutes,
+[00:41:38] you should talk about just like
+[00:41:41] you know any interesting bugs or observations, you had about lab,
+[00:41:46] or you could you know complain about how long it took you to find a certain bug
+[00:41:50] or ask questions to each other,
+[00:41:52] and then we'll come back and go over some of your questions.
+[00:41:56] Alright.
+[00:42:01] Okay.
+[00:42:03] Alright, see you in a bit.
+[00:42:27] Oh, so with Frans,
+[00:42:29] do you want me to [] somewhere else?
+[00:42:31] Probably best, but let me see if I can do it myself.
+[00:42:34] Okay, I'm going to be right back.
+[00:49:38] Alright, are we mostly back, I think.
+[00:49:44] Alright cool.
+[00:49:47] Okay, so I hope that was pretty fun
+[00:49:49] or at least you got to talk about some of your frustrations during the lab.
+[00:49:54] Yeah, so for the rest of the lecture,
+[00:49:56] we're going to go to,
+[00:49:58] first, before questions,
+[00:49:59] take some general tips,
+[00:50:01] that you'll want to look out for for future labs.
+[00:50:04] So first of all,
+[00:50:05] the one thing you'll find very handy for debugging is just
+[00:50:10] you know classic printfs
+[00:50:12] and so you can have conditional printfs,
+[00:50:14] which only print when you want to debug,
+[00:50:17] so for example you don't have to go through your code
+[00:50:19] and comment them all out,
+[00:50:21] before you submit or something like that,
+[00:50:22] and so in the Raft lab,
+[00:50:25] we provide this DPrintf in the util.go file,
+[00:50:29] and you can modify that to for example also print out like the server ID,
+[00:50:35] every single time you call DPrintf or something like that,
+[00:50:38] so, yeah, I customize it
+[00:50:41] to you know print out different colors for different RPCs,
+[00:50:44] like that,
+[00:50:45] and also like redirecting your output files,
+[00:50:49] just so you can like search the files will come in handly.
+[00:50:53] Another trick that you probably want to keep in mind is,
+[00:50:57] you can look at all the goroutines
+[00:50:59] to see where and their execution, they're running,
+[00:51:03] and so just type Ctrl-\ in order to do that.
+[00:51:08] And the final thing which already sort of talked about are these defers,
+[00:51:12] and these slides will be uploaded also,
+[00:51:14] so you can refer back to them,
+[00:51:16] but actually you can push multiple functions
+[00:51:20] to run right before the function returns
+[00:51:24] and they just be careful of the ordering.
+[00:51:28] Alright, so now let's get to some of your questions,
+[00:51:33] a lot of you submitted also questions about Raft,
+[00:51:35] so those will get to for the Raft Q&A
+[00:51:39] or maybe office hours
+[00:51:41] or you can put that on Piazza.
+[00:51:42] I'm going to focus mostly on the ones from MapReduce
+[00:51:45] or maybe have time, then we can also get Raft questions.
+[00:51:50] Alright, so the first category of questions
+[00:51:54] kind of falls under questions specifically about MapReduce,
+[00:51:59] so some more complex tasks that you might want to use MapReduce for,
+[00:52:04] it's actually used a lot in ML, or like data mining, statistical applications,
+[00:52:09] I linked here to Hadoop,
+[00:52:12] which is implements MapReduce,
+[00:52:15] a lot of people use it to run these types of tasks.
+[00:52:18] And for example, here's a simple,
+[00:52:23] or maybe not so simple,
+[00:52:25] but basically matrix multiplication example,
+[00:52:28] of how you would [] that using MapReduce.
+[00:52:31] Second, like you for fault tolerance of the coordinator,
+[00:52:36] the paper proposes a very simple checkpointing mechanism,
+[00:52:42] in which you'll just start up a new coordinator,
+[00:52:44] using the last checkpoint state,
+[00:52:47] and in some ways, this is a very natural design for MapReduce,
+[00:52:50] because everything is deterministic,
+[00:52:52] there's no,
+[00:52:54] the coordinator really doesn't have that much state to hold,
+[00:52:57] all I need to know is
+[00:52:57] which have finished and which has happened.
+[00:53:01] So you could use Raft of course to enable fault tolerance,
+[00:53:06] and have a set of coordinators,
+[00:53:09] that all agree on the commands issued so far and the current state,
+[00:53:14] but in some ways, it seems a little overkill for the coordinator,
+[00:53:22] for something that's more stateful,
+[00:53:23] it's like a key value store or something,
+[00:53:26] it's much more natural to use a Raft.
+[00:53:30] So some other questions about MapReduce,
+[00:53:33] the shuffle or combiner step,
+[00:53:35] when does it happen and what does it do,
+[00:53:37] so combining occurs like right after the Map functions applied,
+[00:53:41] for example, in combining the word counts of a particular word,
+[00:53:45] because having a lot of entries,
+[00:53:46] that you know like the one you could you know combine them,
+[00:53:51] and then write only that to the mediate file, intermediate file,
+[00:53:57] sorting occurs at the reduce,
+[00:53:59] after all the outputs of the map are read by the reducer.
+[00:54:04] Let's see,
+[00:54:04] is successor to MapReduce,
+[00:54:06] yeah, so actually, I'm not super familiar with it,
+[00:54:09] but you can look at stuff like Google Cloud Dataflow,
+[00:54:12] and other sort of directed graph computations,
+[00:54:16] where inputs flow into a node,
+[00:54:19] so you can think of as graph,
+[00:54:20] and then they might flow out to other nodes,
+[00:54:23] and that node in the middle [] performs for example map computation,
+[00:54:27] and produces intermediate data,
+[00:54:29] is then sent to other like reducer that in the graph,
+[00:54:32] so it's a interesting way,
+[00:54:35] it's like a data dataflow way to think about MapReduce.
+[00:54:40] And I'm sure that there's others that,
+[00:54:42] I'm not [] like that where.
+[00:54:44] I did, one, maybe one of them Spark,
+[00:54:47] which we'll read later about.
+[00:54:53] Yeah, so, but I I like the graph way of thinking about MapReduce,
+[00:54:57] because right now we're only really thinking about a two-step operation,
+[00:55:01] where it could actually be like you know many many steps.
+[00:55:06] Oh, yeah, then how input partitioned in practice,
+[00:55:09] so, usually, because the input space is very application specific,
+[00:55:15] and output space is also application specific,
+[00:55:18] it's really up to the programmer to specify,
+[00:55:22] there's sometimes a natural division,
+[00:55:31] for example make a local matrix computation,
+[00:55:34] then you want to combine them or so on so forth,
+[00:55:37] or you could if it's just like an enormous document or like enormous text text files,
+[00:55:44] you can just split it up into a reasonable size of work,
+[00:55:46] so you know like applying the map function is going to take []
+[00:55:50] and also depends on the size of your cluster,
+[00:55:53] so how many workers you have.
+[00:55:57] So some further MapReduce questions,
+[00:56:00] why do mapper store files locally,
+[00:56:01] so in the paper,
+[00:56:03] this is because at that time, the network bandwidth was their bottleneck,
+[00:56:09] that's why they don't use GFS,
+[00:56:11] they only use GFS to write the,
+[00:56:16] yeah, to write the output files.
+[00:56:19] Are leaders necessary for distributed systems,
+[00:56:21] not necessarily,
+[00:56:24] there, like, think of Bitcoin, like other decentralized systems,
+[00:56:28] in which all the nodes sort of perform competition,
+[00:56:30] and some random node or like some node in the network
+[00:56:33] is responsible for committing that,
+[00:56:35] so there are definitely more like egalitarian designs.
+[00:56:39] Oh, yeah, our challenge was
+[00:56:41] actually to run MapReduce on like actual different servers
+[00:56:45] rather than what we kind of had you do in the lab,
+[00:56:50] and so in order to do this,
+[00:56:52] like you just,
+[00:56:53] instead of using sockets to communicate over for like RPCs,
+[00:56:58] you would use like TCP/IP,
+[00:57:00] basically like normal, like over the network communication,
+[00:57:06] and you would use a shared file system like GFS,
+[00:57:09] so the [] I think all of you have access to Athena,
+[00:57:13] if at least at MIT,
+[00:57:15] and you know ssh to multiple Athena machines,
+[00:57:18] and use AFS which is the file, shared file system,
+[00:57:22] I think Athena uses too,
+[00:57:25] basically, you can access your files on Athena from any machine,
+[00:57:29] similarly you could do the same thing by rent AWS instances and using S3,
+[00:57:35] but we didn't expect you to spend any money to run our lab.
+[00:57:43] Right, so some questions that came about, just like general code design,
+[00:57:47] so we've some of these we've discussed as well,
+[00:57:50] so lab 1 was pretty small,
+[00:57:52] lab 2 is going to be much larger,
+[00:57:55] especially as you get to the later stages,
+[00:57:58] and as lab 3 and lab 4 come along as well.
+[00:58:02] And one thing that I personally find very handy is,
+[00:58:06] just separate different chunks of code by their purpose,
+[00:58:10] so, and also in how I implement each step of my code,
+[00:58:16] so separating them out by,
+[00:58:18] for example RPCs and the senders and handlers,
+[00:58:22] and feel free to actually separate these out physically in different files,
+[00:58:27] that won't,
+[00:58:28] like that's fine for a test,
+[00:58:30] and it will probably help you,
+[00:58:32] like not have thousands of lines of code in one gigantic file.
+[00:58:38] I I personally like to put all definitions of state together,
+[00:58:42] and then functions are like sort of separate,
+[00:58:46] but that's my personal preference,
+[00:58:50] factoring out common pieces of code into functions will also be very helpful,
+[00:58:54] for example every single RPC, you will get in Raft,
+[00:58:58] you need to check for stale term,
+[00:58:59] so putting all that logic,
+[00:59:02] so that resets all the state properly and everything
+[00:59:04] into one function, that you just call,
+[00:59:06] will help,
+[00:59:08] because you know you don't want to accidentally forget to
+[00:59:11] reset your election timer or like reset votedFor or something,
+[00:59:17] although you shouldn't reset the election timer,
+[00:59:19] so don't do that,
+[00:59:20] that was an example I pulled off the top of my head.
+[00:59:23] And also finally have a good environment
+[00:59:26] with like autocomplete or like being able to search for certain keywords in your code,
+[00:59:30] and so forth can help a lot.
+[00:59:34] So if you need any help setting this,
+[00:59:36] like come to office hours
+[00:59:37] or there's tons of tutorials online,
+[00:59:39] you can look up a good editor,
+[00:59:42] but it's not necessary, it's definitely not necessary,
+[00:59:45] but it could it does help.
+[00:59:48] And then, oh yeah, so has using Go decrease the amount of time students spend debugging,
+[00:59:53] so I've never actually implemented the labs in C++,
+[00:59:56] but according to Frans, like,
+[00:59:58] well, the one huge advantage of Go is its memory management,
+[01:00:04] so uses garbage collection,
+[01:00:05] and don't have to deal with,
+[01:00:06] like you know there are pointers,
+[01:00:09] but you don't have to deal with them in the same way you would see your C++,
+[01:00:13] so like, I don't know how many of you run into segfaults so far,
+[01:00:18] but I'm guessing very few of you
+[01:00:20] or they were very easy to fix,
+[01:00:22] and this definitely makes it easier to debug,
+[01:00:27] or they're just certain types of bugs that you don't need to worry about.
+[01:00:31] Sorry, I have a question.
+[01:00:32] Yeah.
+[01:00:33] This is like a more Go specific question,
+[01:00:36] but when you have a function that can take in,
+[01:00:39] let's say you have like a, you have a appendEntries arg,
+[01:00:43] and you also have like a requestVote arg,
+[01:00:46] both of them have a term variable inside,
+[01:00:49] but when you pass it to a function,
+[01:00:51] how do you tell the function,
+[01:00:53] that's like, hey I expect a struct, that has a term field,
+[01:01:00] is that possible?
+[01:01:02] So you define the types right,
+[01:01:06] so it's like any other type,
+[01:01:10] when you pass into the function,
+[01:01:12] the function expects an argument of a particular type,
+[01:01:15] and that's type.
+[01:01:17] Yeah.
+[01:01:18] Yeah, let's say I want to share one function across both types.
+[01:01:22] I believe you can use an interface,
+[01:01:24] but I'm not sure.
+[01:01:27] So I tried to, but when I do .term,
+[01:01:30] it says I don't know this field
+[01:01:32] or like it doesn't exists.
+[01:01:34] I think you need to convert it
+[01:01:36] or you need to just give a casting,
+[01:01:38] I can't remember,
+[01:01:39] but there's a way to coerce.
+[01:01:42] You have to type cast it back,
+[01:01:43] you know to whatever struct you want access.
+[01:01:47] Like you basically need to talk Go,
+[01:01:51] that by the time, I actually use this variable,
+[01:01:54] it is of a particular type.
+[01:01:57] Got it, thank you.
+[01:01:58] So one thing if you want to reuse the function for multiple different types,
+[01:02:02] you can pass in an interface,
+[01:02:03] but you might also need to pass in,
+[01:02:06] for example, like you know more [] something that tells it,
+[01:02:12] like, hey this is going to be this type,
+[01:02:14] and then you need to cast that interface into the right type, before you use it.
+[01:02:20] Okay.
+[01:02:21] I think the way people usually handle this is,
+[01:02:23] by putting setters and getters in the interface,
+[01:02:26] you don't actually know which type it is in actuality,
+[01:02:30] you just access the variable using interface.
+[01:02:34] Yeah.
+[01:02:38] Yeah, I don't think it,
+[01:02:40] you shouldn't need to use interfaces that much in Raft,
+[01:02:44] I don't think I used it all,
+[01:02:46] other than the command which is provided.
+[01:02:53] Yeah, like, I guess factoring out common pieces of code is good,
+[01:02:57] unless it adds additional complexity,
+[01:03:02] like I wouldn't try and force your types,
+[01:03:05] to all be able to run on the same function,
+[01:03:08] like it might just be similar type,
+[01:03:10] two slightly different functions.
+[01:03:13] Or, if the only like shared piece you're using is the term,
+[01:03:16] you can have the same function taken just the term,
+[01:03:18] and in both cases, pass in the .term of the struct using.
+[01:03:27] Alright, some other code design questions?
+[01:03:31] Once when separating the code into multiple files,
+[01:03:36] is there naming conventional like required,
+[01:03:39] because when we make the lab,
+[01:03:41] it seems like it's copying the source file,
+[01:03:43] so is there any naming convention?
+[01:03:46] I mean, I would put them in raft, the raft folder,
+[01:03:50] but there's no naming convention,
+[01:03:52] like you can name your files whatever you want.
+[01:03:55] Okay, our grading scripts will replace anything,
+[01:03:58] that's necessary for or anything that belongs to the testing framework,
+[01:04:03] so the config file or like the test file,
+[01:04:07] anything that you change in there will be wiped out.
+[01:04:13] Yeah.
+[01:04:15] Like also be slightly careful about using external dependencies,
+[01:04:20] I ran into a couple issues with grading some scripts,
+[01:04:24] I had external dependencies,
+[01:04:26] like using some github package, Go package,
+[01:04:30] but those were I was able to fix it,
+[01:04:33] just be a little careful, if you do that.
+[01:04:35] But, yeah, create as many .go files in raft as you want.
+[01:04:42] Yeah, so pointer versus a value, while passing by reference can be cheaper,
+[01:04:47] because Go won't just copy the struct,
+[01:04:50] this was, this question was asked
+[01:04:53] in particular for why call takes the arguments
+[01:04:58] and the reply as pointers,
+[01:05:01] and so yeah those could be potentially extremely large,
+[01:05:05] and so Go doesn't have to copy them, when you call the function,
+[01:05:07] that's the main reason.
+[01:05:09] Using both locks and channels are possible?
+[01:05:11] Yes, you'll give them both in Raft,
+[01:05:14] so you will definitely see how it's possible.
+[01:05:19] Oh yeah, and then we're getting a lot of questions about timeouts,
+[01:05:21] so in map, in the MapReduce lab,
+[01:05:25] the timeout was sort of,
+[01:05:26] well, we gave you a 10 seconds for the worker tasks when they [],
+[01:05:30] but in terms of how long do you sleep,
+[01:05:32] and that were pretty much able to choose anything other that.
+[01:05:36] For Raft, you have to choose timeout a little more carefully,
+[01:05:39] and our tests are like kind of sensitive, but not super sensitive,
+[01:05:44] like you'll be [] for example,
+[01:05:46] probably be within a range of one to 100, to 200 milliseconds,
+[01:05:50] and be fine.
+[01:05:52] Yeah, in terms of choosing them,
+[01:05:58] probably helps to first think about why you're waiting at all,
+[01:06:03] and for example in the, for Raft,
+[01:06:07] your leader is sending heartbeat,
+[01:06:09] and your timeout is to detect when the leader is dead,
+[01:06:15] so, you kind of want to give the leader a couple chances
+[01:06:19] to tell you that it's alive,
+[01:06:21] otherwise you know you'll just continuously think it's dead,
+[01:06:25] so depending on what you set your heartbeat timeout to be
+[01:06:29] or your heartbeat interval to be,
+[01:06:31] which I think will give you some guidelines of,
+[01:06:32] it can't be ten more than ten times per second or something like that,
+[01:06:38] depending on what you set your heartbeat,
+[01:06:40] you'll want your timeout to be something, like pretty reasonable,
+[01:06:43] like maybe allow for the chance to get two to three heartbeats,
+[01:06:47] and then you'll have to randomize some like range,
+[01:06:51] because you don't want all your servers start elections at the same time,
+[01:06:55] and to do that, you can you know like a range of,
+[01:07:00] maybe like two to five heartbeats,
+[01:07:04] some timeout between there is reasonable,
+[01:07:08] but in terms of the test,
+[01:07:10] you'll see whether you're sending too many RPCs
+[01:07:13] or too many bits are going over the network
+[01:07:15] as the test go in later labs,
+[01:07:19] and you can tweak your timeout very easily,
+[01:07:21] it's slightly implementation dependent,
+[01:07:25] so, I can't tell you like what's the perfect number for you,
+[01:07:30] but thinking of it, in terms of why am I timing out in the first place,
+[01:07:35] and how many RPCs do I want to get from like other servers before timeout,
+[01:07:39] is a good metric to keep in mind,
+[01:07:43] hopefully, that helps a lot of timeouts.
+[01:07:47] Okay, yeah, so some implementation questions,
+[01:07:50] that came up about the MapReduce lab,
+[01:07:53] and also the labs in general.
+[01:07:55] So, some people actually did implement backup tasks,
+[01:08:00] which is pretty cool,
+[01:08:01] and we definitely did not require that for this lab,
+[01:08:04] and I think something that was important to keep in mind is that,
+[01:08:09] the paper has makes a distinction between starting, restarting a task,
+[01:08:15] because a worker has failed,
+[01:08:17] and issuing the task again,
+[01:08:21] to speed up a lagging task,
+[01:08:23] that the worker hasn't failed,
+[01:08:25] but you want the task to complete faster,
+[01:08:28] and so backup tasks are used for the lagger,
+[01:08:31] when tasks are haven't failed yet,
+[01:08:33] but there's there just slow and timeout,
+[01:08:37] we start task,
+[01:08:38] when workers are actually detect to fail.
+[01:08:40] So when the paper,
+[01:08:42] the coordinator actually gets heartbeats from the workers,
+[01:08:45] whereas in the design that we propose for your lab,
+[01:08:50] we use timeouts both to detect that worker has probably failed
+[01:08:54] and also to detect slow tasks,
+[01:08:57] so in some ways, we make that we don't have that distinction,
+[01:09:01] we just assume that,
+[01:09:02] if this task hasn't been completed in this set of time,
+[01:09:05] that you know like probably the worker has failed
+[01:09:07] or maybe it's just insanely slow,
+[01:09:09] and let's reissue it,
+[01:09:10] so that's why our labs don't really mention backup tasks.
+[01:09:17] So, and then, yeah so there, this is again going back to the confusion,
+[01:09:22] the next question, about like synchronization,
+[01:09:25] if the servers are on different machines,
+[01:09:27] so the servers are on different machines,
+[01:09:29] and they only communicate using RPCs,
+[01:09:32] all synchronization is just protecting or synchronizing the threads on one server,
+[01:09:38] I just want to emphasize that one more time.
+[01:09:43] Common source of race conditions, just you know logging,
+[01:09:50] I, in some ways I think,
+[01:09:52] someone's talking about,
+[01:09:54] like you know how do you know when to lock,
+[01:09:56] and how do you know when to use synchronization,
+[01:09:59] so anytime you're modifying the state of the file,
+[01:10:04] like your Raft server or the coordinator,
+[01:10:07] anytime you modify the state,
+[01:10:09] you want to lock,
+[01:10:10] and what you'll notice is that,
+[01:10:14] for almost every function in your Raft implementation, for example,
+[01:10:18] you will have a lock
+[01:10:20] and then a defer unlock, like right after that.
+[01:10:24] The only time you need to make sure that you're not lock is,
+[01:10:28] when you make a call on might block,
+[01:10:30] so sending an RPC,
+[01:10:32] you know sending something over channel,
+[01:10:36] those type of operations, you shouldn't lock around,
+[01:10:38] because then you're, you're that thread will just be blocked on that,
+[01:10:42] and hold the lock and stop the server,
+[01:10:44] any thread on the server from making progress.
+[01:10:48] Yeah, and then there are some questions about like,
+[01:10:52] there are some data races they're benign,
+[01:10:54] like for example you could set isDone to be true,
+[01:10:57] and you know like you don't really need to lock around that,
+[01:11:00] but the race detector is complaining,
+[01:11:02] you could use an atomic []
+[01:11:05] which has the same behavior, like locking before unlocking after,
+[01:11:10] but even though you might think this data race is benign,
+[01:11:13] it's undefined behavior,
+[01:11:15] so it just so happens, that you know eventually the next read,
+[01:11:20] like your read might miss the fact, that isDone,
+[01:11:23] but the next time you call isDone, it will say true,
+[01:11:25] and then you're fine,
+[01:11:26] but undefined behavior could technically be implemented as anything,
+[01:11:32] like it just so happens that your compiler
+[01:11:34] and your processor does something reasonable,
+[01:11:37] when there's a data race,
+[01:11:39] so you should handle them especially when they're simple,
+[01:11:42] and they don't really affect performance that much.
+[01:11:46] Another thing is,
+[01:11:49] well, in in theory, you could have this like is [] data race,
+[01:11:55] could potentially mean that your process would never exit,
+[01:11:59] because you know the write to isDone, setting it to true,
+[01:12:03] might ever actually propagate to the thread that's reading,
+[01:12:06] what whether it's true or not,
+[01:12:08] because it could be stored in some like buffer and never flushed,
+[01:12:11] what locks ensure is that,
+[01:12:14] your write the next thread that reads is done,
+[01:12:19] will see the last write isDone,
+[01:12:23] and actually flush it,
+[01:12:24] from for example a potential buffer that the write could be stored.
+[01:12:28] So, yeah, that's just emphasizing,
+[01:12:31] like you don't want data races,
+[01:12:33] even if you think that they're really friendly.
+[01:12:36] Clean way to exit?
+[01:12:38] So sending an exit RPC from coordinator to worker, workers,
+[01:12:44] also like the quote unquote like messy Exit,
+[01:12:48] where the worker tries to send RPCs,
+[01:12:51] the socket is closed,
+[01:12:52] like those are also fine,
+[01:12:56] like most solutions are equally acceptable.
+[01:13:02] And then unexpected EOF errors,
+[01:13:04] so, you can look I have a link here,
+[01:13:08] that it shows when it's invoked the client,
+[01:13:10] but it's a little confusing as to when that actually happens,
+[01:13:15] so I would not worry about it too much,
+[01:13:17] if any one has insights into,
+[01:13:21] if they got this error at a very strange moment,
+[01:13:25] then we could look into it,
+[01:13:27] but I think it's very specific on your implementation,
+[01:13:29] so I would have to look at that, in particular,
+[01:13:32] but we got a bunch of questions about that.
+[01:13:35] Yeah, I think so that's basically most of the questions that came up,
+[01:13:40] and I think now if you have any questions about you know Go, MapReduce
+[01:13:45] or if you want to ask staff about the labs.
+[01:13:49] I had a question about the clean way to exit.
+[01:13:54] So you're saying like something Exit RPC,
+[01:13:58] I was just wondering if there were like,
+[01:14:00] if there was like a case,
+[01:14:02] where a worker for some reason just takes a very long time to reach the server, right,
+[01:14:09] like how like how does the server know,
+[01:14:11] like when to like shutdown,
+[01:14:14] because, because because the coordinator shutdown at some point, correct,
+[01:14:18] when, when, when it says like done, when done returns true,
+[01:14:23] it shutdown and so it stops replying to the workers,
+[01:14:28] how does it decide when to do that,
+[01:14:31] if it's waiting for, for workers to shutdown themselves.
+[01:14:38] Oh, so in this case, the coordinator isn't,
+[01:14:43] oh I guess,
+[01:14:43] so send is probably the wrong word,
+[01:14:45] the coordinator isn't waiting for the workers to respond,
+[01:14:48] the coordinator is not sending it's replying to the request from workers,
+[01:14:54] with a, like the task is done, please exit,
+[01:14:57] the worker isn't,
+[01:14:59] the coordinator isn't actually waiting for the workers at all,
+[01:15:02] and so in this case,
+[01:15:03] the coordinator could actually still exit before the workers,
+[01:15:06] and cause the workers to like,
+[01:15:09] you know have a disconnected socket error and exit.
+[01:15:14] Yeah, I I guess, that was my question really,
+[01:15:16] like like if if it I could though,
+[01:15:20] coordinator replying to workers, right,
+[01:15:23] that are like potentially like asking for get task,
+[01:15:28] but what happens if the worker shutdown,
+[01:15:32] or sorry the coordinator shutdown,
+[01:15:34] before it gets, get get task RPC from the worker.
+[01:15:41] Oh, then the next time the worker tries to contact the coordinator,
+[01:15:44] the worker will see that the connection is closed and then exit.
+[01:15:48] Yeah.
+[01:15:49] That's as clean shutdown as we'll get.
+[01:15:56] Essentially, I mean you could imagine that,
+[01:15:59] you know you could set up the workers to be RPC servers,
+[01:16:03] then you would actually have the coordinator be sending these, like please exit,
+[01:16:08] the coordinator will have to wait for the workers to exit,
+[01:16:10] but it's not,
+[01:16:15] or it doesn't seem like you won't get any utility out that.
+[01:16:21] Thanks.
+[01:16:21] Yeah.
+[01:16:23] Kat, I see you have your hands.
+[01:16:26] Yeah, something that I was wondering about is,
+[01:16:29] for the future labs, are we allowed to have more files,
+[01:16:32] I think explicitly in the MapReduce lab,
+[01:16:34] we were only supposed to have three,
+[01:16:37] and it didn't read something where it was like,
+[01:16:40] hey, you should have all of your stuff contained in one.
+[01:16:44] Oh, yeah, so you can definitely add more files,
+[01:16:47] that's like I would almost encourage that,
+[01:16:52] I, did we say that about MapReduce,
+[01:16:55] I I don't, I can't remember whether.
+[01:16:57] What you saying, you couldn't edit any of the other main files,
+[01:17:01] it like.
+[01:17:01] Yeah, you couldn't edit the [], yeah.
+[01:17:04] Okay, I misread that, thanks,
+[01:17:06] this makes me feel a lot better.
+[01:17:08] Yeah, yeah, but definitely like bring your code will be useful.
+[01:17:16] I have a question about the benign data races,
+[01:17:21] I guess like,
+[01:17:23] because sometimes there's for example raft,
+[01:17:25] you just want to read the current state of the of the Raft server,
+[01:17:30] why would multiple write, multiple threads writing to it and one reading,
+[01:17:35] so why would a read and write to the same variable,
+[01:17:38] end up cause undefined behavior,
+[01:17:41] because it read comes before or after the write.
+[01:17:44] So, one thing that can happen,
+[01:17:48] and most processors don't do this,
+[01:17:51] but, every time you have a,
+[01:17:56] like so these any thread can run on a separate core,
+[01:18:01] and every core has a buffer,
+[01:18:05] for the data that it's reading or writing,
+[01:18:08] or writing, I guess like a store buffer,
+[01:18:10] so for example thread 1 could write one value to the state,
+[01:18:17] and thread 2 could try to read it,
+[01:18:20] or like multiple threads can be writing,
+[01:18:22] and thread 1 without a lock,
+[01:18:25] so locks essentially flush the buffer,
+[01:18:29] without that lock,
+[01:18:31] this write might just like stay in thread 1's, like store for forever,
+[01:18:37] and the read will never return the updated value,
+[01:18:42] so this behavior doesn't quite happen in practice,
+[01:18:47] but it's an allowable behavior,
+[01:18:49] because you do not have a lot.
+[01:18:51] Sorry, so what happens if the write has a lock,
+[01:18:53] but the read doesn't,
+[01:18:55] like does the read always need a lock?
+[01:19:03] Yes, because, I think of it.
+[01:19:14] I I googled a little bit,
+[01:19:15] and people are like, yeah, don't, don't even try lock-less share data,
+[01:19:20] but I don't really understand why that would be a problem.
+[01:19:23] So it's.
+[01:19:24] You could like.
+[01:19:25] Go ahead.
+[01:19:27] You could like be doing something that assumes the thing was true,
+[01:19:30] and then like when you read,
+[01:19:31] it's not actually true yet,
+[01:19:33] like there might be multiple things, right,
+[01:19:37] that's why you don't want to lock this read.
+[01:19:39] So the only time you might be able to even get away with this is,
+[01:19:46] if you only read a single word,
+[01:19:49] and that's all the thread does,
+[01:19:51] and it never does multiple reads,
+[01:19:54] but I think you still have some issues with.
+[01:20:01] One of the other things is,
+[01:20:04] if you're reading more than one piece of data,
+[01:20:06] like if on one thread, you take lock, assign a assign b,
+[01:20:11] another thread, it doesn't take a lock,
+[01:20:14] might see b, the new value of b,
+[01:20:17] before it sees the new value of a,
+[01:20:19] the ordering that you messed up,
+[01:20:20] and so if you read like a term from one that, from one variable
+[01:20:26] and like whether not the leader from another variable,
+[01:20:29] you might read a pair of values that never actually existed,
+[01:20:34] because there aren't the guarantees,
+[01:20:37] like when you're [] to concrete systems,
+[01:20:40] you need to build everything based off what the guarantees are the platform provides you,
+[01:20:45] and if you don't,
+[01:20:46] there's all kinds of weird edge cases that can throw you off,
+[01:20:50] and yeah.
+[01:20:53] Yes, so I think the only case in which you can even,
+[01:20:56] like try to reason about this,
+[01:20:58] is this, is this there's only ever one like you know word in the system,
+[01:21:03] that you're ever trying to read and write to,
+[01:21:05] as soon as you try to write or read multiple pieces of data,
+[01:21:12] then it's like you won't be able to reason about anything without locks.
+[01:21:17] Basically, if you want to play games with this,
+[01:21:20] you have to really understand the compiler,
+[01:21:24] the whole [] language and memory model,
+[01:21:26] the processor you're using
+[01:21:27] and it's like memory consistency system,
+[01:21:31] it gets complicated, incredibly [].
+[01:21:35] Yeah, it's also like, I mean this is all undefined behavior,
+[01:21:38] so even if it works now,
+[01:21:39] like you know I could, someone could write a new compiler,
+[01:21:43] and then you're, like that's where the whole thing about,
+[01:21:46] like demons can fly out of your nose,
+[01:21:48] like it can literally do anything, if you have a data,
+[01:21:51] it's because like other programs like, doesn't have any semantic,
+[01:21:55] so we can like go crazy,
+[01:21:58] so I would I would not risk it.
+[01:22:02] Okay, it makes sense, thank you.
+[01:22:04] So, so even when we're accessing like anything,
+[01:22:07] just reading, let's say Raft server state,
+[01:22:09] we should still wrap it in a lock.
+[01:22:12] Yeah.
+[01:22:13] It just gets annoying sometimes,
+[01:22:15] because you have to like,
+[01:22:16] wrap the single read in a lock and unlock,
+[01:22:20] but I'm not sure like knows [].
+[01:22:25] That shouldn't happen super often,
+[01:22:30] like I mean, maybe if you want to for example check you're still a leader,
+[01:22:33] if you're not exit or something like that,
+[01:22:36] but, yeah, I don't, like, I forget,
+[01:22:43] do you use like atomic bools for like killed state for example,
+[01:22:49] that like you could use a [],
+[01:22:52] which essentially is like locking and unlocking right before accessing it and right after,
+[01:22:59] but, yeah,
+[01:23:04] I think you'll like having in some ways very coarse-grain locks,
+[01:23:09] and knowing that you're the only one touching a piece of state,
+[01:23:12] will become very handy as you reason about your implementations.
+[01:23:18] Thank you.
+[01:23:22] I have a question about the channels,
+[01:23:25] so when you make a channel,
+[01:23:27] it's only between two threads, right,
+[01:23:30] or it can be between multiple threads,
+[01:23:32] but like if you not, if you don't have buffered,
+[01:23:37] it can potentially just lock and block forever, right,
+[01:23:40] so, for example, if you want to do something in Raft,
+[01:23:43] and then you have an election,
+[01:23:45] you have a channel that like,
+[01:23:47] does something about election timeouts,
+[01:23:49] you will need a buffer channel,
+[01:23:51] that's like the size of the amount of servers, correct,
+[01:23:53] because you could like send something and then like it blocks,
+[01:23:57] because, you can be,
+[01:23:59] you can have multiple like election things,
+[01:24:02] election messages sent between the channels, correct,
+[01:24:06] so if you want a unbuffered channel,
+[01:24:08] it should only be between, it should only be between two threads only, correct?
+[01:24:13] I mean not necessarily,
+[01:24:15] like if two threads are consumers,
+[01:24:16] and one thread is producer,
+[01:24:17] that the.
+[01:24:20] Okay, but multiple producers, I guess you would need that, correct?
+[01:24:26] Well, not necessarily,
+[01:24:27] I mean, if the consumer is,
+[01:24:29] you know just doing a loop and constantly reading,
+[01:24:31] then all the producers would just,
+[01:24:36] like, I guess it depends on how they schedule,
+[01:24:40] by if,
+[01:24:42] you're like you would eventually have someone reading from the channel,
+[01:24:46] so you can have multiple producers and one consumer.
+[01:24:51] Actually, does anyone know about the, like Frans,
+[01:24:55] do you know about the ordering guarantees of channels,
+[01:24:57] like is their [] guarantee on you,
+[01:25:03] I feel like there is an [] guarantee,
+[01:25:04] so I guess if you have,
+[01:25:06] it's kind of like lock, right,
+[01:25:08] like if you're always trying to acquire the lock,
+[01:25:10] another thread is also spinning and trying to acquire the lock,
+[01:25:13] there's no guarantee that you will ever require it,
+[01:25:17] which is why like randomization might be necessary in that case,
+[01:25:26] also I realized I think this lecture is technically over,
+[01:25:30] I am holding the office hours right now,
+[01:25:32] so if you have questions along to
+[01:25:33] or want to continue asking questions,
+[01:25:35] I'll be there
+[01:25:36] and I think maybe Frans,
+[01:25:38] if you want to stick around or other, others.
+[01:25:42] But I will move to the office hours, now,
+[01:25:47] so, thank you all so much for coming.
+[01:25:50] Thank you.
+[01:25:53] Thank you.
+[01:26:00] Oh, can I just ask a quick question?
+[01:26:03] Yeah, alright, Frans, you're the host now,
+[01:26:05] so I'm going to just hop off to my office hour.
+[01:26:08] And what is the theme of the your Vim?
+[01:26:12] Oh, what's the scheme, like my color scheme.
+[01:26:14] Yeah.
+[01:26:16] That's a good question,
+[01:26:17] I'm not actually sure, let me check.
+[01:26:25] [].
+[01:26:27] Sorry?
+[01:26:29] I'll type in the chat.
+[01:26:30] Ha ha.

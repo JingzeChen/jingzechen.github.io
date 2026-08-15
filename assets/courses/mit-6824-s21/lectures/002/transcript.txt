@@ -1,0 +1,1265 @@
+[00:00:02] Okay, so the topic for today is threads and RPC,
+[00:00:08] second lecture in 6.824,
+[00:00:11] again we're going to mostly look at threads and RPC in the context of Go,
+[00:00:15] you know programming language that we're using in the labs,
+[00:00:19] and in fact most of this lecture is really tailored,
+[00:00:22] towords helping you do Go programming for the labs,
+[00:00:28] so all of you've done hopefully the tutorial and the crawler exercise,
+[00:00:34] which we'll discuss them quite a bit of detail later in the lecture,
+[00:00:37] but before jumping into the details,
+[00:00:40] let me a little bit more of code calling,
+[00:00:42] to break the [] and get people to ask questions.
+[00:00:45] So maybe you can answer the question,
+[00:00:48] where are you and how did you enjoy the tutorial,
+[00:00:50] what's your first impression to Go,
+[00:00:53] maybe I'll.
+[00:00:55] Yeah, how about Evan Feldman?
+[00:01:00] Hi, folks, I'm Batman,
+[00:01:03] I'm in Newton, which is on the outskirts of greater Boston,
+[00:01:07] the tutorial was interesting,
+[00:01:08] it was my first exposure to you know an object oriented language,
+[00:01:12] so it's, it's kind of a change, a change in framework,
+[00:01:16] that was interesting to adapt to.
+[00:01:19] Okay, how about Brendan Wall?
+[00:01:28] Brendan, are you there?
+[00:01:31] Yes, I was just finding the unmute button,
+[00:01:32] sorry, what was the question, I just joined.
+[00:01:34] Where are you and what is your first impressions of Go?
+[00:01:38] Yeah, it's, I had used to Go before, for an internship,
+[00:01:41] that was my first time actually dealing with the concurrency stuff,
+[00:01:44] and I like Go, like really working with goroutine,
+[00:01:46] so kind of, initially it was tricky to think through like,
+[00:01:51] like as soon as the main thread and all the goroutines are ended,
+[00:01:54] so kind of working through those early kind of conceptual issues,
+[00:01:58] but it's interesting.
+[00:02:01] How about the [Connor Prisby]?
+[00:02:13] [Connor], are you there?
+[00:02:19] Okay, try somebody else, Dory Shen.
+[00:02:27] Hi, I'm in Cambridge right now,
+[00:02:30] and I found Go to be pretty interesting,
+[00:02:33] I thought like go through through the first part of the tutorial,
+[00:02:35] I like learning about the for loops and the way they do for loops,
+[00:02:39] I thought that was pretty interesting,
+[00:02:40] and like the way it's kind of structured,
+[00:02:42] I think that I like the the threads,
+[00:02:46] and I found to be a little bit more difficult about,
+[00:02:50] when it ended,
+[00:02:51] like when sometimes the function would end before all the routines,
+[00:02:55] like ended,
+[00:02:56] so that was like interesting to think about,
+[00:02:58] and like I learned more about that,
+[00:02:59] so it's pretty cool, I liked it.
+[00:03:01] Well, hope all of you gonna have a very positive experience with Go this semester.
+[00:03:08] And so let me say a little bit like you know why Go?
+[00:03:14] In principle, you know there's a lot of programming languages,
+[00:03:17] that you could have used for doing distributed programming,
+[00:03:20] and Go is absolutely not the only one,
+[00:03:22] but some reasons why we why we chose Go in 6.824.
+[00:03:26] You know first of all, it has good support for threads and RPC,
+[00:03:34] and those two are very important for distributed programming,
+[00:03:38] so it makes sense to you know
+[00:03:41] Go there's a good match for that.
+[00:03:43] Second reason we like it a lot is
+[00:03:45] you know it has a garbage collector,
+[00:03:46] and if you do shared memory style parallelism,
+[00:03:49] where multiple threads share a structure or variable,
+[00:03:54] then having a garbage collector is nice,
+[00:03:56] because then the threads don't have to decide,
+[00:03:58] who's the last thread that actually has a reference to this memory,
+[00:04:01] and should therefore deallocated,
+[00:04:03] the garbage collector use takes care of all those problems,
+[00:04:07] that's convenient.
+[00:04:08] It's type safe.
+[00:04:14] It is simple, it's a reasonable simple programming language,
+[00:04:18] quite easy to learn.
+[00:04:20] And in fact you know ideas,
+[00:04:21] hopefully you've got that experience with in Go tutorial,
+[00:04:24] that I want you to Go tutorial,
+[00:04:25] you mostly got most of Go.
+[00:04:27] And then finally, it actually have a compiler,
+[00:04:31] so it's compiled,
+[00:04:32] unlike Python,
+[00:04:34] or you know actually the compiler produces actually usable code,
+[00:04:39] so the runtime overhead is not as large.
+[00:04:42] I guess sort of the final reason why 6.824 in Go,
+[00:04:47] is actually I enjoyed writing Go programs,
+[00:04:50] and so that may be also an important reason.
+[00:04:54] So what I'm gonna do is,
+[00:04:56] I'm going to talk a little bit about threads in general, RPC in general,
+[00:05:00] and you know talk a little bit about different aspects of programming with threads,
+[00:05:06] some of that is pretty tutorial,
+[00:05:07] you have seen this before you know my [apologies],
+[00:05:12] I'm gonna go reasonable quickly through it,
+[00:05:14] it's definitely not a comprehensive introduction to concurrent programming,
+[00:05:18] but hopefully enough to remind you of
+[00:05:20] what the issues are and what you should look out for.
+[00:05:23] And we also spend some time quite a bit of talk about the crawler.
+[00:05:27] And so I'll share you a solution,
+[00:05:29] that I have two solutions,
+[00:05:31] one using channels and ones using mutexes,
+[00:05:33] and we'll go through both of them.
+[00:05:36] Any questions so far before I dive in.
+[00:05:45] Okay, what we get started with threads,
+[00:05:50] so thread is basically shorthand for a thread of execution,
+[00:05:57] in Go, thread called the goroutine,
+[00:06:01] but everybody else, basically in the world Go, calls a thread of thread,
+[00:06:06] and so the way to think about it is that,
+[00:06:08] when you do go run,
+[00:06:10] you know the Go will create a process you know on your operating system,
+[00:06:15] and in the side of process you know the Go runtime system,
+[00:06:20] and when Go start,
+[00:06:21] it actually has one thread of execution, the main thread,
+[00:06:24] but then it has primitives to create new threads,
+[00:06:27] and so you can think about this,
+[00:06:28] those are many many threads of execution you know running in parallel.
+[00:06:32] You can think about a single thread is basically sort of a sequential program line,
+[00:06:37] so the program has a program counter,
+[00:06:40] has his own stack,
+[00:06:42] and has his own set of registers,
+[00:06:48] and so this behaves like a sequential program,
+[00:06:50] you can execute instruction one and instruction two, and instruction three and four,
+[00:06:55] you know may make a procedure call allocate memory on the stack,
+[00:06:58] and will return from a procedure call, recursive call,
+[00:07:01] all sort of you know standard sequence programming,
+[00:07:03] just like happens about as a sequential thread basically.
+[00:07:08] The interesting thing is that,
+[00:07:10] you know the threads may actually share memory with other threads,
+[00:07:16] since all the threads are running in the same address space,
+[00:07:20] the same operating system address space,
+[00:07:23] which is the same process address space,
+[00:07:25] they can actually share memory,
+[00:07:28] so one thread can write location say you know 10,
+[00:07:31] and then other thread can actually read that location 10,
+[00:07:34] so that way they can actually communicate information.
+[00:07:37] One way to think about a thread too is,
+[00:07:42] to think about it as sort of an abstraction that are supported by the runtime,
+[00:07:47] and the runtime as a number of operations on a thread,
+[00:07:49] so one operation, you know we've seen many times,
+[00:07:52] and you've seen you know many times to actually started, for create threads,
+[00:07:55] you know this is go syntax, the go keyboard.
+[00:08:01] Thread can exit,
+[00:08:03] generally this means the exit can implicit,
+[00:08:06] like when a thread returns from this,
+[00:08:09] if you create a function using go, go keyword,
+[00:08:15] and you know return out of the function,
+[00:08:17] then implicitly the thread exits.
+[00:08:20] Go runtime also has a couple other of under the hoods operations,
+[00:08:24] if you will, one it can actually stop a thread,
+[00:08:28] for example, if a thread writes to a channel
+[00:08:31] and there's no reader on the channel yet,
+[00:08:33] then the thread might get blocked,
+[00:08:35] and so the Go runtime stops the thread,
+[00:08:37] puts it aside,
+[00:08:39] so it can actually run another thread on the processor,
+[00:08:43] and then maybe later on, resume that thread,
+[00:08:45] so third primitive actually is resume the thread.
+[00:08:50] And really what it means to stop resume thread is,
+[00:08:52] basically taking the state of the thread,
+[00:08:54] like the program counter stack pointer and the register,
+[00:08:57] put it on the side, run another thread on the processor,
+[00:09:01] and then at some point you know decided to resume the processor,
+[00:09:04] which means basically loading the program counter stack pointer and the registers back into the processor,
+[00:09:08] so they start to run it.
+[00:09:10] So that's sort of a very mechanical view of what thread is.
+[00:09:19] So why you have threads,
+[00:09:21] in the first place, that seems like an important point to discuss.
+[00:09:28] Because in some ways,
+[00:09:29] the only thing threads do is,
+[00:09:31] make your life more complicated as a programmer,
+[00:09:34] you know like writing sequential code is actually easier than writing parallel code.
+[00:09:38] The main reason to have it,
+[00:09:40] the main reason we care a lot about in 6.824 is to express concurrency,
+[00:09:50] and sort of three different types or two or three different types of concurrency,
+[00:09:54] that we actually care about,
+[00:09:55] so we think about our process,
+[00:09:57] we have runtime with our thread running.
+[00:10:01] You know one type of concurrency that we care a lot about is IO concurrency,
+[00:10:09] so one of these threads that running here,
+[00:10:11] it might actually make a network call,
+[00:10:13] connect to another machine on the network,
+[00:10:16] you know to implement a distributed application, like mapreduce,
+[00:10:20] and you know as it makes a call,
+[00:10:24] you know it's gonna be blocked, waiting for a response,
+[00:10:26] and when it's blocked and waiting for a response,
+[00:10:28] everything you need to actually run some other threads.
+[00:10:31] So that we're sort of [] more,
+[00:10:34] we're done,
+[00:10:35] for example, we want to issue multiple requests
+[00:10:37] and multiple machines roughly in parallel,
+[00:10:40] you know we could just do that with fire off one goroutine
+[00:10:43] and the fire in another goroutine, another goroutine,
+[00:10:45] that all kind of sent and make connections to other remote machines.
+[00:10:49] That's one reason we care a lot about it, IO concurrency.
+[00:10:52] The second reason that we care about is,
+[00:10:54] you know allows for multi-core parallelism.
+[00:11:03] So we have a multiple cores,
+[00:11:06] you know are you know computer or processor,
+[00:11:09] then we can have one thread running on,
+[00:11:12] one goroutine running on one core,
+[00:11:14] and another thread or another goroutine running on another core,
+[00:11:17] just straight in parallel.
+[00:11:18] And for example we implement a key-value servers,
+[00:11:21] then we could process request for different keys,
+[00:11:24] and key-value service use on different cores completely in parallel,
+[00:11:27] increasing our throughput.
+[00:11:30] So those are the two main reasons that we care a lot about concurrency,
+[00:11:35] but threads, there's sort of a third reason,
+[00:11:38] and there's a little bit of convenience.
+[00:11:44] There's gonna be numerous cases in the lab,
+[00:11:46] for example where we wanna have something happened periodically,
+[00:11:50] maybe every second or every 200 milliseconds,
+[00:11:52] and now we can just launch a thread or a goroutine for that,
+[00:11:56] there's a sleep for 200 milliseconds,
+[00:11:57] it does what it needs to do,
+[00:11:59] and then it goes back to sleep for 200 milliseconds,
+[00:12:01] so it's convenient to have these background activities,
+[00:12:05] that need to be done periodically,
+[00:12:06] and you can express that using threads,
+[00:12:08] of course you can express it in other ways,
+[00:12:10] the threads are actually convenient.
+[00:12:13] Another question that comes up often in,
+[00:12:16] I think came up with some of the lecture questions,
+[00:12:18] so today like how many threads you create.
+[00:12:20] And I think the Go designers, the way they want you to think about it is,
+[00:12:24] that you should create as many threads as you need,
+[00:12:26] they're definitely not free,
+[00:12:28] they tie up some memory,
+[00:12:29] because you're going to have a stack,
+[00:12:31] there's performance overhead we're starting them,
+[00:12:34] but there's you should think about them as very lightweight,
+[00:12:37] also you should be encouraging or you're encouraged to create threads as you go.
+[00:12:44] Any questions about sort of this basic reason why to have threads?
+[00:12:55] Okay, let me,
+[00:12:56] then you know as I mentioned earlier,
+[00:12:59] threads actually have challenges,
+[00:13:03] programming with threads has challenges,
+[00:13:05] so let me talk a little bit about the challenges.
+[00:13:08] I'm not going to go great amount of depth here,
+[00:13:10] I I assume that you know there's a they all make sense,
+[00:13:13] and will become more clear if we look at some of the examples.
+[00:13:17] And probably the main reason that you know threads and you're challenging is that,
+[00:13:22] you can have race conditions.
+[00:13:31] And just like a basic example of race condition,
+[00:13:34] let's say you have two threads,
+[00:13:35] you know, here's t1, here's t2,
+[00:13:39] and they share variable n,
+[00:13:42] let's say the initial value 0,
+[00:13:45] and they both execute,
+[00:13:47] you know both execute statement, the form you know adds n increment n by 1,
+[00:13:53] and of course you might think that statement is an atomic operation
+[00:13:56] or something that is indivisible,
+[00:13:57] but it isn't,
+[00:13:58] I mean there's a Go statement has compiled to
+[00:14:01] whatever instructions the processor is executing,
+[00:14:04] so we cannot assume that an atomic instruction
+[00:14:06] and in fact, you know it's,
+[00:14:08] it could consist of basically like a load,
+[00:14:11] you know which stores the n, the content of n to register,
+[00:14:15] then increment register,
+[00:14:16] and then you know store of register back into memory.
+[00:14:19] So if you're very unlucky,
+[00:14:21] you know the two threads basically try to,
+[00:14:23] both execute this particular instruction,
+[00:14:25] then we can have a very you know unfortunate sequence of events,
+[00:14:29] where like both threads you know perform the load instruction,
+[00:14:34] load variable in you know register let's say r0,
+[00:14:39] you know here also in r0,
+[00:14:43] you know then increment, so r0 becomes 1, 1,
+[00:14:48] and then write it back to you know store instruction,
+[00:14:52] that results results back into the variable n in memory.
+[00:14:57] And, so, if this happens at this particular,
+[00:15:01] in this scenario, where this happens are truly concurrently,
+[00:15:04] you know what is the value of n after these two threads that both increment.
+[00:15:11] Just 1.
+[00:15:13] Yes, 1,
+[00:15:14] and what is what is this value supposed to be,
+[00:15:16] what do we expect it to be.
+[00:15:22] 2.
+[00:15:23] Yeah, expect it to be 2, right,
+[00:15:24] so, 1 is definitely not equal to 2 and there's a bug.
+[00:15:28] And so, and this is like you know the sort of heart of race conditions,
+[00:15:33] which is you know if an unfortunate sequence of events,
+[00:15:38] where threads share you know state,
+[00:15:40] the updates actually might not be reflected correctly,
+[00:15:44] and of course most of the time, this will workout fine,
+[00:15:46] because you just have to be in this sort of very,
+[00:15:49] sort of this very specific case,
+[00:15:51] before it shows up.
+[00:15:53] So general, I think one of you reported,
+[00:15:56] like oh I didn't have my locks on my race,
+[00:15:58] you know I've been watching order
+[00:16:01] and my program just worked fine,
+[00:16:03] and that's actually the real issue with race conditions,
+[00:16:06] they typically just work fine,
+[00:16:07] but sometimes it goes wrong.
+[00:16:10] So there are two ways to [address] race conditions.
+[00:16:13] The first way is to avoid sharing,
+[00:16:18] don't share variables.
+[00:16:21] And this is one style of programming that you know Go encourages,
+[00:16:24] by using channels,
+[00:16:25] channels use communicate values,
+[00:16:27] but you don't really directly share memory,
+[00:16:29] so that's one way of doing it.
+[00:16:32] So avoid sharing one big approach,
+[00:16:34] the other approach is actually to use locks,
+[00:16:39] you know to make a sequence of instructions in atomic operation,
+[00:16:42] we'll talk a lot more about that in a second.
+[00:16:45] One of the things I want to point out,
+[00:16:47] that is really cool,
+[00:16:48] that a useful tool,
+[00:16:50] is Go actually have a race detector,
+[00:16:53] and most of the labs that you will doing,
+[00:16:56] would encourage you basically run Go using the -race flag,
+[00:17:00] and that will actually not catch every possible race,
+[00:17:04] but it does an extremely good job of actually identifying races,
+[00:17:07] and so you should by default run Go with the race detector enabled.
+[00:17:13] Okay, so that's one challenge with threads.
+[00:17:15] The second challenge with threads actually coordination.
+[00:17:20] So it's often the case that one has to,
+[00:17:23] you know one thread must wait another thread,
+[00:17:24] before something is accomplished,
+[00:17:26] you know number of the Go exercise in the tutorial have a [form],
+[00:17:32] and there's two ways, you know Go actually two primitives,
+[00:17:34] dealing with one again channels,
+[00:17:38] channels basically allow you to communicate and to coordinate at the same time,
+[00:17:42] or you know we talk a little bit later about you know condition variables,
+[00:17:54] and both can be useful,
+[00:17:55] I'll talk a little bit more about that.
+[00:17:57] And then finally there's sort of final challenge,
+[00:18:00] a big sort of conceptual challenges is you can get deadlock,
+[00:18:06] so if one thread waits,
+[00:18:07] like t1 waits for t2 and t2 waits for t1,
+[00:18:11] you know for example to release your lock before some other sequence,
+[00:18:14] you can basically so what they call deadly embrace,
+[00:18:17] you know where both waiting on the other,
+[00:18:19] as a result nothing makes for progress.
+[00:18:23] A trivial way you're getting you know deadlock in Go would be,
+[00:18:27] like you have a single thread,
+[00:18:29] there's no other threads at all,
+[00:18:30] and you're write to channel,
+[00:18:35] and that will block that one thread,
+[00:18:37] until somebody else you know read, some other read from the channel,
+[00:18:40] but if there's no other thread at all,
+[00:18:42] you know that will result in a deadlock,
+[00:18:44] like the simplest possible deadlock possible,
+[00:18:47] you know Go actually will catch this case,
+[00:18:51] and will run raise a runtime error,
+[00:18:53] saying like no threads going to run, you have a deadlock.
+[00:18:56] But there could be more complicated deadlock were involved multiple threads,
+[00:19:00] as you're going through the labs and the semester,
+[00:19:03] you I'm sure you were on into some.
+[00:19:08] So take a little bit of step back here,
+[00:19:10] and think about Go for you know these challenges,
+[00:19:18] that I just talked about.
+[00:19:20] Roughly speaking, Go has sort of two plans,
+[00:19:25] to handle these concurrency challenges.
+[00:19:29] And one plan is you know basically around channels,
+[00:19:35] and there's another plan basically around locks and condition variables.
+[00:19:52] And the way I think about it,
+[00:19:54] you know some people are quite dogmatic about this,
+[00:19:57] if one plan is better than the other plan,
+[00:19:59] my general approach here is,
+[00:20:01] like I really look a plan that is most suitable for the case that I'm looking at,
+[00:20:05] what I'm running into.
+[00:20:06] And generally you know I've no sharing,
+[00:20:10] and basically I need two threads basically to communicate,
+[00:20:14] but I don't really share any memory,
+[00:20:16] I tend to use you know channels.
+[00:20:18] If there are two threads I can do share memory,
+[00:20:21] because it's convenient to share memory,
+[00:20:23] for example I write a key-value service,
+[00:20:24] and I want to share the key-value table,
+[00:20:27] then I use locks and condition variables.
+[00:20:38] And so you know my general approach is not to be dramatic,
+[00:20:42] and you know take whatever approach
+[00:20:43] gonna actually is most convenient for the problem that has.
+[00:20:47] The tutorial does a pretty good job of actually teaching about channels
+[00:20:54] mentioned locks, doesn't seem much about condition variables,
+[00:20:57] so I I think it's worthwhile to talk a little bit about condition variables
+[00:21:02] to make sure that you are aware that they exist.
+[00:21:06] And I'm going to do that using a tiny little example,
+[00:21:09] to illustrate the issues,
+[00:21:11] attending a little example is,
+[00:21:13] we have a little bit inspired,
+[00:21:17] it's a little bit inspired by the labs,
+[00:21:19] and have a thread t1
+[00:21:21] and t1 needs to collect a number of votes
+[00:21:25] you know from remote machines,
+[00:21:27] for example needs to decide that it has a majority,
+[00:21:30] so that actually proceeds to commit some value,
+[00:21:34] and you'll see that later in like this shows up in the raft lab,
+[00:21:37] as one of the primitives that you need,
+[00:21:40] and so to do that,
+[00:21:42] you know the t1 will fork you know other threads say t2,
+[00:21:47] and t2 amazingly it don't does something expensive,
+[00:21:49] like you know talk to some remote machine to actually get its vote,
+[00:21:53] and then report back you know that vote to t1,
+[00:21:56] and t1 basically need to collect all the votes held them up,
+[00:22:00] and then [] that majority,
+[00:22:02] then declare sort of victory.
+[00:22:04] So there's a pretty straightforward simple program,
+[00:22:07] I'm going to give you a little bit,
+[00:22:08] it allows me to illustrate you a couple of issues,
+[00:22:11] we're going to switch to another screen.
+[00:22:17] Can everybody see this?
+[00:22:23] So, here I have a very simple implementation of this program,
+[00:22:29] the vote thing,
+[00:22:30] and again it's a little bit of a toy example,
+[00:22:32] that hopefully gets the point across.
+[00:22:34] The two variables shared here count and finished,
+[00:22:38] count count number of votes,
+[00:22:40] finished count when we're done,
+[00:22:43] so you know there's a loop going for 10,
+[00:22:46] creating a Go creating [launching] and anonymous function,
+[00:22:54] and anonymous function concurrently calls this function requestVote,
+[00:22:59] requestVote basically you know simulates
+[00:23:01] doing a long expensive operation on some remote machine,
+[00:23:05] and the way it simulates, it was by just going to sleep,
+[00:23:07] it block for a little while, then it returns,
+[00:23:10] and then you know the returns vote is yes,
+[00:23:13] then the count goes up,
+[00:23:15] and count in fact that actually we have one more thread voting,
+[00:23:19] and then we're done,
+[00:23:20] and so that's actually fork off 10 threads,
+[00:23:23] you know each do requestVote and report the results,
+[00:23:26] and then at the end,
+[00:23:27] we'll check if the count smaller than 5,
+[00:23:30] you know we know that we failed, lost the election,
+[00:23:33] and if we have votes equal larger than 5,
+[00:23:37] we'll basically won the election,
+[00:23:39] so this sort of simple, a very simple program.
+[00:23:43] Does it all make sense?
+[00:23:46] Let me run it, you know for the kicks.
+[00:23:52] Then, you know we're running a couple times,
+[00:23:56] something lose, something win, you know makes sense.
+[00:24:00] And so this program looks working and correct,
+[00:24:05] is it actually correct?
+[00:24:10] Sorry, is that a question,
+[00:24:11] whether this program is actually correct.
+[00:24:14] Yeah it seem to produce results.
+[00:24:19] I think there's a race condition is in there,
+[00:24:21] like you have all of these different threads implementing the count and finished variables.
+[00:24:25] And it's also, it's not clear to me,
+[00:24:33] that finished necessarily always reaches 10,
+[00:24:35] is it possible that it doesn't.
+[00:24:39] Let me, let me take these one by one
+[00:24:41] and then go for your first point,
+[00:24:42] which is really what I was after,
+[00:24:45] you know clear this as, a fact,
+[00:24:48] we have two variables here, correct, you know count finished,
+[00:24:53] they're access by different goroutines,
+[00:24:55] so this is immediately a red flag,
+[00:24:57] that could be a serious problem here,
+[00:24:58] as soon as you have a variable,
+[00:25:00] that has access to or modified and by two different goroutines,
+[00:25:04] you know there's gonna be a problem,
+[00:25:05] and so interesting to run the Go race detector,
+[00:25:08] it actually catches it.
+[00:25:10] And as you expect,
+[00:25:12] you know the Go the race detector tells you
+[00:25:14] exactly you know there's indeed some problems here in this program
+[00:25:18] and list the line number or things actually go wrong.
+[00:25:23] So it gives you a pretty good clue,
+[00:25:25] that something is not up to [] this program,
+[00:25:28] and so we're going to repair it in more steps,
+[00:25:30] and you know that will hopefully shed some more light on computer programming.
+[00:25:37] So let me give you my second solution to this program.
+[00:25:41] In this case,
+[00:25:43] we'll talk about channels a little bit later,
+[00:25:45] because I wanted to illustrate locks and condition variables first,
+[00:25:50] because they've got less emphasis in the tutorial.
+[00:25:53] So you know a simple solution,
+[00:25:55] you know Go correct introduce a lock,
+[00:25:59] the lock is completely independent of the variables
+[00:26:01] and you follow some convention,
+[00:26:04] which says like, well this lock mu protects count and finished,
+[00:26:08] and so whenever you know you access count finished,
+[00:26:11] basically you have to wrap that into the lock and unlock statements,
+[00:26:14] and so here we see two like this is there Go function runs concurrently,
+[00:26:18] and after you know the requestVote,
+[00:26:22] it's about of the vote and finished,
+[00:26:24] we take a lock out,
+[00:26:25] and then Go has this nice feature called defer statement,
+[00:26:29] that if you exit the basic block,
+[00:26:32] you know will run, will run the function that is declared by defer,
+[00:26:38] after the keyword defer,
+[00:26:41] so this means like we execute,
+[00:26:42] we leave the Go function here will automatically unlock,
+[00:26:46] this is convenient, because then you won't forget to unlock,
+[00:26:50] so it's nice to do that write point where you do the lock,
+[00:26:52] and so you can write immediately defer unlock
+[00:26:54] and then you don't have to worry about,
+[00:26:56] if there are multiple exit pass out of the goroutine or ever function,
+[00:27:00] that you forget to unlock.
+[00:27:03] So now you know we're basically in the critical section,
+[00:27:05] where we hold the lock,
+[00:27:07] we update vote count,
+[00:27:08] and then of course the function returns and unlocks automatically.
+[00:27:12] Similarly, at the, at the, at the end,
+[00:27:17] you know we got, when every time we access you know count finished,
+[00:27:21] since they share,
+[00:27:22] you know we need to round it with locks,
+[00:27:25] and a simple way of doing that,
+[00:27:26] we could have written defer unlock here too in the body,
+[00:27:29] that will being fine, right.
+[00:27:31] So we can actually run this program,
+[00:27:34] let's see.
+[00:27:37] And so we run it,
+[00:27:38] you know the race detector seems to be happy,
+[00:27:40] so hopefully we'll have a better program.
+[00:27:43] All right?
+[00:27:44] So I just have a question here about scoping,
+[00:27:47] so it seems that when we have the anonymous function,
+[00:27:49] then we have mu,
+[00:27:50] and we have the count and we have the finished,
+[00:27:52] and it seems that the anonymous function has access to
+[00:27:55] the [variable] defined outside the function,
+[00:27:57] so how the scoping rules work?
+[00:27:59] Yeah, you've been any,
+[00:28:02] with an anonymous function,
+[00:28:03] any variable that's used inside of the function is not declared inside a function,
+[00:28:07] basically resolve points to variables outside of the outer scope,
+[00:28:12] so static scope.
+[00:28:15] What about the scope of like the mutex,
+[00:28:19] like how many times you have to declare that,
+[00:28:22] or what's the scope of it, I guess.
+[00:28:24] The scope of the defer statement is this block, one basic block.
+[00:28:29] No, I mean like,
+[00:28:30] when you actually declare like the mutex data structure, I guess.
+[00:28:35] Like any other variable,
+[00:28:38] it has the same scope as finished or count.
+[00:28:41] So it applies to any variable declared in the rest of the.
+[00:28:45] Yeah, the way to think about is that,
+[00:28:47] the mutex is not directly associated with any variable,
+[00:28:51] it's just a lock, it's like a name,
+[00:28:54] and it's up to you as a programmer to decide what the lock protects,
+[00:29:01] but there are two independent concepts.
+[00:29:04] What happens, what happens if you use i in the goroutine,
+[00:29:09] that won't work, right, you need to pass that in.
+[00:29:11] Yeah, so whatever that's a good question,
+[00:29:13] and then the number be, the number of you asked from email too,
+[00:29:16] so what yeah what happens to,
+[00:29:17] like if we use i here,
+[00:29:19] and they want to do something with it,
+[00:29:21] like whatever count is i,
+[00:29:25] is a good plan or not?
+[00:29:31] What value of i will be using,
+[00:29:33] when this thread actually happens to run,
+[00:29:36] if Go starts to function function and will run at some point,
+[00:29:39] what value i will use it.
+[00:29:42] Whatever i happens to be at the time,
+[00:29:44] which is being changed by the for loop outside.
+[00:29:48] Yeah, so and so this is not so great,
+[00:29:51] it does probably not what we intended,
+[00:29:53] we probably intended to i we whatever for that loop iteration, right,
+[00:29:58] so how do we want to,
+[00:29:59] if we have to solve, how would we do.
+[00:30:02] You could add it as a parameter to the anonymous function and pass it in,
+[00:30:06] so it gets evaluated, we create goroutine.
+[00:30:10] Yeah, so would write this,
+[00:30:12] and then pass it in, right,
+[00:30:14] then at a point what happens,
+[00:30:15] then at the point, we actually create goroutine,
+[00:30:18] i is being captured, and then passed it.
+[00:30:22] Okay?
+[00:30:24] I also, how are the local variables allocated,
+[00:30:30] like if if count finished are like local variables,
+[00:30:33] wouldn't they like be destroyed after the main function exits,
+[00:30:37] like if this function made by another function,
+[00:30:39] what is like the [hitting] function existed before goroutine.
+[00:30:42] The principal allocated in stack,
+[00:30:45] and you know the presumably the other functions,
+[00:30:48] there's memory addresses references to them,
+[00:30:51] so it's indeed the case,
+[00:30:52] its main returns,
+[00:30:53] then these you know the stack allocated variables are gone,
+[00:30:57] so typically what you'll see is in a Go program,
+[00:31:00] you would allocate, I mean you know on the heap,
+[00:31:02] using new if you make a new struct or whatever.
+[00:31:06] So you get a segmentation fault then, or would.
+[00:31:08] Yeah, we'll get.
+[00:31:09] Okay.
+[00:31:14] I have a question,
+[00:31:15] I not remember this is the correct way to do it or not,
+[00:31:18] but instead of passing it in,
+[00:31:20] would it be possible to as the first line in the for loop,
+[00:31:22] do i colon equals i,
+[00:31:25] and then you're like you have a,
+[00:31:27] I don't know how the scoping works within the like block of the for loop,
+[00:31:31] because I think that should create a new variable i,
+[00:31:34] that the goroutine can access,
+[00:31:36] that isn't being updated again.
+[00:31:37] Yeah, you can do that.
+[00:31:38] That can help instead passing in, kind of makes it look ugly to me.
+[00:31:42] Okay, I I like passing in,
+[00:31:44] but that's another way of doing it,
+[00:31:45] I'll shows an example later.
+[00:31:49] So somebody asked actually you know,
+[00:31:52] do we get a segmentation fault,
+[00:31:54] we're not immediately going to get a segmentation fault,
+[00:31:56] actually take that back,
+[00:31:57] because basically one thread will still hold a reference,
+[00:32:01] so the garbage collector will not delete the object yet,
+[00:32:05] that only when the last thread actually,
+[00:32:07] only when no thread holds a reference,
+[00:32:10] you know will the garbage collector delete the object,
+[00:32:13] and these are one of the cool things
+[00:32:14] about having a garbage collected language and shared memory programming,
+[00:32:17] you don't have to worry about that scenario.
+[00:32:21] Okay, So.
+[00:32:25] Yeah.
+[00:32:26] That would, could this code like deadlock,
+[00:32:29] because like if we if the goroutines,
+[00:32:32] like took the first for loop exit,
+[00:32:34] and then the second one will like,
+[00:32:38] yeah, no, nevermind.
+[00:32:41] Okay, there are definitely some issues that are not ideal yet,
+[00:32:43] so let me actually talk about them,
+[00:32:45] one of them is that this particular loop a little bit annoying,
+[00:32:49] like there's this for loop is,
+[00:32:51] there's nothing else than waiting utill count reaches 5 finished,
+[00:32:54] and the way it does,
+[00:32:55] it is about your spinning right,
+[00:32:57] so it locks locks locks at the value quickly,
+[00:32:59] unlocks it and spins around again,
+[00:33:01] so basically is spinning on the processor, doing really nothing,
+[00:33:04] it would be nice to express that in a little bit better way,
+[00:33:06] so that basically the Go can give up the core again,
+[00:33:09] so then another thread can run.
+[00:33:11] And so the way you can do that is using condition variables,
+[00:33:14] and so this is my next implementation,
+[00:33:17] or actually I show you one other implementation,
+[00:33:21] one way to do that,
+[00:33:22] there's a little bit, not you know not so nice,
+[00:33:24] for example and somebody suggested,
+[00:33:25] this is to actually sleep for a while,
+[00:33:28] so instead of like giving up the spinning like crazy,
+[00:33:32] just sleep one period,
+[00:33:33] sleep for a period and then come back.
+[00:33:36] Of course, this solution will work,
+[00:33:37] but the downside of it is,
+[00:33:38] how long should you sleep, right,
+[00:33:40] you really would like to be the case,
+[00:33:42] that I assume for example this guy reaches 5,
+[00:33:45] then you know you wake,
+[00:33:47] you could wake up this particular you know the main thread.
+[00:33:50] And so I was jumping ahead a little bit,
+[00:33:53] but so that's what condition variables are for,
+[00:33:56] you know here's a solution with condition variables,
+[00:34:01] so, we allocated a new condition,
+[00:34:05] here's condition variable allocated,
+[00:34:08] it's associated with this particular lock,
+[00:34:10] we'll see in a second, why is important.
+[00:34:12] And you know basically the main thread what it does now,
+[00:34:15] it grabs the lock,
+[00:34:18] because it needs to grab the lock to look at count and finished,
+[00:34:20] otherwise there could be a race conditions,
+[00:34:22] and then if the condition is still not true,
+[00:34:26] it just calls Wait on this condition variable,
+[00:34:30] and what that does is actually done atomically goes to sleep
+[00:34:34] as well as releasing the lock that is associated with the condition variable,
+[00:34:38] since you know mu is actually associated the condition variable,
+[00:34:41] can wait basically unlocks the lock and goes to sleep
+[00:34:48] in an atomic operation,
+[00:34:50] and when it returns from cond.Wait(),
+[00:34:52] it will actually hold the lock again,
+[00:34:54] so the caller is, those are absolutely sure,
+[00:34:56] that if caller returns will actually held the lock again,
+[00:35:00] so it's safe again to look at count and finished
+[00:35:02] and then call Wait again.
+[00:35:04] Okay?
+[00:35:05] So basically you know this thread will go to sleep,
+[00:35:08] and then the goroutines that are collecting the votes,
+[00:35:13] you know same code as before,
+[00:35:14] mu lock and unlock or defer unlock,
+[00:35:17] and then when you're done,
+[00:35:18] you know updating count finished,
+[00:35:21] there two primitives on condition variable,
+[00:35:23] one is Signal and one is Broadcast,
+[00:35:25] and Broadcast, basically Signal waits of one waiter,
+[00:35:28] Broadcast waits of all waiters,
+[00:35:30] there's only one waiter here,
+[00:35:32] so we could have used either one of them.
+[00:35:35] And so basically when it reaches you know 5,
+[00:35:38] you know some point or 10,
+[00:35:39] then you know, so every time finished is incremented,
+[00:35:42] you know the main thread will be woken up,
+[00:35:45] you can check the condition and then keep going.
+[00:35:49] Okay?
+[00:35:50] So this is convenient,
+[00:35:51] so you can think about condition variables as
+[00:35:53] a coordination primitive between two different threads,
+[00:35:57] and their particular convenient,
+[00:35:58] when you're actually using locks you know for to protect your shared state.
+[00:36:11] So here's the same implementation of this program using channels,
+[00:36:17] and more or less worked the same way,
+[00:36:20] except with of course no locks,
+[00:36:22] but the main thread creates channel,
+[00:36:25] passes the goroutine anonymous function,
+[00:36:29] that's being created as a separate thread,
+[00:36:31] you know writes basically the requestVote to the channel,
+[00:36:34] and then the main thread basically blocks here right,
+[00:36:36] when it starts reading from channel,
+[00:36:38] Once it actually get something,
+[00:36:40] when something is written to the channel, will unlock,
+[00:36:42] you know look at the value and its true, add up,
+[00:36:45] and otherwise always increment finished.
+[00:36:49] And what's going on here correct,
+[00:36:51] we don't need locks,
+[00:36:52] because count finished not shared,
+[00:36:53] there's only one thread that actually updates count and finished,
+[00:36:57] and that's the main thread.
+[00:36:59] Okay?
+[00:37:02] The.
+[00:37:03] And this this you know the the main,
+[00:37:07] sorry, the requestVote thread you know all basically just write to this channel,
+[00:37:11] [] write concurrently perhaps in a channel,
+[00:37:14] but the channels are one of the things that Go that actually thread-safe,
+[00:37:17] so multiple threads can actually write to the channel.
+[00:37:21] Any questions about this, about the solution?
+[00:37:28] What was the thing about like having a buffer for the channel?
+[00:37:32] Yeah, so, normally when you're writing to the channel,
+[00:37:36] and nobody's reading from the channel
+[00:37:38] or no thread is reading from the channel,
+[00:37:40] then the sender will immediately be blocked,
+[00:37:42] you can specify a channel has buffers of 10 or 20,
+[00:37:48] and that allows the channel to have multiple values,
+[00:37:53] in in 6.824 labs,
+[00:37:55] I've never used buffered channels,
+[00:37:58] and one of two three times I did it,
+[00:38:00] I regretted it,
+[00:38:01] so generally I don't use it.
+[00:38:04] But this is important point,
+[00:38:07] this, this program is actually still not very good,
+[00:38:10] for example, when,
+[00:38:13] it doesn't matter in practice in this particular example,
+[00:38:17] but it does in some the labs, that could might do,
+[00:38:21] as soon as it reaches count 5 what will happen.
+[00:38:28] It stops listening for a new channel,
+[00:38:31] so any other threads are going to be blocked.
+[00:38:34] Yeah, so basically it means like if the first 5 threads voted yes,
+[00:38:38] then the next 5 threads will be blocked in this channel, right,
+[00:38:42] they'll be hanging around.
+[00:38:45] And in this case, it won't be a problem,
+[00:38:48] because most of you guys are most observed that,
+[00:38:50] if the main thread exit,
+[00:38:52] it actually cleans up all the other threads too,
+[00:38:55] but for example if this was a long running service,
+[00:38:58] this would be not good,
+[00:39:00] basically we're leaking threads here,
+[00:39:01] you know they're getting blocked on the side,
+[00:39:03] doing nothing in that channel,
+[00:39:05] so that's quite inconvenient,
+[00:39:07] and this is something to watch out for.
+[00:39:10] And this showed up in the crawler,
+[00:39:11] I think for many people in the,
+[00:39:13] and flip side of this is,
+[00:39:17] if the main thread exit too early before any of the requestVotes are done,
+[00:39:21] then you also have a problem,
+[00:39:23] and so there's management of threads that actually is often a tricky issue.
+[00:39:29] Is there a way to kill the thread without exiting from main?
+[00:39:34] Well, you can send it to a variable a value on some channels,
+[00:39:38] seemed like please exit,
+[00:39:39] but you have to coordinate it yourself.
+[00:39:47] I'm gonna go back to one of the things that actually is cool about condition variables,
+[00:39:55] is that, in principle you might think you have the same issue exists here,
+[00:40:02] where like this thread actually runs,
+[00:40:04] and in this thread,
+[00:40:07] and it might get blocked,
+[00:40:10] like for example if it reach you know 5,
+[00:40:13] you know this main thread will you know perceive doing its thing,
+[00:40:16] while the other guys are still maybe actually sitting in here,
+[00:40:20] notice these in this case, they won't be blocked,
+[00:40:24] because will grab the lock,
+[00:40:26] then you know does the thing does a broadcast,
+[00:40:29] the Broadcast is actually not a blocking operation,
+[00:40:31] so unlike you know writing to a channel,
+[00:40:33] that is a blocking operation,
+[00:40:34] if nobody is listening,
+[00:40:36] the cond.Broadcast is not a blocking operation.
+[00:40:38] So this actually works out in this particular program,
+[00:40:41] you know by itself correctly.
+[00:40:44] Okay?
+[00:40:49] Okay, good.
+[00:40:51] Any further questions about you know these two examples just to do?
+[00:41:00] Okay, then let's talk about the crawler,
+[00:41:06] so the crawler is also a more realistic example of concurrent programming.
+[00:41:15] Yeah, and just remind you,
+[00:41:16] you know basically the idea is that,
+[00:41:21] you started with url for some web page,
+[00:41:24] you fetch, you fetch the web page that might have more urls,
+[00:41:29] and when you basically proceed,
+[00:41:31] you know then fetching those web pages,
+[00:41:33] you know looking at those urls and you keep going.
+[00:41:36] The idea is to crawl basically the whole Internet
+[00:41:38] you know for all the web pages that are exist,
+[00:41:41] and of course some urls might point back to a web page you already visited,
+[00:41:46] and so goal is to actually not visit the same web page twice.
+[00:41:52] And so the goal of the exercise is a couple of goals,
+[00:41:55] you want to achieve, right.
+[00:41:57] One is IO concurrency,
+[00:42:03] the fetch operation is may take a long time,
+[00:42:06] maybe it's a web page,
+[00:42:08] it's on the other side of the world,
+[00:42:09] you know maybe it goes over slow networks,
+[00:42:11] and while you know one thread is sort of fetching that page,
+[00:42:14] you would like to be able to fetch other other other pages,
+[00:42:19] another goals is correctness goal or performance goal,
+[00:42:23] namely fetch one fetch url once,
+[00:42:30] and you know presumably your goals are like to exploit multiple cores,
+[00:42:33] you know if you have multiple cores doing work in parallelism.
+[00:42:42] Okay?
+[00:42:44] So, what I'd like to do,
+[00:42:47] before actually talking about the concurrent solutions,
+[00:42:51] first let me show you a simple serial solution,
+[00:42:56] so that we,
+[00:42:59] you know we have something to talk about as a baseline.
+[00:43:12] So, so I have three solutions in here.
+[00:43:19] Run them, go run.
+[00:43:26] A serial solution, and one of the mutex, one of the channels,
+[00:43:29] you know you see the more or less they produce the same results,
+[00:43:34] you know two found, one missing, two found,
+[00:43:36] the only difference is that,
+[00:43:38] the order of the output slightly different once in a while,
+[00:43:40] and of course it had to do concurrency.
+[00:43:44] Okay, so, the main function calls in Serial,
+[00:43:49] with the starting url, fetcher and then an empty map,
+[00:43:54] and then the serial solution is basically sort of standard sequential recursive solution,
+[00:44:01] we first check if we already visited the url that's passed into us,
+[00:44:05] if we did, you know we return immediately,
+[00:44:07] otherwise we mark this visit,
+[00:44:09] we'll fetch the url,
+[00:44:10] that this is a bunch of urls,
+[00:44:13] we look for all the urls,
+[00:44:15] and go basically Serial again, right,
+[00:44:16] this is you know sequential solution,
+[00:44:18] that's what I expected.
+[00:44:20] And you know your goal which is basically write concurrent version of this.
+[00:44:24] And so, what I like to do is
+[00:44:28] actually to make the class a little bit interactive,
+[00:44:30] I wanna go switch over to breakout rooms,
+[00:44:33] and what we're gonna do is
+[00:44:34] basically put four to five of you in a single breakout room,
+[00:44:40] for about ten minutes,
+[00:44:42] and I would like you to do is,
+[00:44:44] share your solution with each other and discuss it,
+[00:44:46] so maybe the best way to go about it is,
+[00:44:49] one of you, you know you get into a room,
+[00:44:52] one of the persons in the room,
+[00:44:54] basically screen shares their solution
+[00:44:56] and discuss what has been one of the issues,
+[00:44:59] that you see running into,
+[00:45:00] and other people can comment or share other solutions,
+[00:45:03] let's just get into a discussion
+[00:45:04] and meet some other students in the class.
+[00:45:07] Any questions about that?
+[00:45:12] Okay, good, let me go back,
+[00:45:14] to sharing my screen again,
+[00:45:17] can everybody see my screen again.
+[00:45:22] Yep, looks good.
+[00:45:23] Good, thank you.
+[00:45:29] Okay, so hopefully that was interesting,
+[00:45:32] let me you know talk about you know the solutions that I have,
+[00:45:38] they're posted on the schedule page,
+[00:45:40] if you haven't, you can look concurrently with me,
+[00:45:45] if you want to.
+[00:45:47] You should you know let me walk through the mutex version first,
+[00:45:52] and then I'll walk through the channel one second.
+[00:45:56] So here's the mutex one,
+[00:46:01] mutex one the declareation struct with the have both the map and the mutex,
+[00:46:06] and the map needs to be protected by mutex,
+[00:46:09] because it's going to be concurrent access to the map,
+[00:46:12] map by itself it's not thread-safe,
+[00:46:13] it's up to the programmer to actually make the map thread-safe.
+[00:46:17] And the concurrently mutex one more short similar to the serial one,
+[00:46:21] except whenever there's stage, basically takes a lock out,
+[00:46:24] you know so we'll take the lock,
+[00:46:25] we look at the url has already being fetched,
+[00:46:28] it hasn't been fetched,
+[00:46:29] we markd has now being fetched,
+[00:46:31] what hasn't been fetched and we unlock,
+[00:46:34] and we kept this already value
+[00:46:36] to decide whether we should return or not.
+[00:46:39] And then, you know we this goroutines starts fetching a page,
+[00:46:45] gets a bunch of urls back,
+[00:46:47] and then for every url back,
+[00:46:49] it creates a new goroutine here on this side,
+[00:46:54] passes in the url,
+[00:46:56] but goroutine is supposed to fetch and crawl.
+[00:47:00] The only sort of other interesting thing here is that,
+[00:47:05] it uses something about WaitGroup,
+[00:47:07] and WaitGroup is a very convenient primitive
+[00:47:09] to keep track how many threads you still have active,
+[00:47:12] and when you can terminate.
+[00:47:14] And this was a big issue in this particular assignment,
+[00:47:16] that if you terminated too early,
+[00:47:18] then you didn't crawl the web pages.
+[00:47:20] And so you need to keep track whatever,
+[00:47:22] whatever there's still outstanding web pages to be crawled,
+[00:47:26] sync.WaitGroup is a very easily,
+[00:47:28] basically every time you call thread, you call Add,
+[00:47:32] and then when the thread terminates, you call Done,
+[00:47:36] and we could conveniently do that in a defer statement.
+[00:47:40] And then the main thread that is waiting for all the thread to terminated,
+[00:47:43] just goes wait
+[00:47:44] and Wait will return until every thread,
+[00:47:46] that will started for every Add(1),
+[00:47:49] if all those threads actually has been exited.
+[00:47:53] That's the mutex version.
+[00:48:00] And you can think about sync wait as
+[00:48:02] sort of being internally implemented using condition variable.
+[00:48:07] Okay, let me look at the channel version,
+[00:48:12] so here's channel version
+[00:48:15] is basically sort of organized as mapreduce lab,
+[00:48:21] where there's a coordinator and workers,
+[00:48:23] so, we start of, you know we start of creating a coordinator thread,
+[00:48:29] and the way we do that actually is,
+[00:48:31] we make a channel,
+[00:48:32] and then we pass the channel into the coordinator,
+[00:48:35] the coordinator of course has to start with a url, the beginning url,
+[00:48:39] so we need to supply that on the channel,
+[00:48:41] that's the most convenient thing to do,
+[00:48:42] as we'll see in a second.
+[00:48:44] But, you know to send it on the channel,
+[00:48:46] we basically have to create a goroutine,
+[00:48:47] because otherwise we deadlock here,
+[00:48:50] we, this is a difficult thing,
+[00:48:51] we're going to just send that value on the channel.
+[00:48:55] So let's look at the coordinator,
+[00:48:58] here's the coordinator, it doesn't use any locks at all,
+[00:49:02] because you know the data structures,
+[00:49:04] that there's no data structures actually being shared,
+[00:49:07] like fetched,
+[00:49:09] the map that actually keep track of which urls actually fetched,
+[00:49:12] is actually the only access within the coordinator.
+[00:49:16] So the coordinator got,
+[00:49:18] you know when we called it initially, we've got,
+[00:49:21] it has one url, checks the fetched map,
+[00:49:25] and for every url,
+[00:49:27] then it goes basically you know cycles through reach the channel,
+[00:49:31] using a range statement,
+[00:49:33] and basically what this does is,
+[00:49:34] just keep reading the channel,
+[00:49:36] and grab the next value, grab next value, grab next value,
+[00:49:39] so basically grabs the url,
+[00:49:41] we know there's one init,
+[00:49:42] because we put it on, when we created it.
+[00:49:45] And then, for that url,
+[00:49:47] we sort of roughly do the same thing as the,
+[00:49:51] concurrent as the mutex one,
+[00:49:54] you know we see the url has already been fetched,
+[00:49:57] if it has been fetched, then we're done,
+[00:50:00] otherwise we will create a Go worker to actually fetch that url.
+[00:50:06] And we keep track of how many outstanding workers we have,
+[00:50:11] so n is counting number of workers,
+[00:50:13] and only when n is 0,
+[00:50:14] do we terminate the coordinator,
+[00:50:18] to make sure that basically we have fetched all the web pages,
+[00:50:22] that were supposed to be fetching.
+[00:50:24] And you look at worker,
+[00:50:25] worker basically calls Fetch,
+[00:50:26] this call happens completely parallel with any other workers.
+[00:50:30] If it actually fetch some url from that web page,
+[00:50:35] it basically writes all those urls to the channel,
+[00:50:38] and so the coordinator will get all those channels through range statements,
+[00:50:43] and then when it's done,
+[00:50:45] writing all the urls through channel,
+[00:50:47] then the coordinator worker exits,
+[00:50:50] and that will you know at some point decrease you know n,
+[00:50:56] and then at the end of,
+[00:50:59] and that's it basically.
+[00:51:01] Okay?
+[00:51:02] So those are the two solutions,
+[00:51:04] any questions about these?
+[00:51:13] Is it all clear?
+[00:51:16] There's a question in chat.
+[00:51:18] Okay, let me get my chat list back up.
+[00:51:33] Okay, so the question is,
+[00:51:35] when ch has a value in it,
+[00:51:37] when all other threads be idle,
+[00:51:40] if it's the case,
+[00:51:41] that's, since this is not a buffered channel,
+[00:51:44] but you know there's going to be only one request in the channel at the time,
+[00:51:48] and so all the threads you know will be appended to the channel one by one.
+[00:51:54] But doesn't that make the program sequential,
+[00:51:56] because no two threads are running in parallel,
+[00:51:59] except the main thread and one.
+[00:52:01] Well the fetchers will still happen in parallel,
+[00:52:04] those are presuming the expensive operation,
+[00:52:06] where those go out across the Internet.
+[00:52:09] Got it, thank you.
+[00:52:14] Okay, let me switch back to my other screen,
+[00:52:18] and talk a little bit about RPC,
+[00:52:21] since that's the other thing tool that you need for the labs.
+[00:52:28] We're not going to say a ton about it,
+[00:52:29] but there's RPC which stands for remote procedure calls.
+[00:52:42] And basically the goal, you know the goal of RPC system,
+[00:52:47] like the one that goal has,
+[00:52:48] so basically RPCs behave roughly similar to procedure calls,
+[00:52:53] local procedure calls the execute on the stack, right.
+[00:52:56] And so the goal is,
+[00:52:58] for example if you have a client,
+[00:53:00] in RPC terminology, the caller typically called the client
+[00:53:04] and callee is called server.
+[00:53:08] So you have a function fn,
+[00:53:11] you know we're calling with x and y
+[00:53:13] and then at the server,
+[00:53:15] there's the implementation of this function.
+[00:53:19] And so there's a function fn whatever x you know y int,
+[00:53:23] and you know it returns you know whatever does some computation,
+[00:53:27] when they can use this returns x plus y.
+[00:53:34] And so, what we would like to have happen
+[00:53:37] or like the model that we would like to ourselves to think about is that,
+[00:53:41] when the client calls this function fn,
+[00:53:43] the RPC system will make sure,
+[00:53:46] that there's any corresponding application happening on the server side,
+[00:53:50] passes the arguments x and y you know to the server,
+[00:53:53] the code runs on the server,
+[00:53:55] it you know returns a result you see,
+[00:53:59] and that result is communicating back to the client,
+[00:54:02] and you know and then fn will resume, will return,
+[00:54:07] and the client will return,
+[00:54:08] will resume with the x plus y,
+[00:54:11] in the value of x plus y as z, right.
+[00:54:14] So this looks like,
+[00:54:15] even though the programs are running on different computers,
+[00:54:18] you know they're actually have boundary here,
+[00:54:20] it looks like you know they make a regular procedure calls.
+[00:54:25] We'll see in a second,
+[00:54:27] actually we can make a lot of similarities,
+[00:54:30] so it's possible to make them behave very similar,
+[00:54:32] but you'll see there's also a sort of a fundamental difference,
+[00:54:35] and actually has what to do with distributed computing.
+[00:54:38] But before getting there,
+[00:54:39] let me first of sketch out how you can make this work.
+[00:54:43] And this is sort of roughly, let's Go does too.
+[00:54:46] So, so the way you think about it is that,
+[00:54:48] when the client,
+[00:54:50] so here our program,
+[00:54:53] and when the client calls the function fn with x and y in it,
+[00:54:57] what it does, it actually calls something that's called stub,
+[00:55:01] and stub is basically local function,
+[00:55:04] you know call fn and with two arguments declared that x and y,
+[00:55:08] and basically what the stub does,
+[00:55:11] you know think this is a stub procedure,
+[00:55:13] but stub procedure basically does,
+[00:55:15] build a message, you know saying which function needs to be called,
+[00:55:20] the arguments of the function,
+[00:55:22] you know the types of arguments,
+[00:55:25] the values of these arguments etc etc.
+[00:55:28] And then what the stub does,
+[00:55:31] actually it sends it over the network
+[00:55:33] to corresponding stub at the server,
+[00:55:39] so server receives this message,
+[00:55:42] and basically you know takes this message,
+[00:55:46] and marshall unmarshall it, is a term,
+[00:55:50] that's being used to
+[00:55:51] basically convert values from byte arrays, byte arrays back to values,
+[00:55:59] and then calls you know this function fn at the server,
+[00:56:03] here's you know fn x, blah blah blah.
+[00:56:10] So stub basically calls the function,
+[00:56:11] the function returns back into the stub,
+[00:56:14] this stub marshals you know the response value like z x plus y,
+[00:56:20] and since that back you know to the client stub,
+[00:56:25] and client stub is still waiting,
+[00:56:26] so basically the client stub the way it actually works,
+[00:56:28] it sends out the request and then wait for the response,
+[00:56:31] when the response comes back in,
+[00:56:33] you know it unmarshalls,
+[00:56:38] and then you know returns the value to the client, right.
+[00:56:41] So, basically these two stubs,
+[00:56:43] sort of make a remote procedure call look like a regular procedure call,
+[00:56:48] for almost you can't tell.
+[00:56:50] And the key, and these stubs are generally you know automatically generated,
+[00:56:56] so the compiler, and in case Go compiler
+[00:56:59] that will generate two stubs for you,
+[00:57:01] and do the marshalling and unmarshalling arguments for you,
+[00:57:06] and and that how it goes.
+[00:57:10] Also the, so when you're doing it from the server to the client,
+[00:57:14] there's also another stub again?
+[00:57:16] You basically return back to the first stub.
+[00:57:20] So this stub makes a procedure call,
+[00:57:22] to make a calls the procedure fn,
+[00:57:24] that procedure returns right into the stub,
+[00:57:26] because stub called it.
+[00:57:28] Oh, it's the same stub, that it goes in.
+[00:57:30] Exactly.
+[00:57:32] Got it.
+[00:57:33] Okay?
+[00:57:35] Okay, so, let me show you how this plays out inside of Go,
+[00:57:43] and by showing you a very simple key-value server.
+[00:57:50] And you'll see,
+[00:57:51] it doesn't look exactly our procedure calls,
+[00:57:53] but it's pretty close.
+[00:57:55] So the typical thing is that,
+[00:57:57] you actually declare typical convention should be in Go
+[00:58:01] that you declare the argument structure,
+[00:58:07] and so we're going to implement two procedures,
+[00:58:09] two remote procedures,
+[00:58:10] one is put and one is get,
+[00:58:12] and put is basically put arguments is,
+[00:58:14] the arguments through the put and put replies to response,
+[00:58:16] similar there's get arguments with request,
+[00:58:19] where the arguments through the request get procedure and the reply.
+[00:58:24] And so let me first look at the server,
+[00:58:25] so here are two functions,
+[00:58:27] you know actually the two function that we're going to be calling on the server,
+[00:58:32] I think I'll skip down for that for a second.
+[00:58:35] So we actually.
+[00:58:41] Let me talk about it a little bit,
+[00:58:43] so this is the client side,
+[00:58:45] so the client calls a function get,
+[00:58:47] and what inside of get,
+[00:58:49] you know you know this function actually connects to the server,
+[00:58:52] and see exactly what that means,
+[00:58:54] it, it fills in the arguments,
+[00:58:57] and allocates a response,
+[00:58:58] and then calls this procedure client.Call call,
+[00:59:01] you can think about this as a generic stub,
+[00:59:03] that basically takes the method that needs to be called in server,
+[00:59:06] and the arguments and the reply,
+[00:59:08] and so Call has three arguments,
+[00:59:09] the method, the argument and response,
+[00:59:13] and Call internally will send marshal the arguments,
+[00:59:18] send the message to the server over the connection,
+[00:59:21] and wait for the response reply,
+[00:59:23] when the reply comes in,
+[00:59:25] the reply structure will be filled in by the Call stub,
+[00:59:28] and then when that's done,
+[00:59:29] then return at the Call call.
+[00:59:32] And basically put looks exactly the same way.
+[00:59:37] And so on the server side,
+[00:59:38] you know let's see how that is implemented,
+[00:59:40] the server has a key-value map,
+[00:59:42] this is nothing else than a regular Go map,
+[00:59:46] and, let me see actually the key-value struct,
+[00:59:55] declared somewhere,
+[00:59:59] oh, sorry it's right above it.
+[01:00:01] So there's a struct called KV,
+[01:00:03] that actually has mutex and a map in it,
+[01:00:06] and the map is like, we're going to do the put and get operations on.
+[01:00:10] And there's a little preamble,
+[01:00:12] that you need to sort of write to setup a server,
+[01:00:16] but here it is,
+[01:00:17] you know you basically allocate a new server object,
+[01:00:22] and then this is the key operation rpcs.Register(kv) will,
+[01:00:27] register basically all the methods,
+[01:00:30] that are implemented on the KV struct with the RPC server,
+[01:00:35] with one twist, the methods only the capital named,
+[01:00:43] methods with the capital will actually be recorded,
+[01:00:46] and so basically Go use capital names to indicate public methods,
+[01:00:51] and a method with a small small caps is in private method,
+[01:00:57] so only, basically RPC register exports only capitalized methods,
+[01:01:03] for example, here's a method below,
+[01:01:04] here's a Get method, it has a capital letter,
+[01:01:07] and by calling Register,
+[01:01:09] that method is now callable by client to the connection the server.
+[01:01:14] So the server internally,
+[01:01:16] basically it creates a TCP connection,
+[01:01:19] and waits on TCP connection
+[01:01:21] to get a request or a new connection request for TCP connection,
+[01:01:25] and then calls rpcs.ServeConn to serve that TCP connection,
+[01:01:30] and basically every message that comes in over that you know connection,
+[01:01:34] it will automatically find the right method,
+[01:01:37] you know is associated with the message,
+[01:01:39] and call that method with unmarshalled arguments and marshal reply.
+[01:01:45] So, for example if the client calls Get,
+[01:01:47] you know connects to it will call makes this connection into existence,
+[01:01:52] and then if the client calls call with Get,
+[01:01:54] then this Get function will be run.
+[01:01:57] And as you can see the Get function,
+[01:01:59] first thing it does,
+[01:02:00] it actually takes a lock out,
+[01:02:01] because multiple clients could be calling the server,
+[01:02:05] and so there will be multiple goroutines running at the same time,
+[01:02:08] perhaps invoking Get and Put,
+[01:02:11] and so they were manipulating the the map concurrently,
+[01:02:14] and so we need to make sure that,
+[01:02:15] you know those that is done in an atomic way,
+[01:02:19] so therefore we use locks.
+[01:02:22] So the Get function looks at the key into the map,
+[01:02:26] looks at the key in the map, returns basically the value,
+[01:02:30] if there's no entry in the map,
+[01:02:32] it will return ErrNoKey,
+[01:02:34] otherwise it will return the appropriate value,
+[01:02:37] and that's it.
+[01:02:38] And so on the server side,
+[01:02:40] when these Get function returns,
+[01:02:42] it will marshal its response,
+[01:02:44] sends a response back to client,
+[01:02:46] the client will set it unmarshal,
+[01:02:48] it actually return it to the caller.
+[01:02:53] Okay, so that makes sense?
+[01:02:55] So that's sort of do a simple key-value server in action.
+[01:03:09] Okay, I want to make one more point,
+[01:03:10] which is an important point,
+[01:03:12] and in the end,
+[01:03:15] what's important to think about is,
+[01:03:17] what RPC semantics are under failures.
+[01:03:32] So there are different types of semantics possible,
+[01:03:34] something is called at-least-once,
+[01:03:38] this all has to do with,
+[01:03:39] what does the client do if the server fails.
+[01:03:42] So let's say the client sends request, the server crashes,
+[01:03:47] and, of course now at some point, client will timeout,
+[01:03:51] and it doesn't know whether the operation actually happened or not happened,
+[01:03:55] and at-least-once RPC semantics means,
+[01:03:59] that the client will automatically retry and will keep going,
+[01:04:02] so it has executed at least once.
+[01:04:06] The downside of course at-least-once is that,
+[01:04:08] you know the same operation might be executed multiple times,
+[01:04:11] so for example, if you do a put,
+[01:04:12] you know the put might be actually executed multiple times
+[01:04:15] at at-least-one RPC system.
+[01:04:18] So that's not appropriate for many applications,
+[01:04:20] so another type of semantics,
+[01:04:22] that's common in RPC systems is at-most-once,
+[01:04:28] so the corresponding server request actually executed either zero times or once,
+[01:04:35] but no more than once,
+[01:04:37] and the way you know that is typically implemented by filtering duplicates,
+[01:04:41] you actually doing that in in later labs,
+[01:04:46] that could could be the case,
+[01:04:47] that actually both requests actually come through,
+[01:04:50] maybe the networks like temporary partition,
+[01:04:53] the server actually gets both request,
+[01:04:54] and the server has to arrange that,
+[01:04:56] it detects a resend request and doesn't execute it twice.
+[01:05:01] Now, of course ideally,
+[01:05:04] you might actually want exactly-once,
+[01:05:06] because that's actually what the normal procedure would be,
+[01:05:09] like if you call a procedure in your server in a normal sequential program,
+[01:05:13] execution exactly once,
+[01:05:14] it's never possible to be at-least-once or at-most-once.
+[01:05:17] This turns out to be actually very hard to arrange,
+[01:05:20] this requires you know basically have to maintain state on disk,
+[01:05:25] and tend to be expensive,
+[01:05:28] and in fact in practice very few RPC systems are exactly-once,
+[01:05:32] although in the lab,
+[01:05:33] you're going to build actually one in lab 3,
+[01:05:35] you're going to actually build an RPC system that's basically exactly-once.
+[01:05:39] Okay?
+[01:05:40] In practice, Go's RPC system is at most once,
+[01:05:46] so if you do a call,
+[01:05:47] and you do the call across TCP channel,
+[01:05:49] the TCP channel will make sure that there are no duplicates,
+[01:05:52] and so and and RPC system will either execute once or none at all,
+[01:05:58] and then in the case and return an error,
+[01:06:02] and then of course the application may retry,
+[01:06:04] but you know it's the applications responsibility,
+[01:06:06] to deal with the problems of duplication and failed messages.
+[01:06:11] Okay, so here's the sort of key point, correct,
+[01:06:14] the fact that their failures,
+[01:06:15] basically makes you know RPCs not identical to procedure calls,
+[01:06:21] so you know the goal is,
+[01:06:22] to make them look as similar as possible, actually not identical,
+[01:06:25] and really the thing that exposes the differences is failures or the server crashing.
+[01:06:36] Any questions about this quick intro for RPC?
+[01:06:47] Okay, if not, then I want to stop the lecture here,
+[01:06:50] so there are people that need to go
+[01:06:51] or students need to go to the next class,
+[01:06:53] you can go to the next class,
+[01:06:54] I'll be hanging around,
+[01:06:55] so if there's any more questions,
+[01:06:56] I'll be happy to to answer them,
+[01:07:00] and stick around for a little while.
+[01:07:03] In the meantime, enjoy lab 1 and good luck with it.

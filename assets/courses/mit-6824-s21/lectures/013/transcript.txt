@@ -1,0 +1,1252 @@
+[00:00:01] Okay, thank you.
+[00:00:02] Okay, so good afternoon, good evening, good morning, good night, wherever you are,
+[00:00:06] we're going to talk today about transactions.
+[00:00:10] And you probably noticed,
+[00:00:12] the reading material for today a little bit more tutorial in nature,
+[00:00:15] we're not studying a particular system,
+[00:00:18] and see how a set of ideas are implemented in that system,
+[00:00:23] instead what we're gonna be doing is talking about just the concept of transactions,
+[00:00:30] because it it shows up in the next two papers,
+[00:00:34] that we'll be studying those two papers,
+[00:00:36] have a quite a lot of material in them,
+[00:00:39] and assume familiar with transactions,
+[00:00:43] in particular that you're familiar with the two core ideas that we'll see the today's lecture,
+[00:00:48] namely 2-phase locking and 2-phase commit,
+[00:01:06] and sometimes they are abbreviated as you know 2PC for 2-phase commit
+[00:01:10] and 2PL for 2-phase locking,
+[00:01:14] one point of confusion,
+[00:01:16] the two terms really don't have to do much,
+[00:01:19] don't have to, don't do,
+[00:01:21] really not much related,
+[00:01:23] you know they happen to have both words two words 2-phase in it,
+[00:01:29] but you know they show completely different problems,
+[00:01:32] they they have to also show up on typically in the context of transactions,
+[00:01:36] but there are even outside of transactions,
+[00:01:38] they are good ideas or worthwhile ideas,
+[00:01:42] and so don't let your self confused by the fact that they both have 2-phase in it,
+[00:01:47] they're pretty unrelated.
+[00:01:50] Okay, so I'm just gonna dive in a little bit
+[00:01:52] and start talking about transactions in general,
+[00:01:55] and the reason that we're going to care about transactions a lot is,
+[00:02:02] that we want to be able to do cross-machine operations.
+[00:02:06] So the problem that we're going to try to tackle
+[00:02:11] in this lecture as well as in the two upcoming papers
+[00:02:14] is cross-machine atomic ops.
+[00:02:26] And so for example just to make it a little bit concrete,
+[00:02:29] let's say we have a client,
+[00:02:31] we have two,
+[00:02:35] we have a sharded key value server,
+[00:02:37] so some of the keys are on key value server 1,
+[00:02:42] some are on key value server 2,
+[00:02:45] so the keys are split across them,
+[00:02:47] so for example, maybe kv1 has x, kv2 has y,
+[00:02:52] and we want to basically want to atomic operation across those two keys,
+[00:02:56] and the easy way or the classic example in the context of transactions
+[00:03:01] is always doing a transfer.
+[00:03:03] So let's say the client wants to do a transfer from x to y,
+[00:03:09] here's our client,
+[00:03:11] and it's gonna do basically put you know to x,
+[00:03:16] to maybe add or subtract from the account,
+[00:03:21] so let's do x,-1
+[00:03:23] and then the client is going to do put of y,+1,
+[00:03:29] transfer namely one dollar from you know the account x to the account y.
+[00:03:35] And our goal is basically going to be,
+[00:03:40] you know we want atomicity with respect to failures and concurrency.
+[00:03:56] So even if you know [] kv,
+[00:04:00] the first key value server fails after the put,
+[00:04:04] then we want like to arrange it,
+[00:04:07] basically the transfer didn't happen at all,
+[00:04:09] so generally the semantics that we're looking for is that,
+[00:04:11] both operations happen or neither one of them happens.
+[00:04:15] And so, similarly from concurrency perspective,
+[00:04:18] if another client is running
+[00:04:19] and also tries to inspect these accounts,
+[00:04:21] now what we would like to be the case is that,
+[00:04:23] both puts show atomically,
+[00:04:26] and so other transaction cannot observe intermediate results,
+[00:04:30] where intermediate result,
+[00:04:31] for example, the money is deducted from x,
+[00:04:34] that hasn't been added to y yet.
+[00:04:36] So, these are the type of things we want to do
+[00:04:39] and it's complete common in distributed systems,
+[00:04:41] you know that you would like to do operation across shards.
+[00:04:48] So that's sort of the context of what we'd like to do
+[00:04:53] and the general plan for doing this is comes directly from the database community,
+[00:04:58] this general plan is transactions.
+[00:05:10] And what we'd like to do is basically group these operations,
+[00:05:14] for example in the case with the transfer,
+[00:05:15] two put operations into a single transaction.
+[00:05:19] And, we like, then the property that this transaction executes atomically,
+[00:05:24] so you know typically this requires some program annotations,
+[00:05:29] so begin_x to indicate that the client wants to start a transaction,
+[00:05:35] you know may be then you know the operations like add, you know add x -1
+[00:05:42] and then add y you know +1,
+[00:05:47] and then you have to indicate when the transaction is completed
+[00:05:51] and so typically we come to make a commit.
+[00:05:56] And, and so the semantics that we're looking for is that,
+[00:06:00] these operations are executed atomically
+[00:06:04] with respect to concurrency and respect to failure.
+[00:06:07] And just to make it a little bit more exciting,
+[00:06:09] let's look at second transaction,
+[00:06:10] so that we can look at some case studies
+[00:06:13] about how transactions actually interact,
+[00:06:15] we might have a second transaction begin_x,
+[00:06:20] which reads actually these accounts,
+[00:06:24] so t1 gets x, and then t2 you know gets y,
+[00:06:33] and print t1 and t2,
+[00:06:38] and then end or commit.
+[00:06:48] So we have a second transaction,
+[00:06:49] that basically reads the account x and y and prints the values.
+[00:06:52] And one reason that we have two transactions,
+[00:06:55] so that we can look from the concurrency perspective,
+[00:06:58] how these transactions actually ordered,
+[00:07:00] what are legal outcome and what are illegal outcomes.
+[00:07:04] Transactions turned out to be a general, almost like a piece of magic,
+[00:07:10] basically programmers can annotate these begin and end operations,
+[00:07:15] and it takes a whole group of operations together,
+[00:07:18] make them atomic
+[00:07:19] and use the system will take care of everything,
+[00:07:21] it will take care of the locking,
+[00:07:22] will take care of the recovery,
+[00:07:24] it's all like the programmer doesn't have to worry about it,
+[00:07:26] the transactions is a very very powerful construct,
+[00:07:31] and they're useful in non distributed systems,
+[00:07:34] you know you have a single database machine or multi-core database machine,
+[00:07:39] and clients are submitting transactions to it,
+[00:07:41] then the transaction system will execute these transactions
+[00:07:44] as much as concurrently as possible,
+[00:07:46] but also even if machine fails, it comes back up,
+[00:07:49] you know you can actually expect the results to be there.
+[00:07:54] And our focus of course is going to be distributed transactions,
+[00:08:02] you know what I had the previous slide,
+[00:08:05] namely one example across shards,
+[00:08:10] which is a common case in data centers.
+[00:08:14] The typical API of transaction also has one more operation
+[00:08:18] that I didn't list here,
+[00:08:20] and that is abort,
+[00:08:24] so the two transactions shown here are both committing,
+[00:08:27] but you could immediately have transaction that decides to abort,
+[00:08:30] you know for example you might discover that,
+[00:08:34] for example transaction T1 might check
+[00:08:37] the x has sufficient money in it in the account,
+[00:08:40] and if the account doesn't have sufficient money,
+[00:08:43] instead of calling commit, it would call abort,
+[00:08:46] and at that point the transaction would be cancelled,
+[00:08:50] and even if the transaction aborts you know sort of halfway through,
+[00:08:53] and maybe has done some put operations,
+[00:08:56] the still the semantics should be,
+[00:08:57] that none of those put operations actually happened.
+[00:09:01] So in all cases where it's abort or commit,
+[00:09:05] either all of them happen or none of them happen,
+[00:09:08] never partial result,
+[00:09:10] abort also might be called by the transaction system itself,
+[00:09:14] for example as we'll see later,
+[00:09:16] if a there's a, there's a deadlock between two transactions,
+[00:09:21] then the transaction system actually can abort one of the transactions,
+[00:09:24] in the,
+[00:09:26] so that the other transaction continue
+[00:09:27] and maybe retry later the transaction that was abort.
+[00:09:32] Okay, so this is sort of primitives,
+[00:09:34] you know begin_x commit and abort, three key interface operations.
+[00:09:42] And then the semantics of transactions
+[00:09:46] are typically summarized by a single word, namely ACID,
+[00:09:54] and that stands for four key properties with transactions.
+[00:09:58] One, it's atomic,
+[00:10:05] and here really atomic refers to the case,
+[00:10:07] where we have two transactions running,
+[00:10:10] and one transaction does multiple put operations or multiple add operations,
+[00:10:14] all those results will be,
+[00:10:15] all visible to the other transaction or none of them will be visible,
+[00:10:20] so that's one aspect,
+[00:10:21] sorry, I say this, I said this is wrong,
+[00:10:29] so the atomic actually means to crash recovery case,
+[00:10:31] so, if a transaction actually multiple put operations,
+[00:10:36] the transaction crashes halfway,
+[00:10:40] the rule is that all the writes are visible,
+[00:10:43] all writes around a stable storage or none of them,
+[00:10:46] was the atomic sort of respect to crash recovery.
+[00:10:49] The C stands for consistent,
+[00:10:53] which is something we're mostly not going to talk about,
+[00:10:56] it's more related to databases,
+[00:10:58] it's often the case that database have internal variants,
+[00:11:01] like referential integrity, is one of them,
+[00:11:04] and the transaction is supposed to maintain that consistency,
+[00:11:10] and so no internal consistencies,
+[00:11:13] this is going to be less of a topic for us today.
+[00:11:15] The three is isolated, the I stands for isolated,
+[00:11:23] and isolated was,
+[00:11:25] what I just said earlier incorrectly,
+[00:11:27] isolated actually refers to the case,
+[00:11:29] we're running two transactions,
+[00:11:30] and they don't see,
+[00:11:33] they should not observe intermediate results from each other,
+[00:11:35] so again all the writes are applied,
+[00:11:40] all or nothing with respect to [] to another transactions.
+[00:11:44] And finally, the D stands for durable,
+[00:11:49] meaning that if the transaction commits,
+[00:11:52] then the results are written to a stable storage,
+[00:11:55] so that if the system crashes, comes back up later,
+[00:11:58] the latest writes or the latest transactions,
+[00:12:01] the latest committed transactions are actually recorded on stable storage.
+[00:12:08] Any questions about quick introduction to transactions?
+[00:12:22] Okay, so I'm gonna talk basically about two topics quite a bit,
+[00:12:28] namely the A part of the transactions and the I part of transactions.
+[00:12:33] We're gonna start with the I part,
+[00:12:36] and talk a little bit about what actually correct isolation means.
+[00:12:44] So basically what we're looking for is a definition
+[00:12:47] for correct execution of multiple transactions or concurrency transactions,
+[00:12:52] in the typical definition or [] standard in the database literature,
+[00:12:57] is called serializable or serializability,
+[00:13:09] and what that means is that,
+[00:13:10] if you have two transactions or many transactions,
+[00:13:13] they execute concurrently,
+[00:13:15] then the outcome has to be some serial order,
+[00:13:20] so either t1 executes before t2 or t2 executes before t1,
+[00:13:28] there's some serial or serial order,
+[00:13:36] and the serial order has to produce the same outcome as the concurrent execution,
+[00:13:44] so you get run two transaction concurrently,
+[00:13:47] they produce some outcome,
+[00:13:49] that outcome is only valid or legal or correct,
+[00:13:52] if it could have been the result of a serial execution.
+[00:13:58] So just to make concrete, for example,
+[00:14:01] let's say in the account case x starts out as being 10,
+[00:14:05] y starts out as being 10,
+[00:14:08] we run these two transactions,
+[00:14:10] that we had earlier on the board,
+[00:14:12] here might be what the two transactions are,
+[00:14:14] and one basically moves one between two accounts
+[00:14:18] and the other one prints the results of the two.
+[00:14:21] So if you think a little bit about it,
+[00:14:23] if t1 goes first,
+[00:14:25] then the outcome is gonna be 9,10,
+[00:14:30] and the print statement is going to be,
+[00:14:40] yeah, and the print statement,
+[00:14:42] actually there's 9,10, sorry 9,11,
+[00:14:45] that's why I got confused,
+[00:14:48] and the print statement is also going to say,
+[00:14:50] x was the one that was substract, so 9 11,
+[00:14:55] so we get the string 9,11 out
+[00:14:57] and two value of the accounts are 9,11,
+[00:15:00] if two t2 goes first,
+[00:15:04] then the outcome is you know 10,10,
+[00:15:07] because nothing no money has moved yet,
+[00:15:09] and then t1 goes,
+[00:15:12] so that's a possible outcome.
+[00:15:15] And so that's the two legal outcomes of the two transaction,
+[00:15:18] that we're actually,
+[00:15:21] if we executed the two transactions concurrently
+[00:15:23] and the system guarantees serializability.
+[00:15:28] Now you notice that serializability has probably a lot of flavor,
+[00:15:33] of like the terminology that we used before namely linearizability,
+[00:15:37] the key difference between serializability and linearizability is that,
+[00:15:41] in linearizability, there's a real-time, a real-time component,
+[00:15:44] that if transaction t2 start after t1 ends,
+[00:15:50] then t2 has to show up later in the total order,
+[00:15:53] in the serial order,
+[00:15:54] in serializability, that is not required,
+[00:15:56] so even if transaction started
+[00:15:58] were clock time a little bit later than another transaction stopped or finished,
+[00:16:03] and the system is still allowed to reorder it,
+[00:16:08] so serializability in some ways a little bit weaker than linearizability.
+[00:16:14] Nevertheless, serializability is a very convenient programming [idea], right,
+[00:16:19] because from programming perspective,
+[00:16:22] you could always think about transactions executing in some serial order,
+[00:16:26] and you don't have to consider all kinds of interleavings.
+[00:16:31] Okay, so even though serializability slightly weaker than linearizability,
+[00:16:38] it actually disallows a whole bunch of problematic cases.
+[00:16:44] So let me talk a little bit about that,
+[00:16:46] just to make clear what actually serializability means,
+[00:16:52] and what sort of executions,
+[00:16:55] the transactions, the transaction system actually has to forbid?
+[00:17:01] And, so let's, you know two cases,
+[00:17:03] like here we have the first transaction,
+[00:17:08] we have the second transaction running,
+[00:17:11] so t1 runs, t2,
+[00:17:14] and you know one outcome that we could have,
+[00:17:17] is like one possible execution that might happen is,
+[00:17:21] if we if we don't do something special,
+[00:17:23] you know t1 gets x,
+[00:17:29] you know here the transfer happens,
+[00:17:31] so the updates x y happen,
+[00:17:35] and then you know t2 does get y,
+[00:17:40] and you know is this illegal
+[00:17:43] or is this a serializable, is this a serializable execution?
+[00:17:47] That's sort of question we have to ask,
+[00:17:50] and what is the answer to that one?
+[00:17:54] This is not serializable.
+[00:17:57] Yeah, and because you know the outcome,
+[00:17:59] you know if we write down what the outcome is, correct,
+[00:18:01] then the outcome is gonna be 9,11 here,
+[00:18:05] and this is going to write down a 10,11, right.
+[00:18:11] I think so.
+[00:18:13] And if we go back to our previous slides,
+[00:18:15] that is not one of the two legal outcomes, right,
+[00:18:18] so this is not good.
+[00:18:20] So when we think about the implications of transaction system,
+[00:18:24] it has to be the case,
+[00:18:25] that it forbids this particular execution schedule,
+[00:18:30] you know this is a simple version,
+[00:18:32] transactions for these two examples are not so complicated,
+[00:18:34] so there not that many interleavings you have to,
+[00:18:36] you, you could consider that could go wrong.
+[00:18:39] But there's at least one, other one,
+[00:18:40] that can result in not an incorrect outcome,
+[00:18:44] which is we do the put x first,
+[00:18:50] so here we go,
+[00:18:53] then you know we actually print the two,
+[00:18:56] do two gets, get(x) get(y),
+[00:19:03] and we do the put(y),
+[00:19:07] is this a serializable execution,
+[00:19:22] is this an execution that we should be forbidden by the serializable transaction system,
+[00:19:26] or is it okay execution?
+[00:19:31] It should be forbidden.
+[00:19:32] It should be forbidden, correct,
+[00:19:33] because as an outcome,
+[00:19:35] that could not have happened,
+[00:19:36] if we executed t1 first followed by t2
+[00:19:40] or t2 first followed by t1, right.
+[00:19:44] Okay, so what we clearly see is that,
+[00:19:46] you know serializability excludes you know executions,
+[00:19:51] and just do, in order to actually make it easier for programmers
+[00:19:55] to think about actually what database does.
+[00:19:58] And there are two broad approaches to forbidding executions,
+[00:20:05] and in these approaches,
+[00:20:08] the approach forbidding is called concurrency control.
+[00:20:22] In the first approach,
+[00:20:24] for the first category of solutions is,
+[00:20:28] what is called pessimistic solutions,
+[00:20:35] and the pessimistic solution basically involve locks,
+[00:20:40] so the idea is that,
+[00:20:42] when the transaction runs or starts,
+[00:20:45] it requires necessary, necessary locks to maintain serializability,
+[00:20:51] and only release the locks when it's guaranteed,
+[00:20:55] that the executions will result in a serializable execution,
+[00:20:59] so that's one approach
+[00:21:01] and we're going to talk a little bit more about in a second.
+[00:21:03] The second approach is is is optimistic,
+[00:21:12] and in the optimistic approach, there was basically no locks,
+[00:21:17] and optimistic approach, you just assume things are gonna work out,
+[00:21:21] and basically when you get to the commit point,
+[00:21:24] you know the [] system sort of ask yourself the question,
+[00:21:28] well, you know all the given the operation I've done in the past,
+[00:21:32] is that actually could that be a the result of a linearizable execution,
+[00:21:36] or could that be the result of a serializable execution,
+[00:21:40] if so, things are fine, no problem at all,
+[00:21:44] then you know we're good,
+[00:21:45] if it is result this doesn't correspond to a single execution,
+[00:21:50] they were basically just abort,
+[00:22:02] and maybe and it will retry probably.
+[00:22:06] And so we'll see,
+[00:22:08] I'm not gonna talk much about optimistic concurrency control right now,
+[00:22:12] but next week or two weeks from now,
+[00:22:14] after reading the FaRM paper,
+[00:22:16] and you'll see an optimistic transaction system, distributed transaction system
+[00:22:21] of the type that we're considering,
+[00:22:23] that uses an optimistic, optimistic control concurrency control approach,
+[00:22:29] but the focus for today is going to be pessimistic.
+[00:22:34] And one you know sort of the [flip way],
+[00:22:39] that these two approaches are described a in literature often is,
+[00:22:42] sort of pessimistic is,
+[00:22:44] you know you ask for permission first and then you do your operations,
+[00:22:48] and the optimistic sort the other way around,
+[00:22:50] you just go ahead and do your operations,
+[00:22:53] and it turns out to be wrong, you just apologize later.
+[00:22:57] So that is sort of analogy if you will,
+[00:23:02] between the two different approaches.
+[00:23:05] And now within each approach,
+[00:23:07] whether it's pessimistic or optimistic,
+[00:23:09] there are many different concurrency control plans,
+[00:23:13] you know to either increase their concurrency
+[00:23:16] or provide weaker consistency and with more concurrency,
+[00:23:20] and so there's like a, there's a [huge literature].
+[00:23:23] And I'm just gonna talk about one particular approach,
+[00:23:30] which is very popular,
+[00:23:31] particularly if you want to achieve serializability,
+[00:23:35] it turns out that not,
+[00:23:36] alrough I said like serializability is a gold standard for databases,
+[00:23:39] it's often [] that databases offer multiple degrees of isolation,
+[00:23:44] so you know as a programmer,
+[00:23:45] you can sort of pick you know the degree of isolation that you like,
+[00:23:49] and the reason you may want to pick a weaker degree of isolation,
+[00:23:52] so that you can get more concurrency.
+[00:23:55] Now we're going to stick to the gold standard of concurrency,
+[00:23:58] which is namely serializability,
+[00:24:00] and if you do serializability,
+[00:24:02] then a common approache is 2-phase locking,
+[00:24:15] in 2-phase locking, basically sort of lock per record,
+[00:24:21] that's the starting point for database record,
+[00:24:24] and you know in our little example,
+[00:24:27] that would be sort of a lock for variable,
+[00:24:31] and lock for x and lock for y.
+[00:24:34] And there's basically two rules,
+[00:24:37] one, transaction requires a lock before using,
+[00:24:52] and so the idea is,
+[00:24:53] before you know you can read or write you know to x y,
+[00:24:58] you first have to obtain the lock,
+[00:25:00] and the transaction system will do this for you,
+[00:25:03] two, the T holds a lock,
+[00:25:08] once you're acquired,
+[00:25:10] you're not allowed to release it until commit or abort,
+[00:25:16] whatever, whatever is the end of the transaction.
+[00:25:20] Okay, and so in our particular case,
+[00:25:22] if we have like T1 running and we have T2 running,
+[00:25:28] and T1 locks x first,
+[00:25:31] and then you know lock y,
+[00:25:34] and it has to maintain those locks
+[00:25:36] until it actually reaches commit points,
+[00:25:41] so T2 runs at the same time or roughly at the same time,
+[00:25:44] if T2 starts a little bit later,
+[00:25:47] and it tries to grab the lock in x,
+[00:25:49] t1 will have it,
+[00:25:51] if T2 started a little bit later,
+[00:25:53] and at that point, basically T2 has to wait,
+[00:25:58] sort of standard locking protocol.
+[00:26:01] And the basic idea 2-phase locking is that,
+[00:26:04] it's sort of a refinement or improvement over this simple locking scheme,
+[00:26:09] that is described in the document
+[00:26:11] and which sometimes are called simple locking or strict locking,
+[00:26:15] where basically at the beginning of the transaction,
+[00:26:17] you grab all of the locks you need for the whole transaction,
+[00:26:20] you hold them until the end and then you release them,
+[00:26:23] and 2-phase locking is a little bit more fine-grained,
+[00:26:26] in that, even if the transactions [],
+[00:26:32] and they are not required to lock immediately
+[00:26:34] all at the same time at the beginning,
+[00:26:37] instead, they require the locks incrementally as the transaction runs,
+[00:26:41] which allows certain concurrency patterns that are disallowed by strict lock.
+[00:26:47] Now, the first rule seems pretty clear,
+[00:26:50] why you need it,
+[00:26:52] the second rule might be, maybe less obvious,
+[00:26:56] and so it's a probably a good idea
+[00:26:58] to actually see what goes wrong,
+[00:27:00] if you did not maintain the second rule.
+[00:27:03] And so, let's say talk a little bit about until commit,
+[00:27:12] and so here we have our two transactions,
+[00:27:16] T1 and T2 you know the transfer and the print statement,
+[00:27:22] and so let's say you know,
+[00:27:23] here we do our put of x,
+[00:27:26] and so that means before the put x,
+[00:27:28] transaction system locks x,
+[00:27:31] and let's say that we're not following the 2-phase locking rule,
+[00:27:35] and we actually release the lock x right after the put,
+[00:27:40] because we're done with it,
+[00:27:41] actually doesn't show up in transaction t1 anymore,
+[00:27:44] there will be a later put, for us put to y,
+[00:27:48] and let's assume that,
+[00:27:48] before actually get to the locking of y, T2 runs,
+[00:27:54] and actually T2 basically the whole,
+[00:27:58] you know the two gets, you get of x and get y run,
+[00:28:04] and so since you know T1 release the lock x,
+[00:28:07] you know it can get the lock x,
+[00:28:09] since T1 hasn't done to the put yet,
+[00:28:13] you know it can also get the lock on y
+[00:28:16] and so you know print x and y,
+[00:28:19] and reset and then release locks.
+[00:28:26] So, is this, would this be a serializable execution?
+[00:28:41] No, it's the same as before.
+[00:28:43] Yeah, exactly the same as before, right,
+[00:28:45] because basically the print statements like here,
+[00:28:49] they sort of slipped in between the two put in x and y,
+[00:28:52] between the two put of the x and y,
+[00:28:54] and we already concluded earlier,
+[00:28:56] that is not a serializable conclusion, serializable execution.
+[00:29:00] So this is wrong,
+[00:29:01] and so this is a good example of demonstrating,
+[00:29:03] that if you release the lock too early,
+[00:29:05] in this case T1 release the x too early,
+[00:29:09] you're not gonna get a serializable execution.
+[00:29:12] And one way to think about it basically is that,
+[00:29:14] whatever there's sort of an intersection between you know two lock sets,
+[00:29:20] so T1 has a lock set of x and y,
+[00:29:22] T2 has a lock set of x y too,
+[00:29:25] it is important that,
+[00:29:27] you know during, these two transactions can order in a particular way,
+[00:29:32] that means that if the locks intersect,
+[00:29:35] you know we have to make ensure some total ordering,
+[00:29:37] and that means that we actually have to
+[00:29:39] hold the lock to the end until the commit point,
+[00:29:42] so that no intermediate results of the transaction are actually visible to other transactions,
+[00:29:48] and we release locks before the commit point,
+[00:29:50] we might actually make a result visible,
+[00:29:52] even though you know may be later it's actually even abort, right,
+[00:29:55] and then the whole change will go away,
+[00:29:59] so this is the reason why the locks must be held to the end.
+[00:30:04] Now, an obvious problem that many of you asked about,
+[00:30:07] in 2-phase locking,
+[00:30:10] is there is a, is there a chance of deadlock,
+[00:30:14] if you're requiring the locks as the transactions execute.
+[00:30:19] And so let's,
+[00:30:20] this is absolutely the case,
+[00:30:22] and so for example, let's modify T2 slightly,
+[00:30:26] so T2 used to be,
+[00:30:28] you know t1 gets x,
+[00:30:30] instead we're going to do with in the opposite order refers to get y,
+[00:30:34] and t2 gets x,
+[00:30:39] and we remain we keep T1 the same, right,
+[00:30:42] so T1 actually still the first put to x and then put to y,
+[00:30:46] so now we can easily get into trouble,
+[00:30:49] so this is T2 prime,
+[00:30:51] and this is just the ordinary T1 that we already have,
+[00:30:55] it does put of x,
+[00:30:57] you know before doing the put of x
+[00:30:59] and needs to get the lock on x,
+[00:31:01] so L locks Lx.
+[00:31:04] Now let's say that the ordering works out as follows,
+[00:31:08] you know the same time to T2' runs,
+[00:31:12] it does get y,
+[00:31:15] so that means you've got the lock on y,
+[00:31:18] and now you can easily see what goes wrong here,
+[00:31:21] now t1 is gonna do put of y or wants to do put y,
+[00:31:27] so we need to get the lock on y,
+[00:31:30] but you can't get it,
+[00:31:32] because you know T2' actually has the lock,
+[00:31:35] so it has to wait here and the block,
+[00:31:38] you know same thing is gonna happen of course on the other side,
+[00:31:41] you know when before doing the get of x,
+[00:31:44] T2 will need to get the lock of x,
+[00:31:48] and you know it can't get the lock of x,
+[00:31:51] because T1 has it,
+[00:31:53] and so this has to wait too,
+[00:31:57] and now we have you know T1 waiting T2',
+[00:32:02] and we have T2' waiting T1,
+[00:32:04] we basically have a deadlock.
+[00:32:09] Now, what is the cool part about transaction systems is that,
+[00:32:12] we have the abort operation,
+[00:32:14] and so if the transaction system could detect a deadlock,
+[00:32:19] could use abort one of the two transactions,
+[00:32:21] let the other one proceed,
+[00:32:23] and hopefully that will actually get to the end and commit
+[00:32:26] and abort the other one,
+[00:32:28] and then the client or the application can decide
+[00:32:32] what to do with abort of transactions,
+[00:32:33] it can actually retry it,
+[00:32:35] you know may be so wait a little bit and then retry,
+[00:32:37] in the hope at that point you're not going to run into a deadlock.
+[00:32:42] And so one way to think a little bit about 2-phase locking is that,
+[00:32:46] it has a little bit of optimistic you know flavor to it,
+[00:32:50] in the sense that,
+[00:32:51] it's not guaranteed,
+[00:32:52] it won't run into problems,
+[00:32:54] but even if it runs into problems,
+[00:32:56] you know you can always abort and then recover from that problem.
+[00:33:03] Any questions about this?
+[00:33:11] So you say how do you, how do you find the deadlock?
+[00:33:14] That's exactly I was hoping that somebody was asking that question.
+[00:33:17] So the way, there's sort of two broad approaches that people use,
+[00:33:21] one is,
+[00:33:24] yeah, one is not solid as well,
+[00:33:26] one is basically on a timeout basis,
+[00:33:32] like if the transaction running for a long time,
+[00:33:35] and you know they don't seem to make forward progress,
+[00:33:37] you just abort one of them,
+[00:33:40] and so this timeout based,
+[00:33:42] the more systematic sort of way of thinking about it is,
+[00:33:45] to construct an wait-for graph,
+[00:33:48] as the transaction systems you know are moving,
+[00:33:51] so for example if t1 runs,
+[00:33:54] so a in the wait-for graph,
+[00:33:56] the transactions are nodes,
+[00:33:57] so we got a node T1
+[00:33:59] and we make a node T2,
+[00:34:00] when they start,
+[00:34:01] with T2' if you will,
+[00:34:03] and when T1 runs you know gets x, [] [],
+[00:34:07] then gets to the lock of y,
+[00:34:08] it can't do it,
+[00:34:10] so we'll make an arrow from T1 to T2'
+[00:34:14] to indicate that T1 is waiting for T2',
+[00:34:18] then at some point, like you know T2 running,
+[00:34:20] you know T2 hits this, T2' hits this point,
+[00:34:24] where it want to lock x, it can't do it.
+[00:34:26] So we'll look at,
+[00:34:28] what's waiting for, who's holding the lock,
+[00:34:30] well, it's t1,
+[00:34:31] so we'll put an edge you know in the wait-for graph
+[00:34:35] from T2 to T2' to T1,
+[00:34:39] and now we see there's a cycle,
+[00:34:42] and whenever there's a cycle,
+[00:34:43] that means there's a deadlock,
+[00:34:45] because one is waiting on the other,
+[00:34:47] and the other is waiting on the first.
+[00:34:49] And so, the transaction system can construct these graphs on the fly,
+[00:34:54] detect when there's a cycle in the graph,
+[00:34:57] and then for example either abort T1 or abort T2'.
+[00:35:03] It's call the wait-for graph.
+[00:35:13] What happens after the abort?
+[00:35:16] Well, so let's say we have abort T2,
+[00:35:21] just for as an experiment,
+[00:35:23] so we're gonna kill this guy,
+[00:35:25] so T2 basically the transaction system is going to arrange,
+[00:35:30] so we'll see in a second,
+[00:35:31] it's going to arrange that basically none results of T2
+[00:35:34] or t2 is visible,
+[00:35:36] at that point, the lock is released,
+[00:35:39] the abort will force the lock release of the y,
+[00:35:44] because t2 is backing out,
+[00:35:46] that means that you know T1 can get the lock on y and proceed to finish,
+[00:35:51] the client that called T2' is going to learn,
+[00:35:54] that the transaction abort it,
+[00:35:56] and for general you can just choose to rerun it again.
+[00:36:05] Does it makes sense?
+[00:36:11] Okay, so this is sort of the first part,
+[00:36:15] and you know actually what I wanted to say about 2-phase locking,
+[00:36:18] except I wanted to address the sort of homework assignment again,
+[00:36:22] which is like in what situations,
+[00:36:24] does 2-phase locking allow for more concurrency than strict locking,
+[00:36:28] where strict locking was the protocol,
+[00:36:30] where the transaction acquires all the locks in advance,
+[00:36:35] and this requires that the programmer
+[00:36:37] or like the beginning of the transaction basically declares
+[00:36:40] which locks the transaction actually needs,
+[00:36:42] sort of slightly indesirable, less programmer friendly,
+[00:36:45] but it has the advantage,
+[00:36:47] that you know you don't actually,
+[00:36:48] you can run into these,
+[00:36:51] you don't have to abort transaction at the end,
+[00:36:55] in case you run into a deadlock.
+[00:36:57] So 2-phase locking allow for more concurrency in principle,
+[00:37:01] or should allow for more concurrency
+[00:37:03] than the strict locking or simple locking scheme.
+[00:37:07] And so I would like to do is a quick breakout room
+[00:37:10] for a couple minutes like five minutes again,
+[00:37:13] and you know convince yourself or constructing case,
+[00:37:17] where simple locking which disallows some concurrency,
+[00:37:21] that 2-phase locking is actually able to exploit.
+[00:37:27] Cool, all right, let's do breakout rooms.
+[00:37:34] Okay, see you in five minutes.
+[00:44:07] We can't hear you.
+[00:44:18] I think you're muted.
+[00:44:36] I have a question about one of the previous slides that you're talking about.
+[00:44:41] Hold on, let me double check if everybody can hear me now.
+[00:44:44] Yes.
+[00:44:45] Okay, good, go ahead.
+[00:44:51] On one of your previous or I guess this is just a general question,
+[00:44:54] but is the lock point always the same as the commit point,
+[00:44:57] or is it possible to start relinquishing locks before your commit point.
+[00:45:02] Okay, this is a very good question,
+[00:45:04] so depends,
+[00:45:06] so if you only do exclusive locking,
+[00:45:09] as we've done so far,
+[00:45:12] at least in my examples,
+[00:45:13] then commit point is similar to the,
+[00:45:15] the lock point is similar to the commit point and the abort point,
+[00:45:18] if you have read write locking,
+[00:45:20] the locks that allow both read locks and write locks,
+[00:45:25] then, it's possible to release read locks earlier with some restrictions.
+[00:45:33] Okay.
+[00:45:35] Okay, so can somebody give me one example
+[00:45:40] of where 2-phase locking is allowing for more concurrency than simple locking,
+[00:45:45] just to make sure we're all on the same page.
+[00:45:52] The audit function example,
+[00:45:54] like you can release the lock as soon as you read this person's amount,
+[00:46:01] like you don't have to wait until you read everyone's.
+[00:46:04] This is an example of exploiting the read read locks,
+[00:46:07] if you have read locks.
+[00:46:15] Any other examples?
+[00:46:20] If you have a transaction,
+[00:46:21] where there's a condition that only rarely like is true,
+[00:46:26] and you read a piece of data when it's true,
+[00:46:29] so, at the beginning, you don't need to acquire the lock for that,
+[00:46:32] only when you actually need to read it.
+[00:46:34] Yeah, that's a great example,
+[00:46:35] I personally like that example a lot,
+[00:46:36] that's a great one.
+[00:46:39] Good, okay, good,
+[00:46:40] so let's move on basically down to the second topic of this lecture,
+[00:46:44] which is 2-phase commit,
+[00:46:49] this is really dealing with crashes,
+[00:46:54] switch back to blue and on the white.
+[00:47:02] We can't see the slides either yet.
+[00:47:05] Oh, let me fix that,
+[00:47:11] and hold on,
+[00:47:15] share screen, step to share,
+[00:47:21] how about now?
+[00:47:23] Okay.
+[00:47:24] Good, thank you.
+[00:47:27] Alright, so 2-phase commit or 2PC that's popular called,
+[00:47:36] again this is a very well-known popular protocol,
+[00:47:42] I'm going to talk about that,
+[00:47:44] base sort of simple straightforward or the most common version of the protocol,
+[00:47:49] they're all kinds of variations of it,
+[00:47:52] but you know in they also have the same underlying idea.
+[00:47:59] And so again, typically in 2-phase protocol,
+[00:48:03] and I'm going to do it in the context of the transfer transaction,
+[00:48:07] so a client that actually wants to do a transfer,
+[00:48:10] you know basically submits the transfer transaction to transaction system,
+[00:48:15] and the the machine sort of receive transaction is called the coordinator,
+[00:48:23] and that machine is in charge of running the transaction through the transaction system,
+[00:48:32] and so the coordinator will talk in our case to two different machines,
+[00:48:37] A and B,
+[00:48:39] where A holds you know x and B holds y.
+[00:48:45] And and basically you know one way that this typically goes is that,
+[00:48:53] the coordinator for a sort of does the whole transaction,
+[00:48:55] but in a tentative way,
+[00:48:57] so, the put x you know results in a message to A,
+[00:49:02] you know locking A, modifying A,
+[00:49:06] you know put x, except,
+[00:49:10] the put is not actually visible yet in the database,
+[00:49:13] what what's done is putting a log,
+[00:49:16] very much like in sort of in the Frangipani style,
+[00:49:19] where we have to write ahead log,
+[00:49:21] all the operations,
+[00:49:22] that we at some point, one of [materialize] in the database itself,
+[00:49:25] we first put in the log,
+[00:49:26] until later, in the particular case until we hit commit,
+[00:49:29] and then we actually will install everything in the database.
+[00:49:33] So we do put, we do second put you know to y,
+[00:49:40] in another same thing happens there,
+[00:49:42] you know we got a lock on y,
+[00:49:45] okay, so this sort of being lock on x,
+[00:49:47] and we do a put on y,
+[00:49:51] and again we're gonna not actually you know really put the value in the database,
+[00:49:56] we're gonna using log,
+[00:49:57] so we're log y
+[00:49:59] and here we log x.
+[00:50:01] Okay?
+[00:50:03] And now the coordinator is done two you know the transactions,
+[00:50:07] that two of main operations now so ready to commit,
+[00:50:12] and here's where the 2-phase part comes in.
+[00:50:15] And so the coordinator will send a prepare message,
+[00:50:20] and first gonna describe this protocol,
+[00:50:23] indicates there's no failures and everything works out,
+[00:50:26] you know just sort of the easy cases as will,
+[00:50:31] sends a prepare message,
+[00:50:33] sends a prepare message to,
+[00:50:37] to prepare A, you know prepare B,
+[00:50:45] and the prepare message of course includes the transaction ID,
+[00:50:49] that actually used for this transaction,
+[00:50:51] so every transaction has a transaction ID,
+[00:50:54] and all the message are tag with the transaction ID,
+[00:50:57] so we always know about which transaction we're talking about,
+[00:51:01] when A and B receives prepare messages,
+[00:51:05] you know they look at their state,
+[00:51:07] you know see if they indeed can actually execute the transaction,
+[00:51:12] you know they're holding the lock on x in this case,
+[00:51:15] the x is actually the log
+[00:51:17] and so they sent back,
+[00:51:18] you know saying yeah I'm ready to commit,
+[00:51:22] So, yes, yes,
+[00:51:27] and at this particular point, use the crucial step is,
+[00:51:32] the coordinator now knows that basically both A and B are prepared to commit,
+[00:51:38] and so and I have basically promised to commit by actually responding y,
+[00:51:45] and at this point the coordinator commits,
+[00:51:50] and then you know sends messages you know again to the A,
+[00:51:55] saying commits you know the transaction TID,
+[00:52:00] similar message to B you know commit TID,
+[00:52:07] and at this particular point,
+[00:52:09] A and B actually perform the operation,
+[00:52:11] so they basically install,
+[00:52:14] at this point, you know they install you know the log version of y,
+[00:52:20] here again, this transaction, this participants installs the x,
+[00:52:26] and then release the locks,
+[00:52:28] so release y and here the release of x,
+[00:52:33] then they respond back you know to the coordinator,
+[00:52:37] saying like yep all done,
+[00:52:41] and at that point, the transaction is completely done,
+[00:52:46] in fact coordinator doesn't really have to
+[00:52:48] remember anything anymore about this particular transaction.
+[00:52:51] And also see later,
+[00:52:53] you know A and B you know need to remember that state a little longer
+[00:52:56] until they hear about the next transaction.
+[00:52:58] Okay, so this is a core basic case,
+[00:53:02] when there's absolutely no failures,
+[00:53:04] and we see what we actually get the desired outcome, correct,
+[00:53:08] you know when does the coordinator commits,
+[00:53:11] coordinator commits only if A and B agree.
+[00:53:29] Okay, it could be the case,
+[00:53:31] that you know for example when the coordinator sends a message to B,
+[00:53:34] and B decides, well, I can't really commit,
+[00:53:39] maybe sort of could be multiple reasons for it,
+[00:53:42] maybe the B actually is in a situation,
+[00:53:46] where there's a deadlock with y,
+[00:53:49] or you know there's no space in the log anymore,
+[00:53:52] or there's not enough money in the account of y
+[00:53:55] and, and so you know B could respond with an no,
+[00:54:00] let's say in this,
+[00:54:02] so the other possible outcome is
+[00:54:04] you know the prepare message can actually send a no back,
+[00:54:07] and in that case,
+[00:54:09] the coordinator gets one yes you know from A, a no from B,
+[00:54:14] and so both do not agree,
+[00:54:15] and in that case,
+[00:54:16] you know the coordinator cannot commit the transaction,
+[00:54:18] and then it would actually abort the transaction,
+[00:54:23] and then sends the abort messages to A and B,
+[00:54:25] basically discontinuing the transaction,
+[00:54:28] so those are the two possible outcomes,
+[00:54:30] one is the commit case, one is the abort case,
+[00:54:32] and when it is always the case,
+[00:54:34] that the transaction only commits,
+[00:54:36] the top level transaction only commits,
+[00:54:38] both the participants that are involved in the transaction agreed to do so.
+[00:54:45] Now, that's sort of the outline of the protocols,
+[00:54:49] I want to now go through a couple of cases
+[00:54:51] you know sort of to understand you know what can go wrong,
+[00:54:55] and how we do, how we deal,
+[00:54:57] how 2-phase commit arranges that actually still the right thing happens.
+[00:55:02] Actually I have a question, yeah.
+[00:55:04] So we said that, like B might decide that it needs to abort,
+[00:55:08] sends back no message,
+[00:55:10] what if it decides it needs to abort after it replied yes,
+[00:55:14] would that ever be possible?
+[00:55:16] No, we'll talk about in a second,
+[00:55:18] but that's absolutely not possible,
+[00:55:20] if you promise to commit, you have to commit.
+[00:55:26] Or you have to be ready to commit.
+[00:55:27] You have to be ready to commit,
+[00:55:29] you don't commit right away,
+[00:55:30] you have to wait until the commit message of course,
+[00:55:32] but you can not [] out anyone,
+[00:55:33] so until the prepare,
+[00:55:36] the B can unilaterally abort the transaction,
+[00:55:39] once promise yes,
+[00:55:41] it cannot unilaterally abort the transaction anymore.
+[00:55:45] So, is it possible where you in deadlock,
+[00:55:47] but you can't get out of the deadlock,
+[00:55:49] because everyone in that cycle has agreed to prepare commit.
+[00:55:56] If everybody agrees to prepare,
+[00:55:57] they can definitely commit, then they will commit,
+[00:56:01] and you're still holding locks.
+[00:56:03] Right, but what if you're in a deadlock,
+[00:56:04] because we mentioned before,
+[00:56:05] one of the reasons why you might want to abort.
+[00:56:08] You would find it out before to prepare,
+[00:56:11] if you get the locks of y,
+[00:56:13] if you did not succeed in getting those necessary locks for the transaction,
+[00:56:17] then you know at that point.
+[00:56:20] Right, thank you.
+[00:56:23] Okay, so this is exactly the kind of discussion is going to come up,
+[00:56:26] I'm gonna, I'm gonna take the same board and replicate it,
+[00:56:31] and consider a bunch of different cases,
+[00:56:34] so here's the same board again,
+[00:56:37] nothing has changed so far, it's identical,
+[00:56:40] and so let's the first to sort of
+[00:56:42] follow up on this question that we're just ask,
+[00:56:45] let's first consider the case where B is in the prepared state,
+[00:56:54] and then crashes right after,
+[00:56:58] so it is prepared,
+[00:57:02] it pointed back, send back to coordinator,
+[00:57:07] that actually is agreeing to go along,
+[00:57:11] and then right after it sends actually the prepare message ok message,
+[00:57:16] it actually crashes,
+[00:57:19] what does that mean,
+[00:57:22] what needs to happen,
+[00:57:24] how we're going to resolve this,
+[00:57:26] or what is the risk,
+[00:57:28] so basically if B crashes.
+[00:57:31] If B crashes, we need to abort the whole thing, right.
+[00:57:35] Now, we cannot abort anymore, right,
+[00:57:36] because you know B already promised,
+[00:57:39] that is going to commit.
+[00:57:42] We're going to use the log?
+[00:57:44] Yeah, well, okay, so B is gonna crash,
+[00:57:47] at some point is going to come back up, right,
+[00:57:49] it's going to recover hopefully.
+[00:57:51] And what state does need to remember across crashes?
+[00:57:59] A needs to remember that prepared.
+[00:58:02] Yeah, and need to remember correct,
+[00:58:04] that it prepared for transaction ID, whatever the TID was,
+[00:58:08] and that is holding the lock on y.
+[00:58:13] And so when it comes back up,
+[00:58:15] the first thing it has to do sort of look, saying like how,
+[00:58:18] was I in the middle of a participant in a distributed transaction,
+[00:58:23] and if you look at the state,
+[00:58:25] and you'll see that,
+[00:58:26] it was actually prepared for transaction ID, TID,
+[00:58:30] and it was and it must hold the lock for Ly,
+[00:58:33] but the lock for y before it does anything else,
+[00:58:35] you know before talking to anything,
+[00:58:37] once it is in that state,
+[00:58:40] then it as if it didn't crash, right,
+[00:58:42] and things are back to normal,
+[00:58:44] and hopefully at some point the coordinated will retry the commit message,
+[00:58:49] the B will get up commit message for this transaction ID,
+[00:58:53] sees that, yeah I'm indeed prepared,
+[00:58:55] and I hope the lock at y,
+[00:58:57] and so it goes along and installs y and etc,
+[00:59:00] finishes the transaction.
+[00:59:04] Is that makes sense?
+[00:59:06] So basically you know there's a little bit of refinement here,
+[00:59:09] that we actually have to write some stable you know data to stable storage,
+[00:59:14] you know as part of the transaction,
+[00:59:16] and which was part of 2-phase commit,
+[00:59:18] this is one of the reasons the 2-phase commit is a little bit expensive,
+[00:59:21] because not only we have to send sort of multiple round messages,
+[00:59:24] but also participant actually has to write things to stable storage,
+[00:59:31] and as we've talked about before,
+[00:59:32] writing to stable storage, it's quite expensive, right,
+[00:59:35] like could be easily a couple milliseconds,
+[00:59:38] you know let's say one millisecond optimistically,
+[00:59:41] that means basically,
+[00:59:42] that were immediately limited to a thousand transaction per second,
+[00:59:45] no more.
+[00:59:48] Okay, let's consider another case,
+[00:59:52] and so let me duplicate this slide again,
+[01:00:02] and consider yet another case.
+[01:00:07] Let's say, we the coordinator crashes,
+[01:00:13] and so you know here's red again, which pencil,
+[01:00:18] and you know we got like one, we got prepared messages,
+[01:00:23] and the coordinator maybe you know send one commit message,
+[01:00:27] and then crashes right here,
+[01:00:30] you know what, what do we need to arrange
+[01:00:34] to make sure that the whole plan works out.
+[01:00:42] So the coordinator needs to store in a persistent storage what are what are the commands,
+[01:00:47] that were promised to be committed, but we're not committed yet.
+[01:00:50] Yeah, so the coordinator is almost the same as analysis, analysts to B's case, correct,
+[01:00:57] if we commit a transaction,
+[01:00:58] we need to write to stable storage,
+[01:01:00] that we're actually committing the transaction,
+[01:01:01] so we need to write to stable storage you know commit TID,
+[01:01:06] so that when the coordinator comes back up,
+[01:01:09] then it can actually finish the transaction
+[01:01:11] until actually the A and B indeed transaction is committed,
+[01:01:16] because A and B are waiting, right,
+[01:01:17] A and B says, like yeah we're happy to go along,
+[01:01:20] and they're waiting waiting
+[01:01:22] until actually they hear from the coordinator to decide what's done,
+[01:01:26] because once they decided, once they went along,
+[01:01:30] once they agreed to go along,
+[01:01:31] you know they cannot unilaterally anymore [], correct,
+[01:01:35] because, let's say they actually both said that they agreed at all,
+[01:01:39] then it means that the coordinator
+[01:01:41] and they don't know they made,
+[01:01:43] the coordinator send a commit message to for example A
+[01:01:47] and actually has commit transaction,
+[01:01:49] B hasn't heard yet,
+[01:01:50] maybe the message got delayed, then the coordinator got crash,
+[01:01:53] and you know that point,
+[01:01:55] it would be totally wrong for B to abort the transaction,
+[01:01:58] it really has to wait until the coordinator comes back
+[01:02:01] to tell what actually the outcome is of the transaction.
+[01:02:08] Okay?
+[01:02:13] So only,
+[01:02:14] sorry, the only message that the coordinator is not going to resend is prepare,
+[01:02:20] that one if it gets, like doesn't get a yes, it'll just abort?
+[01:02:24] Yeah, it was the next example, so let's do that.
+[01:02:28] Let me duplicate this board again,
+[01:02:32] and talk about that case.
+[01:02:34] So, just for [], let's move it down,
+[01:02:38] so [],
+[01:02:39] let's say you know following thing happens,
+[01:02:44] the this prepare message never makes it, right,
+[01:02:49] and then you know the coordinator can unilaterally decide to abort, right,
+[01:02:58] and in fact you can tell B you know to abort,
+[01:03:00] and A doesn't really need to know anything about it [],
+[01:03:04] the someone later you know will come up and ask the coordinator,
+[01:03:11] the coordinator doesn't know anything about any more about this transaction,
+[01:03:14] you can just tell A, that transaction is actually abort,
+[01:03:17] because I don't have a commit record anymore,
+[01:03:19] I was not waiting to inform anybody.
+[01:03:23] So in that case, we can do an abort,
+[01:03:26] and that means that B can release the locks, correct
+[01:03:28] and B can just proceed,
+[01:03:30] you know happily trying to the other transactions that might involve y.
+[01:03:39] Okay?
+[01:03:41] Sorry, so what will happen if the message to A gets lost,
+[01:03:45] the coordinator aborts,
+[01:03:47] and then B crashes,
+[01:03:49] but then when it comes up
+[01:03:50] is going to wait for commit message from coordinator,
+[01:03:55] but the transaction has aborted already.
+[01:03:57] Yeah, or yeah so either these two cases,
+[01:04:00] you know presumably you know the most protocols actually B will ping the coordinator,
+[01:04:05] because it knows who's the coordinator,
+[01:04:07] and ask what's the outcome of that transaction.
+[01:04:16] Okay, so one more case, I want to return to one case,
+[01:04:18] there's actually sort of the most interesting case,
+[01:04:21] one of the more tricky cases.
+[01:04:24] So I just have a brief question.
+[01:04:27] Yeah, hold on one second.
+[01:04:28] Sorry.
+[01:04:29] Yeah.
+[01:04:30] Yeah, so the first question is that,
+[01:04:32] so let's B let's say holds the lock on y,
+[01:04:36] all the way through between putting y into the log,
+[01:04:40] and so installing y to [].
+[01:04:43] Yes.
+[01:04:43] Okay.
+[01:04:44] And then the second question,
+[01:04:46] so the locks here are distributed,
+[01:04:49] because we are dealing with across servers,
+[01:04:50] or I mean if y only exist on the server B,
+[01:04:54] then maybe we don't need this to be locking,
+[01:04:55] I'm just curious of what the setup.
+[01:04:57] Yeah, the setup is here basically,
+[01:04:58] that A maintains the lock for all the shards that it has,
+[01:05:02] for all the variables, all the records that it has,
+[01:05:04] B maintained the lock for all the records it has.
+[01:05:07] Okay, but if we,
+[01:05:08] for example have y being on multiple servers,
+[01:05:11] then we need some sort of distributed lock?
+[01:05:13] Yeah, like we were talking about the sharded case, right,
+[01:05:16] where the accounts are sharded across multiple servers,
+[01:05:18] and only one server has a particular account.
+[01:05:23] Awesome, thank you.
+[01:05:23] I'm Come back to this later, actually one more time.
+[01:05:27] So the first thing I wanted to point out is,
+[01:05:30] just go back to sort of the, the case,
+[01:05:36] where B or A you know said yes and then crashes, correct,
+[01:05:48] or actually yeah, let me see if that's the case,
+[01:05:51] no, I want the case of following case, right,
+[01:05:54] fix this line,
+[01:05:57] so A and B promised their thing,
+[01:05:59] but I want to go back to the case,
+[01:06:02] where that we already discussed,
+[01:06:04] which is right after the commit point,
+[01:06:08] the coordinator crashes.
+[01:06:10] Okay.
+[01:06:12] And, and we know correct this interval of time from here to there,
+[01:06:18] basically B cannot unilaterally abort anymore, right,
+[01:06:23] because it promised to go along,
+[01:06:26] and it might have been the case,
+[01:06:28] that actually A did actually already did commit,
+[01:06:32] and so it cannot unilaterally abort anymore,
+[01:06:36] and so there's only one option in this case,
+[01:06:38] what is that one option?
+[01:06:52] We just wait.
+[01:06:54] Yeah, it's unfortunate but true,
+[01:06:59] the only thing that we can do is wait,
+[01:07:02] and it's still holding the lock on y, correct,
+[01:07:05] so that means that,
+[01:07:05] any other transaction that involves y you know cannot proceed,
+[01:07:09] one has to wait you know until the coordinator comes back,
+[01:07:14] and announces or re-announces whatever decision was,
+[01:07:18] that actually was the outcome for that particular transaction.
+[01:07:21] This is one of the sort of the two aspects,
+[01:07:24] you know this one of these aspects of 2-phase commit,
+[01:07:28] that are been desirable, right,
+[01:07:31] where the protocol might just block until a machine comes back.
+[01:07:40] Does that make sense?
+[01:07:46] So how do people deal with this in practice,
+[01:07:48] well, it's a little bit unfortunate,
+[01:07:51] but the here's were some of our techniques from the past can come to rescue,
+[01:07:55] you know what could we do with the coordinator,
+[01:07:59] to make this scenario unlikely.
+[01:08:06] So we can make it fault tolerant, like.
+[01:08:08] Yeah, make fault tolerant, how could we do it?
+[01:08:13] Well, there are multiple approaches, but,
+[01:08:17] you can do it maybe through raft.
+[01:08:20] Yeah, you know run raft
+[01:08:23] to basically basically run the coordinator not on a single machine,
+[01:08:27] we basically have a replicated state machine that implements the coordinator,
+[01:08:30] and you know we use raft
+[01:08:32] to sort of keep the replicated state machine
+[01:08:36] and implement the coordinator in sync,
+[01:08:39] and then if one of the machines that forms the coordinator fails,
+[01:08:43] hopefully the two others are still there,
+[01:08:45] and so we can still proceed, right,
+[01:08:49] and so it's potentially possible to basically
+[01:08:53] you know replicate the coordinator
+[01:08:55] or actually any of the participants to you know using raft.
+[01:08:59] So let me actually,
+[01:09:01] so discuss this a little bit and talk a little bit more,
+[01:09:10] a couple of discussion points,
+[01:09:11] which is you know we could use Raft
+[01:09:17] to make a coordinator fault tolerant or available, if you will,
+[01:09:24] it's really property we care about.
+[01:09:31] Does that make sense?
+[01:09:36] In fact, you will see,
+[01:09:38] if you do lab 4 instead of a project,
+[01:09:41] this is exactly what lab 4 does,
+[01:09:43] lab 4 actually has a similar scheme,
+[01:09:46] where there's a form of 2-phase commit,
+[01:09:49] that you implement and move the the master shard or the master coordinator,
+[01:09:57] and then rebalances shards across shard servers,
+[01:10:02] uses Raft replicated to actually replicate itself,
+[01:10:04] to shard servers itself, also replicated itself using Raft,
+[01:10:07] and so where many, many Raft groups running in parallel,
+[01:10:12] and also the essence of lab 4,
+[01:10:14] and so this is like typically way,
+[01:10:17] you know if you're concerned about
+[01:10:19] having the system being blocked for a long period of time,
+[01:10:22] one way to do it is
+[01:10:23] basically make the coordinator fault tolerance.
+[01:10:31] So that [] brings me to something else,
+[01:10:34] which a lot of people ask about,
+[01:10:36] you know is Raft, are Raft and 2-phase commits sort of similar things,
+[01:10:46] or could you do 2-phase commit with raft
+[01:10:48] or you need to have a little bit of a parallel, correct,
+[01:10:53] like one thing is called coordinator, raft called the leader,
+[01:10:57] we gotta participants, you know maybe we can figure out these as followers,
+[01:11:02] so you know seems to have some similarities,
+[01:11:05] like how do we think about it,
+[01:11:06] what's the relationship between Raft and 2PC?
+[01:11:12] The difference is that,
+[01:11:14] in Raft the coordinator can change essentially,
+[01:11:17] otherwise it's like the single point of failure.
+[01:11:21] Yep, good point, any?
+[01:11:25] So another difference is that,
+[01:11:27] the Raft basically depends on the concept of a majority,
+[01:11:29] whereas in 2-phase commit coordinator,
+[01:11:31] it needs to get a response from every single other server,
+[01:11:35] that is involved in the.
+[01:11:38] Yeah, good point,
+[01:11:38] so these are almost like critical differences, right,
+[01:11:41] and you know we're wondering if we get to a point,
+[01:11:44] where like if there's a conceptual difference,
+[01:11:46] like do they solve the same problem?
+[01:11:50] Oh, Raft is for replicating the same thing,
+[01:11:53] and 2-phase commit, when you do the opposite,
+[01:11:56] when you instead of having one thing you spread across different servers,
+[01:12:01] then you have to deal with the problem.
+[01:12:04] Exactly, in Raft, all servers do the same thing,
+[01:12:14] implementing replicate state machine, right,
+[01:12:18] and in 2PC, actually servers were all servers operate on different data,
+[01:12:35] the first participant was actually operating on x,
+[01:12:39] and second participate was operating on y,
+[01:12:41] so in 2PC, really you know solve a completely different problem than Raft,
+[01:12:46] Raft is really all about high availability,
+[01:12:55] and 2PC is really about atomic operations across servers,
+[01:13:08] across data that's living on different servers.
+[01:13:11] Does that make sense?
+[01:13:14] So even though like maybe they have some internal techniques that look very similar,
+[01:13:18] the two protocols you knwo are designed for completely different problems,
+[01:13:24] and not directly related,
+[01:13:25] now it's interesting to see, correct,
+[01:13:26] but we could make Raft,
+[01:13:28] we can use Raft to make the coordinator more fault tolerant,
+[01:13:30] or participants made more highly available,
+[01:13:33] but they basically essentially solve different problems.
+[01:13:44] With that, I actually wanted to end this lecture,
+[01:13:46] I'm happy to entertain more questions,
+[01:13:50] hopefully this will very helpful in the next two papers,
+[01:13:53] so the next two papers are both two transaction systems,
+[01:13:57] one and one from Google,
+[01:14:01] one from Microsoft research,
+[01:14:03] and second one uses optimistic transactions,
+[01:14:07] and you'll see when you read these papers,
+[01:14:09] there's a lot of machinery, are pretty complex systems,
+[01:14:12] but hopefully at least some of the parts that will be described,
+[01:14:16] you will now understand,
+[01:14:17] because you know what 2-phase commit is
+[01:14:19] and you know what two-phase locking is.
+[01:14:22] Okay, with that, I'll end,
+[01:14:24] and everybody needs to go can go,
+[01:14:27] and anybody wants to ask questions,
+[01:14:28] you know please feel free to do so.
+[01:14:37] Sorry, this might be a little, a strange question,
+[01:14:41] but for 2-phase locking,
+[01:14:44] it is also about atomic operations,
+[01:14:47] but there it is about one, not across servers, but across one server,
+[01:14:55] and 2-phase across multiple servers.
+[01:14:57] Yeah, 2-phase locking is relevant too, if you have a single machine,
+[01:15:00] like a multi-core machine,
+[01:15:01] and you're implementing a transaction system on a multi-core machine,
+[01:15:05] you will have to lock you know the records that are involved in the transaction,
+[01:15:09] and 2-phase locking is a perfectly good protocol for doing so,
+[01:15:16] where 2-phase commit is really about the distributed systems.
+[01:15:21] I guess my question was is 2-phase 2-phase locking,
+[01:15:26] can it be part of 2-phase commit?
+[01:15:30] I'm not sure I know what that means,
+[01:15:33] the way I think about is that,
+[01:15:34] you solve two different problems.
+[01:15:38] Okay.
+[01:15:39] It's the case that,
+[01:15:41] you know you you maybe this is what you mean,
+[01:15:43] it is a case where that you know there's a coordinator,
+[01:15:47] or as part of the initial setup,
+[01:15:51] when the initial puts are done by the transaction,
+[01:15:53] the that transaction will follow 2-phase locking,
+[01:15:57] here to lock on x required, to lock on B required,
+[01:16:02] so the lock y is required,
+[01:16:05] and so does the transaction does that in the 2-phase locking style,
+[01:16:08] it could have done using strict locking too,
+[01:16:10] but you know from the 2-phase commit point of view,
+[01:16:14] it doesn't really matter,
+[01:16:15] at some point, you know the transaction is [] to be executed
+[01:16:19] and the 2-phase commit is really about reaching agreement,
+[01:16:23] that all parties agreed to go along.
+[01:16:28] Yeah, that makes sense, thank you.
+[01:16:30] You're welcome.
+[01:16:31] Is 2-phase commit exclusively for like sharded data?
+[01:16:35] No, actually it came out,
+[01:16:39] well, oh, yes or no,
+[01:16:42] the original sort of 2-phase commit came out of the case,
+[01:16:47] where like you have different organizations,
+[01:16:50] and they need to agree to do something,
+[01:16:51] like you know you book on a travel website,
+[01:16:56] you know you book a trip,
+[01:16:58] and another thing you book a hotel,
+[01:17:00] and you want to commit to the whole trip,
+[01:17:03] if you both hotel website and the travel website agreed to go along,
+[01:17:13] sort of committed to the transaction
+[01:17:15] and that sort of deciding where sort of this deciding where,
+[01:17:19] came up which really you know you have different organizations,
+[01:17:21] they need to commit to a particular operation,
+[01:17:27] and for the reasons that,
+[01:17:29] that that setting actually basically people don't really want to use 2-phase commit,
+[01:17:35] because that would mean that,
+[01:17:37] the travel agency website is dependent on the hotel reservation websites,
+[01:17:43] and these are from different organizations,
+[01:17:46] and you know people who know the organization don't really trust each other,
+[01:17:48] and if one goes down,
+[01:17:51] then there's actually can't proceed and that seems all bad,
+[01:17:54] so, in fact, 2-phase commit have a bit of a negative reputation,
+[01:17:59] because really you know,
+[01:18:02] one of the original goals of 2-phase commit to solve that problem,
+[01:18:05] that problem here, people don't really want to solve with 2-phase commit,
+[01:18:08] however in the context where you have a data center,
+[01:18:11] it's a single organization and the databases sharded,
+[01:18:14] 2-phase commit is widely popular and typical use.
+[01:18:21] Awesome, thank you.
+[01:18:22] You're welcome.
+[01:18:24] Could you go back to the first failure case,
+[01:18:27] that we talked about with 2-phase commit,
+[01:18:28] where it fails, B fails after responding prepare ok.
+[01:18:34] Yeah, is this one?
+[01:18:36] Yeah, I guess.
+[01:18:40] I talked twice about this case, but like.
+[01:18:42] Yeah, I guess I was wondering,
+[01:18:46] why B needs to persist
+[01:18:49] or like why needs to remember that it received prepare,
+[01:18:53] I guess my thinking was,
+[01:18:56] when it comes back up,
+[01:18:58] if it receives A commit message from the coordinator,
+[01:19:01] couldn't it just assumed that it was prepared,
+[01:19:05] I guess where does it use that information.
+[01:19:07] Yeah, well, it could have abort right before the crash,
+[01:19:12] and B needs to remember what it did.
+[01:19:14] Okay.
+[01:19:16] So there's another slight variation with this protocol,
+[01:19:18] where where you assume that you always commit,
+[01:19:22] so presume commit one of the messages slightly different,
+[01:19:25] and you know there's an optimization that you could consider,
+[01:19:29] and would make sense in some settings,
+[01:19:32] I I didn't really talk about that particular protocol,
+[01:19:35] but just a slight different,
+[01:19:36] you know sort of variation,
+[01:19:37] there's quite a number of variations for 2-phase commit,
+[01:19:40] they change in minor ways.
+[01:19:45] Make sense?
+[01:19:46] Yep, thank you.
+[01:19:54] Is that it for today?
+[01:19:57] Sorry, you said that it can,
+[01:19:59] it could have aborted the transaction,
+[01:20:02] but if it did, that it will never receive the commit.
+[01:20:07] You mean in response to the last question?
+[01:20:10] Yeah.
+[01:20:11] You know the the question was,
+[01:20:13] like why does B have to record on stable storage,
+[01:20:16] what decided to do.
+[01:20:18] And the injury is that when B comes up,
+[01:20:22] it knows it needs to know whether actually commit, agreed to commit,
+[01:20:24] or going to agree to abort,
+[01:20:27] and it doesn't write anything, it doesn't know to what agree.
+[01:20:35] Because it could have been abort, after.
+[01:20:37] Yep.
+[01:20:38] Yeah.
+[01:20:41] I need to know that,
+[01:20:42] you know what to do in the recovery stage, I see.
+[01:20:45] Yes, exactly.
+[01:20:52] It also needs to record what it does,
+[01:20:54] because if it like aborts,
+[01:20:57] but the message never gets to the coordinator,
+[01:20:59] needs to resend the same message, right.
+[01:21:02] Yeah, well, it need to record that actually abort that transaction ID,
+[01:21:06] so when the coordinator asks you know what did you do,
+[01:21:09] that actually responds with a no.
+[01:21:12] Got it, thank you.
+[01:21:18] Thank you.
+[01:21:19] You're welcome.
+[01:21:21] Thank you.
+[01:21:24] Alright, see you all next week.

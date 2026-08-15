@@ -1,0 +1,4944 @@
+1
+00:00:00,060 --> 00:00:00,600
+Works again.
+
+2
+00:00:00,810 --> 00:00:03,570
+Okay, so the plan for today is talking about GFS,
+
+3
+00:00:03,600 --> 00:00:05,880
+I'm gonna do it in sort of multiple steps.
+
+4
+00:00:06,330 --> 00:00:09,840
+One I'm gonna talk a little bit about storage in general,
+
+5
+00:00:09,840 --> 00:00:13,260
+and why it's so important,
+
+6
+00:00:13,680 --> 00:00:15,540
+and why we spend a lot of time
+
+7
+00:00:15,540 --> 00:00:17,130
+in this class talking about it.
+
+8
+00:00:17,930 --> 00:00:22,070
+Then I'm going to talk a little bit about
+
+9
+00:00:22,640 --> 00:00:25,280
+in terms of GFS and it's main design,
+
+10
+00:00:25,460 --> 00:00:27,560
+we'll focus on consistency,
+
+11
+00:00:27,560 --> 00:00:30,530
+which will be the main theme through this lecture,
+
+12
+00:00:31,100 --> 00:00:32,750
+as part of the consistency,
+
+13
+00:00:32,750 --> 00:00:34,730
+you know we probably I do,
+
+14
+00:00:35,390 --> 00:00:37,040
+hopefully there's still time to breakout of the room,
+
+15
+00:00:37,040 --> 00:00:41,290
+and talk a little bit about the breakout rooms about the lecture,
+
+16
+00:00:41,290 --> 00:00:43,240
+or the question was posed for lecture,
+
+17
+00:00:43,240 --> 00:00:49,060
+and we'll resume discussion of of consistency.
+
+18
+00:00:50,920 --> 00:00:52,510
+Okay, so,
+
+19
+00:00:53,100 --> 00:00:55,590
+let me talk a little bit about storage systems in general,
+
+20
+00:00:56,220 --> 00:01:01,530
+and why they so feature so prominently in 6.824,
+
+21
+00:01:02,280 --> 00:01:03,990
+and the main reason is,
+
+22
+00:01:04,020 --> 00:01:06,870
+it's just a fantastic building block,
+
+23
+00:01:07,510 --> 00:01:11,800
+for fault tolerance systems.
+
+24
+00:01:13,840 --> 00:01:15,490
+And so the basic idea is that,
+
+25
+00:01:15,490 --> 00:01:21,610
+if you if you can build an durable storage system,
+
+26
+00:01:21,730 --> 00:01:24,730
+then you can structure sort of your application as
+
+27
+00:01:24,940 --> 00:01:28,720
+you know the app is basically you know state less,
+
+28
+00:01:31,680 --> 00:01:35,520
+and then the storage holds all the persistent state.
+
+29
+00:01:39,660 --> 00:01:42,540
+And that simplifies the design of the app tremendously,
+
+30
+00:01:43,270 --> 00:01:48,490
+because the app basically you know doesn't really have any stable storage,
+
+31
+00:01:48,490 --> 00:01:50,140
+you know that it has to maintain itself,
+
+32
+00:01:50,140 --> 00:01:52,720
+in fact is a fact that all out to storage system,
+
+33
+00:01:53,020 --> 00:01:56,500
+so you can start up a new application very quickly,
+
+34
+00:01:56,500 --> 00:01:58,030
+you know it crash doesn't really matter,
+
+35
+00:01:58,030 --> 00:02:00,760
+because it only has soft state, not any hard state,
+
+36
+00:02:00,970 --> 00:02:02,050
+and then start up again,
+
+37
+00:02:02,050 --> 00:02:02,980
+when you start up again,
+
+38
+00:02:02,980 --> 00:02:05,470
+you just reach state from the distributed storage system.
+
+39
+00:02:06,340 --> 00:02:09,070
+And you can see this quick look at any website,
+
+40
+00:02:09,070 --> 00:02:10,570
+you know basically structured in that way,
+
+41
+00:02:10,720 --> 00:02:14,440
+there's a storage backend, you know that maintains state,
+
+42
+00:02:14,440 --> 00:02:16,480
+and then there's the application,
+
+43
+00:02:16,870 --> 00:02:20,380
+middle tier that does the application specific computation,
+
+44
+00:02:20,380 --> 00:02:22,780
+or whatever runs Javascript Go or whatever,
+
+45
+00:02:22,960 --> 00:02:25,330
+and you know it front ends that out
+
+46
+00:02:25,330 --> 00:02:27,760
+you know to a client on the Internet.
+
+47
+00:02:28,280 --> 00:02:32,810
+And, so storage just like this fantastic building block,
+
+48
+00:02:32,810 --> 00:02:33,920
+and I think this is one reason,
+
+49
+00:02:33,920 --> 00:02:37,040
+that we're going to see this over and over in this class.
+
+50
+00:02:37,700 --> 00:02:40,490
+That means that you know the storage system itself,
+
+51
+00:02:40,490 --> 00:02:42,170
+of course has to be highly fault tolerant,
+
+52
+00:02:42,380 --> 00:02:44,660
+and as it turns out to be a very tricky thing to do,
+
+53
+00:02:44,660 --> 00:02:48,290
+and so that is the other side,
+
+54
+00:02:48,290 --> 00:02:49,130
+the flip side of it,
+
+55
+00:02:49,220 --> 00:02:50,960
+it will make life of the application easy,
+
+56
+00:02:50,960 --> 00:02:54,860
+but you know the designing actually fault tolerant storage system is not easy.
+
+57
+00:02:55,710 --> 00:02:56,850
+So why is it hard,
+
+58
+00:03:00,480 --> 00:03:05,100
+and basically come down to you know one reason,
+
+59
+00:03:05,100 --> 00:03:07,200
+that drives these designs,
+
+60
+00:03:07,200 --> 00:03:09,330
+which is like we generally want high performance,
+
+61
+00:03:09,990 --> 00:03:12,330
+when you think about the storage system for today,
+
+62
+00:03:12,450 --> 00:03:14,670
+you know GFS its main goal is
+
+63
+00:03:14,670 --> 00:03:17,160
+to basically support mapreduce types applications,
+
+64
+00:03:17,160 --> 00:03:20,190
+and so, it really needs high performance.
+
+65
+00:03:20,580 --> 00:03:21,960
+Well, what does that mean,
+
+66
+00:03:21,990 --> 00:03:28,890
+well, it means that you typically have to shard data across servers,
+
+67
+00:03:30,660 --> 00:03:32,790
+so you cant't use one server,
+
+68
+00:03:32,790 --> 00:03:33,840
+you have to use multiple servers,
+
+69
+00:03:34,260 --> 00:03:37,020
+and the reason you want to read from the disk,
+
+70
+00:03:37,020 --> 00:03:40,290
+and often particular machine has limited throughput,
+
+71
+00:03:40,470 --> 00:03:41,520
+if you want to read more
+
+72
+00:03:41,520 --> 00:03:43,770
+than actually a single disk can sustain,
+
+73
+00:03:43,770 --> 00:03:44,880
+you have to use multiple disks,
+
+74
+00:03:44,880 --> 00:03:46,470
+and you have to use multiple network cards,
+
+75
+00:03:46,470 --> 00:03:50,580
+and so you can immediately get into these sort of large scale systems
+
+76
+00:03:50,580 --> 00:03:53,130
+in the GFS where you have thousands of machines.
+
+77
+00:03:54,560 --> 00:03:55,850
+But if you have many servers,
+
+78
+00:03:58,070 --> 00:03:59,060
+some are gonna fail,
+
+79
+00:04:00,790 --> 00:04:01,930
+you gonna get failures,
+
+80
+00:04:02,500 --> 00:04:03,340
+or you can maybe,
+
+81
+00:04:03,340 --> 00:04:06,160
+you can see more exclusively constant faults,
+
+82
+00:04:08,710 --> 00:04:13,060
+and you know let's say the computer crashes, you know once a year,
+
+83
+00:04:13,180 --> 00:04:17,050
+you know, now let's say you know you have thousands of machines,
+
+84
+00:04:17,050 --> 00:04:18,940
+like in the GFS paper,
+
+85
+00:04:18,970 --> 00:04:20,440
+so many more in the thousand machines,
+
+86
+00:04:20,440 --> 00:04:21,910
+at minimal thousand machines,
+
+87
+00:04:22,320 --> 00:04:25,050
+how many failures are going to see per day, roughly.
+
+88
+00:04:29,210 --> 00:04:30,440
+Around 3.
+
+89
+00:04:30,680 --> 00:04:31,850
+Yeah, around 3, right,
+
+90
+00:04:31,850 --> 00:04:35,240
+that means that you know sort of a failure of a computer
+
+91
+00:04:35,540 --> 00:04:37,820
+like my laptop at the beginning of the lecture,
+
+92
+00:04:37,970 --> 00:04:41,120
+is just a common scenario,
+
+93
+00:04:41,240 --> 00:04:42,860
+and so if you're going to move up to
+
+94
+00:04:42,860 --> 00:04:46,280
+more than a thousand, ten thousand machines, a hundred thousand machines,
+
+95
+00:04:46,460 --> 00:04:48,950
+you're running applications using that kind of number of computers,
+
+96
+00:04:49,130 --> 00:04:50,120
+you're gonna get faults,
+
+97
+00:04:50,120 --> 00:04:53,450
+and so that means you want a fall tolerance design.
+
+98
+00:05:01,260 --> 00:05:03,210
+And you know to get fault tolerance,
+
+99
+00:05:03,210 --> 00:05:04,260
+you know at least in the case,
+
+100
+00:05:04,260 --> 00:05:06,480
+where storage system with the typical approach the way to go,
+
+101
+00:05:06,480 --> 00:05:07,710
+we're gonna go with replication,
+
+102
+00:05:09,780 --> 00:05:11,790
+copy data on multiple disks,
+
+103
+00:05:12,060 --> 00:05:13,350
+you know so that they what this fails,
+
+104
+00:05:13,350 --> 00:05:15,930
+you know the other disk hopefully have the data.
+
+105
+00:05:17,770 --> 00:05:20,020
+But if you go into replication
+
+106
+00:05:20,290 --> 00:05:22,510
+and so the data is in multiple places,
+
+107
+00:05:23,060 --> 00:05:26,720
+that runs into the challenge that the data may be out of sync,
+
+108
+00:05:26,960 --> 00:05:30,770
+and so you actually get into inconsistent potential inconsistencies.
+
+109
+00:05:40,020 --> 00:05:42,390
+You know, to avoid these inconsistencies,
+
+110
+00:05:42,540 --> 00:05:44,940
+you know if you desire a strong consistency,
+
+111
+00:05:44,940 --> 00:05:47,790
+basically your replicate system behaves as if it's,
+
+112
+00:05:47,790 --> 00:05:50,580
+it as the same behavior as an unreplicated system.
+
+113
+00:05:51,180 --> 00:05:55,290
+Then you will need some persistency protocol,
+
+114
+00:05:57,600 --> 00:06:00,060
+and that's gonna require some maybe sending messages
+
+115
+00:06:00,060 --> 00:06:02,280
+and may be lower performance,
+
+116
+00:06:05,870 --> 00:06:09,230
+maybe the messages themselves, not really huge performance overhead,
+
+117
+00:06:09,230 --> 00:06:10,730
+but you know [] knowledge we'll see,
+
+118
+00:06:10,910 --> 00:06:14,150
+and you might actually have to read or write to durable storage,
+
+119
+00:06:14,150 --> 00:06:15,320
+as part of that protocol
+
+120
+00:06:15,650 --> 00:06:17,240
+and you know reading or writing to storage
+
+121
+00:06:17,240 --> 00:06:19,220
+intentionally tends to be quite expensive.
+
+122
+00:06:19,740 --> 00:06:21,450
+So here we see this conundrum,
+
+123
+00:06:21,450 --> 00:06:23,340
+like you know we want high performance,
+
+124
+00:06:23,640 --> 00:06:24,960
+we want fault tolerance,
+
+125
+00:06:24,960 --> 00:06:26,280
+because we have many servers,
+
+126
+00:06:26,610 --> 00:06:29,130
+we want high performance over many servers,
+
+127
+00:06:29,130 --> 00:06:30,900
+many servers means fault tolerance,
+
+128
+00:06:31,020 --> 00:06:34,920
+that means application that means you know inconsistencies,
+
+129
+00:06:34,950 --> 00:06:37,320
+because we have data in multiple places,
+
+130
+00:06:37,320 --> 00:06:38,490
+to fix the inconsistencies,
+
+131
+00:06:38,490 --> 00:06:41,370
+we need to get a protocol that might lower performance.
+
+132
+00:06:41,700 --> 00:06:44,130
+So here sort of this fundamental challenge
+
+133
+00:06:44,130 --> 00:06:46,440
+in designing these distributed storage systems,
+
+134
+00:06:46,440 --> 00:06:51,090
+that user struggle between consistency and performance,
+
+135
+00:06:51,150 --> 00:06:53,520
+and we'll see that throughout the term.
+
+136
+00:06:55,840 --> 00:06:58,090
+So let me talk a little bit about consistency,
+
+137
+00:07:02,400 --> 00:07:03,630
+and sort of a very high level,
+
+138
+00:07:03,780 --> 00:07:06,570
+and I promise you for the rest of this semester,
+
+139
+00:07:06,570 --> 00:07:09,240
+we're going more detail as we go.
+
+140
+00:07:09,750 --> 00:07:12,690
+So first let's talk again about the ideal consistency,
+
+141
+00:07:13,260 --> 00:07:16,440
+an ideal consistency, the way the simplest way to think about is that,
+
+142
+00:07:16,440 --> 00:07:19,530
+basically the machine behaves as if it's a single system,
+
+143
+00:07:28,770 --> 00:07:30,540
+that's also the desired behavior,
+
+144
+00:07:30,570 --> 00:07:34,410
+and the sort of two things that make the desired behavior
+
+145
+00:07:34,410 --> 00:07:40,890
+or two hazards that make this design behavior hard to achieve,
+
+146
+00:07:41,610 --> 00:07:44,580
+or you know at least you know requires some thinking,
+
+147
+00:07:44,910 --> 00:07:47,550
+and one is concurrency and second thing is failures.
+
+148
+00:07:48,350 --> 00:07:50,450
+So let me start with consumer concurrency,
+
+149
+00:07:50,450 --> 00:07:55,280
+because even if you have a single machine with multiple clients,
+
+150
+00:07:55,280 --> 00:07:57,200
+so your concurrency within a single machine,
+
+151
+00:07:57,320 --> 00:07:59,090
+you actually have to think about consistency,
+
+152
+00:07:59,390 --> 00:08:01,310
+and this cause is quite obvious.
+
+153
+00:08:01,310 --> 00:08:04,520
+Let's say we have one machine, one disk,
+
+154
+00:08:04,790 --> 00:08:08,090
+both of requests you know come in from different clients,
+
+155
+00:08:08,490 --> 00:08:10,140
+and if the machine is a multi-processor machine,
+
+156
+00:08:10,140 --> 00:08:13,680
+they might actually run these requests internally in parallel.
+
+157
+00:08:14,240 --> 00:08:17,120
+So, so let's think a little bit about it,
+
+158
+00:08:17,120 --> 00:08:17,840
+what does it mean,
+
+159
+00:08:17,840 --> 00:08:21,200
+so so let's say we have client 1,
+
+160
+00:08:21,620 --> 00:08:27,380
+that does a write operation to key x and write 1,
+
+161
+00:08:28,190 --> 00:08:29,270
+and at the same time,
+
+162
+00:08:29,270 --> 00:08:32,570
+there's a request coming in with writes to x too,
+
+163
+00:08:32,570 --> 00:08:35,320
+but actually writes the value 2, right.
+
+164
+00:08:35,320 --> 00:08:39,280
+Now, you know if you want to specify or stage what consistency means,
+
+165
+00:08:39,280 --> 00:08:42,070
+we need some rule about like what will happen,
+
+166
+00:08:42,460 --> 00:08:45,130
+in the rules typically phrased from the perspective of the reader,
+
+167
+00:08:45,160 --> 00:08:47,080
+so let's say there's another reader coming in,
+
+168
+00:08:47,980 --> 00:08:51,580
+where another request coming in from another client and actually read x,
+
+169
+00:08:53,460 --> 00:08:54,000
+the question is,
+
+170
+00:08:54,000 --> 00:08:57,840
+what is the value that actually that reader or that client observes.
+
+171
+00:08:58,460 --> 00:09:00,830
+And look a little bit more complicated or more interesting,
+
+172
+00:09:00,830 --> 00:09:02,300
+let's say we have four clients,
+
+173
+00:09:02,300 --> 00:09:05,600
+which we're going to bring out this issue of consistency definitions more clearly,
+
+174
+00:09:05,840 --> 00:09:07,520
+and it also does a read of x,
+
+175
+00:09:07,580 --> 00:09:11,090
+well after you know the client 3 actually read x.
+
+176
+00:09:12,580 --> 00:09:13,870
+So now we have some state,
+
+177
+00:09:13,870 --> 00:09:15,220
+what is desired outcomes,
+
+178
+00:09:15,220 --> 00:09:16,390
+what is incorrect outcomes,
+
+179
+00:09:16,390 --> 00:09:19,030
+and that's really what defines consistency.
+
+180
+00:09:19,670 --> 00:09:23,030
+So, let's take the first case C3,
+
+181
+00:09:23,030 --> 00:09:28,070
+you know what be a reasonable outcome for read C, read,
+
+182
+00:09:28,280 --> 00:09:31,010
+what is reasonable outcome for the read of C3 to return,
+
+183
+00:09:31,580 --> 00:09:32,390
+what values,
+
+184
+00:09:33,660 --> 00:09:35,220
+you know what value would make you happy,
+
+185
+00:09:35,220 --> 00:09:37,020
+or make an application programmer happy.
+
+186
+00:09:38,850 --> 00:09:39,420
+2.
+
+187
+00:09:39,960 --> 00:09:41,340
+2 be very reasonable?
+
+188
+00:09:42,100 --> 00:09:44,080
+Any other reasonable values?
+
+189
+00:09:44,820 --> 00:09:45,390
+1.
+
+190
+00:09:45,720 --> 00:09:46,980
+Yeah, 1 would be reasonable,
+
+191
+00:09:47,280 --> 00:09:49,170
+because the operation happened concurrently,
+
+192
+00:09:49,170 --> 00:09:50,970
+so maybe we don't really know which one,
+
+193
+00:09:50,970 --> 00:09:53,640
+we don't really want to restrict what particular order they go,
+
+194
+00:09:53,670 --> 00:09:55,230
+so we gone say like either one to fine,
+
+195
+00:09:55,740 --> 00:09:56,400
+because run concurrently.
+
+196
+00:09:57,350 --> 00:09:59,450
+What are some values that we would like not to see,
+
+197
+00:10:00,660 --> 00:10:01,770
+for the C3 read.
+
+198
+00:10:02,410 --> 00:10:03,100
+7.
+
+199
+00:10:03,370 --> 00:10:04,960
+Yeah, 7, any other value, right,
+
+200
+00:10:04,990 --> 00:10:06,310
+because nobody wrote that,
+
+201
+00:10:06,370 --> 00:10:07,450
+so that would be undesirable.
+
+202
+00:10:08,210 --> 00:10:10,460
+Okay, so good, so like we agree that,
+
+203
+00:10:10,460 --> 00:10:13,580
+probably the reasonable outcome for C3 would be either 1 or 2.
+
+204
+00:10:14,240 --> 00:10:15,440
+Okay, how about C4?
+
+205
+00:10:17,520 --> 00:10:18,900
+The same as c3.
+
+206
+00:10:19,580 --> 00:10:21,260
+Really, exactly the same?
+
+207
+00:10:23,270 --> 00:10:25,070
+So, let's say C3 return 1,
+
+208
+00:10:25,620 --> 00:10:27,330
+what do we expect C4 to return?
+
+209
+00:10:28,490 --> 00:10:29,960
+Whatever C3 saw.
+
+210
+00:10:30,230 --> 00:10:32,990
+Yeah, because it run after C3, right,
+
+211
+00:10:32,990 --> 00:10:36,640
+if 1 was returned, we expect 1 here too,
+
+212
+00:10:37,640 --> 00:10:39,980
+if 2 was returned, we expect 2 here.
+
+213
+00:10:41,800 --> 00:10:42,580
+Does that make sense?
+
+214
+00:10:45,320 --> 00:10:49,700
+Okay, so, you know there's like super brief you know sort of introduction
+
+215
+00:10:49,700 --> 00:10:52,730
+of saying how can we define consistency,
+
+216
+00:10:52,730 --> 00:10:55,010
+and typically we do this using sort of [traces],
+
+217
+00:10:55,010 --> 00:10:58,100
+and we argue about what correctness for particular [traces],
+
+218
+00:10:58,100 --> 00:10:59,210
+and we will see more of that.
+
+219
+00:10:59,940 --> 00:11:03,900
+Of course, you know the server can enforce you know this kind of concurrency
+
+220
+00:11:03,900 --> 00:11:05,070
+by for example using locks,
+
+221
+00:11:05,070 --> 00:11:06,150
+if you have done,
+
+222
+00:11:06,300 --> 00:11:07,620
+if you do mapreduce,
+
+223
+00:11:07,620 --> 00:11:09,930
+you know of any concurrent Go programming you're write,
+
+224
+00:11:10,170 --> 00:11:14,670
+that sort of the standard technique to enforce consistency in terms of,
+
+225
+00:11:14,730 --> 00:11:17,910
+in the presence of concurrency is to use locks.
+
+226
+00:11:20,720 --> 00:11:22,460
+In distributed system,
+
+227
+00:11:22,460 --> 00:11:25,790
+you know the ideal consistency you know sort of [] two hazards,
+
+228
+00:11:25,790 --> 00:11:28,040
+and the second hazard is basically failure,
+
+229
+00:11:28,040 --> 00:11:29,510
+so just replication in general,
+
+230
+00:11:29,540 --> 00:11:31,490
+for if we have two servers [],
+
+231
+00:11:31,790 --> 00:11:35,000
+so here's S1, here's S2,
+
+232
+00:11:36,440 --> 00:11:38,510
+and you know both have a disk,
+
+233
+00:11:40,400 --> 00:11:44,360
+and we have our same clients as before, C1 and C2,
+
+234
+00:11:44,360 --> 00:11:46,520
+and they write you know to x,
+
+235
+00:11:47,380 --> 00:11:52,810
+and you know let's say you know just to illustrate what kind of complication,
+
+236
+00:11:52,810 --> 00:11:56,410
+what kind of, illustrate that we have to do something,
+
+237
+00:11:56,410 --> 00:12:01,240
+let's start with the most you know dumb replication plan.
+
+238
+00:12:01,240 --> 00:12:03,220
+So what very bad replication plan,
+
+239
+00:12:11,240 --> 00:12:13,340
+so this particular bad replication kind of plan,
+
+240
+00:12:13,340 --> 00:12:14,120
+what we're gonna do is,
+
+241
+00:12:14,120 --> 00:12:16,040
+like, we're gonna allow a client,
+
+242
+00:12:16,220 --> 00:12:18,740
+when a client actually wants to update or write,
+
+243
+00:12:19,040 --> 00:12:21,050
+we're gonna tell it to
+
+244
+00:12:21,050 --> 00:12:23,210
+basically you know the protocol that we're going to follow is,
+
+245
+00:12:23,210 --> 00:12:25,100
+the client write to both servers,
+
+246
+00:12:25,250 --> 00:12:26,420
+in you know whatever,
+
+247
+00:12:26,450 --> 00:12:28,880
+don't really coordinate, just write to both.
+
+248
+00:12:29,900 --> 00:12:33,320
+And so exactly we have client 1, client 2 running,
+
+249
+00:12:33,560 --> 00:12:37,220
+you know then you know may be client 2 does the same thing,
+
+250
+00:12:39,520 --> 00:12:43,900
+and, and then we're going to ask ourselves the same question,
+
+251
+00:12:43,900 --> 00:12:48,580
+what does you know C3 see what actually read,
+
+252
+00:12:48,730 --> 00:12:50,110
+and let's assume that for reading,
+
+253
+00:12:50,110 --> 00:12:52,090
+you know say like we're either way,
+
+254
+00:12:52,970 --> 00:12:54,800
+we're gonna read from any replica,
+
+255
+00:12:54,800 --> 00:12:57,170
+as I said, is a very bad replication plan,
+
+256
+00:12:57,170 --> 00:12:58,670
+basically there's no restrictions.
+
+257
+00:13:00,080 --> 00:13:01,610
+So what are the possible outcomes?
+
+258
+00:13:02,650 --> 00:13:06,190
+So this guy writes 1, this guy writes 2,
+
+259
+00:13:06,670 --> 00:13:08,530
+and you know we C3,
+
+260
+00:13:10,080 --> 00:13:11,820
+what are the possible outcomes for C3?
+
+261
+00:13:15,130 --> 00:13:16,300
+1 and 2, again.
+
+262
+00:13:16,540 --> 00:13:18,880
+Yeah, 1 and 2, that really bad happens.
+
+263
+00:13:19,910 --> 00:13:20,870
+How about C4,
+
+264
+00:13:22,500 --> 00:13:25,260
+we do a read of x, well after C3 x,
+
+265
+00:13:25,260 --> 00:13:28,200
+like this in the previous board.
+
+266
+00:13:28,610 --> 00:13:29,810
+Also 1 and 2.
+
+267
+00:13:30,630 --> 00:13:32,490
+Yeah, 1 and 2 again,
+
+268
+00:13:33,030 --> 00:13:39,740
+what happens C3 reads 1, but C4 may return?
+
+269
+00:13:41,130 --> 00:13:42,030
+1 or 2.
+
+270
+00:13:42,150 --> 00:13:44,490
+1 or 2, it's that what we want or not?
+
+271
+00:13:45,750 --> 00:13:46,230
+No.
+
+272
+00:13:46,770 --> 00:13:47,970
+No, I mean you know,
+
+273
+00:13:47,970 --> 00:13:50,010
+again, it would be difficult for an application writer
+
+274
+00:13:50,010 --> 00:13:51,270
+to actually read about this,
+
+275
+00:13:53,260 --> 00:13:55,570
+you know particularly if the C3 and C4 were the same thing,
+
+276
+00:13:55,570 --> 00:13:58,090
+you first read to [] 1, no modification makes,
+
+277
+00:13:58,090 --> 00:13:59,770
+the next second returns another value,
+
+278
+00:13:59,770 --> 00:14:00,610
+how is that possible,
+
+279
+00:14:01,170 --> 00:14:03,510
+and it make the application programmers difficult to write.
+
+280
+00:14:04,500 --> 00:14:06,660
+And so you know the reason of course
+
+281
+00:14:06,660 --> 00:14:08,760
+that this inconsistency shows up here,
+
+282
+00:14:08,880 --> 00:14:10,800
+because we basically have no protocol
+
+283
+00:14:11,100 --> 00:14:14,490
+to coordinate you know the clients the readers and the writers,
+
+284
+00:14:14,520 --> 00:14:16,470
+so we need some form of distributed system,
+
+285
+00:14:16,470 --> 00:14:18,960
+typically we need some form of protocol to fix these,
+
+286
+00:14:18,960 --> 00:14:21,300
+and get the desire
+
+287
+00:14:21,300 --> 00:14:23,370
+to enforce that we get the desired consistency.
+
+288
+00:14:24,840 --> 00:14:26,640
+So we can see in rest of the semester,
+
+289
+00:14:26,640 --> 00:14:28,230
+a whole bunch of potential protocols,
+
+290
+00:14:28,230 --> 00:14:31,140
+they have different trade-offs in terms of fault tolerance and consistency.
+
+291
+00:14:32,340 --> 00:14:32,970
+Okay?
+
+292
+00:14:33,960 --> 00:14:38,250
+And in fact you should get into get our head in that kind of thinking,
+
+293
+00:14:38,550 --> 00:14:43,230
+the we're gonna use a whole bunch of different case studys,
+
+294
+00:14:43,380 --> 00:14:47,400
+and the case study today is GFS.
+
+295
+00:14:54,970 --> 00:14:56,590
+And this is an interesting case study,
+
+296
+00:14:56,620 --> 00:14:59,050
+you know why we would assign it,
+
+297
+00:14:59,050 --> 00:15:00,850
+and one reason is an interesting case study,
+
+298
+00:15:00,850 --> 00:15:04,000
+because it brings out all these core issue.
+
+299
+00:15:04,060 --> 00:15:07,720
+GFS design designed to get high performance,
+
+300
+00:15:10,240 --> 00:15:19,280
+yeah, that means it actually uses replication and fault tolerance,
+
+301
+00:15:21,730 --> 00:15:25,510
+and you know it struggles with consistency,
+
+302
+00:15:25,540 --> 00:15:27,250
+so it's like a few for sort of themes,
+
+303
+00:15:27,250 --> 00:15:29,830
+that we're going to be consistently seeing it throughout the semester,
+
+304
+00:15:29,830 --> 00:15:31,600
+will show up in this one paper.
+
+305
+00:15:32,960 --> 00:15:36,110
+The other side of this why is interesting case study,
+
+306
+00:15:36,110 --> 00:15:37,010
+because it is a successful system,
+
+307
+00:15:41,030 --> 00:15:44,450
+Google does actually use GFS,
+
+308
+00:15:44,450 --> 00:15:46,850
+at at this, at this point, in my understanding,
+
+309
+00:15:46,850 --> 00:15:49,310
+there's a successor file system called Colossus,
+
+310
+00:15:49,310 --> 00:15:51,560
+you know but it's inspired by GFS,
+
+311
+00:15:51,980 --> 00:15:57,620
+and but there are other sort of cluster-based file systems,
+
+312
+00:15:57,620 --> 00:16:00,680
+you know for like mapreduce type used HDFS,
+
+313
+00:16:00,740 --> 00:16:03,530
+you know also very much inspired by the design of GFS.
+
+314
+00:16:04,620 --> 00:16:08,400
+And you know one thing that is actually interesting,
+
+315
+00:16:08,400 --> 00:16:10,440
+at the point that this paper was written,
+
+316
+00:16:10,530 --> 00:16:14,100
+in sort of late to 2000,
+
+317
+00:16:14,100 --> 00:16:17,160
+it was pretty distributed file system were well understood topics,
+
+318
+00:16:17,220 --> 00:16:18,630
+so people knew about fault tolerance,
+
+319
+00:16:18,630 --> 00:16:20,070
+and they knew about replication,
+
+320
+00:16:20,070 --> 00:16:21,900
+people knew about consistency,
+
+321
+00:16:21,930 --> 00:16:24,660
+all that kind of stuff were pretty well understood.
+
+322
+00:16:25,210 --> 00:16:29,020
+However, nobody actually built you know system
+
+323
+00:16:29,020 --> 00:16:31,660
+you know at the scale of thousands of computers,
+
+324
+00:16:31,810 --> 00:16:36,250
+and that sure brings out a number of challenges,
+
+325
+00:16:36,430 --> 00:16:38,560
+that previous system have to not address,
+
+326
+00:16:38,680 --> 00:16:42,490
+and in fact the design is not completely standard,
+
+327
+00:16:43,150 --> 00:16:45,700
+so the design that we're reading about,
+
+328
+00:16:45,700 --> 00:16:47,980
+it's not was not sort of the standard design,
+
+329
+00:16:47,980 --> 00:16:50,020
+that you would see in academic papers at that time,
+
+330
+00:16:50,920 --> 00:16:53,290
+there were two aspects of making non-standard,
+
+331
+00:16:53,620 --> 00:16:56,650
+[] which will get more we'll spend more time on.
+
+332
+00:16:56,740 --> 00:16:59,350
+One is you know there's actually a single master,
+
+333
+00:16:59,350 --> 00:17:02,190
+the master, it's not replicated,
+
+334
+00:17:02,220 --> 00:17:04,230
+there's a single machine that sort of charged
+
+335
+00:17:04,230 --> 00:17:08,830
+with like almost all the coordination in the system,
+
+336
+00:17:08,830 --> 00:17:10,750
+and so that is unusual,
+
+337
+00:17:10,870 --> 00:17:14,800
+you know why would you build file system fault tolerance system,
+
+338
+00:17:14,800 --> 00:17:16,180
+which has a single point of failure,
+
+339
+00:17:16,660 --> 00:17:20,230
+is not something that people in the academic literature were doing at that time,
+
+340
+00:17:21,070 --> 00:17:23,620
+and the second thing is that,
+
+341
+00:17:23,620 --> 00:17:26,200
+it has, it has not consistent,
+
+342
+00:17:26,230 --> 00:17:28,240
+you know it can have inconsistencies,
+
+343
+00:17:33,180 --> 00:17:37,080
+and again mostly in literature in at that particular time,
+
+344
+00:17:37,080 --> 00:17:39,360
+you know people were really sweating actually to build
+
+345
+00:17:39,360 --> 00:17:42,270
+the distributed systems that actually have strong consistency,
+
+346
+00:17:42,420 --> 00:17:44,250
+and you know don't have the anomalies,
+
+347
+00:17:44,250 --> 00:17:45,810
+that we saw on the previous board.
+
+348
+00:17:47,120 --> 00:17:53,030
+Alright, and so so even though like a lot of the core techniques you know were well known,
+
+349
+00:17:53,150 --> 00:17:56,720
+you know the way you were putting together essentially quite different.
+
+350
+00:17:58,150 --> 00:17:59,440
+And so, that makes it interesting,
+
+351
+00:17:59,560 --> 00:18:04,330
+and particularly the scale which you know this system actually operates is impressive.
+
+352
+00:18:05,120 --> 00:18:06,860
+And pretty common even for today,
+
+353
+00:18:06,860 --> 00:18:08,090
+you know this issue,
+
+354
+00:18:08,270 --> 00:18:15,590
+struggle between fault tolerance, replication performance and consistency
+
+355
+00:18:15,590 --> 00:18:17,330
+is standard problem,
+
+356
+00:18:17,330 --> 00:18:19,880
+recurring problems for almost any distributed storage system,
+
+357
+00:18:19,880 --> 00:18:21,050
+so that people built today.
+
+358
+00:18:22,660 --> 00:18:23,650
+It changes over time,
+
+359
+00:18:23,680 --> 00:18:24,970
+like S3 for a while,
+
+360
+00:18:24,970 --> 00:18:27,250
+you know they really have that strong consistency,
+
+361
+00:18:27,250 --> 00:18:29,200
+lately it has gotten much stronger consistency.
+
+362
+00:18:30,990 --> 00:18:35,100
+Okay, so what, since the paper is really driven,
+
+363
+00:18:35,340 --> 00:18:39,570
+and the design is driven by fault tolerance by performance,
+
+364
+00:18:39,600 --> 00:18:44,300
+I wanted to go back to the mapreduce paper for second,
+
+365
+00:18:44,330 --> 00:18:47,240
+and this is a graph of the mapreduce paper,
+
+366
+00:18:47,570 --> 00:18:51,110
+and one way to think about GFS is,
+
+367
+00:18:51,200 --> 00:18:55,550
+that it's the file system for mapreduce,
+
+368
+00:19:00,530 --> 00:19:01,610
+and so the goal is
+
+369
+00:19:01,610 --> 00:19:04,580
+to actually run many mapreduce jobs and get high performance.
+
+370
+00:19:05,250 --> 00:19:07,200
+And we know that basically from,
+
+371
+00:19:07,200 --> 00:19:09,150
+we could tell from the mapreduce paper already
+
+372
+00:19:09,150 --> 00:19:13,350
+that GFS is impressive in that manner in terms of performance.
+
+373
+00:19:13,680 --> 00:19:17,940
+So if you look at the you know this side of this graph,
+
+374
+00:19:17,940 --> 00:19:19,950
+this is straight out of the mapreduce paper,
+
+375
+00:19:20,160 --> 00:19:23,880
+this is the normal execution of one of the mapreduce jobs,
+
+376
+00:19:24,120 --> 00:19:27,690
+and you know it has three parts to it,
+
+377
+00:19:27,690 --> 00:19:29,100
+one is the first part input,
+
+378
+00:19:29,100 --> 00:19:30,810
+like reading the input files,
+
+379
+00:19:30,810 --> 00:19:33,450
+the inputs to the map from the file system,
+
+380
+00:19:33,450 --> 00:19:35,280
+and in case you know they didn't say much about it,
+
+381
+00:19:35,280 --> 00:19:37,980
+but those are written read from GFS,
+
+382
+00:19:39,320 --> 00:19:41,300
+there's the internal shuffle that we really care about,
+
+383
+00:19:41,300 --> 00:19:42,590
+and then at the end,
+
+384
+00:19:42,620 --> 00:19:46,340
+you know the reduce jobs write back the results into GFS.
+
+385
+00:19:47,200 --> 00:19:51,670
+And, and so, do performance, you know part of the performance,
+
+386
+00:19:51,670 --> 00:19:53,860
+there's mapreduce task is able to determined by
+
+387
+00:19:53,860 --> 00:19:55,270
+you know the read at which,
+
+388
+00:19:55,360 --> 00:20:00,220
+the mappers can actually read you know data from GFS file system,
+
+389
+00:20:00,250 --> 00:20:02,590
+so whatever we're running many, many mappers at the same time,
+
+390
+00:20:02,590 --> 00:20:06,520
+in fact some mappers from different jobs maybe reading the same files.
+
+391
+00:20:07,150 --> 00:20:08,710
+So we look at the input,
+
+392
+00:20:08,740 --> 00:20:12,100
+like this, this there's top you know graph,
+
+393
+00:20:12,280 --> 00:20:16,120
+shows the input in terms of megabytes per second,
+
+394
+00:20:16,420 --> 00:20:17,980
+at the read at which you know the mapper
+
+395
+00:20:17,980 --> 00:20:21,040
+actually jointly collectively for one particular job,
+
+396
+00:20:21,040 --> 00:20:22,480
+you can read from the file system.
+
+397
+00:20:23,240 --> 00:20:23,870
+As you can see,
+
+398
+00:20:23,870 --> 00:20:28,700
+you know it goes over, well over a thousand or 10 000 megabytes per second.
+
+399
+00:20:30,800 --> 00:20:32,480
+And you know the first question to ask you is,
+
+400
+00:20:32,480 --> 00:20:34,190
+maybe exactly an impressive number,
+
+401
+00:20:38,180 --> 00:20:39,740
+should we be impressed with that number are,
+
+402
+00:20:39,740 --> 00:20:43,230
+thinking well, you know give me one disk and I do too.
+
+403
+00:20:50,500 --> 00:20:51,340
+Anybody?
+
+404
+00:20:51,820 --> 00:20:54,790
+I think, because it's older, maybe yes.
+
+405
+00:20:56,000 --> 00:21:01,910
+Okay, SSD, how much what rates can you write read?
+
+406
+00:21:08,220 --> 00:21:09,300
+Okay, let me tell you this,
+
+407
+00:21:09,300 --> 00:21:15,560
+roughly the throughput of a single disk at the time this, this paper
+
+408
+00:21:15,560 --> 00:21:17,540
+was around like thirty megabytes per second,
+
+409
+00:21:17,540 --> 00:21:19,250
+but somewhere in the tens of megabytes a second,
+
+410
+00:21:20,810 --> 00:21:21,920
+so here we're looking at
+
+411
+00:21:21,950 --> 00:21:26,980
+you know well over 10000 megabytes per second, correct,
+
+412
+00:21:26,980 --> 00:21:28,480
+and so that is an impressive number.
+
+413
+00:21:29,540 --> 00:21:30,860
+And you know you have to work
+
+414
+00:21:30,860 --> 00:21:32,150
+as you know the seeing,
+
+415
+00:21:32,150 --> 00:21:34,520
+the GFS design that allows that kind of throughput.
+
+416
+00:21:36,260 --> 00:21:38,690
+Of course, this technology indications GFS,
+
+417
+00:21:38,690 --> 00:21:40,520
+of course this technology was faster,
+
+418
+00:21:40,700 --> 00:21:43,040
+it would be you know what the real goal here correctly,
+
+419
+00:21:43,040 --> 00:21:44,480
+it's like we have a thousand machines,
+
+420
+00:21:44,690 --> 00:21:46,100
+maybe each one has a disk,
+
+421
+00:21:46,100 --> 00:21:48,200
+each one read thirty megabytes per second,
+
+422
+00:21:48,260 --> 00:21:51,170
+which is 1000 times thirty megabytes per second to get out of it.
+
+423
+00:21:51,800 --> 00:21:52,400
+Okay?
+
+424
+00:21:53,410 --> 00:21:57,460
+So that't what you know drives a lot of this design is,
+
+425
+00:21:57,460 --> 00:22:02,080
+to immediately allow the mappers to read in parallel from the file system,
+
+426
+00:22:02,080 --> 00:22:03,880
+joint file system.
+
+427
+00:22:04,910 --> 00:22:05,480
+Okay?
+
+428
+00:22:06,850 --> 00:22:08,860
+Let me say a little bit more about this,
+
+429
+00:22:08,860 --> 00:22:12,250
+about what are the key properties that GFS has,
+
+430
+00:22:12,610 --> 00:22:17,670
+you know one big large data sets,
+
+431
+00:22:17,670 --> 00:22:19,860
+remember that, I mean that,
+
+432
+00:22:23,900 --> 00:22:27,380
+and so in the think the data set you should think about is like mapreduce data sets,
+
+433
+00:22:27,380 --> 00:22:32,240
+you're going to have a complete crawl the world wide web,
+
+434
+00:22:32,270 --> 00:22:34,340
+is stored in this distributed file system.
+
+435
+00:22:35,460 --> 00:22:37,140
+Has to be fast,
+
+436
+00:22:37,140 --> 00:22:38,250
+we talked about,
+
+437
+00:22:38,790 --> 00:22:41,820
+the way they get like high performance is to do automatic sharding,
+
+438
+00:22:43,730 --> 00:22:45,620
+shard files across multiple disks,
+
+439
+00:22:45,830 --> 00:22:48,890
+allow multiple clients to read from those disks in parallel.
+
+440
+00:22:49,600 --> 00:22:50,080
+Alright?
+
+441
+00:22:51,710 --> 00:22:52,700
+It goes global,
+
+442
+00:22:55,610 --> 00:22:57,710
+what that mean it's shared,
+
+443
+00:22:57,710 --> 00:23:02,690
+you know all apps see same file system,
+
+444
+00:23:06,190 --> 00:23:07,000
+and that's convenient,
+
+445
+00:23:07,000 --> 00:23:09,940
+like if you have multiple mapreduce jobs,
+
+446
+00:23:09,940 --> 00:23:12,850
+you know that operate on the same set of files,
+
+447
+00:23:13,090 --> 00:23:16,000
+they can, first of all read all the same set of files,
+
+448
+00:23:16,000 --> 00:23:17,410
+then they can produce new files,
+
+449
+00:23:17,410 --> 00:23:19,780
+and another mapreduce you can use those files again,
+
+450
+00:23:19,810 --> 00:23:23,440
+and so it's very convenient to have a lot of sharing between applications,
+
+451
+00:23:23,440 --> 00:23:24,520
+so it's very convenient to have.
+
+452
+00:23:26,000 --> 00:23:27,920
+Of course, you know the GFS has to be fault tolerant,
+
+453
+00:23:33,710 --> 00:23:35,210
+it's likely they're gonna be failures,
+
+454
+00:23:35,210 --> 00:23:37,040
+it's what we want like automatic,
+
+455
+00:23:37,990 --> 00:23:40,000
+close to automatic fault tolerance as possible,
+
+456
+00:23:40,000 --> 00:23:42,040
+you'll see GFS doesn't provide completely automatic,
+
+457
+00:23:42,040 --> 00:23:45,370
+but do a pretty good job with getting high with fault tolerance.
+
+458
+00:23:48,160 --> 00:23:52,120
+Okay, any questions about the, this part so far,
+
+459
+00:23:52,540 --> 00:23:55,030
+like a broad intro to this topic,
+
+460
+00:23:55,030 --> 00:23:59,020
+few intro [] about GFS.
+
+461
+00:24:04,330 --> 00:24:04,900
+Okay.
+
+462
+00:24:05,420 --> 00:24:06,650
+Let's then talk about the design.
+
+463
+00:24:13,940 --> 00:24:16,790
+So here's the design,
+
+464
+00:24:16,790 --> 00:24:20,990
+is seen in from the figure one I think in the paper,
+
+465
+00:24:21,320 --> 00:24:23,360
+and there's a couple things I wanted to point out,
+
+466
+00:24:23,360 --> 00:24:25,010
+talk a little bit more in detail about.
+
+467
+00:24:25,480 --> 00:24:27,280
+So, first of all, you know, we have an application,
+
+468
+00:24:27,280 --> 00:24:30,220
+and then you know the application again you know might be mapreduce job,
+
+469
+00:24:30,610 --> 00:24:34,150
+consists multiple reduce task, multiple map task,
+
+470
+00:24:34,450 --> 00:24:36,460
+and they link with the GFS,
+
+471
+00:24:36,460 --> 00:24:39,940
+like and so, it's not a Linux file system,
+
+472
+00:24:39,970 --> 00:24:41,410
+you know this is not the file system,
+
+473
+00:24:41,410 --> 00:24:45,550
+you used to you know whatever edit files or compile,
+
+474
+00:24:45,580 --> 00:24:47,410
+it is really intended,
+
+475
+00:24:47,410 --> 00:24:52,420
+you know as a special purpose file system for these large computations.
+
+476
+00:24:53,800 --> 00:24:54,910
+And as I said before,
+
+477
+00:24:54,910 --> 00:24:58,240
+our real goal correctly achieves an impressive number,
+
+478
+00:24:58,240 --> 00:25:01,870
+like we want the number of megabytes from a single disk times number of machines,
+
+479
+00:25:01,870 --> 00:25:04,180
+and a single application should be able to exploit that.
+
+480
+00:25:04,840 --> 00:25:08,680
+So the way they arrange that is to have a master,
+
+481
+00:25:08,950 --> 00:25:12,010
+that is basically in charge of actually know where things are,
+
+482
+00:25:12,190 --> 00:25:15,190
+and the clients just periodically talks to the master,
+
+483
+00:25:15,190 --> 00:25:18,670
+to to retrieve information,
+
+484
+00:25:18,670 --> 00:25:20,710
+so for example it opens the file,
+
+485
+00:25:20,770 --> 00:25:25,660
+and open call will result in a message to the master,
+
+486
+00:25:25,660 --> 00:25:28,570
+and the master will respond back
+
+487
+00:25:28,570 --> 00:25:30,790
+and say like all the particular filename,
+
+488
+00:25:30,850 --> 00:25:34,330
+the chunks that you need are here,
+
+489
+00:25:34,640 --> 00:25:36,260
+well, these are the chunks that you need,
+
+490
+00:25:36,530 --> 00:25:39,140
+and there's a chunk handles identifier
+
+491
+00:25:39,140 --> 00:25:41,540
+for the particular chunks that constitute a file,
+
+492
+00:25:41,690 --> 00:25:45,080
+and here are the servers that sure that chunk,
+
+493
+00:25:45,110 --> 00:25:49,460
+so you get back chunk handle as well as a bunch of chunk locations.
+
+494
+00:25:50,620 --> 00:25:53,410
+And one file might you know basically file consists,
+
+495
+00:25:53,410 --> 00:25:55,060
+if you think about a big file,
+
+496
+00:25:55,750 --> 00:25:57,460
+it consists of many many chunks,
+
+497
+00:25:59,350 --> 00:26:06,580
+chunk 0, chunk 1, chunk 2, etc, chunk 3 blah, blah, etc, etc,
+
+498
+00:26:06,580 --> 00:26:09,610
+any chunk is pretty big, 64 megabytes,
+
+499
+00:26:12,060 --> 00:26:15,930
+naturally, the application wants we you know second second second 64 megabyte,
+
+500
+00:26:15,930 --> 00:26:18,630
+it goes to the GFS
+
+501
+00:26:18,630 --> 00:26:21,990
+is like okay, I wanna read you the second chunk,
+
+502
+00:26:22,320 --> 00:26:24,450
+you know this particular file,
+
+503
+00:26:24,450 --> 00:26:28,800
+and the GFS answer, will answer back with the handle for chunk 1,
+
+504
+00:26:28,860 --> 00:26:32,470
+as well as the servers that actually holds chunk 1, right.
+
+505
+00:26:33,910 --> 00:26:39,130
+So multiple applications might ask you know for chunks from the same file,
+
+506
+00:26:39,250 --> 00:26:41,650
+and they all get you know
+
+507
+00:26:42,310 --> 00:26:43,960
+one application might be reading chunk 0,
+
+508
+00:26:43,960 --> 00:26:46,120
+another application might be read chunk 2,
+
+509
+00:26:46,150 --> 00:26:48,880
+they'll get different lists back for each of these chunks.
+
+510
+00:26:50,460 --> 00:26:53,640
+So then the GFS client you know once it knows chunk locations,
+
+511
+00:26:53,670 --> 00:26:56,280
+and basically straight talks to the chunk servers,
+
+512
+00:26:57,670 --> 00:27:04,270
+and basically read you know the data at the speed of the network,
+
+513
+00:27:04,270 --> 00:27:08,440
+and you know maybe every disk you know sits behind this particular chunk server,
+
+514
+00:27:08,440 --> 00:27:09,700
+directly to the application.
+
+515
+00:27:10,480 --> 00:27:13,030
+And here you can see where we're going to get the big win, right,
+
+516
+00:27:13,030 --> 00:27:14,500
+because we're gonna be able to read,
+
+517
+00:27:14,500 --> 00:27:15,550
+you know for multiple,
+
+518
+00:27:15,550 --> 00:27:19,570
+you know multiple clients can be read from multiple disks at the same time,
+
+519
+00:27:19,840 --> 00:27:22,330
+and we're going to get tremendous amount of performance,
+
+520
+00:27:22,540 --> 00:27:25,420
+so for example, like here's map task running,
+
+521
+00:27:25,750 --> 00:27:27,400
+here's another map tasks running,
+
+522
+00:27:27,400 --> 00:27:28,570
+that also as a client,
+
+523
+00:27:28,870 --> 00:27:31,720
+you know they you know going to be talking to the set of servers,
+
+524
+00:27:31,720 --> 00:27:34,900
+we have that whole you know the chunk of all the collection the data set,
+
+525
+00:27:35,020 --> 00:27:36,820
+and there's gonna read in parallel
+
+526
+00:27:36,820 --> 00:27:38,800
+from all those different chunk servers,
+
+527
+00:27:39,200 --> 00:27:43,190
+and that was going to give us a high throughput number.
+
+528
+00:27:45,090 --> 00:27:45,900
+Is that makes sense,
+
+529
+00:27:45,900 --> 00:27:47,670
+that's sort of the overall plan clear here.
+
+530
+00:27:52,590 --> 00:27:53,820
+Just to sort of completed,
+
+531
+00:27:53,820 --> 00:27:56,940
+like on chunk server is nothing really else,
+
+532
+00:27:56,940 --> 00:28:01,020
+and sort of a Linux box, Linux computer with you know disk to it,
+
+533
+00:28:01,230 --> 00:28:03,240
+in fact there's 64 megabyte chunk,
+
+534
+00:28:03,330 --> 00:28:06,660
+each store as a Linux file, in the Linux file system.
+
+535
+00:28:07,710 --> 00:28:08,280
+Okay?
+
+536
+00:28:12,080 --> 00:28:14,360
+Okay, so I want to zoom in on the different pieces
+
+537
+00:28:14,420 --> 00:28:15,920
+and I'll start with the master,
+
+538
+00:28:15,920 --> 00:28:20,360
+because masters are related to the control center here,
+
+539
+00:28:20,570 --> 00:28:24,230
+so talk a little bit about the state that actually the master maintains.
+
+540
+00:28:29,340 --> 00:28:32,100
+Okay, so first of all,
+
+541
+00:28:32,130 --> 00:28:42,310
+you know it has the mapping from file name to an array of of chunk handles,
+
+542
+00:28:49,040 --> 00:28:50,240
+and as you saw in the paper,
+
+543
+00:28:50,240 --> 00:28:50,840
+one of the goals,
+
+544
+00:28:50,840 --> 00:28:54,140
+actually is to maintain all this memory of,
+
+545
+00:28:54,140 --> 00:28:56,870
+most of the information actually directly available in memory,
+
+546
+00:28:57,140 --> 00:29:00,770
+so that master response to a client very quickly,
+
+547
+00:29:00,770 --> 00:29:02,840
+and the reason why reason to do that is because,
+
+548
+00:29:03,020 --> 00:29:05,510
+now there's one master, many clients,
+
+549
+00:29:05,600 --> 00:29:08,510
+you want to execute every client operation as efficient as possible,
+
+550
+00:29:08,510 --> 00:29:12,050
+so that you can scale the master to at least a reasonable number of clients,
+
+551
+00:29:13,940 --> 00:29:15,380
+and then, for every chunk handle,
+
+552
+00:29:19,120 --> 00:29:21,280
+the master contains some additional number,
+
+553
+00:29:21,310 --> 00:29:23,590
+it make particular, it maintains a version number,
+
+554
+00:29:28,640 --> 00:29:33,590
+and a list of chunk servers,
+
+555
+00:29:34,970 --> 00:29:38,000
+that holds a copy of that chunk.
+
+556
+00:29:39,820 --> 00:29:41,050
+And as we'll see in a second,
+
+557
+00:29:41,050 --> 00:29:43,450
+you know one of them is named,
+
+558
+00:29:43,450 --> 00:29:45,160
+one of those servers are primary,
+
+559
+00:29:46,000 --> 00:29:47,770
+and the other ones are secondary,
+
+560
+00:29:50,260 --> 00:29:54,340
+and the typical number that you know a chunk stored at 3 servers
+
+561
+00:29:54,640 --> 00:29:57,010
+and we can maybe talk a little bit later about why 3.
+
+562
+00:29:58,010 --> 00:30:02,300
+And then you know there is a lease associated with each primary,
+
+563
+00:30:02,300 --> 00:30:04,310
+so there's a lease time maintained as well.
+
+564
+00:30:06,100 --> 00:30:09,970
+Then there's two sort of other big storage components,
+
+565
+00:30:09,970 --> 00:30:12,940
+and these are sort of the file system level things,
+
+566
+00:30:12,940 --> 00:30:16,510
+and then in terms of implementation, there's a log,
+
+567
+00:30:17,370 --> 00:30:18,510
+and there are checkpoints。
+
+568
+00:30:23,620 --> 00:30:27,910
+Since the master of the crucial control center,
+
+569
+00:30:27,940 --> 00:30:31,780
+whenever there's change to the name space,
+
+570
+00:30:31,780 --> 00:30:35,020
+and potentially create a new file in the GFS,
+
+571
+00:30:35,260 --> 00:30:39,430
+or mapping the file to chunk blocks and changes,
+
+572
+00:30:39,430 --> 00:30:41,500
+all those operations are written to this log,
+
+573
+00:30:41,530 --> 00:30:44,350
+and log sits on stable storage.
+
+574
+00:30:49,160 --> 00:30:51,200
+And the basic idea is that,
+
+575
+00:30:51,200 --> 00:30:54,050
+like we were before responding to the client,
+
+576
+00:30:54,050 --> 00:30:58,130
+the change actually has made the master writes to stable storage first,
+
+577
+00:30:58,620 --> 00:30:59,970
+and then responds to the client,
+
+578
+00:31:00,120 --> 00:31:03,750
+so this means that if the master fails or crashes,
+
+579
+00:31:03,990 --> 00:31:05,280
+then later comes back up,
+
+580
+00:31:05,280 --> 00:31:09,780
+it can replay log to reconstruct you know the state of its internal state,
+
+581
+00:31:10,840 --> 00:31:14,320
+and by writing it first to a storage before responding to the client,
+
+582
+00:31:14,470 --> 00:31:16,360
+the client will never observe strange results,
+
+583
+00:31:16,360 --> 00:31:19,330
+you know you could do the other way around correct,
+
+584
+00:31:19,330 --> 00:31:20,320
+that result in a problem,
+
+585
+00:31:20,320 --> 00:31:22,870
+because you know the client will think that the file has been created,
+
+586
+00:31:22,870 --> 00:31:25,450
+server crash backup and then the file doesn't exist,
+
+587
+00:31:26,840 --> 00:31:30,080
+so, these are another consistency point.
+
+588
+00:31:31,440 --> 00:31:33,750
+You know replaying always back all the operations
+
+589
+00:31:33,750 --> 00:31:36,360
+from the beginning of time to log is of course undesirable,
+
+590
+00:31:36,360 --> 00:31:38,010
+it means that if the master crashes,
+
+591
+00:31:38,010 --> 00:31:40,830
+and we have only one of them will be down for a long time,
+
+592
+00:31:41,100 --> 00:31:42,150
+so in addition to that,
+
+593
+00:31:42,150 --> 00:31:45,210
+you know it actually keeps checkpoints in stable storage,
+
+594
+00:31:47,250 --> 00:31:51,690
+so periodically, the master makes a checkpoint of its own state
+
+595
+00:31:51,690 --> 00:31:54,900
+and the mapping [] array chunk handles,
+
+596
+00:31:55,320 --> 00:31:58,710
+and stores that on on the stable storage,
+
+597
+00:31:58,830 --> 00:32:01,500
+and so then they only have to replay the last part,
+
+598
+00:32:01,530 --> 00:32:04,740
+basically all the operations in the log after the last checkpoint,
+
+599
+00:32:04,830 --> 00:32:06,420
+so the recovery is actually quickly.
+
+600
+00:32:08,220 --> 00:32:09,630
+So, there's another couple interesting questions,
+
+601
+00:32:09,630 --> 00:32:10,590
+that we can ask ourselves,
+
+602
+00:32:10,590 --> 00:32:14,370
+like what state does need to end up in a stable storage,
+
+603
+00:32:14,370 --> 00:32:16,350
+you know for the master actually function correctly.
+
+604
+00:32:17,140 --> 00:32:18,640
+So the first question to ask is,
+
+605
+00:32:18,700 --> 00:32:23,770
+how about this array of chunk handles the mapping from filename to chunk handles,
+
+606
+00:32:23,770 --> 00:32:26,500
+does that need to be stable stored,
+
+607
+00:32:27,320 --> 00:32:28,790
+or can it be only in memory.
+
+608
+00:32:37,770 --> 00:32:40,980
+If the master crashes,
+
+609
+00:32:41,130 --> 00:32:47,650
+I think you can like get that information from the servers, chunk servers,
+
+610
+00:32:48,200 --> 00:32:51,390
+so maybe only, may memory.
+
+611
+00:32:52,340 --> 00:32:54,380
+Yeah, well, that's answer the question,
+
+612
+00:32:54,380 --> 00:32:55,250
+what other people think.
+
+613
+00:32:56,180 --> 00:32:58,340
+So it can be reconstructed from the log,
+
+614
+00:32:58,370 --> 00:33:00,380
+so, when the server crashes,
+
+615
+00:33:00,470 --> 00:33:03,470
+only the log needs to be in the hard storage,
+
+616
+00:33:03,710 --> 00:33:05,900
+and then it can reload it from the log to main memory.
+
+617
+00:33:06,200 --> 00:33:07,880
+Yeah, so definitely has to be in log,
+
+618
+00:33:07,880 --> 00:33:08,840
+so we agree that,
+
+619
+00:33:08,840 --> 00:33:11,930
+this array of chunk handles basically has to be stored in stable storage,
+
+620
+00:33:16,220 --> 00:33:17,510
+because otherwise we lose,
+
+621
+00:33:17,510 --> 00:33:18,800
+like we create a file,
+
+622
+00:33:18,830 --> 00:33:20,210
+and we didn't write the storage,
+
+623
+00:33:20,210 --> 00:33:21,530
+we just lose the file right,
+
+624
+00:33:21,530 --> 00:33:25,760
+so this mapping from filename to chunk handles need to be in a stable storage,
+
+625
+00:33:25,760 --> 00:33:30,290
+how about this chunk handle to chunk handle to list of chunk servers,
+
+626
+00:33:32,220 --> 00:33:33,930
+is that actually you need to be [].
+
+627
+00:33:35,580 --> 00:33:36,660
+I think in the paper,
+
+628
+00:33:36,660 --> 00:33:41,100
+they say that when the master reboots,
+
+629
+00:33:41,340 --> 00:33:45,780
+it asks the servers to tell tell the master,
+
+630
+00:33:45,780 --> 00:33:48,570
+what the chunks that they have are.
+
+631
+00:33:48,810 --> 00:33:50,520
+Yeah, so this is not actually,
+
+632
+00:33:50,520 --> 00:33:55,600
+this is basically just volatile state, not not stable storage.
+
+633
+00:33:56,080 --> 00:34:01,770
+So same presumably to the primaries and the secondaries, and to the lease time.
+
+634
+00:34:02,630 --> 00:34:03,710
+How about the version number?
+
+635
+00:34:10,740 --> 00:34:14,910
+Does the master need to remember on stable storage version number or not?
+
+636
+00:34:16,410 --> 00:34:18,210
+Yes, because it needs to know
+
+637
+00:34:18,210 --> 00:34:23,190
+if the chunks in the other servers are stale or not.
+
+638
+00:34:23,780 --> 00:34:26,030
+Yeah, exactly exactly right, right,
+
+639
+00:34:26,030 --> 00:34:27,890
+so the master must remember version number,
+
+640
+00:34:27,890 --> 00:34:31,580
+because if it doesn't,
+
+641
+00:34:31,580 --> 00:34:33,350
+and the whole system went down,
+
+642
+00:34:33,770 --> 00:34:35,450
+and the chunk servers came back up,
+
+643
+00:34:35,750 --> 00:34:39,590
+and maybe the chunk server actually with the most recent data does not come up,
+
+644
+00:34:39,590 --> 00:34:42,230
+with an older guy comes up with version number 14,
+
+645
+00:34:42,620 --> 00:34:44,480
+then the master has to be able to tell
+
+646
+00:34:44,480 --> 00:34:49,790
+that you know that chunk server version of 14 was not the most recent chunk server,
+
+647
+00:34:50,620 --> 00:34:53,710
+and so it needs to maintain that version number on disk,
+
+648
+00:34:53,710 --> 00:34:55,030
+so that actually can tell,
+
+649
+00:34:55,060 --> 00:34:58,960
+which chunk servers actually have the most updated information on which ones don't.
+
+650
+00:35:00,010 --> 00:35:00,550
+Okay?
+
+651
+00:35:01,020 --> 00:35:02,430
+I have a question here,
+
+652
+00:35:03,600 --> 00:35:07,740
+if, well, I mean if if the master failed
+
+653
+00:35:07,740 --> 00:35:09,120
+and then it has to come up,
+
+654
+00:35:09,330 --> 00:35:12,540
+it's anyway going to connect to all of the chunk servers,
+
+655
+00:35:12,540 --> 00:35:17,560
+and it will find out what the largest version is.
+
+656
+00:35:18,220 --> 00:35:21,760
+Yeah, has ability to find out what the last,
+
+657
+00:35:21,760 --> 00:35:25,840
+first of all, it will try to talk to all chunk servers,
+
+658
+00:35:26,110 --> 00:35:27,460
+some chunk servers might be down.
+
+659
+00:35:28,040 --> 00:35:28,670
+Okay.
+
+660
+00:35:29,120 --> 00:35:31,670
+And that's that maybe just the chunk server,
+
+661
+00:35:31,670 --> 00:35:33,890
+that actually has the most recent version right.
+
+662
+00:35:34,220 --> 00:35:34,910
+Yeah, okay.
+
+663
+00:35:35,390 --> 00:35:38,990
+So you can't take the max of the life chunk servers,
+
+664
+00:35:39,480 --> 00:35:41,250
+that be incorrect.
+
+665
+00:35:46,110 --> 00:35:47,400
+Any other questions about this?
+
+666
+00:35:51,820 --> 00:35:54,490
+Okay, let's look at the two sort of basic operations,
+
+667
+00:35:55,120 --> 00:35:57,280
+to really get down to consistency,
+
+668
+00:35:57,280 --> 00:35:59,710
+and of course you know it's going to be reading and writing,
+
+669
+00:35:59,950 --> 00:36:00,940
+so reading a file,
+
+670
+00:36:01,510 --> 00:36:02,950
+and then we'll talk about writing a file.
+
+671
+00:36:04,060 --> 00:36:06,790
+So reading files in some sense straightforward,
+
+672
+00:36:06,820 --> 00:36:09,340
+we talked about basically a client send message
+
+673
+00:36:09,340 --> 00:36:15,150
+you know to with the filename plus offset to the master,
+
+674
+00:36:16,320 --> 00:36:20,650
+and basically ask please give me you know chunk servers,
+
+675
+00:36:20,740 --> 00:36:29,110
+and chunk handle that hold that hold the data at that offset,
+
+676
+00:36:29,850 --> 00:36:32,010
+and so end finds the chunk handle,
+
+677
+00:36:32,730 --> 00:36:36,270
+so like read byte whatever 0,
+
+678
+00:36:36,300 --> 00:36:42,010
+you know it's pretty clear that has to be the first entry in the list,
+
+679
+00:36:42,010 --> 00:36:45,390
+you know from filename to chunk handle.
+
+680
+00:36:46,130 --> 00:36:52,360
+So [], the master chunk handle basically replies you know with the master,
+
+681
+00:36:52,390 --> 00:36:55,270
+replies to the client with the chunk handle,
+
+682
+00:36:57,440 --> 00:37:06,080
+and list of chunk servers for that handle and version number.
+
+683
+00:37:09,000 --> 00:37:11,670
+So basically the client gets back a message
+
+684
+00:37:11,670 --> 00:37:14,070
+saying you know that's chunk you know 221,
+
+685
+00:37:14,400 --> 00:37:17,340
+you know and here are the three machines,
+
+686
+00:37:17,340 --> 00:37:19,560
+IP address, the three machines that actually have it,
+
+687
+00:37:20,140 --> 00:37:22,960
+and the version number is like version of 10.
+
+688
+00:37:26,400 --> 00:37:28,200
+Then the client caches this list,
+
+689
+00:37:34,820 --> 00:37:38,240
+and then it basically sends a message to the closest,
+
+690
+00:37:40,140 --> 00:37:46,290
+reads from closest server.
+
+691
+00:37:51,380 --> 00:37:55,700
+And so why this the client actually read cache this information,
+
+692
+00:37:58,100 --> 00:37:59,240
+yes, we'll see later, correct,
+
+693
+00:37:59,240 --> 00:38:00,590
+that caused some troubles.
+
+694
+00:38:01,400 --> 00:38:04,340
+So it doesn't have to contact the master for some time,
+
+695
+00:38:04,340 --> 00:38:07,580
+if it wants to read again or write to that chunk.
+
+696
+00:38:08,780 --> 00:38:10,130
+Yeah, why is that important?
+
+697
+00:38:11,610 --> 00:38:15,270
+To reduce the, I guess the traffic,
+
+698
+00:38:15,450 --> 00:38:18,240
+and in general it takes less time,
+
+699
+00:38:18,240 --> 00:38:20,460
+if you have less communication with the master.
+
+700
+00:38:20,610 --> 00:38:23,640
+Yeah, and you know the, you do the same with that's correct,
+
+701
+00:38:23,640 --> 00:38:26,040
+this design is that the master actually a single machine,
+
+702
+00:38:26,980 --> 00:38:28,030
+and as a single machine,
+
+703
+00:38:28,030 --> 00:38:31,750
+you can just have a limited amount of memory and limit network interface,
+
+704
+00:38:31,750 --> 00:38:34,150
+and so you have too many clients talking to,
+
+705
+00:38:34,150 --> 00:38:36,340
+it wouldn't be able to serve, right,
+
+706
+00:38:36,340 --> 00:38:39,970
+so client caching is important to reduce the load on this single machine.
+
+707
+00:38:41,730 --> 00:38:44,010
+Okay, why read from the closest server?
+
+708
+00:38:46,860 --> 00:38:48,300
+Minimize network traffic.
+
+709
+00:38:48,660 --> 00:38:49,920
+Yeah, minimize network traffic,
+
+710
+00:38:49,920 --> 00:38:51,510
+you know, so the whole goal correct is,
+
+711
+00:38:51,510 --> 00:38:54,660
+to pump as much data to client as possible,
+
+712
+00:38:54,660 --> 00:38:55,500
+the highest throughput.
+
+713
+00:38:55,890 --> 00:38:59,070
+And you know we have, there's two problems,
+
+714
+00:38:59,070 --> 00:39:01,320
+we had to cross with data center network,
+
+715
+00:39:01,320 --> 00:39:04,320
+one you know where there's probably some topology,
+
+716
+00:39:04,320 --> 00:39:07,530
+and maybe [swamps] like the top links of topology,
+
+717
+00:39:07,980 --> 00:39:12,870
+and may actually increase latency to actually get to the other side.
+
+718
+00:39:13,520 --> 00:39:15,800
+Alright, it's important to be able to be to the closest side,
+
+719
+00:39:15,800 --> 00:39:18,980
+again to basically maximize you know the throughput
+
+720
+00:39:18,980 --> 00:39:20,840
+you know that joint set of clients,
+
+721
+00:39:20,840 --> 00:39:22,010
+you can sort of experience,
+
+722
+00:39:22,010 --> 00:39:25,220
+when they're reading in parallel from many many chunk servers.
+
+723
+00:39:26,420 --> 00:39:26,990
+Okay?
+
+724
+00:39:28,110 --> 00:39:32,640
+So the chunk server S you know [] check the version number,
+
+725
+00:39:35,570 --> 00:39:37,190
+and if the version number is okay,
+
+726
+00:39:37,280 --> 00:39:38,570
+you know then send data.
+
+727
+00:39:42,570 --> 00:39:43,170
+Okay?
+
+728
+00:39:44,510 --> 00:39:46,190
+Why is check the version number there?
+
+729
+00:39:50,580 --> 00:39:52,530
+To check if it's too stale.
+
+730
+00:39:52,770 --> 00:39:58,010
+Yeah, we do our best to avoid reading stale data,
+
+731
+00:39:58,820 --> 00:40:00,140
+and you know as we'll seen in a second,
+
+732
+00:40:00,140 --> 00:40:02,930
+we do you don't do a perfect job at [],
+
+733
+00:40:02,930 --> 00:40:08,920
+but try hard to minimize you know occurrences with the clients reading stale data.
+
+734
+00:40:09,500 --> 00:40:10,040
+Okay?
+
+735
+00:40:11,470 --> 00:40:13,780
+Those reading reasonable straightforward.
+
+736
+00:40:15,450 --> 00:40:16,920
+So let's look at the writing.
+
+737
+00:40:20,690 --> 00:40:22,910
+So this is a picture from the paper,
+
+738
+00:40:24,880 --> 00:40:26,860
+and so let's say client was the,
+
+739
+00:40:26,860 --> 00:40:28,450
+let's focus append.
+
+740
+00:40:40,440 --> 00:40:43,710
+And so they argued that the very common operation for them
+
+741
+00:40:43,710 --> 00:40:45,510
+needs to append a record to a file,
+
+742
+00:40:45,720 --> 00:40:48,630
+and can we see why,
+
+743
+00:40:48,660 --> 00:40:52,470
+given what you guys you know from mapreduce,
+
+744
+00:40:52,470 --> 00:40:54,540
+you know Google does make sense,
+
+745
+00:40:54,540 --> 00:40:56,010
+why append is so important.
+
+746
+00:41:01,830 --> 00:41:04,380
+Because largely in doing mapreduce,
+
+747
+00:41:04,620 --> 00:41:06,660
+you need to,
+
+748
+00:41:06,810 --> 00:41:11,070
+as the map function spits out information,
+
+749
+00:41:11,070 --> 00:41:13,350
+it's largely just adding on information
+
+750
+00:41:13,350 --> 00:41:15,960
+rather than changing previously spit out information.
+
+751
+00:41:16,020 --> 00:41:18,360
+Yeah, you know maybe the map is not the best example,
+
+752
+00:41:18,360 --> 00:41:20,940
+because write to the local files not to GFS,
+
+753
+00:41:20,940 --> 00:41:21,990
+but the reducer does,
+
+754
+00:41:22,290 --> 00:41:24,630
+the same argument also reducer.
+
+755
+00:41:25,630 --> 00:41:27,310
+Yeah, so they're going to work there
+
+756
+00:41:27,310 --> 00:41:30,280
+at writings basically consume a lot of information,
+
+757
+00:41:30,430 --> 00:41:32,680
+and you know append record soon to file,
+
+758
+00:41:32,680 --> 00:41:35,170
+with the resulting computation with result of the computation.
+
+759
+00:41:35,470 --> 00:41:36,010
+Okay?
+
+760
+00:41:36,970 --> 00:41:39,670
+Good, so you know step 1 we have clients,
+
+761
+00:41:40,180 --> 00:41:43,630
+it will talk to the master to figure out where to write,
+
+762
+00:41:44,520 --> 00:41:46,650
+and so the master looks in it's table,
+
+763
+00:41:46,650 --> 00:41:50,250
+where the filename to chunk handles,
+
+764
+00:41:56,510 --> 00:41:58,460
+and finds you know the chunk handles,
+
+765
+00:41:58,490 --> 00:42:06,380
+and then you know looks at this table of chunk handles to servers,
+
+766
+00:42:08,360 --> 00:42:10,040
+to find the list of servers that has,
+
+767
+00:42:10,190 --> 00:42:11,600
+that have a particular thing,
+
+768
+00:42:12,170 --> 00:42:13,340
+that have that particular chunk.
+
+769
+00:42:13,950 --> 00:42:15,210
+Okay, so what happens next,
+
+770
+00:42:15,240 --> 00:42:16,890
+so there's two cases,
+
+771
+00:42:16,950 --> 00:42:19,260
+when there's already primary,
+
+772
+00:42:19,260 --> 00:42:20,910
+in the second case, the first case,
+
+773
+00:42:20,910 --> 00:42:22,950
+with two cases having a primary or not primary.
+
+774
+00:42:23,650 --> 00:42:25,360
+Let's say this is the very first time,
+
+775
+00:42:25,360 --> 00:42:29,110
+that this particular client contacts the master for this particular chunk,
+
+776
+00:42:29,290 --> 00:42:30,820
+nobody else has done it so far,
+
+777
+00:42:30,850 --> 00:42:31,840
+so there's no primary,
+
+778
+00:42:32,510 --> 00:42:35,120
+in that case, you know we need to do,
+
+779
+00:42:35,850 --> 00:42:38,070
+master needs to pick a primary, right,
+
+780
+00:42:38,070 --> 00:42:38,790
+how did it do that.
+
+781
+00:42:39,950 --> 00:42:44,690
+I think the master just picks any of the available chunk servers, right.
+
+782
+00:42:46,290 --> 00:42:46,950
+Yep, picks one,
+
+783
+00:42:47,400 --> 00:42:50,550
+so picks one of those primary and other ones are the secondary,
+
+784
+00:42:50,880 --> 00:42:52,920
+what other steps are involved in this sort of.
+
+785
+00:42:53,340 --> 00:42:59,160
+Yeah, and then subsequently the master grants a lease to that primary,
+
+786
+00:42:59,160 --> 00:43:03,240
+and that lease has a certain like date of expiry.
+
+787
+00:43:03,660 --> 00:43:04,740
+Yeah, what else do you have,
+
+788
+00:43:04,740 --> 00:43:06,570
+one or more other piece of crucial information.
+
+789
+00:43:10,150 --> 00:43:10,780
+Even.
+
+790
+00:43:12,260 --> 00:43:14,000
+Increment the version number?
+
+791
+00:43:14,000 --> 00:43:18,710
+Yeah, yeah, step one is increment version number,
+
+792
+00:43:19,970 --> 00:43:22,580
+because you're gonna make a new primary,
+
+793
+00:43:22,580 --> 00:43:24,410
+and when every time you make a new primary,
+
+794
+00:43:24,410 --> 00:43:24,680
+or whatever you make a new primary,
+
+795
+00:43:24,680 --> 00:43:27,290
+you go to sort of want to think about is a new epoch,
+
+796
+00:43:27,320 --> 00:43:30,740
+in the file system or this particular file,
+
+797
+00:43:30,740 --> 00:43:31,970
+and so you increase the version number,
+
+798
+00:43:32,180 --> 00:43:33,680
+because you have a new data,
+
+799
+00:43:34,600 --> 00:43:37,240
+so basically the master increases the version number,
+
+800
+00:43:37,880 --> 00:43:43,730
+yeah, it's sends to the primary a new version number and the secondaries,
+
+801
+00:43:43,760 --> 00:43:47,570
+and saying like hey guys we're gonna start a new,
+
+802
+00:43:47,570 --> 00:43:48,920
+we will start a new mutation,
+
+803
+00:43:48,950 --> 00:43:51,320
+you got for forming a replica group,
+
+804
+00:43:51,560 --> 00:43:54,110
+and your replica group with this particular version number whatever
+
+805
+00:43:54,170 --> 00:43:56,710
+version number 12, right.
+
+806
+00:43:57,350 --> 00:44:00,170
+And the primary and the secondary store version number,
+
+807
+00:44:00,170 --> 00:44:02,000
+what do you is store the version number,
+
+808
+00:44:07,210 --> 00:44:11,770
+do they store on disk or on their disk or memory, or.
+
+809
+00:44:16,160 --> 00:44:16,850
+I don't know.
+
+810
+00:44:18,780 --> 00:44:21,810
+Anyone, what do you think?
+
+811
+00:44:22,740 --> 00:44:23,880
+Okay, let's first do memory,
+
+812
+00:44:23,880 --> 00:44:25,200
+let's say storage in memory,
+
+813
+00:44:25,200 --> 00:44:26,190
+would that be a good design?
+
+814
+00:44:28,900 --> 00:44:29,590
+No.
+
+815
+00:44:30,720 --> 00:44:31,170
+Sorry.
+
+816
+00:44:31,770 --> 00:44:32,400
+You can go.
+
+817
+00:44:32,790 --> 00:44:34,200
+I guess it wouldn't,
+
+818
+00:44:34,200 --> 00:44:36,360
+because if the chunk server goes down,
+
+819
+00:44:36,360 --> 00:44:37,860
+and then it comes back up,
+
+820
+00:44:37,890 --> 00:44:40,700
+it, it should know what version it has.
+
+821
+00:44:41,240 --> 00:44:43,100
+Yeah, because otherwise you couldn't convince the primary
+
+822
+00:44:43,100 --> 00:44:44,300
+that has the most recent one,
+
+823
+00:44:44,360 --> 00:44:46,880
+was the primary, sorry the master could big,
+
+824
+00:44:46,910 --> 00:44:48,740
+you know the chunk server with most recent data,
+
+825
+00:44:49,610 --> 00:44:50,990
+so it has to be on this,
+
+826
+00:44:51,020 --> 00:44:52,850
+so basically the version number lives on disk,
+
+827
+00:44:52,850 --> 00:44:57,480
+both at the chunk servers and at the master, right.
+
+828
+00:44:58,340 --> 00:45:00,560
+So when the chunk, the master gets back,
+
+829
+00:45:00,560 --> 00:45:03,560
+you know the acknowledgement from the primary and secondary,
+
+830
+00:45:03,560 --> 00:45:06,920
+that they written the version number to disk,
+
+831
+00:45:07,010 --> 00:45:10,220
+and in the primary actually has received the lease,
+
+832
+00:45:10,340 --> 00:45:15,260
+then you know the master also writes its version number to disk,
+
+833
+00:45:15,260 --> 00:45:16,610
+and then responds to the client.
+
+834
+00:45:18,050 --> 00:45:18,650
+Okay?
+
+835
+00:45:19,780 --> 00:45:21,130
+So to back to the client,
+
+836
+00:45:21,250 --> 00:45:23,320
+responds with a list of servers,
+
+837
+00:45:23,500 --> 00:45:27,520
+you know primary plus secondary plus version number.
+
+838
+00:45:29,350 --> 00:45:29,980
+Okay?
+
+839
+00:45:31,580 --> 00:45:33,260
+Then you know the next step,
+
+840
+00:45:33,260 --> 00:45:34,760
+and again here we see the whole goal is
+
+841
+00:45:34,760 --> 00:45:36,710
+to [type] a lot of data from the network,
+
+842
+00:45:36,710 --> 00:45:39,710
+is the client actually just sends the data,
+
+843
+00:45:39,740 --> 00:45:43,190
+that wants write to the to the primary and the secondary,
+
+844
+00:45:44,000 --> 00:45:46,130
+the way it actually does is sort of an interesting way,
+
+845
+00:45:46,130 --> 00:45:49,070
+and basically contact the closest secondary it knows of,
+
+846
+00:45:49,220 --> 00:45:50,360
+you know out of this list,
+
+847
+00:45:50,630 --> 00:45:51,770
+and sends the data there,
+
+848
+00:45:52,520 --> 00:45:56,570
+and that secondary you know move the data over to the next person in the list,
+
+849
+00:45:56,570 --> 00:45:58,340
+and then to the next server list,
+
+850
+00:46:00,500 --> 00:46:01,310
+and so this way
+
+851
+00:46:01,310 --> 00:46:03,890
+you know the data sort of pumped from the clients
+
+852
+00:46:03,890 --> 00:46:07,760
+you know to the pipeline to all the replicas,
+
+853
+00:46:07,910 --> 00:46:11,090
+and you know when the secondary receives,
+
+854
+00:46:11,090 --> 00:46:12,680
+the first secondary receives some of the data,
+
+855
+00:46:12,680 --> 00:46:16,100
+immediately starts actually pushing the data further down the pipeline.
+
+856
+00:46:16,760 --> 00:46:17,420
+Okay?
+
+857
+00:46:18,960 --> 00:46:20,010
+The reason this design is,
+
+858
+00:46:20,010 --> 00:46:22,140
+this way sort of basically this network interface,
+
+859
+00:46:22,140 --> 00:46:24,240
+the client that has go to the outside world,
+
+860
+00:46:24,300 --> 00:46:28,020
+uses a full network interface to push the data down the pipeline,
+
+861
+00:46:29,000 --> 00:46:30,410
+so that gives us high throughput.
+
+862
+00:46:31,550 --> 00:46:32,090
+Okay?
+
+863
+00:46:34,650 --> 00:46:37,200
+Okay, so then you know if this all successful,
+
+864
+00:46:37,230 --> 00:46:40,800
+and the data has been pushed you know to all the servers,
+
+865
+00:46:40,920 --> 00:46:43,020
+those servers don't store that information in this yet,
+
+866
+00:46:43,020 --> 00:46:45,240
+and it just sits there sort of on the side,
+
+867
+00:46:45,240 --> 00:46:47,520
+you know to be used in the next step.
+
+868
+00:46:48,120 --> 00:46:48,900
+So the next step is,
+
+869
+00:46:48,900 --> 00:46:51,060
+basically for the client to send a message,
+
+870
+00:46:51,060 --> 00:46:55,450
+like an append message you know to the primary,
+
+871
+00:46:55,810 --> 00:46:57,340
+and at that point,
+
+872
+00:46:57,640 --> 00:47:00,610
+you know the primary will check you know the version number, right,
+
+873
+00:47:02,240 --> 00:47:04,670
+whether it actually version number corresponds to the version number,
+
+874
+00:47:04,670 --> 00:47:07,220
+if it doesn't correspond to, if it doesn't match,
+
+875
+00:47:07,220 --> 00:47:08,990
+then they probably won't allow it,
+
+876
+00:47:09,540 --> 00:47:12,390
+the primary checks this lease, is the lease valid,
+
+877
+00:47:13,290 --> 00:47:14,940
+because if lease is not valid anymore,
+
+878
+00:47:14,940 --> 00:47:17,940
+it cannot accept any mutation operations,
+
+879
+00:47:17,940 --> 00:47:19,590
+because it if lease is not valid,
+
+880
+00:47:19,590 --> 00:47:22,170
+there might be another primary outside in the world,
+
+881
+00:47:23,100 --> 00:47:25,080
+so it checks the lease,
+
+882
+00:47:25,610 --> 00:47:28,940
+and then, if you know basically the version numbers match, the lease is still valid,
+
+883
+00:47:29,150 --> 00:47:31,280
+basically picks an offset to write there.
+
+884
+00:47:34,190 --> 00:47:35,180
+And then the next step is,
+
+885
+00:47:35,180 --> 00:47:37,670
+we basically write you know the data that just came in,
+
+886
+00:47:37,670 --> 00:47:40,940
+you know this record to a stable storage,
+
+887
+00:47:40,970 --> 00:47:44,330
+so the primary actually at this point write it to stable storage,
+
+888
+00:47:44,940 --> 00:47:45,660
+the data,
+
+889
+00:47:46,380 --> 00:47:48,480
+and then sends messages to the secondary,
+
+890
+00:47:48,480 --> 00:47:50,160
+saying please write the data too.
+
+891
+00:47:51,480 --> 00:47:54,810
+And since the primary picks the offsets,
+
+892
+00:47:54,810 --> 00:47:56,460
+you know the, it tells the secondaries,
+
+893
+00:47:56,460 --> 00:47:59,280
+where to write you know that particular record into the file,
+
+894
+00:48:00,310 --> 00:48:03,370
+so maybe you like whatever it takes offset 125,
+
+895
+00:48:03,370 --> 00:48:05,140
+and it will tell the secondaries,
+
+896
+00:48:05,290 --> 00:48:10,360
+[] all to write you know the data that came in earlier at offset 125.
+
+897
+00:48:11,930 --> 00:48:13,700
+Then, if everything workout,
+
+898
+00:48:13,700 --> 00:48:16,700
+you know everybody, all the secondary and the primary
+
+899
+00:48:16,700 --> 00:48:19,160
+successfully write their data back you know to disk,
+
+900
+00:48:19,310 --> 00:48:21,080
+then it actually responds back to the client,
+
+901
+00:48:21,080 --> 00:48:25,250
+saying like okay success you append actually happens.
+
+902
+00:48:27,770 --> 00:48:31,520
+There's a way that the write actually might be not successful
+
+903
+00:48:31,520 --> 00:48:32,900
+or it might not be successful,
+
+904
+00:48:32,900 --> 00:48:35,480
+and namely for example, the primary has written into its own disk,
+
+905
+00:48:35,690 --> 00:48:37,790
+but it fails to write it,
+
+906
+00:48:37,790 --> 00:48:40,310
+you know it fails to connect to one of the secondaries,
+
+907
+00:48:40,310 --> 00:48:42,200
+maybe secondary actually crashed,
+
+908
+00:48:42,200 --> 00:48:45,020
+or maybe the secondary just has a network connection that doesn't work,
+
+909
+00:48:46,060 --> 00:48:50,980
+and in that case, the primary actually returns an error to the client,
+
+910
+00:48:51,010 --> 00:48:58,390
+so error if one secondary didn't respond,
+
+911
+00:49:05,510 --> 00:49:09,230
+and in that case, the client library what it will do is usually try or retry,
+
+912
+00:49:09,470 --> 00:49:15,240
+it will reissue the same append and will try again,
+
+913
+00:49:15,750 --> 00:49:17,880
+in the hope that the second time around,
+
+914
+00:49:18,030 --> 00:49:20,790
+you know that data actually, that [] get through,
+
+915
+00:49:21,690 --> 00:49:25,290
+and so this is what they call like you do at-least-once.
+
+916
+00:49:30,830 --> 00:49:34,460
+If you retry, will the primary pick the same offset?
+
+917
+00:49:36,630 --> 00:49:37,590
+I don't think so.
+
+918
+00:49:40,740 --> 00:49:41,550
+No, it needs a new offset
+
+919
+00:49:41,550 --> 00:49:45,360
+and you know writes the, write new particular offset,
+
+920
+00:49:45,750 --> 00:49:50,040
+so that means if you look at the disks
+
+921
+00:49:50,040 --> 00:49:52,440
+a file on the three replicas,
+
+922
+00:49:53,130 --> 00:49:55,680
+you know the primary S1 S2,
+
+923
+00:49:55,680 --> 00:49:56,550
+it might be the case,
+
+924
+00:49:56,550 --> 00:50:00,440
+something you wrote like you know S1 125 the data,
+
+925
+00:50:00,710 --> 00:50:02,840
+we succeeded maybe S2 12,
+
+926
+00:50:02,840 --> 00:50:07,520
+but S2 actually doesn't happen, there's no data, right,
+
+927
+00:50:08,110 --> 00:50:09,850
+and then we try again,
+
+928
+00:50:09,850 --> 00:50:11,830
+we might rather read the same data x,
+
+929
+00:50:11,830 --> 00:50:14,200
+and maybe we'll succeed in all three.
+
+930
+00:50:14,950 --> 00:50:15,850
+So you see here,
+
+931
+00:50:15,850 --> 00:50:17,920
+that basically replicates records can be duplicated.
+
+932
+00:50:20,960 --> 00:50:23,270
+Is this something that can happen in a standard file system,
+
+933
+00:50:23,270 --> 00:50:26,030
+like your Linux file system on your laptop or your computer.
+
+934
+00:50:31,710 --> 00:50:32,370
+No.
+
+935
+00:50:33,210 --> 00:50:36,690
+No, would you be surprised if your computer did this?
+
+936
+00:50:39,680 --> 00:50:40,160
+I mean, yeah,
+
+937
+00:50:40,160 --> 00:50:42,110
+this is not how standard file writes work.
+
+938
+00:50:42,410 --> 00:50:48,450
+Yeah, it would be inconvenient to have this property,
+
+939
+00:50:48,450 --> 00:50:49,650
+or it doesn't matter?
+
+940
+00:50:53,140 --> 00:50:55,330
+Inconvenient.
+
+941
+00:50:55,330 --> 00:50:57,610
+Yeah, gonna be a pretty bizarre,
+
+942
+00:50:57,640 --> 00:51:01,450
+you know presumably like you know you compiler you produce outputs in your file,
+
+943
+00:51:01,780 --> 00:51:04,180
+and then maybe you know certain blocks written twice,
+
+944
+00:51:04,180 --> 00:51:06,100
+and then you can't run the program anymore,
+
+945
+00:51:06,130 --> 00:51:09,520
+like you know the whole thing is just garbage at that point.
+
+946
+00:51:10,370 --> 00:51:11,750
+So it would just be weird,
+
+947
+00:51:11,750 --> 00:51:12,830
+like you write an email message
+
+948
+00:51:12,830 --> 00:51:15,170
+and this is the body of the email message shows up twice.
+
+949
+00:51:15,640 --> 00:51:19,540
+So this is not your typical file system we do
+
+950
+00:51:19,540 --> 00:51:21,400
+and so there's like a slightly bizarre
+
+951
+00:51:21,970 --> 00:51:23,710
+and you know what is the justification,
+
+952
+00:51:24,390 --> 00:51:26,970
+why, why, why do you think this is a good idea.
+
+953
+00:51:29,800 --> 00:51:31,270
+I'm not sure what is a good idea,
+
+954
+00:51:31,270 --> 00:51:35,170
+but I'm confused how that works for mapreduce specifically,
+
+955
+00:51:35,350 --> 00:51:38,620
+so if you run word count and you do that,
+
+956
+00:51:38,920 --> 00:51:41,200
+and like some files and you'll count,
+
+957
+00:51:41,260 --> 00:51:44,710
+and they're like word a, it shows up once,
+
+958
+00:51:44,710 --> 00:51:46,510
+but you do it twice,
+
+959
+00:51:46,510 --> 00:51:47,740
+because something failed,
+
+960
+00:51:47,800 --> 00:51:49,900
+and now you have a, 1 a, 1,
+
+961
+00:51:50,110 --> 00:51:51,910
+so your a count is going to be wrong.
+
+962
+00:51:52,370 --> 00:51:54,680
+How, yeah, I'm confused.
+
+963
+00:51:55,240 --> 00:51:58,120
+Yes, right, how do they work,
+
+964
+00:51:58,120 --> 00:51:59,710
+it seems like if you don't do anything,
+
+965
+00:51:59,710 --> 00:52:01,810
+then this is really highly inconvenient,
+
+966
+00:52:02,140 --> 00:52:04,240
+where it actually returns to the application,
+
+967
+00:52:04,240 --> 00:52:05,680
+will compute the wrong result.
+
+968
+00:52:07,230 --> 00:52:12,810
+They said use checksums and a unique IDs to check,
+
+969
+00:52:12,840 --> 00:52:19,070
+you know every yeah, every record was like once.
+
+970
+00:52:20,080 --> 00:52:23,140
+Additionally, when you do record appends,
+
+971
+00:52:23,140 --> 00:52:26,680
+the response which has returned from the primary to the client,
+
+972
+00:52:26,680 --> 00:52:29,980
+gives you the offset into the file,
+
+973
+00:52:29,980 --> 00:52:31,720
+where your data was actually written,
+
+974
+00:52:31,720 --> 00:52:35,500
+and the rest of it is assumed to be like undefined.
+
+975
+00:52:36,740 --> 00:52:38,570
+Yeah, that I think the key point here correct is,
+
+976
+00:52:38,570 --> 00:52:41,960
+like basically the application doesn't interact with the file system directly,
+
+977
+00:52:41,960 --> 00:52:43,400
+interact for some library,
+
+978
+00:52:43,400 --> 00:52:44,000
+in the library,
+
+979
+00:52:44,000 --> 00:52:45,980
+basically if you write append records,
+
+980
+00:52:46,340 --> 00:52:48,320
+the library sticks an id in it,
+
+981
+00:52:48,680 --> 00:52:52,130
+and so and also use the library to read these records,
+
+982
+00:52:52,130 --> 00:52:54,380
+and so if you see a record with the same id,
+
+983
+00:52:54,380 --> 00:52:55,340
+you know skip the second one,
+
+984
+00:52:55,780 --> 00:52:58,030
+because you know it's been clearly the same one.
+
+985
+00:52:58,940 --> 00:53:01,910
+And you know they have double, an extra thing in there for checksums
+
+986
+00:53:01,910 --> 00:53:04,130
+to make sure the record didn't get garbled,
+
+987
+00:53:04,370 --> 00:53:09,920
+and basically to detect change in the bytes,
+
+988
+00:53:09,920 --> 00:53:12,710
+but you know the id basically helps them to decide,
+
+989
+00:53:13,070 --> 00:53:15,110
+allows the library to decide,
+
+990
+00:53:15,110 --> 00:53:16,310
+well, this is the same record,
+
+991
+00:53:16,340 --> 00:53:17,930
+I'm not gonna give it to the application,
+
+992
+00:53:18,860 --> 00:53:20,450
+or the applications doesn't need to process it.
+
+993
+00:53:21,520 --> 00:53:22,360
+Okay?
+
+994
+00:53:23,390 --> 00:53:24,860
+My question is,
+
+995
+00:53:24,860 --> 00:53:27,500
+instead of rewriting to every replica,
+
+996
+00:53:27,500 --> 00:53:30,590
+wouldn't it be better to remember which replica is failing,
+
+997
+00:53:31,070 --> 00:53:33,740
+and to stop until it can be written to that one.
+
+998
+00:53:34,620 --> 00:53:36,540
+Yeah, there's a bunch of different designs possible,
+
+999
+00:53:36,540 --> 00:53:40,410
+when let's return to later,
+
+1000
+00:53:40,410 --> 00:53:44,670
+you know I think one reason that they do this this way is,
+
+1001
+00:53:44,670 --> 00:53:46,920
+like if a temporary failure,
+
+1002
+00:53:46,920 --> 00:53:49,080
+like a network disconnection or whatever you know the lease,
+
+1003
+00:53:49,080 --> 00:53:50,670
+the write will succeed and they will continue,
+
+1004
+00:53:51,380 --> 00:53:53,510
+and doesn't have to be any reconfiguration,
+
+1005
+00:53:53,510 --> 00:53:55,100
+there has to be nothing you know
+
+1006
+00:53:55,160 --> 00:53:58,410
+and the write can just keep going, right,
+
+1007
+00:53:58,470 --> 00:54:00,630
+you know so the write doesn't have to fail.
+
+1008
+00:54:02,630 --> 00:54:03,170
+Okay.
+
+1009
+00:54:03,820 --> 00:54:05,980
+It's just a quick question in general,
+
+1010
+00:54:06,400 --> 00:54:11,170
+the all of these servers are trusted, right, there's no.
+
+1011
+00:54:11,200 --> 00:54:15,640
+Yes, absolutely, this is actually important point,
+
+1012
+00:54:15,640 --> 00:54:17,440
+this is not like you know your Linux file system,
+
+1013
+00:54:17,440 --> 00:54:20,350
+where there's permissions and access control writes
+
+1014
+00:54:20,350 --> 00:54:21,400
+and all that kind of stuff,
+
+1015
+00:54:22,180 --> 00:54:24,310
+the servers are completely trusted,
+
+1016
+00:54:24,520 --> 00:54:26,590
+the clients are trusted, the masters trusted,
+
+1017
+00:54:26,590 --> 00:54:28,390
+the software written by Google is trusted,
+
+1018
+00:54:28,390 --> 00:54:29,350
+the whole thing is trusted,
+
+1019
+00:54:31,440 --> 00:54:33,360
+right, this is your complete internal file system.
+
+1020
+00:54:34,220 --> 00:54:35,210
+In fact, it's sort of cool,
+
+1021
+00:54:35,210 --> 00:54:36,710
+it's like a little bit may be surprising,
+
+1022
+00:54:36,710 --> 00:54:39,140
+that we don't even know about this file system in such amout detail,
+
+1023
+00:54:39,170 --> 00:54:41,660
+because it's only used inside Google,
+
+1024
+00:54:41,660 --> 00:54:43,010
+and one of the cool things is that,
+
+1025
+00:54:43,010 --> 00:54:46,090
+you know period of time and still they do,
+
+1026
+00:54:46,240 --> 00:54:47,830
+they wrote up the papers
+
+1027
+00:54:47,830 --> 00:54:49,840
+and describing actually how these systems work,
+
+1028
+00:54:49,870 --> 00:54:51,970
+and there's one reason we know that,
+
+1029
+00:54:52,450 --> 00:54:55,780
+it's actually extremely cool, that they did that.
+
+1030
+00:54:59,110 --> 00:54:59,650
+Okay.
+
+1031
+00:55:01,660 --> 00:55:04,990
+So okay, so we now understand how read works, what write works,
+
+1032
+00:55:04,990 --> 00:55:08,770
+you know there's some sort of interesting behaviors,
+
+1033
+00:55:09,130 --> 00:55:11,350
+I want to talk a little bit more about consistency, correct,
+
+1034
+00:55:11,350 --> 00:55:12,670
+and that really comes down to
+
+1035
+00:55:13,030 --> 00:55:18,130
+you know what a read observe after you did append,
+
+1036
+00:55:18,370 --> 00:55:22,270
+and the homework question really got after this,
+
+1037
+00:55:22,270 --> 00:55:23,560
+and what I would like to do now is
+
+1038
+00:55:23,560 --> 00:55:26,080
+to take a quick break out, like five minutes,
+
+1039
+00:55:26,260 --> 00:55:30,220
+and so you can discuss you know the answer to this question,
+
+1040
+00:55:30,340 --> 00:55:31,270
+and then come back
+
+1041
+00:55:31,270 --> 00:55:33,760
+and talk a little bit more in detail about consistency.
+
+1042
+00:55:34,220 --> 00:55:34,850
+Okay?
+
+1043
+00:55:36,370 --> 00:55:42,070
+I'm gonna make Lily.
+
+1044
+00:55:43,160 --> 00:55:45,210
+Okay, everybody back.
+
+1045
+00:55:46,110 --> 00:55:48,120
+Can everybody here me, double checking.
+
+1046
+00:55:48,570 --> 00:55:50,310
+Yeah, hey, professor, question,
+
+1047
+00:55:50,310 --> 00:55:53,490
+can you go back to the slide with the,
+
+1048
+00:55:54,580 --> 00:55:56,950
+when we talked about the write slide here,
+
+1049
+00:55:56,980 --> 00:55:57,880
+so you mentioned,
+
+1050
+00:55:58,560 --> 00:56:01,230
+the master responds to the client through the version number,
+
+1051
+00:56:02,780 --> 00:56:04,280
+and if that is the key,
+
+1052
+00:56:04,280 --> 00:56:07,370
+then is it possible, is it even possible,
+
+1053
+00:56:08,120 --> 00:56:10,220
+would even have to read like a stale data,
+
+1054
+00:56:10,220 --> 00:56:12,140
+because the client has a version number
+
+1055
+00:56:12,140 --> 00:56:14,030
+and the chunk servers without the version number,
+
+1056
+00:56:14,330 --> 00:56:15,890
+so they can just compare those,
+
+1057
+00:56:16,070 --> 00:56:17,660
+if they don't match the client,
+
+1058
+00:56:17,660 --> 00:56:20,420
+the chunk servers can just say,
+
+1059
+00:56:20,480 --> 00:56:21,890
+I I have a stale data,
+
+1060
+00:56:21,890 --> 00:56:24,410
+so you should not read this.
+
+1061
+00:56:25,170 --> 00:56:26,190
+Okay, let's go,
+
+1062
+00:56:26,250 --> 00:56:28,200
+yeah, let's go for this scenario a little bit more detail.
+
+1063
+00:56:28,200 --> 00:56:29,700
+Let me actually zoom this window.
+
+1064
+00:56:36,090 --> 00:56:37,440
+Okay, let's talk about it,
+
+1065
+00:56:37,440 --> 00:56:39,120
+so I think this scenario we're talking about,
+
+1066
+00:56:39,450 --> 00:56:42,450
+that leads into a problematic situation as follows,
+
+1067
+00:56:42,630 --> 00:56:44,730
+we have primary, we have secondary,
+
+1068
+00:56:44,730 --> 00:56:49,980
+two secondary, secondary one, secondary two,
+
+1069
+00:56:49,980 --> 00:56:51,720
+we have a client at this side,
+
+1070
+00:56:52,420 --> 00:56:54,460
+we have a primary,
+
+1071
+00:56:55,450 --> 00:56:58,960
+client reach you know it's back like a version number say 10,
+
+1072
+00:57:03,440 --> 00:57:09,020
+the, later on another primary will,
+
+1073
+00:57:16,680 --> 00:57:19,350
+okay, so S2 get some servers,
+
+1074
+00:57:19,350 --> 00:57:21,600
+then at some point, the,
+
+1075
+00:57:22,920 --> 00:57:26,610
+so this information is cached on the side,
+
+1076
+00:57:26,610 --> 00:57:32,490
+you know, maybe you know one of the secondary is like S2 crashes,
+
+1077
+00:57:32,900 --> 00:57:35,960
+or at least appears to be disconnected from the network,
+
+1078
+00:57:36,650 --> 00:57:39,800
+so what the master will do is increment version numbers,
+
+1079
+00:57:39,800 --> 00:57:43,430
+you know go to 11 messages 11,
+
+1080
+00:57:44,160 --> 00:57:48,540
+then you know another client may come around and start writing,
+
+1081
+00:57:49,320 --> 00:57:54,870
+so we'll write a new value to S1 and S2 for the file,
+
+1082
+00:57:54,870 --> 00:57:56,340
+so the chunk has now been updated,
+
+1083
+00:57:56,340 --> 00:57:59,760
+so let's say chunks original 10 same as version number,
+
+1084
+00:57:59,760 --> 00:58:01,590
+now it's 11 here,
+
+1085
+00:58:02,460 --> 00:58:03,930
+but you know it's the case,
+
+1086
+00:58:03,930 --> 00:58:07,590
+that even though the master primary secondary couldn't talk S2,
+
+1087
+00:58:07,590 --> 00:58:08,790
+but the second client,
+
+1088
+00:58:09,030 --> 00:58:11,850
+first client could still talk to the secondary,
+
+1089
+00:58:12,060 --> 00:58:14,340
+and it will read the version numbers match,
+
+1090
+00:58:14,370 --> 00:58:15,510
+they're both 10,
+
+1091
+00:58:17,340 --> 00:58:21,990
+and it will read, it'll send 10 back, right,
+
+1092
+00:58:21,990 --> 00:58:24,840
+so you have a case where the write has completed,
+
+1093
+00:58:25,220 --> 00:58:26,990
+as acknowledged to be okay,
+
+1094
+00:58:27,260 --> 00:58:28,400
+and nevertheless,
+
+1095
+00:58:28,400 --> 00:58:30,980
+there's a client that actually will read a stale value back.
+
+1096
+00:58:31,680 --> 00:58:34,500
+So, why doesn't the 11 go back to the client?
+
+1097
+00:58:36,550 --> 00:58:38,590
+The first client,
+
+1098
+00:58:39,650 --> 00:58:42,620
+the reason is because the first client caches it for a longer period of time,
+
+1099
+00:58:43,280 --> 00:58:45,800
+they don't actually have anything in the protocol that actually does that.
+
+1100
+00:58:50,060 --> 00:58:51,860
+So does the version increment,
+
+1101
+00:58:51,860 --> 00:58:57,320
+when the, when the system tries to push an update to S2,
+
+1102
+00:58:57,320 --> 00:58:59,210
+and it's not able to, or.
+
+1103
+00:58:59,300 --> 00:59:01,100
+Version numbers only increment,
+
+1104
+00:59:01,430 --> 00:59:03,320
+the version number is maintained by the master,
+
+1105
+00:59:03,320 --> 00:59:06,350
+they only increment when you select a new primary,
+
+1106
+00:59:12,910 --> 00:59:13,900
+not when you do it,
+
+1107
+00:59:13,900 --> 00:59:16,660
+there's a there's also a serial number, that they talk about,
+
+1108
+00:59:17,020 --> 00:59:18,460
+but its different from the version number,
+
+1109
+00:59:18,490 --> 00:59:20,590
+that just to order you know the writes.
+
+1110
+00:59:22,670 --> 00:59:23,240
+Okay?
+
+1111
+00:59:23,920 --> 00:59:27,730
+How does the primary know which secondary is it has to check with,
+
+1112
+00:59:27,880 --> 00:59:30,640
+before making, before completing it write successfully.
+
+1113
+00:59:31,360 --> 00:59:33,100
+The primary, the master tells it,
+
+1114
+00:59:34,140 --> 00:59:36,900
+master tells the primary you know secondary you need to update.
+
+1115
+00:59:39,720 --> 00:59:43,080
+So when the master basically issues the lease to the primary,
+
+1116
+00:59:43,200 --> 00:59:46,710
+and if one of the secondaries is down at that moment,
+
+1117
+00:59:46,920 --> 00:59:48,990
+does the master consider this a failure,
+
+1118
+00:59:48,990 --> 00:59:52,860
+or does it just update the version number for the servers that are alive,
+
+1119
+00:59:52,860 --> 00:59:55,350
+and it just forget about the other one,
+
+1120
+00:59:55,350 --> 00:59:57,930
+because it's going to have an outdated version number anyway.
+
+1121
+00:59:58,410 --> 01:00:01,110
+Yeah, the papers is a little bit [],
+
+1122
+01:00:01,110 --> 01:00:06,420
+exactly how the recovery part the reconfiguration stuff works,
+
+1123
+01:00:06,630 --> 01:00:08,040
+but I imagine that,
+
+1124
+01:00:08,040 --> 01:00:12,300
+basically the primary actually does heartbeats with P1 S1 S2,
+
+1125
+01:00:12,630 --> 01:00:15,150
+in some point, the side you know S2 is dead,
+
+1126
+01:00:15,420 --> 01:00:18,930
+and at that point, it will point
+
+1127
+01:00:18,930 --> 01:00:21,240
+and the lease the primary maybe runs out,
+
+1128
+01:00:21,660 --> 01:00:26,700
+and then it will create a new primary and a new S1 and another S,
+
+1129
+01:00:26,700 --> 01:00:27,930
+you know actual hold you know,
+
+1130
+01:00:27,930 --> 01:00:29,070
+or maybe just S1,
+
+1131
+01:00:29,070 --> 01:00:32,670
+because there's no, no additional chunk server,
+
+1132
+01:00:32,850 --> 01:00:35,910
+and that forms the new replica group for that chunk.
+
+1133
+01:00:37,620 --> 01:00:40,860
+Also, the lease doesn't run out yet, basically.
+
+1134
+01:00:41,550 --> 01:00:44,310
+Well, the primary we can't appoint,
+
+1135
+01:00:44,310 --> 01:00:45,990
+okay so here's some interesting cases,
+
+1136
+01:00:45,990 --> 01:00:46,440
+let's see,
+
+1137
+01:00:46,560 --> 01:00:49,020
+so, you guys are doing exactly the thing I want,
+
+1138
+01:00:49,110 --> 01:00:50,670
+based on this paper,
+
+1139
+01:00:50,670 --> 01:00:53,580
+which you really start thinking about all the problematic cases.
+
+1140
+01:00:53,990 --> 01:00:56,090
+And this is exactly how you think about consistency,
+
+1141
+01:00:56,120 --> 01:00:57,740
+when you start thinking about consistency,
+
+1142
+01:00:57,740 --> 01:01:00,230
+you need to consider all possible failures,
+
+1143
+01:01:00,620 --> 01:01:04,070
+and argue whether you know those failures lead to inconsistencies.
+
+1144
+01:01:04,700 --> 01:01:08,210
+So, one thing let's talk about this one case,
+
+1145
+01:01:08,240 --> 01:01:10,760
+where we've got a master, we've got a primary,
+
+1146
+01:01:11,560 --> 01:01:16,690
+and let's say the primary in the master get disconnected,
+
+1147
+01:01:16,750 --> 01:01:18,880
+actually let me draw the picture slightly differently,
+
+1148
+01:01:21,170 --> 01:01:22,400
+master in the middle,
+
+1149
+01:01:23,920 --> 01:01:29,060
+and we got server, we got server here, you know S1, S2,
+
+1150
+01:01:29,060 --> 01:01:30,500
+and let's say S2 is the primary,
+
+1151
+01:01:32,310 --> 01:01:37,200
+and so you know whatever you may talk to some other servers out there,
+
+1152
+01:01:38,540 --> 01:01:43,160
+perhaps S1 is the is one of the secondary for this primary.
+
+1153
+01:01:43,930 --> 01:01:46,030
+So let's say a network partition,
+
+1154
+01:01:46,270 --> 01:01:49,390
+so the master sends messages, you know heartbeat messages,
+
+1155
+01:01:49,390 --> 01:01:50,560
+doesn't get a response,
+
+1156
+01:01:53,270 --> 01:01:55,640
+when can the master point to a new primary.
+
+1157
+01:01:59,270 --> 01:02:01,610
+When the lease is over for S2?
+
+1158
+01:02:04,060 --> 01:02:08,740
+Yeah, right, because primary has to wait,
+
+1159
+01:02:08,740 --> 01:02:11,050
+the master has to wait until the lease has expired,
+
+1160
+01:02:11,610 --> 01:02:14,910
+because if the lease was not expired,
+
+1161
+01:02:15,090 --> 01:02:18,030
+then maybe we have two primaries at the same time, right,
+
+1162
+01:02:18,800 --> 01:02:22,100
+P1 and P2 are staying at the same time,
+
+1163
+01:02:22,100 --> 01:02:23,390
+and would that be bad?
+
+1164
+01:02:26,540 --> 01:02:28,880
+Yeah, then I think,
+
+1165
+01:02:30,180 --> 01:02:34,170
+wait, would would clients, clients wouldn't know where to send to,
+
+1166
+01:02:34,170 --> 01:02:36,480
+and the master wouldn't know which one is primary, right.
+
+1167
+01:02:36,510 --> 01:02:39,750
+Well, presumably some clients still talking to this primary, right,
+
+1168
+01:02:40,410 --> 01:02:42,480
+while you might be talking to this primary,
+
+1169
+01:02:43,200 --> 01:02:44,670
+in a primary for the same chunk.
+
+1170
+01:02:47,820 --> 01:02:49,860
+I think you get very bizarre ordering, right,
+
+1171
+01:02:49,950 --> 01:02:51,990
+where like some writes will get lost,
+
+1172
+01:02:51,990 --> 01:02:53,910
+you know you know it would be a mess.
+
+1173
+01:02:54,630 --> 01:02:56,070
+It would be not a principal,
+
+1174
+01:02:56,070 --> 01:02:57,780
+you know argument where one,
+
+1175
+01:02:57,780 --> 01:03:00,900
+you know where all writes happening order and one at a time.
+
+1176
+01:03:03,900 --> 01:03:04,980
+So this is a bad situation,
+
+1177
+01:03:04,980 --> 01:03:06,480
+and this situation is avoided,
+
+1178
+01:03:06,480 --> 01:03:10,200
+like the split-brain syndrome, is sometimes called split brain syndrome,
+
+1179
+01:03:10,200 --> 01:03:12,510
+where you end up with a system where have two masters.
+
+1180
+01:03:12,980 --> 01:03:17,000
+And this is problem here avoided, because of the lease,
+
+1181
+01:03:17,990 --> 01:03:21,200
+and the master will not appoint any other primary
+
+1182
+01:03:21,200 --> 01:03:25,880
+until the lease of the first primary absolutely has has expired,
+
+1183
+01:03:25,880 --> 01:03:27,620
+and it knows even if the primary is up,
+
+1184
+01:03:27,620 --> 01:03:28,910
+but not reachable to it,
+
+1185
+01:03:28,910 --> 01:03:30,530
+but may be reasonable to other clients,
+
+1186
+01:03:30,590 --> 01:03:33,080
+that primary won't accept any write messages anymore,
+
+1187
+01:03:33,080 --> 01:03:34,400
+because lease has expired.
+
+1188
+01:03:40,210 --> 01:03:40,960
+Does that make sense?
+
+1189
+01:03:43,400 --> 01:03:46,340
+Okay, let me say one more thing before wrapping up,
+
+1190
+01:03:46,580 --> 01:03:52,510
+apologizes, partly because you know, I had some technical problems,
+
+1191
+01:03:52,510 --> 01:03:54,490
+but I wanted to make one more point,
+
+1192
+01:03:54,490 --> 01:03:58,390
+and it came up in the discussion too in the breakout room,
+
+1193
+01:03:58,420 --> 01:04:00,370
+which is you know how could you do better,
+
+1194
+01:04:00,940 --> 01:04:02,470
+how to get strong consistency,
+
+1195
+01:04:06,070 --> 01:04:07,660
+or maybe just stronger,
+
+1196
+01:04:07,690 --> 01:04:09,370
+got pretty strong consistency,
+
+1197
+01:04:09,370 --> 01:04:15,490
+that you know not with some you know issues.
+
+1198
+01:04:16,100 --> 01:04:17,990
+And so there's a hundred different ways you could do it,
+
+1199
+01:04:17,990 --> 01:04:24,980
+and in fact, you know, what we're going to be seeing.
+
+1200
+01:04:25,740 --> 01:04:28,980
+You know one, I think one issue that shows up here all the time is,
+
+1201
+01:04:28,980 --> 01:04:32,730
+like you could instead of like obtaining the primary and then reporting,
+
+1202
+01:04:33,340 --> 01:04:35,020
+making writes visible incrementally,
+
+1203
+01:04:35,020 --> 01:04:36,190
+it's probably not a good idea,
+
+1204
+01:04:36,400 --> 01:04:37,870
+so you probably want to do is,
+
+1205
+01:04:37,870 --> 01:04:43,900
+like update all secondary primaries or not,
+
+1206
+01:04:45,220 --> 01:04:47,320
+but not in this you know particular design,
+
+1207
+01:04:47,320 --> 01:04:49,960
+where like somebody get updated and some may not get updated,
+
+1208
+01:04:49,960 --> 01:04:51,520
+that's actually visible to the client.
+
+1209
+01:04:52,660 --> 01:04:56,710
+So there's a bunch of like you know techniques or protocol
+
+1210
+01:04:56,710 --> 01:04:57,730
+changes that you could do,
+
+1211
+01:04:58,030 --> 01:04:59,320
+that will make this better
+
+1212
+01:04:59,320 --> 01:05:02,350
+and in fact you will see in labs 2 and 3,
+
+1213
+01:05:02,380 --> 01:05:05,590
+you will build systems that actually have the stronger properties,
+
+1214
+01:05:06,370 --> 01:05:11,080
+and deal with the scenarios you know concurrently lead to consistency.
+
+1215
+01:05:11,690 --> 01:05:13,550
+In fact, if you look at Google self,
+
+1216
+01:05:13,820 --> 01:05:15,860
+and we'll read some of these [] later,
+
+1217
+01:05:16,040 --> 01:05:18,410
+Google build additional storage systems,
+
+1218
+01:05:19,640 --> 01:05:21,830
+other storage systems that have stronger consistency,
+
+1219
+01:05:25,930 --> 01:05:29,170
+and basically tailored those to a different application domain,
+
+1220
+01:05:29,410 --> 01:05:33,370
+for example, like in like halfway to term read the paper Spanner,
+
+1221
+01:05:33,640 --> 01:05:37,540
+you know that actually has a much stronger storage for consistency
+
+1222
+01:05:37,540 --> 01:05:40,030
+and and even have support for transactions.
+
+1223
+01:05:40,570 --> 01:05:43,150
+But it was like the application domain is quite different,
+
+1224
+01:05:43,180 --> 01:05:44,590
+you know you can sort of see here,
+
+1225
+01:05:44,590 --> 01:05:46,150
+the GFS is really tailored,
+
+1226
+01:05:46,150 --> 01:05:49,510
+you know to sort of running mapreduce jobs.
+
+1227
+01:05:51,680 --> 01:05:55,430
+Okay, so I hope this is a useful introduction for consistency,
+
+1228
+01:05:55,430 --> 01:05:57,650
+and start thinking about these kinds of problems,
+
+1229
+01:05:57,950 --> 01:06:00,290
+because they would be recurring set of problems,
+
+1230
+01:06:00,290 --> 01:06:02,090
+that will show up in the rest of the term.
+
+1231
+01:06:03,760 --> 01:06:05,560
+And I apologize for running over a little bit.
+
+1232
+01:06:07,740 --> 01:06:08,400
+Thank you.
+
+1233
+01:06:08,400 --> 01:06:10,950
+Hang around, so people want to ask additional questions,
+
+1234
+01:06:10,950 --> 01:06:13,350
+feel free to ask it,
+
+1235
+01:06:13,620 --> 01:06:15,300
+and if you have to run to another class,
+
+1236
+01:06:15,300 --> 01:06:16,920
+you know please run to another class.
+

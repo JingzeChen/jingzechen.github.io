@@ -1,0 +1,1850 @@
+[00:00:06] Okay, good afternoon,
+[00:00:08] sound check sound checking,
+[00:00:13] people can hear me?
+[00:00:17] Yeah.
+[00:00:18] Thank you,
+[00:00:19] okay, good,
+[00:00:20] so good afternoon, good evening, good morning, good night, wherever you are,
+[00:00:24] I'm going to talk today more about raft
+[00:00:27] and we want to cover following different topics,
+[00:00:31] which are going to be relevant to labs.
+[00:00:35] So, first of all, I want to talk a little bit more about log divergence,
+[00:00:39] we sort of had a cliffhanger at the end of last lecture,
+[00:00:42] where we got in a discussion that figure 6,
+[00:00:44] I want to resume that discussion.
+[00:00:47] I want to talk about log catch up and what happens,
+[00:00:50] if how do followers catch up,
+[00:00:55] then a little bit of a persistence, like what state must be,
+[00:01:01] what's raft state must be persistent in storage,
+[00:01:04] which is really relevant for 2c and 2d,
+[00:01:08] and also talk about state out to snapshots.
+[00:01:14] Yeah, if there's any questions, please feel free to ask.
+[00:01:18] And then finally I want to talk about linearizability
+[00:01:20] and correct criterion that comes up quite often in the paper,
+[00:01:25] used also in a bunch of places,
+[00:01:27] and this will allow us to talk a little bit again
+[00:01:30] about how does those servers use raft.
+[00:01:32] So, those are the topics we plan to talk about,
+[00:01:36] you have any questions right now, please feel free to ask,
+[00:01:40] and of course always jump in at any point.
+[00:01:47] Okay, so, so we saw it last week,
+[00:01:51] we started talking about raft,
+[00:01:52] you know we saw that the leader has served this job
+[00:01:55] of replicating its log onto the onto followers,
+[00:01:59] and but you know due to crashes in leader election,
+[00:02:04] the state of the system,
+[00:02:05] you know the logs can actually quite, can diverse quite quite a bit,
+[00:02:11] and figure 6 is an illustration,
+[00:02:15] you know why, how, how that could happen,
+[00:02:18] you know the leaders can go down,
+[00:02:20] they may append some more entries,
+[00:02:22] and so there's a whole bunch of different scenarios,
+[00:02:24] that our system can end up in,
+[00:02:28] and so the figure 6, figure 7 actually shows a bunch of those,
+[00:02:32] and the, and the main reason for the figure is that,
+[00:02:38] it actually sharpens up the leader election rule,
+[00:02:50] so once the leader goes down,
+[00:02:52] and we need to elect a new leader,
+[00:02:54] there's actually some restrictions that must be applied
+[00:02:58] to actually make sure that we can get converged on the right log in the end.
+[00:03:04] And so, first of all,
+[00:03:05] one part of that is,
+[00:03:06] that any leader need to achieve a majority,
+[00:03:11] and this is a part of the idea,
+[00:03:12] to actually avoid [] brain split syndrome or split brain syndrome,
+[00:03:17] sort of we can actually make sure that,
+[00:03:19] you know in any two subsequent elections,
+[00:03:22] there's going to be at least one node,
+[00:03:24] that participated in both majorities,
+[00:03:28] because you can only two majority must overlap
+[00:03:32] and that node must actually have
+[00:03:34] you know operations from the recent, from the recent term.
+[00:03:39] The majority is important,
+[00:03:40] but turns out it's actually a little bit more subtle,
+[00:03:43] you might think that,
+[00:03:45] like the longest log that should be sufficient,
+[00:03:47] because the longest log has most information,
+[00:03:50] so we're just picked that as the next leader,
+[00:03:52] and then we're in good shape.
+[00:03:54] And that turns out to be not the case,
+[00:03:56] and and so, and leader rules a little bit more subtle,
+[00:04:02] you know actually majority plus at least as up to date,
+[00:04:07] at-least up-to-date.
+[00:04:15] So, so to you know the leader election is running,
+[00:04:20] the follower,
+[00:04:22] so the candidate is starting to run leader election
+[00:04:25] approaches bunch of followers,
+[00:04:27] and the followers response with a positive vote,
+[00:04:32] if the candidate actually is at least up to date as they are.
+[00:04:37] And what that means is that,
+[00:04:39] the last log entry must actually have the same term
+[00:04:44] or in if they actually have the same term,
+[00:04:48] the longest one sort of wins.
+[00:04:52] And so, so that the leader the election rule
+[00:04:56] you know we look at this problem last week
+[00:04:58] as part of the homework,
+[00:04:59] and what happens,
+[00:05:00] if you know this node
+[00:05:02] you know what's worse about the leader actually is dead,
+[00:05:06] it's gone,
+[00:05:07] you know and who could become leaders,
+[00:05:10] and you know quickly discovered that,
+[00:05:12] you know there there's a bunch of them that cannot become leader,
+[00:05:15] but then there's potentially a number of scenarios
+[00:05:17] in which some can become leaders.
+[00:05:19] And so, in particular,
+[00:05:21] you know we identify that a can become leader,
+[00:05:23] c can become leader,
+[00:05:26] and d can became leader.
+[00:05:29] And so then,
+[00:05:31] and so there's probably the most important part of this whole discussion, right,
+[00:05:34] who can become leader.
+[00:05:36] [] there's question.
+[00:05:37] There, let me hold on.
+[00:05:43] Okay.
+[00:05:44] So who becomes that's the most important part,
+[00:05:46] so there's a bunch of different scenarios, in which a can become a leader,
+[00:05:50] there's a scenario, where c become a leader,
+[00:05:52] in the scenario where d become a leader.
+[00:05:55] Then the discussion focus a little bit,
+[00:05:56] like well at least there's one particular scenario,
+[00:05:59] in which one of these becomes leader,
+[00:06:01] others, multiple scenarios in which take over the leader,
+[00:06:04] particularly focus this discussion focused on a,
+[00:06:09] because like one way that a can become a leader is,
+[00:06:13] when c and d are down,
+[00:06:22] right, because c and d are down,
+[00:06:24] a will talk to b e and f
+[00:06:28] form a majority with 4,
+[00:06:31] it has the most up to date log,
+[00:06:35] notice that you know even though f is a longer log,
+[00:06:38] that actually is not the most up to date one,
+[00:06:41] so a actual succeed in becoming the leader,
+[00:06:45] and then things proceed from there.
+[00:06:47] But there was an interesting question that came up is,
+[00:06:49] are other scenarios in which a can become a leader in particular,
+[00:06:53] or is there scenario where even if c and d are up,
+[00:06:59] or reachable or participate,
+[00:07:02] is it possibility a becomes a leader,
+[00:07:05] so when c and d up,
+[00:07:07] and so the question is does c and d always vote for a,
+[00:07:11] if a is the candidate.
+[00:07:13] And it turns out is actually slightly complicated,
+[00:07:16] it is not completely straightforward,
+[00:07:19] so if a starts this election,
+[00:07:21] presumably it will start the election in term 7,
+[00:07:27] and so if it contact c and d,
+[00:07:30] you know c will be perfectly fine with that,
+[00:07:32] because the a is at least up to date,
+[00:07:40] and so we'll be able to achieve a majority,
+[00:07:44] but you know it is possible correct d,
+[00:07:47] there's one additional rule,
+[00:07:49] that if d actually has,
+[00:07:53] if follower, follower has a higher term,
+[00:07:57] as [sit] in higher term,
+[00:07:58] its current term is higher,
+[00:08:00] then the or the candidate,
+[00:08:03] then actually it can stop the election,
+[00:08:05] because it will respond saying,
+[00:08:07] like hey my term is higher than your higher my term,
+[00:08:10] my current term is higher than your term,
+[00:08:12] and so therefore you have to become a follower,
+[00:08:14] so a will then be changed back from candidate to follower.
+[00:08:19] And this can happen correctly,
+[00:08:20] in case of d,
+[00:08:21] this d might actually have seen term a,
+[00:08:24] and we can't really tell from this picture,
+[00:08:26] what actually the outcome is going to be,
+[00:08:28] let's assume that example,
+[00:08:30] you know the it has run once and has increases term to 8,
+[00:08:39] it didn't become succeeded leader,
+[00:08:41] and then its current term will 8,
+[00:08:42] and so it will vote when a ask to for its vote,
+[00:08:47] you know d will say no, I won't vote for you,
+[00:08:49] and furthermore by current term is a,
+[00:08:51] so a will see that message,
+[00:08:53] it's higher than 7,
+[00:08:54] and so a will actually step down and become just a follower,
+[00:08:58] and then at some point later,
+[00:08:59] presumably you know d will run its election timer will go off
+[00:09:03] and actually it will run.
+[00:09:06] And so the short story of this you know [] is gonna,
+[00:09:10] really this picture is that,
+[00:09:11] it's absolutely possible,
+[00:09:13] that a c and d can become leader in different types of scenarios,
+[00:09:16] and that's probably the main thing to get out of this.
+[00:09:20] Professor.
+[00:09:21] Yeah.
+[00:09:23] So, I I just want to ask,
+[00:09:25] because I think I I'm not sure if I understood correctly,
+[00:09:28] but you said a might be elected in term 7,
+[00:09:32] it is not true that it cannot for any reason be elected in term 7,
+[00:09:38] even if d was down, right,
+[00:09:41] because people like like d, like already got a majority, right, in 7.
+[00:09:50] d got a majority in 7,
+[00:09:52] because it actually was able to get something done,
+[00:09:56] so presumably right, you're right,
+[00:09:58] you know the good observation,
+[00:10:00] so it has to be the case that,
+[00:10:02] there's a number of people that actually already in term 7,
+[00:10:06] and the picture is incomplete,
+[00:10:08] we don't really know what the current term is,
+[00:10:10] that people have seen so far.
+[00:10:12] Yeah.
+[00:10:13] Right?
+[00:10:14] Well, yeah, I mean the only thing is like,
+[00:10:17] I think like a majority of the servers already voted for someone in term 7,
+[00:10:23] so.
+[00:10:23] Absolutely, a will go to term 8,
+[00:10:26] and you know we'll run the election for term 8,
+[00:10:30] but you know for the same reason,
+[00:10:31] d might already be in 9, right,
+[00:10:33] and so it all depends on what the current term is,
+[00:10:37] what these actually these participants are in.
+[00:10:41] But the main conclusion, correct,
+[00:10:42] the main top level conclusion is that,
+[00:10:44] a can become leader certainly, when c and d are offline,
+[00:10:48] c can become leader and d can become a leader.
+[00:10:54] Thanks.
+[00:10:57] Okay, then, so so we now know,
+[00:11:03] that the raft can sort of ended in states where the logs are diverged,
+[00:11:10] and so that needs to be repaired,
+[00:11:13] and it's like one a key component of the raft protocol is,
+[00:11:16] to do the that log catch up as they call it,
+[00:11:20] so I talked a little bit about that.
+[00:11:31] And this is basically what you're sort of have to deal with in part b of the lab.
+[00:11:38] So I may be easier to illustrate with this picture,
+[00:11:44] so let's, it's going to make it a little bit simple,
+[00:11:46] let's have 3 servers,
+[00:11:50] here's S1, it has you know term 3 in index 10,
+[00:11:57] the index 11 has no entries in [] and 11 12,
+[00:12:04] here we have S2,
+[00:12:09] S2 has entries you know 3 3 5,
+[00:12:15] and so this is index 10 11 12 and 13, 13 to make it complete,
+[00:12:22] and here is S4, oh sorry S3,
+[00:12:27] and let's do where in the scenario 3 3 4, and 10 11 12 13,
+[00:12:36] and I'm not showing like the indexes before 10,
+[00:12:40] they're not be very relevant.
+[00:12:42] And you know use the timeline, these different servers.
+[00:12:47] And just let's start out assuming that,
+[00:12:49] the S2 becomes the leader,
+[00:12:51] because it has the highest, it is most up to date,
+[00:12:56] it has the highest term number in the last log entry,
+[00:12:59] so it becomes leader.
+[00:13:01] And now we need to understand how about the protocol is
+[00:13:05] to synchronize these particular logs,
+[00:13:07] in the way you know this almost happens is sort of send [] of,
+[00:13:10] you know either the append entries,
+[00:13:12] because new log entries are appended,
+[00:13:14] or because of heartbeats,
+[00:13:15] which basically are append entries with zero new entries.
+[00:13:20] So let's assume that the leader actually sends heartbeat out,
+[00:13:22] in fact, it does it correct,
+[00:13:23] the election immediately sends out a heartbeat,
+[00:13:26] and so it will sends out the heartbeat,
+[00:13:28] and the heartbeat basically has no log entries,
+[00:13:32] but it also indicates two other pieces of information,
+[00:13:35] namely the previous term,
+[00:13:38] so the previous term, which in this case it's going to be 5, right,
+[00:13:43] and the previous index, it's gonna be 12.
+[00:13:48] So it sends it off to the leader S2, sends to S3
+[00:13:52] and S3 looks at this,
+[00:13:54] and says well look my previous term,
+[00:13:56] actually is not 5, it's actually 4,
+[00:14:02] and so, it actually sends back a message saying no,
+[00:14:07] you know I'm I'm alive in principle,
+[00:14:10] but you know I I know I cannot do your append,
+[00:14:13] so I'm not up to date.
+[00:14:15] And now S2 have some information to actually bring it up to date,
+[00:14:21] and the way it works is,
+[00:14:23] there's sort of two variables that are of importance,
+[00:14:25] one, for every node, S2 for keeps a variable nextIndex,
+[00:14:37] and nextIndex when it initialize it, becomes leader,
+[00:14:40] it is sort of an optimistic variable,
+[00:14:44] it just assumes that the logs are actually up to date,
+[00:14:48] and so when S2 becomes a leader,
+[00:14:52] it actually just sets it to 13,
+[00:14:54] you know the same value that actually it has for itself.
+[00:14:58] That's perfectly fine,
+[00:14:59] because it's just a guess,
+[00:15:01] if one actually the where S3 might be,
+[00:15:04] and S3 might be behind,
+[00:15:05] and then you know because there's no message,
+[00:15:07] the leader actually learns that.
+[00:15:10] And so, in fact you know when it gets there's no message,
+[00:15:14] in the unoptimized version,
+[00:15:16] so I'm going to first talk about the unoptimized version,
+[00:15:23] the leader just decrements the nextIndex by one,
+[00:15:26] and so it decrements 13 to 12,
+[00:15:29] and then we got some point will send another append entries,
+[00:15:33] and this time around,
+[00:15:34] you know it will actually say,
+[00:15:36] okay, we'll make nextIndex this 12,
+[00:15:37] you know got a send you know log entry 5,
+[00:15:41] and you know the previous term, it's gonna be 3,
+[00:15:47] and the previous index is going to be 11.
+[00:15:54] And so when S3 actually received this message,
+[00:15:58] you know check the previous term 3,
+[00:16:00] the previous index is 11,
+[00:16:01] that all works out,
+[00:16:02] it sees that it has append 5,
+[00:16:04] and so it will erase the 4 and stick a 5 in there,
+[00:16:09] and basically respond saying yep, good.
+[00:16:16] So at this point,
+[00:16:18] the leader knows that actually the log is up to date,
+[00:16:23] because you've got an ok message back.
+[00:16:27] Then there's the second variable that plays an important role in all this,
+[00:16:31] which is matchIndex, which raft also maintains for,
+[00:16:37] leader also maintains for every follower.
+[00:16:40] So there's an nextIndex you know for S3,
+[00:16:43] there's nextIndex for S1,
+[00:16:44] and similar there's a matchIndex you know for S1 S2 S3 too,
+[00:16:49] and this one is sort of,
+[00:16:49] you can think about this as pessimistic or lower bound,
+[00:16:55] so when the leader actually you know becomes leader,
+[00:16:58] it actually sets the value just 0,
+[00:17:02] and to indicate that basically as far as knows,
+[00:17:05] S3 doesn't really have any log entries at all,
+[00:17:10] and so it hasn't delivered any log entries to the application,
+[00:17:16] and so for S2 also has to be very careful about,
+[00:17:18] what actually it can be delivered to the application,
+[00:17:20] there goes, if it needs to know,
+[00:17:22] that at least a majority of the followers
+[00:17:25] actually has a copy of a particular log entry,
+[00:17:27] before it can deliver.
+[00:17:29] So just start to be pessimistic,
+[00:17:33] but then once it learns,
+[00:17:35] you know that for example, once it learns actually that the follower is okay,
+[00:17:42] and we've gotten okay the append message,
+[00:17:44] it can actually update you know the pessimistic, lower bound the matchIndex
+[00:17:50] you know from 0 to actually 13,
+[00:17:53] because it has learned that,
+[00:17:54] the follower is actually up to date till 13,
+[00:18:00] and that's the nextIndex that expect is you know 13.
+[00:18:04] And at this point in time,
+[00:18:05] basically it has learned from two different, knows that,
+[00:18:09] that particular log entry 5 is actually now replicated at least in two nodes.
+[00:18:17] And so you might think well good,
+[00:18:19] it has been replicated in two nodes,
+[00:18:21] we can deliver to the application,
+[00:18:22] because the majority clearly has it,
+[00:18:24] and we're in good shape.
+[00:18:27] And unfortunately, that actually turned out not to be the case,
+[00:18:31] it's close to true, but not completely true,
+[00:18:34] and this actually has to do with figure 8,
+[00:18:38] so I want to talk a little bit about figure 8,
+[00:18:40] and the real reason what's going on here to make this slightly complicated
+[00:18:43] and you also should think a little bit fishy.
+[00:18:46] So this leader S2 just erased the value out of the log of S3,
+[00:18:53] and you know somebody put that in,
+[00:18:55] and you know erase it,
+[00:18:58] you know yeah it seems a little bit you know dangerous,
+[00:19:01] and as and so it turns out there is a corner case,
+[00:19:06] where you have to be a bit careful,
+[00:19:10] by when you deliver,
+[00:19:11] when you declare a message actually committed.
+[00:19:15] And it turns out that basically,
+[00:19:17] you know figure 8 illustrates that.
+[00:19:22] So let me talk a little bit about this erasing log entries.
+[00:19:31] And we will see is that the rule
+[00:19:33] for actually when the message can be delivered to the application is,
+[00:19:38] is slightly more subtle than just counting the replicates.
+[00:19:47] Let's see, actually gets figure 8, load it in.
+[00:19:51] Okay, so here's figure 8
+[00:19:52] and so as usual structure.
+[00:19:59] Okay, let me get back to the question in the in the chat in a second,
+[00:20:05] so here's figure 8,
+[00:20:07] and so let's walk through what the scenario here is,
+[00:20:11] correct, in figure a, you know log entry 1 has been committed by everybody,
+[00:20:16] you know the S1 or S2 became leader in [] in term 2,
+[00:20:25] they committed or they started appending an entry 2,
+[00:20:29] hasn't been committed yet,
+[00:20:31] because it's not a majority for sure,
+[00:20:33] then indeed what actually happens,
+[00:20:35] you know S5 must disconnected, has [] of this term 2,
+[00:20:39] became a leader in term 3,
+[00:20:41] appended an entry to its log,
+[00:20:44] that certainly is not committed,
+[00:20:45] because there's no majority,
+[00:20:47] then we end up in c,
+[00:20:49] maybe the S5 actually got disconnected again,
+[00:20:53] S1 becomes a leader in term 4,
+[00:20:57] it starts replicating you know entry, this log entry 2 to other nodes,
+[00:21:03] and in fact you know deliver it,
+[00:21:06] you know it gets back,
+[00:21:07] you know like shown in the previous slide,
+[00:21:09] in those actually on S2 and those actually on S3.
+[00:21:14] And it turns out you know that actually you might think,
+[00:21:19] okay, well you know S1 knows,
+[00:21:21] you know that actually 3 3 nodes actually have a copy of this particular entry,
+[00:21:28] and so I might be able to deliver it,
+[00:21:29] and it turns out that's not true,
+[00:21:32] and there's more subtle reasoning that needs to happen to actually commit,
+[00:21:40] and namely you can only commit.
+[00:21:42] Oops, sorry,
+[00:21:47] you can commit
+[00:21:50] after the leader has committed one entry in its own term.
+[00:22:10] And if we think about this number 2,
+[00:22:13] it actually isn't from leaders in term 4,
+[00:22:16] and and so the the the commit rule wouldn't allow
+[00:22:20] actually commit 2 immediately to the servers,
+[00:22:24] because that actually is one from a previous term
+[00:22:27] and not from the current term,
+[00:22:29] and so for example your code to decide
+[00:22:31] whether actually something can be delivered on the apply channel,
+[00:22:34] needs to take to this account.
+[00:22:36] And the reason you need take to account is illustrated by d and e,
+[00:22:40] basically what can happen is that,
+[00:22:43] you know for S1 actually might might actually end up in a different situation,
+[00:22:51] where d actually becomes the,
+[00:22:56] after, d actually becomes the leader,
+[00:23:03] for example S1 example is particularly disconnected,
+[00:23:06] and it might actually start connecting,
+[00:23:09] it can form a majority,
+[00:23:11] and actually it starts copying its particular, its entries to actually,
+[00:23:17] yeah, okay, it erases you know the 2s,
+[00:23:20] and actually copies it's 3 in,
+[00:23:23] the entry for its term 3 into whatever used to be 2,
+[00:23:27] and this is erasing that we talked about on the previous slide.
+[00:23:34] And so we'll see,
+[00:23:34] actually though even though it was on the majority of the nodes, right,
+[00:23:38] on the majority of nodes,
+[00:23:39] that got erased.
+[00:23:41] And so the rule and therefore the rules as I stated here,
+[00:23:45] because now once you know this is illustrated by e,
+[00:23:50] once sactually S3 S1 commits an entry in its own term,
+[00:23:56] and so it knows that every,
+[00:23:58] you know there's a majority in its own term,
+[00:24:00] so at this point,
+[00:24:01] it can actually deliver 4 you know to the application,
+[00:24:05] and as a result of that,
+[00:24:06] you know any nodes that were committed in previous terms
+[00:24:09] can also be delivered to the application.
+[00:24:13] So you see here that this erasing of log entries,
+[00:24:16] that basic commits makes the commit rule quite slightly more complicated.
+[00:24:20] And that's just the design decisions that the designers of raft made,
+[00:24:26] you know they could have done it differently,
+[00:24:27] they could have counted,
+[00:24:29] and made basically 2 survive, if they wanted to,
+[00:24:32] but they decided to go for this particular approach,
+[00:24:34] on the grounds, that they think it's simpler.
+[00:24:40] Okay, so this is suddenly that will show up,
+[00:24:43] you know in the test cases for the labs,
+[00:24:46] so you have to be a little bit of careful with your commit rule,
+[00:24:52] and then you implement it correctly.
+[00:24:56] Okay, so, so far,
+[00:25:00] you know if you go back to this particular picture,
+[00:25:03] the an optimized version of this protocol is a little bit of bummer, right,
+[00:25:11] like if you think a little bit about this,
+[00:25:14] let's look at actually what happens with S1.
+[00:25:19] So let's see, let me switch things,
+[00:25:23] let's see S2 tries bring S1 up to date,
+[00:25:25] will do the same thing,
+[00:25:27] you know send append entries, you know with nil entries,
+[00:25:31] past term previous term to be 5,
+[00:25:36] and previous index 12,
+[00:25:40] it will say no, right,
+[00:25:43] actually the index you know previous index is actually a 10 with term 3,
+[00:25:48] so it will,
+[00:25:50] this guy will decrease its next index go from 13 to 12,
+[00:25:57] then we'll do the same thing again,
+[00:25:59] you know sent I guess it's gonna send 5, the log entry 5,
+[00:26:04] it will set the previous term to be 3,
+[00:26:07] and index previous index to be 11,
+[00:26:11] it's going to get a no back,
+[00:26:13] you know, then the index goes to from 12 to 11,
+[00:26:17] and now basically it's going to work,
+[00:26:19] and so we'll see here,
+[00:26:20] that basically for every log entry,
+[00:26:22] we're going to have a round trip you know sort of append entries,
+[00:26:26] and it turns out that that can be expensive,
+[00:26:29] and like,
+[00:26:30] and and the real question is
+[00:26:31] like you can follower be far far behind?
+[00:26:35] And let me ask that,
+[00:26:37] we're pause for a second,
+[00:26:38] so you can reflect and think about that case,
+[00:26:41] is it possible that a follower can be far far behind for a given leader?
+[00:26:49] If a new machine joins the cluster?
+[00:26:52] Yeah, new join to cluster is a good example, any other cases?
+[00:26:58] A machine crashed and is only coming back online after several terms.
+[00:27:02] Yeah, exactly, it comes back after a day,
+[00:27:05] it might be far behind,
+[00:27:07] so that would mean,
+[00:27:08] like in the protocol at unoptimized version,
+[00:27:10] that you're gonna go back one by one for the log entries.
+[00:27:13] So that's a little bit expensive,
+[00:27:15] and so the paper actually discusses an optimization,
+[00:27:18] so to catch up quickly.
+[00:27:31] And, and the idea basically is,
+[00:27:35] instead of like backing off as I said earlier,
+[00:27:40] the nextIndex is basically optimistic, just guess right,
+[00:27:43] and it doesn't really have to be that accurate,
+[00:27:46] and and so the observation is that,
+[00:27:48] you know we don't really have to go one by one back,
+[00:27:51] you know it's perfectly fine for example to go a whole term back.
+[00:27:54] And in fact there's a logical,
+[00:27:56] maybe that's just a node,
+[00:27:57] you know you know it's a couple of terms back,
+[00:28:00] and we back off a couple of terms
+[00:28:01] and then we'll scan from there.
+[00:28:04] Alright, so to illustrate a little bit how it works,
+[00:28:07] let me use the full example,
+[00:28:09] and I'm just gonna do two servers,
+[00:28:12] even though they might be you know need 3 to sort of have a majority,
+[00:28:15] but let's assume there's a third one,
+[00:28:17] and it just plays happily along.
+[00:28:19] So, here's S1, here's S2,
+[00:28:23] and let's say you know we this guy has 5 5 5,
+[00:28:34] and this is 1 2 3 4 5 indexes,
+[00:28:39] and you know let's say this S2 has 4, basically all 6s,
+[00:28:47] so basically S1 is you know quite behind,
+[00:28:50] because that's the only place where they actually line up is in the first entry,
+[00:28:55] in first which is term 4.
+[00:28:58] So in the unoptimized scheme,
+[00:29:00] we would back off one by one,
+[00:29:02] one by one until we finally got there.
+[00:29:05] And to optimize this,
+[00:29:07] the paper describes an optimization,
+[00:29:10] unfortunately the optimization is not described
+[00:29:13] in the same amount of detail as figure 2,
+[00:29:15] and so in fact,
+[00:29:16] you will in the for 2c actually pass 2c,
+[00:29:19] you do actually have to have this optimization,
+[00:29:23] a form of this optimization implemented,
+[00:29:25] your reasonable free actually how to implement it,
+[00:29:27] because paper doesn't describe very precisely,
+[00:29:29] you know which how you should do it,
+[00:29:30] then you have to do a little bit of work.
+[00:29:32] But the basic idea is as follows,
+[00:29:35] and just instead of just voting or just saying no or yes,
+[00:29:39] as we know on the previous slide,
+[00:29:40] the rejection, so you say no,
+[00:29:45] the rejection includes a little bit of more information,
+[00:29:48] and then that information is going to
+[00:29:49] help the leader to basically back off quicker,
+[00:29:53] and so includes something what they call the conflicting term,
+[00:29:59] in response the conflicting index.
+[00:30:04] And the, the conflicting term is basically the,
+[00:30:10] you know if let me actually make this a more clear,
+[00:30:13] let's say here's S1 timeline, here's S2,
+[00:30:18] so S2 sends you know elected leader in 7, correct,
+[00:30:22] because it has the most up to date log,
+[00:30:25] it sends a message to S1 you know a heartbeat,
+[00:30:28] and in a heartbeat,
+[00:30:30] it will say you know the previous term was 6
+[00:30:36] and previous index was 5,
+[00:30:43] and now when S1 gets this,
+[00:30:44] you know looks at this log, and sees that actually the previous term was 5,
+[00:30:49] and so instead of actually,
+[00:30:51] and so it will include in response you know conflicting term,
+[00:30:54] term conflicts on in that index and that was 5,
+[00:30:59] we're going to find entry,
+[00:31:00] and then it also includes what the first index of that term is in this log,
+[00:31:05] so we look at this term like 5 5 5,
+[00:31:08] and the first time like the index 5 showed up its log is at index 2,
+[00:31:12] and so we'll include that too,
+[00:31:14] and we'll send that back you know to the leader,
+[00:31:17] so here's S2 was leader,
+[00:31:19] and so we're going to send back you know 5 2,
+[00:31:24] that's the conflicting information,
+[00:31:26] and leader uses that information to basically skip backward further,
+[00:31:32] in fact it skips back from,
+[00:31:34] so initially it's guess was nextIndex for S1 was 6,
+[00:31:43] and based on this information,
+[00:31:44] and it actually [scales] back to 2,
+[00:31:46] so it turns it into 2,
+[00:31:48] and then the next append entries is going to include everything from 2,
+[00:31:54] so its gonna to include you know 5 5 5,
+[00:31:58] and previous term is 4 and previous index is 1,
+[00:32:05] and now S1 can one [] [] [],
+[00:32:07] basically copy you know the new log entries
+[00:32:10] over the entries 2 3 4 or 5 actually back up to date.
+[00:32:14] So this basically reduces the number of heartbeats,
+[00:32:18] you know to catch up follower
+[00:32:20] by one per term instead of one per entry.
+[00:32:31] Any questions?
+[00:32:33] How do we make sure that we don't you know overload the bandwidth,
+[00:32:37] because imagine if you have like,
+[00:32:39] you're trying to send back all of these log entries,
+[00:32:42] that cause problems in terms of like packets that are too large.
+[00:32:46] Yeah, so a great question,
+[00:32:47] like and because it sort of indicates an alternative scheme, right,
+[00:32:52] but you know the go back here,
+[00:32:55] is that instead of actually making this optimistic guess
+[00:32:58] you know why make a guess at all,
+[00:33:00] just send everything,
+[00:33:01] you know the leader could have send like though it's whole log,
+[00:33:04] it would be perfectly fine,
+[00:33:05] and then basically you know any of the followers can fish out the ones they need, right,
+[00:33:11] and that would be an alternative implementation,
+[00:33:14] and presumably we don't like the implementation,
+[00:33:17] because the log might be large,
+[00:33:19] and that would be problematic.
+[00:33:22] So I think you know the basic guess here that's going on is that,
+[00:33:26] in the normal typical situations,
+[00:33:31] the followers or you know hopefully reasonable close together,
+[00:33:34] and so backing off a couple entries is actually sufficient,
+[00:33:38] and if not, then we might go back one term,
+[00:33:41] but not all terms.
+[00:33:43] And so we'll send the log entries for one term,
+[00:33:46] and that might be a lot, right,
+[00:33:48] that might be a lot,
+[00:33:49] and we'll see in a second, like how we get around that,
+[00:33:51] snapshot is going to help
+[00:33:53] you know reducing the number of log entries that we have to send.
+[00:33:59] There was a question,
+[00:34:00] do need to implement this sort of version of these optimization scheme in lab 2c,
+[00:34:05] and the answer is yes.
+[00:34:07] At least I believe,
+[00:34:08] I haven't been able to pass the test without implementing some optimization.
+[00:34:14] So I have a question,
+[00:34:15] so I in my code,
+[00:34:17] I did the optimization by backing off to the commit,
+[00:34:22] so I made the the reply include the last commit index,
+[00:34:26] and then I started from there,
+[00:34:29] is that much worse?
+[00:34:31] You might run into trouble,
+[00:34:32] and so the the test keep track of how many bytes you sent,
+[00:34:38] and gives you a budget,
+[00:34:39] and if you're like go across the budget you know by too much,
+[00:34:44] then the testing will say,
+[00:34:46] well, you're just sending too much data,
+[00:34:51] because your scheme it might be the case,
+[00:34:53] that I think you will send more data than really necessary,
+[00:34:56] whatever necessary means, but.
+[00:35:01] There is a question in chat.
+[00:35:03] Yeah, and did I said draw the wrong thing,
+[00:35:06] yeah 6 6 6 6 sorry, thank you,
+[00:35:10] 6 6 6, I don't want to follower overriding the leader's log entries,
+[00:35:19] sorry about that,
+[00:35:21] good catch.
+[00:35:25] Any questions?
+[00:35:33] Okay.
+[00:35:40] Okay, so let me talk a little bit about the persistence.
+[00:35:45] We have one question in the chat, first.
+[00:35:48] Okay.
+[00:35:49] They're wondering why does the rejection has to
+[00:35:52] send back the rejected term number as well as the index?
+[00:35:59] Well, that depends very much how you actually implement the,
+[00:36:03] how what kind of state you maintain on the leader,
+[00:36:06] and how the leader decides to back off,
+[00:36:10] do you need to know send some terms back,
+[00:36:13] because you need [],
+[00:36:14] in response get delayed for a long period of time,
+[00:36:17] you certainly should reject
+[00:36:19] you know information from terms that are completely not relevant anymore.
+[00:36:25] I know this is slightly vague answer,
+[00:36:27] but it's really very much dependent on exactly how you implement it.
+[00:36:37] Okay, persistence,
+[00:36:46] we talked about the persistence a little bit,
+[00:36:49] in last raft of, the first raft lecture,
+[00:36:52] where you know we noted that you know the,
+[00:36:55] and follower can only vote for one candidate per term,
+[00:36:59] and therefore it needs to remember it's who'd voted for,
+[00:37:03] and what actually the current term is,
+[00:37:06] but there's a larger issue around persistence,
+[00:37:12] and that came up in one of the questions,
+[00:37:14] one of you just asked,
+[00:37:15] which is, you know what happens on reboot?
+[00:37:22] And there's sort of two possible strategy you can think of,
+[00:37:25] like one strategy is,
+[00:37:30] what strategy 1 is,
+[00:37:33] you know basically the node joins sort of freshly,
+[00:37:38] so joins, basically when a node crashes and comes back up,
+[00:37:45] it just doesn't participate anymore,
+[00:37:46] it has to rejoin you know the, rejoin the raft cluster,
+[00:37:52] and that means you know,
+[00:37:55] when rejoins you should you have to replay the log,
+[00:37:59] where basically has to receive every entry in the log
+[00:38:02] and then replay that.
+[00:38:06] And of course you know like if a node has been down,
+[00:38:10] or node crashes down for a day or two days,
+[00:38:13] or even if it just goes down for a second,
+[00:38:16] but you know the system has been up for a year,
+[00:38:19] that number means you have to replay a lot of log entries,
+[00:38:22] so there's a little bit annoying.
+[00:38:24] And so people prefer that strategy 2,
+[00:38:27] which is you know you can back up,
+[00:38:32] and you just basically participate again,
+[00:38:35] so you catch up from,
+[00:38:37] basically you start from your persistent state,
+[00:38:49] the idea being that you know it's just a quick reboot,
+[00:38:53] you crash you can back up whatever quick network failure,
+[00:38:57] and so maybe you know the rest can move one term along,
+[00:39:01] you basically have all the state,
+[00:39:03] and you know should be used for quick catch up.
+[00:39:06] So then the real question is,
+[00:39:07] what needs to be,
+[00:39:09] at what state needs to be persisted across reboots.
+[00:39:13] You know we already talked about voting for,
+[00:39:16] that needs to be persistent,
+[00:39:20] because you are not allowed to vote for another candidate in the same term,
+[00:39:26] and but the raft contains a little bit more information,
+[00:39:30] and also maintains the log on disk or in persistent state,
+[00:39:36] and the current term.
+[00:39:43] And for each one, we should ask ourselves the question,
+[00:39:47] why maintain persistent state,
+[00:39:50] because it means that whenever we update that state,
+[00:39:53] whenever we append an entry to the log,
+[00:39:56] whenever we increment the term,
+[00:39:58] or whenever we change votedFor,
+[00:40:01] we actually have to write to disk or to stable storage,
+[00:40:04] and stable storage is expensive,
+[00:40:06] and so, it's very likely,
+[00:40:08] the example, the the writing to stable storage could be the, could become a bottleneck.
+[00:40:16] So we already talking about votedFor,
+[00:40:17] so I'm going to talk, let's talk about the log,
+[00:40:20] why does the log have to be written to persistent storage,
+[00:40:25] can we reintegrate.
+[00:40:39] Another way, you've got a question,
+[00:40:40] let's say we don't write to the stable storage,
+[00:40:42] what would break?
+[00:40:55] Yeah, there's somebody in the chat to answer this question,
+[00:40:59] which you could lose the majority on the commit write entries, right.
+[00:41:02] So here's the scenario,
+[00:41:05] where the raft replicated the operation on a majority of the nodes,
+[00:41:13] so somebody you know majority nodes it's actually committed
+[00:41:17] to actually delivering have delivered having accepted that log entry,
+[00:41:24] so the leader sees the commits,
+[00:41:27] it delivers the message with operation on the apply channel to the servers,
+[00:41:31] servers executes the operation,
+[00:41:33] and lets the client know the operation has succeeded.
+[00:41:38] So now you know basically exposed the fact,
+[00:41:40] that the [] operation was actually replicated the majority of nodes to the client.
+[00:41:45] And so if we're not,
+[00:41:47] if the followers that actually received that entry,
+[00:41:50] did not put it on put on disk,
+[00:41:52] and so that when the reboot they still have it,
+[00:41:56] we could run into the case,
+[00:41:58] the exactly that's the answer in the chat,
+[00:42:00] that we lose the majority on committed entry,
+[00:42:03] and that entry will not be delivered on the remaining replicas to the servers,
+[00:42:08] and so the client will see something strange,
+[00:42:10] where it sees that an operation that it did actually happen a little bit later,
+[00:42:14] actually does the operation hasn't happened.
+[00:42:18] And so it actually is important,
+[00:42:19] that this actually on stable storage,
+[00:42:21] we basically promised the leader to commit,
+[00:42:28] and we cannot back out of that promise.
+[00:42:33] Okay?
+[00:42:35] Any questions about this?
+[00:42:44] Why do we need to remember the current term or on disk,
+[00:42:47] why does that need to be stored stably?
+[00:42:53] Well, the term,
+[00:42:57] you vote for a different person in every term,
+[00:42:59] so if you don't keep track of what term it is,
+[00:43:01] then you don't really,
+[00:43:03] you don't actually know who you voted for, right.
+[00:43:05] Yeah, exactly,
+[00:43:06] you know you voted for,
+[00:43:07] that's one problem also current terms always have to go up,
+[00:43:10] you cannot go down in term,
+[00:43:12] because you're going to use that
+[00:43:14] to detect RPCs from stale leaders and stale candidates,
+[00:43:20] it always has to go up.
+[00:43:31] Okay?
+[00:43:35] Any questions about persistence?
+[00:43:45] Yeah, which is more about the way you laid out stuff,
+[00:43:53] but you say there's two strategies, right,
+[00:43:56] they need a log,
+[00:43:58] and starting from a persistent state.
+[00:44:02] Yeah.
+[00:44:03] And so I mean the way you describe starting from a persistent state,
+[00:44:11] do you like, do you on replay like,
+[00:44:19] like I guess it doesn't say in this slide,
+[00:44:21] like if you have does that assume,
+[00:44:24] you also have like a snapshot of obviously.
+[00:44:29] I have not talked about snapshots at all yet,
+[00:44:31] which we'll talk about in a second,
+[00:44:33] it's actually the next topic.
+[00:44:35] Okay, but.
+[00:44:36] The point is,
+[00:44:37] okay, the two strategies after a node crashes,
+[00:44:40] there's two ways to treat that node,
+[00:44:42] one has a complete new node,
+[00:44:43] that never existed in the system ever,
+[00:44:46] and so when it comes up,
+[00:44:47] you know you add it to the cluster,
+[00:44:49] as if it's a new node,
+[00:44:51] so basically the cluster goes from,
+[00:44:53] you know let's say you started with seven nodes,
+[00:44:55] one guy crashes, the cluster has six nodes,
+[00:44:58] it just happily proceed,
+[00:44:59] you know whatever the other nodes do their application and all that kind of stuff,
+[00:45:03] and then the second node actually comes back up.
+[00:45:06] And so there's two ways you know then join,
+[00:45:09] one way is to say,
+[00:45:10] like well I just forget everything I did ever,
+[00:45:13] I'll join the cluster again,
+[00:45:15] and the other six nodes will bring me up to date,
+[00:45:17] and they'll send the log to me and I'll redo operations,
+[00:45:22] and that can be costly, even with snapshots.
+[00:45:25] So the second strategy is to say,
+[00:45:27] well you know if the same node seven comes back up again,
+[00:45:31] it tries to reintegrate with its with its persistent state that it has,
+[00:45:36] you know basically the hope that,
+[00:45:38] you know for example, did went down for a couple nanoseconds or microseconds or milliseconds,
+[00:45:43] there's basically not much catching up to do at all,
+[00:45:45] because it already has on the state.
+[00:45:49] But it would like,
+[00:45:52] the aside from the log,
+[00:45:55] there's also a state machine, right,
+[00:45:56] that you've been like apply changes to.
+[00:45:59] Yeah yeah, so yeah, let's talk about that,
+[00:46:01] so there's something, that's the next topic.
+[00:46:06] I think here,
+[00:46:07] so now what about service recovery?
+[00:46:16] Sorry, I actually have another question on persistence.
+[00:46:19] Yep.
+[00:46:20] When does the server decide to persist?
+[00:46:24] Good, great question,
+[00:46:27] you know what you think,
+[00:46:29] I'm sure you've thought about this.
+[00:46:33] I mean, I think a simple answer would be
+[00:46:37] every time one of these variables changes,
+[00:46:40] but that seems like a very costly thing to do.
+[00:46:44] I I think that is the correct answer,
+[00:46:47] whenever one of these variable changes,
+[00:46:49] you actually flush to disk or write to,
+[00:46:52] in our case correct in labs,
+[00:46:54] you write to the persistent module.
+[00:46:58] Okay, and.
+[00:46:59] So for example when the leader you know accepts an entry you know through start
+[00:47:03] and appends to its local its log,
+[00:47:06] it actually has to persist that entry.
+[00:47:13] Okay, and so does the persisting work incrementally,
+[00:47:17] so it like once you get a new log entry,
+[00:47:20] you append or to take the [entire] state
+[00:47:23] and like rewrite it into the file.
+[00:47:25] Okay, in real life, you append, right,
+[00:47:28] then you would not rewrite the whole log,
+[00:47:29] you would just append one entry to the log,
+[00:47:31] and that's actually one of the reasons that logs are cool,
+[00:47:34] because you know you can just append at the end incrementally,
+[00:47:38] in our lab,
+[00:47:41] the whole thing is fake,
+[00:47:42] the persistent actually doesn't really persist,
+[00:47:45] you know it keeps the object around in between crashes,
+[00:47:51] because crashes are also sort of fake,
+[00:47:53] you know the tester basically stops nodes, restart them,
+[00:47:56] and basically gives them the new state,
+[00:48:00] but in the real system, you would append,
+[00:48:03] so the log would be a file,
+[00:48:04] and you would append an entry to the file.
+[00:48:08] Thank you.
+[00:48:14] And yes, you know we actually you will have to,
+[00:48:17] a real system, if you append the log entry,
+[00:48:19] your first append log entry, then you response,
+[00:48:22] so in the append entries,
+[00:48:23] if you update the log append,
+[00:48:26] so if append entries on the follower,
+[00:48:29] receives a new set of log entries,
+[00:48:31] it appends them to its local persistent log,
+[00:48:34] and then it can respond,
+[00:48:35] because you would be bad to respond before appending,
+[00:48:39] because then you might lose you know the,
+[00:48:42] if you respond before appending,
+[00:48:43] you might be running a situation,
+[00:48:44] where just before actually the actual append happens,
+[00:48:47] you crashes,
+[00:48:48] and so you actually did not persist log entries,
+[00:48:51] and so you would you know,
+[00:48:53] you could lose committed entries.
+[00:49:00] Okay?
+[00:49:03] Okay, so how about service recovery,
+[00:49:05] so the service keeps its own state,
+[00:49:07] like for example in lab 3,
+[00:49:09] you're implementing a key-value store,
+[00:49:11] and so the key-value store maintains basically hash map from a key to a value,
+[00:49:18] and you need to replay that state.
+[00:49:21] And again, there are two possible ways of going about it,
+[00:49:26] one, strategy 1 is to replay the log to actually reconstruct that state,
+[00:49:34] so basically you're
+[00:49:38] this is sort of similar to the strategy 1 on the previous slide,
+[00:49:40] you know you take the log,
+[00:49:42] use replay all the entries in the log,
+[00:49:45] that should basically create exactly the same state,
+[00:49:48] as if as before,
+[00:49:52] because you know the whole point of this replicated state machine approach is that,
+[00:49:58] the all the operations are executed in total order,
+[00:50:02] operations have no side effect,
+[00:50:03] so if you start in the same state with nothing,
+[00:50:06] and you replay all the operations,
+[00:50:08] you should end up exactly the same state,
+[00:50:10] is any other node,
+[00:50:12] and so that's one possible,
+[00:50:14] and so that was one way to recreate the state.
+[00:50:24] And you know obviously this is expensive,
+[00:50:26] you know if the service actually has been running for a couple years,
+[00:50:30] and then you have to replay the logs you know from the beginning of time,
+[00:50:35] you know that is not you know so desirable.
+[00:50:38] And so you know people do don't really follow strategy 1,
+[00:50:42] gonna follow another strategy,
+[00:50:44] and we just basically making periodic snapshots.
+[00:50:47] And there are two reasons for doing that,
+[00:50:50] one basically will reconstruct you know the service state in the past manner,
+[00:50:54] and the second reason to do that is
+[00:50:55] to be able to compact the log,
+[00:50:58] you know even the raft state itself can be cut off,
+[00:51:05] from the of the prefix can be cut off.
+[00:51:08] And the basic [] is that,
+[00:51:10] if the application is running for a while,
+[00:51:13] and it has apply the first thousand operations or the first million operations,
+[00:51:17] then the state does construct that point,
+[00:51:21] the states will contain all ops you know through i,
+[00:51:31] where i maybe a thousand or a million whatever you whatever you,
+[00:51:35] so, so one way to think about is,
+[00:51:38] that there's a duality between state replication and log replication or replay,
+[00:51:45] the you could save the state after a thousand operations,
+[00:51:50] and then you got exactly the same thing
+[00:51:51] as actually re-applying redoing every operation from 0 to the [].
+[00:51:58] And so this means that,
+[00:52:00] once you have a snapshot,
+[00:52:01] you stored snapshots [] on disk in persistent state,
+[00:52:05] you can cut off, you can log,
+[00:52:08] you can cut the log you know through i.
+[00:52:17] And so, this allows you to control the size of the log,
+[00:52:20] basically by periodicly asking the servers to actually take snapshots,
+[00:52:25] and then you know service telling the raft library,
+[00:52:28] yes, I've taken a snapshot through i,
+[00:52:30] then raft can say okay good,
+[00:52:31] I just know we have to remember anything from i or until i,
+[00:52:36] that means of course that the snapshot has to be stored on stable storage.
+[00:52:45] And this is also good for recovery, correct,
+[00:52:47] and so it makes our recovery scheme slightly more complicated,
+[00:52:49] than I just described in the previous slide,
+[00:52:51] what it has to happen is that,
+[00:52:53] when a follower comes back up after a quick reboot,
+[00:52:59] it loads its persistent state,
+[00:53:00] you know that includes you know the persistent state,
+[00:53:02] that we talked about on the previous slide,
+[00:53:04] you know this information,
+[00:53:06] but also its last you know snapshot,
+[00:53:10] installs that last, basically loads that snapshot into memory,
+[00:53:13] the service does.
+[00:53:15] And then you know we can replay any log entries
+[00:53:18] to basically bring the follower up to date.
+[00:53:21] Okay?
+[00:53:29] Any questions about this?
+[00:53:32] I have one question,
+[00:53:34] I'm not sure if I'm gonna be able phrase super clearly,
+[00:53:38] but I guess, like I was under impression,
+[00:53:42] so I guess like does this not break some layer of abstraction,
+[00:53:47] that previously existed between the application on top of raft and raft itself,
+[00:53:52] for it now needs to understand how the state machine,
+[00:53:55] like how to apply commands to the state machine,
+[00:53:57] instead of just like giving commands to some external state machine.
+[00:54:02] Yeah, great observation,
+[00:54:04] clearly, you know there's some,
+[00:54:10] they have to play together right, the raft library and the service,
+[00:54:14] because first of all the service lies about,
+[00:54:16] it gives the wrong information about how far it has to apply,
+[00:54:19] then we getting inconsistent results,
+[00:54:21] but anyway, so we don't assume liers anyway,
+[00:54:24] but it's clearly the case,
+[00:54:25] that the service and raft library we have to cooperate.
+[00:54:30] And you can go with an abstraction [violation],
+[00:54:34] I think the reason they do it is
+[00:54:37] to limit the amount of state of the raft library we have to maintain,
+[00:54:42] otherwise the raft library wouldn't know when it can cut the log.
+[00:54:46] And so there's basically no way around it,
+[00:54:48] that the service actually tells it,
+[00:54:49] like well I got a snapchat through i,
+[00:54:52] and so it's okay for you to remove log entry from 0 to i.
+[00:54:58] And you'll see that,
+[00:54:59] and so this maybe a good point,
+[00:55:02] this is going to come up in 2d, right,
+[00:55:04] lab 2d is gonna is all about snapshots and log compaction,
+[00:55:10] as it's also called in the paper.
+[00:55:12] The there has to be some API
+[00:55:16] between the service and raft to be able to collaborate,
+[00:55:19] and basically in 2a and 2b,
+[00:55:22] that API in fact even 2c,
+[00:55:24] that API is extremely simple,
+[00:55:26] the only API that exists is
+[00:55:28] this delivering log message on the apply channel, right,
+[00:55:32] and almost nothing flows down from the service to raft,
+[00:55:35] like other than the service may start,
+[00:55:37] and raft trying to append an entry to the log using start.
+[00:55:43] And you know and so in 2d,
+[00:55:46] there has to be a little bit more of an API
+[00:55:49] between service and raft library,
+[00:55:53] and it turns out,
+[00:55:54] you can design that API in many possible way,
+[00:55:57] there are quite a number of ways of doing it,
+[00:55:59] there's a number of particular ways,
+[00:56:00] and the paper doesn't lay out what API you should use,
+[00:56:04] the papers actually just nothing about this,
+[00:56:06] and so it's up to you to,
+[00:56:09] sometimes up to us,
+[00:56:10] you know to figure out the APIs,
+[00:56:11] and to be able to do 2d,
+[00:56:14] you know we have to declare an API between the service and raft.
+[00:56:19] And you know you'll see,
+[00:56:20] what you do today,
+[00:56:21] you know that the API you know have some [],
+[00:56:25] might be a little bit more different than you might expect,
+[00:56:30] and you know we had to pick one particular API,
+[00:56:33] in in that API, as an operation called [conditional install],
+[00:56:40] that you know has semantics,
+[00:56:43] that you know allows you to change the raft state and the service state atomically
+[00:56:49] in one single operation.
+[00:56:51] And and that partly you know that operation exists,
+[00:56:56] try to limit the abstraction [boundaries].
+[00:57:03] Okay?
+[00:57:04] And it turns out you can do it in different ways,
+[00:57:06] you don't really need,
+[00:57:07] you could have written it in different ways,
+[00:57:09] but you know we,
+[00:57:10] [] is actually one of the more simple ways of doing it.
+[00:57:14] But it will become more clear in 2d
+[00:57:15] and you'll see indeed that,
+[00:57:16] there's sort of an interaction between the service and raft,
+[00:57:21] in a way that they have to play along.
+[00:57:29] How could you repeat,
+[00:57:29] when raft communicates with the service in the snapshot process,
+[00:57:32] so the snapshots are driven by the service,
+[00:57:37] so the service just says once in a while to raft,
+[00:57:40] I've made a snapshot, here's my snapshot,
+[00:57:43] and this is a snapshot includes all the operations through i,
+[00:57:47] and then raft you know writes the snapshots and truncates log you know to i,
+[00:57:53] and writes all that information to the disk.
+[00:57:58] And that's basically all what happens sort of, sort of regular operation,
+[00:58:01] periodically snapshots happen snapshot happens.
+[00:58:04] Then there's the other case,
+[00:58:06] you have to consider is like when reboot happens.
+[00:58:10] And so when a follower reboots,
+[00:58:11] it actually reboots from its persistent state,
+[00:58:16] and so including its snapshot,
+[00:58:18] and so when the follower reboots,
+[00:58:20] you know basically loads you know snapshot from from a persistent disk
+[00:58:25] and actually reconstructs the application state, the key-value store,
+[00:58:28] and you'll do this in lab 3,
+[00:58:30] this is not going to be an issue of lab 2.
+[00:58:32] The only thing that there's going to be an issue lab 2 is that,
+[00:58:35] because the followers, because the,
+[00:58:42] because the log has been cut, right,
+[00:58:45] like you know instead of like having all the entries from 0 to i in the log,
+[00:58:49] plus more, so i you know n,
+[00:58:53] the log is being cut you know from i to n, right,
+[00:58:58] and that are part of the log compation,
+[00:59:01] but that also means that,
+[00:59:03] if a follower is far behind,
+[00:59:05] like for example new node joins the system,
+[00:59:07] and doesn't actually have the beginning of the log nor the snapshots,
+[00:59:13] then the raft has to communicate the snapshot to that follower,
+[00:59:19] so in the case that,
+[00:59:20] the follower is you know before i,
+[00:59:23] because rejoin the lab and rejoin the raft cluster,
+[00:59:28] the leader actually has to set the snapshot you know to the follower,
+[00:59:34] and the follower basically start from there.
+[00:59:36] And that will show up in 2d
+[00:59:38] and so there's an additional RPC,
+[00:59:41] called the snapshot RPC or install snapshot RPC,
+[00:59:45] and that's described in the paper,
+[00:59:47] and then you will have to implement in 2d.
+[00:59:50] In fact, which brings me to a good point,
+[00:59:54] actually, let me go to [],
+[00:59:57] basically brings me to the homework question,
+[00:59:59] which is here's the install snapshot rpc for equivalent figure 2,
+[01:00:10] would then just snapshot RPC,
+[01:00:12] and you actually have to implement that in 2d,
+[01:00:18] and one issue that came up
+[01:00:20] in the which was the homework question for today is,
+[01:00:24] is ever possible in raft,
+[01:00:27] what avoids it it's not possible,
+[01:00:30] that the state machine rolls back,
+[01:00:32] you know so for example, leader sends maybe,
+[01:00:35] you know maybe an old snapshot shows up you know at a follower,
+[01:00:39] is it possible that you know if it's possible,
+[01:00:44] if that follower would install that snapshot
+[01:00:47] and then implicitly basically roll back the state machine,
+[01:00:50] maybe it already has seen more information,
+[01:00:52] you know clear that seen not right,
+[01:00:55] and so the question is,
+[01:00:56] you know how does raft around it,
+[01:00:59] and so maybe this is a great place actually do a quick break out,
+[01:01:03] and you can debate that homework question for a couple minutes, 5 minutes,
+[01:01:10] and then we'll come back,
+[01:01:11] and we'll talk about a little bit more about snapshots.
+[01:01:17] Lily, will be like?
+[01:01:19] No Lily, how about I try, you can.
+[01:01:24] Hold on, I'll probably have to make you host,
+[01:01:33] and then you can do it,
+[01:01:35] okay, you should be host now.
+[01:01:37] Awesome.
+[01:02:07] Alright, it should be.
+[01:02:08] Okay, thank you, thank you [].
+[01:08:07] And I'll go ahead and make you, make you host again.
+[01:08:10] That'd be great, thank you.
+[01:08:36] Let me see, share my screen.
+[01:08:54] Okay, everybody back online,
+[01:09:00] we're good to go,
+[01:09:01] somebody can respond would be great.
+[01:09:05] Okay I can hear.
+[01:09:08] Okay, great,
+[01:09:08] I hear it you know sometimes people,
+[01:09:11] because of the breakout rooms here,
+[01:09:12] just [] dropped out soon,
+[01:09:15] unfortunately, TAs [past] rooms break up hopefully,
+[01:09:23] and I don't know exactly what to do about that,
+[01:09:25] I guess class of fault tolerance is a little bit unfortunate,
+[01:09:29] that people could just drop.
+[01:09:33] Okay, so any,
+[01:09:35] I think the homework question this time around was reasonable sort of straightforward,
+[01:09:40] you know it has to be the case,
+[01:09:41] that you know you cannot install an old snapshot,
+[01:09:45] because you know service that might have had a more recent snapshot,
+[01:09:49] might have responded to the client,
+[01:09:50] saying, yeah the operation succeeded,
+[01:09:53] and then if you would restore an old snapshot,
+[01:09:55] then you basically back out to the state
+[01:09:58] and the client would see,
+[01:09:58] there's certainly an old version of the server,
+[01:10:00] so that's certainly not a legit,
+[01:10:03] and so there's a little bit,
+[01:10:05] you should definitely reject all snapshots,
+[01:10:06] but you have to be a little bit careful,
+[01:10:09] if you know the follower has a log that goes beyond the snapshot,
+[01:10:13] you have to keep that remained part of the log,
+[01:10:18] because basically you have promised to a leader,
+[01:10:21] that you have accepted a message,
+[01:10:22] and so you can't delete you know the rest of the log,
+[01:10:26] that was not covered by the snapshot.
+[01:10:31] Okay?
+[01:10:35] Okay, so then let me return.
+[01:10:41] We had a question, actually.
+[01:10:43] Okay, go ahead.
+[01:10:45] So it says, it says in the paper, right,
+[01:10:48] if the follower receives a snapshot,
+[01:10:50] that's a prefix of its log,
+[01:10:54] the log entries covered by the snapshot are deleted,
+[01:10:59] but the rest are kept.
+[01:11:00] Yep.
+[01:11:01] In that case,
+[01:11:04] is, is the state machine wouldn't be overwrite, right, in this case.
+[01:11:10] Okay, so the interesting question is,
+[01:11:11] like how does a snapshot get communicated to the state machine,
+[01:11:18] and as you'll see in lab 3,
+[01:11:20] and it goes over the apply channel,
+[01:11:22] and so the state machine will get a snapshot over the apply channel
+[01:11:27] and then it's up to it to do the right thing.
+[01:11:32] Okay.
+[01:11:33] Okay?
+[01:11:36] Okay, good.
+[01:11:37] So just a follow-up on that, sorry,
+[01:11:40] though I was a little bit,
+[01:11:42] so that makes sense to me,
+[01:11:43] the part that I was confused by is,
+[01:11:45] in the, in the figure 13, like the box that describes install snapshot RPC,
+[01:11:53] on 6, it's says,
+[01:11:55] if existing log entry has the same index and the term as snapshot last included entry,
+[01:12:05] well, hold on, I may have just misread it.
+[01:12:08] Okay, how about you keep thinking about it, look if.
+[01:12:10] I have a question, I'll ask you.
+[01:12:13] I'll take it offline
+[01:12:14] and we'll do it right after lecture, if you want to.
+[01:12:17] Okay, I want to go back actually for a couple minutes,
+[01:12:19] you know that we have remaining
+[01:12:20] and talk about actually using raft,
+[01:12:23] which is sort of a discussion that we're already basically having here,
+[01:12:28] for servers,
+[01:12:29] and so again I'm going to focus on the replicated key-value service,
+[01:12:32] that's going to be the topic of lab 3.
+[01:12:34] And so just to go back to almost like one of the first board,
+[01:12:39] that I drew at the beginning of the raft lectures,
+[01:12:42] here's like our boxes, you know that correspond to the three replicas,
+[01:12:49] and each replica correct you know has a sort of split two pieces,
+[01:12:54] one is the service part,
+[01:13:01] and one is the raft library, right,
+[01:13:04] then we know that basically this communicate these two through the apply channel,
+[01:13:09] unless the way that information flows from raft to service, service.
+[01:13:16] And so clients you know interact you know with the service,
+[01:13:21] you not directly the raft,
+[01:13:22] so we have a client here,
+[01:13:25] you know that sends you know operation,
+[01:13:26] like a put operation or get operation to the service,
+[01:13:29] the service receives this operation,
+[01:13:31] and it basically calls start you know for that operation,
+[01:13:37] then raft does it chit chat you know with you know the other raft libraries,
+[01:13:43] you know messages can flow back,
+[01:13:44] in at some point the operation is committed
+[01:13:46] and then it actually is you know raft will say,
+[01:13:48] okay, this operation is ready to be committed,
+[01:13:51] sends it on the apply channel,
+[01:13:53] and service then basically execute the operation and send the response back,
+[01:13:57] after it executed the operation, response back to the client,
+[01:14:00] saying well, the value or the get you know key 20 you know is this, right,
+[01:14:05] so this is a get operation or put,
+[01:14:10] and this is basically the value for the get
+[01:14:12] or you know ok put succeeded.
+[01:14:15] Okay?
+[01:14:16] And we also discovered in the last lecture,
+[01:14:18] it might be the case,
+[01:14:20] that the client sends an RPC to the service
+[01:14:24] and the RPC disappears,
+[01:14:26] so the client must yeah must resend,
+[01:14:28] and by the time the resends actually,
+[01:14:30] you know the leader might not be the leader anymore.
+[01:14:33] And so in that case,
+[01:14:34] it has to sort of redirect itself to another leader,
+[01:14:37] so basically there is a little bit of code
+[01:14:39] you know the way to think about this.
+[01:14:41] There's a little bit of code at the client side,
+[01:14:43] sort of understands replicated state machines a little bit,
+[01:14:46] and it maintains some information,
+[01:14:48] it maintains like who's the leader,
+[01:14:50] and who are the other followers,
+[01:14:53] and so that can switch between them, if necessary.
+[01:14:58] We also,
+[01:14:58] last time we talked a little bit about its possible,
+[01:15:01] that you know operation can be duplicated, right,
+[01:15:03] because you know the, the client may send an operation put operation to the service,
+[01:15:09] in the you know the client doesn't get a response,
+[01:15:14] but the service actually received,
+[01:15:16] so it went through, you know went through the whole operation sequence,
+[01:15:21] you know starting the raft appends,
+[01:15:25] you know go through the raft [motion],
+[01:15:27] and then basically sending it out to apply channel.
+[01:15:29] And so basically the client actually might send a second one,
+[01:15:33] and you know the basically for the repetition,
+[01:15:37] you know that might actually go through you know the raft library too,
+[01:15:41] comes out in the apply channel,
+[01:15:42] and so you know have to do some duplicate detection, detection
+[01:15:45] and there multiple ways of doing it,
+[01:15:46] but either way you have to duplicate detection.
+[01:15:49] So, in addition to a sort of maintain state,
+[01:15:52] about like what the leader and the followers are,
+[01:15:55] put and get also actually have an id,
+[01:15:58] you know an id associated with it,
+[01:16:00] and we're going to maintain what is the last id,
+[01:16:03] that it actually is trying to get through,
+[01:16:05] and that is used to actually duplicate detection.
+[01:16:09] And this little piece of code is often called a clerk,
+[01:16:12] you know the clerk that interacts with the service,
+[01:16:15] and it does a little bit of work
+[01:16:16] to collaborate with the service you actually get the [] done,
+[01:16:19] and so we have multiple clients,
+[01:16:21] all have clerk of library, if you will, just Go package,
+[01:16:28] and you know the clients basically talk puts and gets you know over that interface,
+[01:16:33] and inside of the clerk actually maintains these ids
+[01:16:36] or maintains one id for the outstanding you know put get operation
+[01:16:40] as well as some information about who's part of the cluster.
+[01:16:43] Okay?
+[01:16:45] Does that make sense?
+[01:16:46] So that's sort of the basic structure, correct,
+[01:16:48] like how raft fits into a larger picture.
+[01:16:52] The one question that comes always up is,
+[01:16:55] what you know what is the guarantees
+[01:16:57] you know that the service and the clerk together make to the clients
+[01:17:02] about these put and get operations.
+[01:17:05] So this really means what is the correctness criteria.
+[01:17:12] And the way, we always have described so far,
+[01:17:16] we've been reasonable [sloppy] about it,
+[01:17:17] or I sloppy about it,
+[01:17:19] and basically I said is like,
+[01:17:21] well, should behave like a single machine,
+[01:17:33] even that, there's a little bit of an imprecise definition,
+[01:17:35] because what happens,
+[01:17:36] if two clients basically at the same time you know execute a put or a get operation,
+[01:17:40] and what actually is the correct outcome of these operations,
+[01:17:44] so we really need to sort of a little bit more preciser,
+[01:17:46] you know I think like,
+[01:17:47] maybe like a single machine is the right intuition,
+[01:17:49] but we need a little bit preciser definition.
+[01:17:52] And this definition you saw the term used in the paper,
+[01:17:56] this definition is called linearizability,
+[01:18:04] linearizability basically spec specification
+[01:18:07] of what values put and get operations can return,
+[01:18:12] particularly those in since put realy return operations really,
+[01:18:15] what get can actually return,
+[01:18:17] and it basically says, what are allowed things to be return,
+[01:18:21] what are things that are not allowed to be return,
+[01:18:23] independent by actually how you implement it,
+[01:18:25] it's just like purely specification.
+[01:18:28] And it basically has three components you know linearizability,
+[01:18:32] linearizability says,
+[01:18:33] if you have look at some sequence of operations,
+[01:18:36] and some of them executed currently,
+[01:18:38] it has to be the case,
+[01:18:39] that there's a total order,
+[01:18:40] so you can arrange all the operation in some total order,
+[01:18:52] put or set operations.
+[01:18:56] Two, it has to match real-time,
+[01:19:06] with that, I mean that,
+[01:19:08] if an operation completed before the second operation started,
+[01:19:13] even if those operations are on different machines,
+[01:19:15] it has to be the case that in this total order,
+[01:19:18] the first operation shows up before the second operation,
+[01:19:24] and that sort of makes sense, right,
+[01:19:25] like if it behaves like a single machine,
+[01:19:27] and you start an operation after another operation,
+[01:19:30] then the single machine would always return the results of the first operation, so.
+[01:19:35] And finally the read operation,
+[01:19:37] so this is like in our case,
+[01:19:38] key-value server only has one read operation [] get,
+[01:19:42] but the read operation should always return the results of the last write.
+[01:19:56] So in our case,
+[01:19:57] you know we do get operation
+[01:19:59] and the put operation happened well before it
+[01:20:05] and completed well before,
+[01:20:06] then that get operation should observe the last, should observe the last put.
+[01:20:13] Okay?
+[01:20:14] So this sort of, these are three conditions,
+[01:20:18] you know that will determine whether system actually linearizability.
+[01:20:22] And you can think about the linearizability as well,
+[01:20:25] just behave like a single machine.
+[01:20:27] So let me make a little bit more concrete,
+[01:20:29] because there's a little bit abstract.
+[01:20:31] And the way basically people think about linearizability
+[01:20:35] or argue that the system has linearizability
+[01:20:37] is looking at particular histories or executions
+[01:20:41] and then see if you can use histories,
+[01:20:46] if you can turn that into total order,
+[01:20:48] even though the operations actually might have actually executed concurrently.
+[01:20:53] So let me give you one example, a trivial example,
+[01:20:57] so let's say we have three clients C1 C2 C3,
+[01:21:01] and they do a bunch of puts and gets,
+[01:21:03] so you know typically the way you know,
+[01:21:06] basically it has to be some start point where the operation started,
+[01:21:10] and there's some endpoint where the operation ends.
+[01:21:13] So, for example when actually the client actually gets the return from the service,
+[01:21:19] and so let's say this write operation you know to value to the variable x,
+[01:21:24] and we write 1 to it.
+[01:21:26] So the client 1 started at some point,
+[01:21:28] the write operation to the variable x to write 1,
+[01:21:30] and ends at some point here.
+[01:21:33] Maybe the second one and write 2 to it.
+[01:21:41] And then maybe we have all the action
+[01:21:43] and with linearizability is,
+[01:21:44] when operation happens concurrently,
+[01:21:45] so some operations starts before another one actually finishes,
+[01:21:49] so for example we might have the following operation,
+[01:21:52] client 2 does a read operation,
+[01:21:53] in our case, would be a get,
+[01:21:56] and there's a read of x,
+[01:21:58] and the value returned by this operation is 2.
+[01:22:01] And then we have a similar sort of situation,
+[01:22:04] where client 3 it actually starts an operation,
+[01:22:06] a read operation, and reads x and it returns 1,
+[01:22:11] let me make this a little bit more clean,
+[01:22:16] the read operation actually returns
+[01:22:18] before you know the write 2 operation starts or ends,
+[01:22:22] and same from Rx1,
+[01:22:24] and then the question that always comes up,
+[01:22:26] is this linearizability, is this linearizability execution.
+[01:22:31] And if linearizability,
+[01:22:32] then basically it means like,
+[01:22:34] this could happen on a single machine too.
+[01:22:37] So could this happen on a single machine?
+[01:22:40] We can just like abstract think about it,
+[01:22:42] without actually having,
+[01:22:45] is this legit outcome from,
+[01:22:47] basically we need to look at is the outcomes of R2 and C2 and C3,
+[01:22:51] you know is this a legit execution.
+[01:22:55] I'm not sure,
+[01:22:56] I don't really know what it means
+[01:22:58] for write to take like a long time.
+[01:23:03] Well.
+[01:23:03] Take a long time for that matter.
+[01:23:06] If you think about the from the client perspective,
+[01:23:10] it sends a request to the service,
+[01:23:12] so that's the starting of the write,
+[01:23:15] and I've got a return value at some point from the service
+[01:23:18] and that's the end of the write.
+[01:23:21] And so in between all kinds of stuff happens, right,
+[01:23:23] it actually to the service,
+[01:23:24] the service put into raft,
+[01:23:26] raft went to apply channel blah blah blah,
+[01:23:28] lots of stuff happened,
+[01:23:29] we really care about exactly,
+[01:23:30] what the implementation does at some point a response.
+[01:23:34] And so you can think about this,
+[01:23:35] you know there's basically three concurrent clients,
+[01:23:37] you know they issued concurrent operations,
+[01:23:40] and we are wondering if this is actually legit outcome.
+[01:23:45] I don't think this could happen on a single machine,
+[01:23:48] because the write for 2 it finishes after the read start,
+[01:23:58] oh, sorry, yeah yeah that's right,
+[01:24:00] but it seems like the write should happen before the read,
+[01:24:04] and in this situation,
+[01:24:09] it couldn't happen, if the write started after,
+[01:24:13] if the write finished after the read start, yeah.
+[01:24:17] Yeah, so one would think, one way to think about is that,
+[01:24:21] we can move,
+[01:24:22] you know we have to construct a total order,
+[01:24:25] and we can construct a total order,
+[01:24:26] where all the operations line up,
+[01:24:28] then you know it's a valid linearizable history.
+[01:24:31] And so, so let's construct a total order,
+[01:24:34] and then go back to this question you just asked,
+[01:24:37] so a total order, here's a total order, that I gonna,
+[01:24:41] so I'm going to do first the write operation,
+[01:24:44] then Rx1, then the Wx2, and then Rx Rx2, right.
+[01:24:53] It's a total order,
+[01:24:54] all the operations are now happening sequentially,
+[01:24:57] and you know we need to check whether this total order is correct,
+[01:25:01] corresponding to the linearizability definitions,
+[01:25:04] well, it has to be the case,
+[01:25:05] that operations that start,
+[01:25:07] if an operation starts after some other operation,
+[01:25:10] ends it needs to be after in the total order.
+[01:25:12] And so we look at this,
+[01:25:14] let's look at the this,
+[01:25:15] this one must start after Wx1,
+[01:25:19] and that is true correct in this totally order,
+[01:25:23] Rx1 must you start after Wx1,
+[01:25:29] because it actually returns you know the value, right,
+[01:25:32] then exactly in total order, that is also the case,
+[01:25:35] Rx2 you know must start after Wx2,
+[01:25:38] because it observes the result of this write,
+[01:25:42] and you know that's perfectly fine too, right,
+[01:25:45] we can basically,
+[01:25:46] one way to think about it is that,
+[01:25:47] you know even though they executed this way,
+[01:25:49] we've got to rearrange things
+[01:25:51] to sort of fit the total order.
+[01:25:54] And so, if we think about this,
+[01:25:57] then this is a totally legit execution,
+[01:26:00] where you know the operation [] of the order,
+[01:26:03] and so this is like what a single machine would do,
+[01:26:05] so a single machine could executed Wx1, Rx1, Wx2, Rx2
+[01:26:10] and all perfectly fine.
+[01:26:14] Okay?
+[01:26:16] So let me make it helpful to think about
+[01:26:18] history that is not linearizable.
+[01:26:21] So let me look at the second one,
+[01:26:29] and I'm gonna come back on this on the first one anyway,
+[01:26:33] so don't worry if this not makes sense yet,
+[01:26:36] but here's another one.
+[01:26:38] I got C1,
+[01:26:40] same thing Wx1,
+[01:26:44] I got and here Wx2
+[01:26:49] and and there's gonna be a read that actually goes in x1,
+[01:26:58] and I'm sorry Rx2,
+[01:27:01] and then I got C2 C3
+[01:27:05] and the C3 start after the other read and returns 1.
+[01:27:15] And the [] here is that,
+[01:27:17] it's not possible to construct a total order
+[01:27:20] you know matches linearizability,
+[01:27:23] and in one way,
+[01:27:26] one indication of this is that this read returned x1,
+[01:27:30] started after the read that returned 2,
+[01:27:34] and I will make this a little bit more precise later,
+[01:27:36] but in a real you know single machine system,
+[01:27:39] that could have never happened, right,
+[01:27:41] because that would have meant,
+[01:27:43] that the value changed between Rx2 and Rx1,
+[01:27:46] and and you know with these few operations that we have on the board,
+[01:27:51] that has to be the case that,
+[01:27:53] this Rx1 happened after that write,
+[01:27:57] and this write must have happened after that write,
+[01:28:02] because they're in total,
+[01:28:03] there, we have to respect you know the ordering of the single of C1,
+[01:28:08] and so there's no way to basically slot you know Rx1 in the total order,
+[01:28:13] you know according to this picture, it should go after Rx1,
+[01:28:19] and but that can really not be true,
+[01:28:24] because if it got after Rx1,
+[01:28:26] that names also after Wx2,
+[01:28:29] so that must have write 2 and not 1.
+[01:28:34] So this is not a linearizability,
+[01:28:36] not a linearizable history in execution.
+[01:28:46] Another way of saying that is that,
+[01:28:48] this is what, what is Rx in returning here,
+[01:28:50] really returning stale value, right,
+[01:28:53] and that is not allowed,
+[01:28:58] if the machine behaves like a single machine
+[01:29:00] or replicated server behaves like a single machine.
+[01:29:03] And so I'm gonna go back you know this,
+[01:29:04] to on the lecture when next week,
+[01:29:07] when we talk about zookeeper,
+[01:29:08] because this is going to be very important,
+[01:29:10] this notion of linearizability,
+[01:29:12] sort of thing that shows up [] in the paper,
+[01:29:15] and this notion of stale values also shows up [].
+[01:29:20] And since I'm running out of time and [],
+[01:29:22] I'll resume that next week.
+[01:29:25] Okay?
+[01:29:29] Any further questions
+[01:29:31] and people need to leave, please feel free to leave,
+[01:29:33] in fact I hope you did,
+[01:29:35] I don't want to make responsible that you miss other classes.
+[01:29:40] Is this a consider,
+[01:29:43] like what type of consistency is considered to be strong consistency.
+[01:29:48] This considered to be basically strong consistency,
+[01:29:52] and what it really is sort of a precise definition of what strong consistency is,
+[01:29:58] so like our intuition about what strong consistency is,
+[01:30:01] namely behaving like a single machine,
+[01:30:03] that the precise definition that people use in the technical literature is linearizability.
+[01:30:12] How did they decide to have that property,
+[01:30:17] like why did they decide to have that property?
+[01:30:20] There's a couple things,
+[01:30:21] one reason, the reason,
+[01:30:24] okay, so it makes sort of sense,
+[01:30:26] you know if you think from this point of view,
+[01:30:29] like you want to behave,
+[01:30:30] you want to make a replicated system behave like a single machine
+[01:30:34] or replicated machine,
+[01:30:35] and you want to only allow outcomes
+[01:30:37] that actually correspond to executions that the single machine could have done,
+[01:30:40] the [] linearizability are very intuitive definition for that.
+[01:30:45] The database world has also some other terminology like serializability,
+[01:30:49] this is also a term that will show up in the term later,
+[01:30:53] and basically the only difference between sort of linearizability and serializability is
+[01:30:58] that serializability doesn't require that matches real-time.
+[01:31:03] And so people have different definitions of strong consistency,
+[01:31:06] if you will and the one that we'll see most probably is linearizability,
+[01:31:11] which corresponds closest to like the machine behaves,
+[01:31:13] that replicates server behaves like a single machine.
+[01:31:21] Thank you.
+[01:31:22] You're welcome.
+[01:31:25] I have a question about,
+[01:31:28] what happens during a network partition,
+[01:31:32] so I know like so if a leader gets partitioned completely on their own,
+[01:31:36] they'll eventually climb out,
+[01:31:37] but if they have sort of like a few followers with them,
+[01:31:42] they'll stay the leader,
+[01:31:44] and they won't be able to commit anything,
+[01:31:46] because they'll be in a minority,
+[01:31:47] and they'll be a new leader,
+[01:31:48] and they'll be,
+[01:31:49] so will that leader ever sort of recognize,
+[01:31:54] that maybe it's a stale leader,
+[01:31:56] or do we just assume that,
+[01:31:57] eventually if the partition goes away,
+[01:32:02] it'll figure out,
+[01:32:03] because I'm worried if there's a client that's talking to the stale leader,
+[01:32:06] what does that client do.
+[01:32:09] The no,
+[01:32:11] okay so this is a great question with this picture here,
+[01:32:14] hopefully it will help,
+[01:32:16] so the client talks to talk to this guy, correct,
+[01:32:19] like who's the leader,
+[01:32:21] you see the picture,
+[01:32:22] I just double check, you can see.
+[01:32:23] I can see it.
+[01:32:24] So let's say you know this first box is the leader,
+[01:32:27] client talks to that leader,
+[01:32:28] the leader can't commit any operations, right,
+[01:32:32] and so it won't commit anything on the apply channel,
+[01:32:35] and so it will never respond to the client, right,
+[01:32:38] because there's no operation, actually its operations are not being executed,
+[01:32:42] so the client will just retry, just keep retrying forever,
+[01:32:46] until, you know until the client actually maybe tries another,
+[01:32:50] you know one of the other followers, correct,
+[01:32:55] that maintains you know who else is actually in the group,
+[01:32:59] or until the network heals,
+[01:33:05] and the leader actually commit an operation.
+[01:33:07] Gotcha,
+[01:33:08] wait, so doesn't doesn't the leader immediately reply those,
+[01:33:11] saying I got your request
+[01:33:13] or does it wait until committed.
+[01:33:15] No in lab 3, it doesn't commit with a client
+[01:33:18] until that actually has processed the request,
+[01:33:21] and which means that the operation actually has run through raft,
+[01:33:24] and come out of the apply channel
+[01:33:25] and [] executed by the service.
+[01:33:28] Okay.
+[01:33:33] Does that makes sense?
+[01:33:34] Yeah, so the client could just implement a timeout,
+[01:33:36] where like if a certain amount of time
+[01:33:38] and they haven't received the commit,
+[01:33:40] assume that maybe I should try a different node,
+[01:33:43] and then if it gets the new leader
+[01:33:44] or follower of the new leader,
+[01:33:46] it'll be back to normal.
+[01:33:49] For example, this clerk that's exactly what this clerk does,
+[01:33:53] you know the place along with the service to actually do what you just said.
+[01:33:57] Got it, okay, thank you.
+[01:34:01] You're welcome.
+[01:34:02] Sorry, can you repeat again, what the clerk does?
+[01:34:06] The clerk is a little bit of a stub,
+[01:34:08] where like a little library that the client links with,
+[01:34:11] and the client calls puts and gets,
+[01:34:13] and the clerk actually is the interface that it talks to
+[01:34:16] and the clerk can keep some information,
+[01:34:19] like who's part of the raft cluster,
+[01:34:23] and so where who's the leader and who are the followers,
+[01:34:25] at least what it thinks is the leader and the followers,
+[01:34:28] and when it sends an RPC you know to the service,
+[01:34:32] you know sends to the leader,
+[01:34:33] what it thinks is the current leader,
+[01:34:36] and the service in the, whatever thinks the current leader,
+[01:34:39] the leader might actually respond saying,
+[01:34:40] like hey, I'm not the leader, should send somewhere else,
+[01:34:43] and then it will try one of the others and updates its information.
+[01:34:47] And also we'll tag every put and get operation,
+[01:34:51] that it receives from the client,
+[01:34:53] and that sends to the service with a unique id,
+[01:34:55] so that the service can do duplicate detection.
+[01:34:59] And this all comes up in lab 3,
+[01:35:01] so you know you'll see there,
+[01:35:05] in lab 2, there's no real clerk,
+[01:35:07] because the tester basically sort of sits on top of the directly of the raft interface,
+[01:35:11] and doesn't really interact through the clerk,
+[01:35:13] but in lab 3 will interact through the clerk.
+[01:35:16] So how do the clients generate unique ids,
+[01:35:20] I think they conflict with each other.
+[01:35:22] Random, big random numbers.
+[01:35:26] Alright, so we're just guessing and hoping,
+[01:35:28] rather than actually guaranteeing, some sort of like incremental.
+[01:35:31] One way to make it more guaranteed,
+[01:35:33] for example, take your IP address and append a random number.
+[01:35:41] A question about the homework question?
+[01:35:44] Yeah.
+[01:35:44] So I thought that it could go backwards in time,
+[01:35:47] like I read the paper,
+[01:35:48] and it says on page 12 [],
+[01:35:51] it said that if there's a conflict, right,
+[01:35:54] then the follower just discards its entire log
+[01:35:57] and it's also preceded by the snapshot,
+[01:36:00] so I wonder why.
+[01:36:02] Again, let me, let me guess,
+[01:36:06] I I don't really know exactly [] what you're referring to,
+[01:36:09] I have to look it up again.
+[01:36:10] Oh, it's on page 12,
+[01:36:12] it's at the it's towards the end of page 12 the second column here,
+[01:36:16] so the second to last paragraph.
+[01:36:18] So the log can go back, right, but not the state machine.
+[01:36:22] Not, oh, the log can, the log can go back, but not the state machine,
+[01:36:25] oh, the state machine like what you the committed entries, right.
+[01:36:30] Yeah, the yes, the log can go back,
+[01:36:33] because of the uncommitted entries we can go back,
+[01:36:36] this is like this whole erase stuff that we talked about earlier.
+[01:36:41] Okay, so actually the log can go back, not the state machine,
+[01:36:45] which is basically what you committed already.
+[01:36:48] Yeah and the log can never go, will never go back,
+[01:36:51] never [] of committed operations, right,
+[01:36:54] it can only [] erased uncommitted operations.
+[01:36:57] Yes, that's right, okay.
+[01:37:00] So that's what you ask question.
+[01:37:02] Can I ask a question about the third slide.
+[01:37:04] Yeah.
+[01:37:05] The one right before this one,
+[01:37:08] so could you just walk through real quick,
+[01:37:12] what matchIndex is doing on the write,
+[01:37:15] like when S2 is communicating with S3.
+[01:37:18] Okay.
+[01:37:18] So it starts out as 0.
+[01:37:21] Yep, so S2 is communicating with who?
+[01:37:25] S3.
+[01:37:26] Yeah, so basically okay,
+[01:37:27] so here matchIndex is 0, right,
+[01:37:30] like so and m you write it down is 0.
+[01:37:33] Yeah.
+[01:37:34] Okay, then you get to know back,
+[01:37:36] so matchIndex stays 0, right.
+[01:37:39] Okay.
+[01:37:40] Nothing there, but now it's an okay back,
+[01:37:42] so what does that imply,
+[01:37:46] that implies that you know what did it send,
+[01:37:48] that send heartbeat correct with for index 13,
+[01:37:53] and including and the S3 responded ok,
+[01:38:03] and so it means that,
+[01:38:04] basically S3 is up to date through until 13, correct,
+[01:38:07] that is nextIndex that it actually has and expects 14.
+[01:38:12] And so the S2 knows now,
+[01:38:14] that it's log matches until 13 after this message.
+[01:38:20] Is it until 13 or until 12?
+[01:38:22] It matches till 13,
+[01:38:24] so the next thing that will be sent will be going index 13.
+[01:38:29] So, so the nextIndex and matchIndex are going to be 13?
+[01:38:33] Yeah, the nextIndex is not used yet, right, means empty.
+[01:38:37] Okay.
+[01:38:39] So basically the the way you know,
+[01:38:40] they they you can do either way correct,
+[01:38:43] you can either save the last one
+[01:38:44] or you know first that's gonna be,
+[01:38:47] or the first next to you know 1,
+[01:38:49] in this case, they go by the first next one.
+[01:38:53] So in this case,
+[01:38:54] both of them are 13 for the next one.
+[01:38:58] Yeah, so basically you can think about this, this stage,
+[01:39:01] before like all the green stuff has happened,
+[01:39:03] the matchIndex for 3 is 13,
+[01:39:15] and the matchIndex for itself 2 is also 13.
+[01:39:24] Got it, awesome, thank you.
+[01:39:29] You're welcome.
+[01:39:32] Actually, can I ask a follow-up from that,
+[01:39:35] so when it sees something matches,
+[01:39:40] for example here on position 11,
+[01:39:44] it saw that matches,
+[01:39:45] then it is guarantee that everything before that matches too.
+[01:39:52] Yes, right, because,
+[01:39:53] hold on, let me double check you're talking about this message.
+[01:39:57] Yeah, about like when it says ok, if you check.
+[01:40:00] Yeah, yeah,
+[01:40:03] because that is the whole reason,
+[01:40:04] that the previous term or previous index all communicated correct to the follower,
+[01:40:09] to make double check that it can only respond ok,
+[01:40:12] if indeed is the case,
+[01:40:13] that in the previous index 11 actually return 3,
+[01:40:18] and if that's true,
+[01:40:19] that means that basically everything before that must match,
+[01:40:22] and this is like this,
+[01:40:22] whatever their whatever their statement they call,
+[01:40:28] this [invariant] initially maintained that,
+[01:40:30] like if something matches at like one index,
+[01:40:32] then everything before that match too.
+[01:40:36] Oh, okay, okay, this is [] to me.
+[01:40:41] Oh, and I had another follow-up question was related to the question,
+[01:40:45] on the lecture question that I wrote,
+[01:40:48] I asked about the copy-on-write for snapshots,
+[01:40:53] I think I don't really understand what is being copied,
+[01:40:57] is it, is it the page tables or is it something.
+[01:41:00] I think I responded to your email.
+[01:41:04] Yeah, I got email, but.
+[01:41:07] Okay, okay, okay, hold on a second,
+[01:41:12] [], the,
+[01:41:16] so okay, the scenario is snapshot can be expensive,
+[01:41:22] because snapchat might be large,
+[01:41:24] gigabytes you know key-value page table,
+[01:41:29] sorry, [] it was a gigabyte key-value store,
+[01:41:33] then you know you need to write that gigabyte to disk, right,
+[01:41:38] and while you're writing into disk,
+[01:41:40] if you don't do anything clever,
+[01:41:41] you cannot process any other put and get operations,
+[01:41:44] that come in through the channels,
+[01:41:48] let me actually [popup] this picture.
+[01:41:52] Great, so basically service decides at some point to take a checkpoint,
+[01:41:55] so gigabyte you have to write a gigabyte to disk,
+[01:41:57] that's expensive.
+[01:41:59] So the plan, you know I think the plan that the papers hinting at,
+[01:42:03] is that what the service does,
+[01:42:06] it you know calls fork,
+[01:42:11] so when it wants to make a checkpoint, it calls fork,
+[01:42:15] and fork case a copy of that process, right,
+[01:42:18] now we have the operating system running,
+[01:42:21] and we have now basically two processes,
+[01:42:24] that correspond to this application,
+[01:42:28] service raft, service raft,
+[01:42:31] and this is the copy, the child,
+[01:42:35] the operating system uses copy-on-write,
+[01:42:38] so when it made a copy of that second process,
+[01:42:41] and just copy the page table, didn't copy physical memory,
+[01:42:45] so basically these two processes share the same physical memory,
+[01:42:52] which holds you know the our key-value store, right.
+[01:42:57] And so now the idea is that,
+[01:42:59] the child when it starts running,
+[01:43:00] it starts making a checkpoint or snapshot,
+[01:43:04] I can just write out you know the key-value sort of,
+[01:43:08] the key-value store to disk.
+[01:43:11] And in parallel, you know the parent can just start
+[01:43:15] processing new you know get and put operations,
+[01:43:22] because if it does put operation,
+[01:43:24] and it wants to modify,
+[01:43:25] it will write you know to pages that correspond to the key-value store,
+[01:43:32] that will result in a page fault, right,
+[01:43:33] and so the OS will get a page fault,
+[01:43:35] and so the OS will copy that page at that point,
+[01:43:39] and then you know the first [] process can updated,
+[01:43:43] this is all transparent to the child,
+[01:43:45] which the child had a consistent snapshot of the whole address space
+[01:43:49] at the point of the fork.
+[01:43:51] So, this allows basically the parent and child run concurrently,
+[01:43:54] still make a consistent snapshot,
+[01:43:57] and the parent actually make process new put and get operations.
+[01:44:02] Is that more clear, okay?
+[01:44:04] Oh, yeah, okay I see,
+[01:44:05] so the copy-on-write, the memory that holds the key-value store,
+[01:44:12] okay, okay, okay I see,
+[01:44:13] yeah, this makes it very clear,
+[01:44:15] thank you so much.
+[01:44:16] You're welcome.
+[01:44:21] Any more questions?
+[01:44:24] Yeah, I have a,
+[01:44:26] I guess this is sort of a weird scenario,
+[01:44:29] I'm not sure if this could actually,
+[01:44:31] but what if,
+[01:44:33] so imagine that we're always in the same term,
+[01:44:36] and then you get to a point where some nodes have disconnected,
+[01:44:41] but they're still the same term,
+[01:44:43] the leader is still in the same term,
+[01:44:45] and then at some point, they will, they will do a snapshot,
+[01:44:50] and then all the logs will be compressed,
+[01:44:53] and then they keep going forward,
+[01:44:55] and now the logs are being populated again,
+[01:44:57] and then, let's just say 15 logs have been added,
+[01:45:02] and then after 10, they compress them,
+[01:45:06] and then they are at index index 5 again,
+[01:45:09] and then the other nodes joined back in,
+[01:45:11] and they're also at index 5 of the same term.
+[01:45:15] Is that a problem,
+[01:45:16] like how, how does,
+[01:45:18] it's almost like they're on a snapshot [] or some sort.
+[01:45:23] Okay, so old snapshots correspond to an index, right, so.
+[01:45:27] Yeah.
+[01:45:27] So okay, let's draw out like maybe draw your scenario,
+[01:45:31] so we got a server gonna have some log,
+[01:45:36] and you know maybe I think you know you talk about 10,
+[01:45:39] and it took a snapshot at 10.
+[01:45:41] Yeah.
+[01:45:43] Yeah, so let's say, let's say that basically,
+[01:45:45] yeah, so basically the first 9 operations are maybe including 10 are in the snapshot.
+[01:45:52] And then okay, so there's another node is same term,
+[01:45:59] so all these entries have the same term, right,
+[01:46:01] whatever, you know 1 1 1 1 1 1 1 1 1.
+[01:46:06] Yep.
+[01:46:08] And, so this node actually,
+[01:46:11] but this node has only until 10,
+[01:46:13] then this guy [through] 15.
+[01:46:15] Let's see,
+[01:46:16] I think that's what you're saying,
+[01:46:17] here's 1, here's 1.
+[01:46:24] Well, I think my my thought is,
+[01:46:28] well here's here's a question I can answer,
+[01:46:30] when you take a snapshot,
+[01:46:31] do you reset your index or do you keep counting?
+[01:46:33] You keep counting.
+[01:46:35] Oh, okay,
+[01:46:37] I was imagining it was like an array,
+[01:46:39] and you saw your index goes backwards,
+[01:46:42] so that it would be possible for you to have
+[01:46:45] two different entries in the same term with the same index.
+[01:46:49] Yeah, that's not allowed.
+[01:46:51] Right yeah, okay, I I see.
+[01:46:54] So, okay, okay, that makes sense.
+[01:46:57] When you remember reset the index.
+[01:46:59] When you cut like this part of the log,
+[01:47:02] in the index stays at 10.
+[01:47:04] Got it, got it.
+[01:47:05] And so in fact, when you do this in 2d,
+[01:47:07] this is gonna be slightly annoying,
+[01:47:09] because you presumably take advantage in fact the start of log is 0
+[01:47:14] and what you're now going to get is that,
+[01:47:15] the start of the [] of 0 might be 10,
+[01:47:18] people have to.
+[01:47:21] You have an offset of some sort.
+[01:47:23] Yeah, you have to add that offset everywhere.
+[01:47:27] Yeah, and then and then last thing really quickly,
+[01:47:29] I think the reason I was confused earlier
+[01:47:31] was in the in the code for lab 2.
+[01:47:36] Yeah.
+[01:47:36] There's a comment that says,
+[01:47:38] we're supposed to return immediately from start.
+[01:47:42] Yeah, yeah, well you, oh yes.
+[01:47:45] I mean,
+[01:47:46] okay, so let me go back to this picture here.
+[01:47:49] Yeah, hopefully, it's getting really crowded,
+[01:47:54] so we get an operation, correct,
+[01:47:56] and we do the start operation, we call start.
+[01:47:59] Oh, return immediately doesn't necessarily mean reply, is that.
+[01:48:03] Yeah, exactly,
+[01:48:05] it just means reply back to return to the service,
+[01:48:08] not to the client.
+[01:48:10] I see, I see, okay, gotcha,
+[01:48:15] yeah, I guess operating under the assumption that return always is necessarily reply,
+[01:48:20] but that's not that's not always the case.
+[01:48:22] No, that's not the case,
+[01:48:23] I think this will become more clear in lab 3
+[01:48:25] than they you know lab 2,
+[01:48:27] lab 2 a little bit weird, no application.
+[01:48:31] Yeah, okay, well, thank you,
+[01:48:35] this was really helpful.
+[01:48:36] You're welcome.
+[01:48:37] Appreciate it.
+[01:48:40] Have a rest.
+[01:48:41] You too.
+[01:48:42] Bye.
+[01:48:43] Good luck for the lab.

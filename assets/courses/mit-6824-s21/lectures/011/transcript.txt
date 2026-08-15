@@ -1,0 +1,1562 @@
+[00:00:00] Good evening or good night wherever you are,
+[00:00:03] let's get started.
+[00:00:04] So today, I wanna talk a little bit about chain replication,
+[00:00:08] the paper aside for today from 2004,
+[00:00:12] before diving into the paper,
+[00:00:14] a couple quick logistic things I just want to remind you of,
+[00:00:19] one is we have a quiz on Thursday,
+[00:00:24] and you know the instructions of topics that actually being covered all the quiz
+[00:00:29] are on the schedule page,
+[00:00:30] we'll try to send out an announcement of Piazza for more details
+[00:00:35] about exactly how we'll do the quiz,
+[00:00:38] it's going to be in grade scope,
+[00:00:40] and it's basically during class hours 80 minutes,
+[00:00:44] and more details to follow.
+[00:00:49] The second you know I want to remind people of is projects,
+[00:00:57] if you'd like to do a project instead of lab 4,
+[00:01:00] then you can do so,
+[00:01:05] but you should submit a proposal for a project,
+[00:01:08] and use a couple paragraphs to through the submission website,
+[00:01:13] so that we can give you feedback,
+[00:01:15] and to tell you what this project actually appropriate for a final project in 6.824,
+[00:01:20] if you're just planning to lab 4,
+[00:01:22] there's absolutely nothing you have to do at all.
+[00:01:25] Any questions about these two logistical points?
+[00:01:36] Okay, then, let me move on to one other point,
+[00:01:41] I wanted to bring up,
+[00:01:42] which is the sort of correction from a lecture a little while ago,
+[00:01:51] we, we walked through the Go code
+[00:01:54] for the raft implementation of 2a 2b that I had,
+[00:01:58] and we talked a little bit about the go defer statement,
+[00:02:02] and I mentioned that,
+[00:02:04] you can actually have the defer statement inside of a base block,
+[00:02:08] and that is correct,
+[00:02:10] and I think maybe it was Felipe who asked the question,
+[00:02:12] what is exactly when is that get executed
+[00:02:15] and I answered that question incorrectly,
+[00:02:17] you know the defer statement that gets executed
+[00:02:19] at the point that gets return out of the function,
+[00:02:21] not in return out of the base block,
+[00:02:23] and so that my apologizes that caused any confusion.
+[00:02:30] Any questions about the that clarification?
+[00:02:38] Okay?
+[00:02:39] Good, there's sort of two topics
+[00:02:40] and really talk to technical talks,
+[00:02:42] I want to talk about today is the zookeeper locks,
+[00:02:44] which I didn't get to finish the last time,
+[00:02:48] and then I'll talk about chain replication.
+[00:02:52] Okay?
+[00:02:53] So both for chain replication and zookeeper,
+[00:02:57] you know we're sort of still in the same context as before,
+[00:03:02] namely we're doing you know replicated state machine.
+[00:03:07] And you know just a usual diagram,
+[00:03:10] you know we have servers,
+[00:03:12] you know that runs on some replication libraries, like ZAB or Raft,
+[00:03:20] we have clients talking to the servers,
+[00:03:23] for example in the case of zookeeper,
+[00:03:26] might actually send to create call,
+[00:03:28] you know zookeeper internally how some states, you know some znodes,
+[00:03:32] you know that are hanging off in a form of tree,
+[00:03:35] and so when an operation comes in,
+[00:03:36] you know zookeeper you know forwards that operation basically to the Raft ZAB library,
+[00:03:42] it does some chatting back and forth,
+[00:03:44] and to get a majority of the servers
+[00:03:46] to accept you know that command,
+[00:03:49] and then at some point,
+[00:03:50] you know once it's accepted, it comes out,
+[00:03:52] the servers applies the operation,
+[00:03:55] and sends a response back to the client,
+[00:03:57] so the standard story of replicated state machine,
+[00:03:59] if you start,
+[00:04:00] all the replicated state machine starting the same state,
+[00:04:03] you apply the same operation in the same order,
+[00:04:05] then you will end up in the same state,
+[00:04:07] and so any of the machines can take over if necessary.
+[00:04:11] Now, one of the things that was cool, about interesting, about zookeeper is that,
+[00:04:16] you know read operations can be served for any servers,
+[00:04:21] for any of the peers or any of the one of the servers,
+[00:04:24] and this allows zookeeper to extremely high performance,
+[00:04:26] because you can actually scale the number of read operations with the number of servers,
+[00:04:32] as a flip side of that,
+[00:04:34] you know zookeeper actually gave up,
+[00:04:37] on that particular scenario,
+[00:04:39] gave up on linearizability.
+[00:04:50] Because we know from for example in Raft,
+[00:04:53] we can't actually arbitrary server read from any server,
+[00:04:57] because I have not seen the latest update yet,
+[00:05:01] and so in case of zookeeper,
+[00:05:02] that is a [],
+[00:05:04] and, and so read operations are not you know,
+[00:05:09] or the operation zookeeper defines don't provide a linearizable interface.
+[00:05:14] But nevertheless you know we saw that actually is,
+[00:05:17] it provides a slightly different sort of correctness guarantee that linearizability,
+[00:05:21] and that actually correctness guarantee is useful,
+[00:05:26] and useful enough to be able to write actually programs,
+[00:05:29] and the particular set of programs that you know zookeeper was you know focusing on is,
+[00:05:35] these what they call configuration or coordination programs.
+[00:05:52] And so the thing to think about it,
+[00:05:54] there's a lot of systems that we looked at in the past,
+[00:05:57] they typically have some replication story,
+[00:05:59] and they have coordinator master that sort of coordinates the the group,
+[00:06:05] and zookeeper really intended you know for as a service,
+[00:06:09] for that kind of you know master or coordinator role,
+[00:06:13] and it provides a bunch of primitives you know to make that doable,
+[00:06:16] and the two the you know we talked a little bit about atomic increment last week,
+[00:06:23] and with some the other service
+[00:06:25] and want to finish off you know talking about locks.
+[00:06:29] One, because there were a lot of questions about it,
+[00:06:32] and two, actually is quite interesting,
+[00:06:34] and there's sort of two different lock in implementation.
+[00:06:36] And first I want to talk about the simple one,
+[00:06:38] namely where, let me write down the pseudo code,
+[00:06:43] then we can talk about it again a little bit in detail,
+[00:06:46] so the pseudo code for the lock was something like this,
+[00:06:52] you know acquire, in an infinite loop,
+[00:06:54] you know try to create the lock file,
+[00:07:01] name lf, and set ephemeral to true,
+[00:07:11] and we'll talk about that in a second why.
+[00:07:13] You know if the create succeeds,
+[00:07:16] then you know the that process,
+[00:07:19] where the client was the first one to create that file,
+[00:07:21] and basically successfully gets the lock
+[00:07:24] and so it breaks out of the for loop and returns.
+[00:07:27] If the client did not,
+[00:07:31] you know be able to create a file,
+[00:07:33] then it calles exists,
+[00:07:35] and the call exists is not really for you know see if it exists or not,
+[00:07:39] because you know it doesn't exist,
+[00:07:41] basically set a watch,
+[00:07:47] and the idea is that you know the watch will go off,
+[00:07:51] if actually the file disappears,
+[00:07:54] and if it disappears,
+[00:07:56] then you know the client will get a notification,
+[00:07:58] so basically we're going to be doing here is
+[00:08:00] just wait for that notification.
+[00:08:09] So that's sort of the acquire operation,
+[00:08:12] then the release is very simple.
+[00:08:17] The release actually is that does nothing else
+[00:08:19] than sending the delete operation to the zookeeper service,
+[00:08:23] you know for the for the lock file,
+[00:08:25] so lf in this case.
+[00:08:28] And so what does that do,
+[00:08:29] well if the delete you know sent to the zookeeper service,
+[00:08:33] you know the zookeeper service perform delete operation,
+[00:08:37] that will actually, that that make the file would go away,
+[00:08:42] that will fire to watch,
+[00:08:44] and so every client that actually is waiting,
+[00:08:46] you know for the notification,
+[00:08:49] will get a notification,
+[00:08:50] and then they go retry,
+[00:08:52] and you know one of them will be successful in the retry,
+[00:08:55] will get the lock file or create a lock file,
+[00:08:57] and then proceed,
+[00:08:58] and then the others one go back into there,
+[00:09:02] call exists and going to wait for notification.
+[00:09:07] And the zookeeper semantics you know good enough,
+[00:09:10] you know the strong the linearizability for write operations,
+[00:09:15] plus you know the rules for when notifications go off
+[00:09:19] are strong enough, that basically this actually implements a [] lock,
+[00:09:22] where only one client,
+[00:09:24] if there are many clients at the same time trying to get the lock,
+[00:09:26] only one will get it.
+[00:09:27] And when the release is done
+[00:09:30] or when the file has been deleted,
+[00:09:32] only one in the next round will get it.
+[00:09:35] So that's sort of cool,
+[00:09:37] and it's interesting,
+[00:09:38] that you could build you know sort of sort of the foundational primitive
+[00:09:43] on using the primitives that the zookeeper offers.
+[00:09:46] And you see here, both the role,
+[00:09:48] of the you know the the watch and then there's the second role for the ephemeral,
+[00:09:53] you know the ephemeral is there,
+[00:09:55] because, what happens if a client fails or crash,
+[00:09:59] before it calls release,
+[00:10:01] and the semantics of the ephemeral files,
+[00:10:04] that zookeeper service will,
+[00:10:06] if it decides that the client has crashed,
+[00:10:07] it will do the operation,
+[00:10:10] it will remove the file on behalf of the client,
+[00:10:13] so even if the client fails or crashes,
+[00:10:17] zookeeper service the [site],
+[00:10:18] at some point the client is down,
+[00:10:20] and that will remove the file lock f,
+[00:10:23] which will cause notifications to be sent
+[00:10:25] to other clients actually are waiting for it.
+[00:10:27] So, it's a cool set of primitives
+[00:10:31] to build powerful abstraction that can be useful in applications.
+[00:10:36] One downside of this particular implementation is that,
+[00:10:41] it has what's called a herding effect,
+[00:10:43] namely you know let's say you have a thousand clients,
+[00:10:47] you know want to go grab the lock file or make the lock file,
+[00:10:51] acquire the lock,
+[00:10:52] you know one is going to succeed,
+[00:10:54] and 999 are going to call exists and wait for notification,
+[00:11:00] then when the first client deletes the file or releases the file lock,
+[00:11:06] 999 are going to try to actually acquire the lock,
+[00:11:11] and of course only one is going to succeed,
+[00:11:12] and 998 are going to be sitting for a notification,
+[00:11:16] but you know the this,
+[00:11:18] you know every sort of random disappearance,
+[00:11:20] a huge amount of traffic,
+[00:11:22] and you know basically bombarding you know the zookeeper server,
+[00:11:27] 999 to try to do it again,
+[00:11:30] you know all but one are are gonna fail.
+[00:11:35] And so that's a little bit of undesirable property, this herding effect,
+[00:11:40] and it's a real problem in practice,
+[00:11:42] you know move on a small scale multi-core machines
+[00:11:46] as well as of course setting like this,
+[00:11:48] where network messages are not free.
+[00:11:51] So it's interesting that, actually zookeeper provides enough primitives,
+[00:11:55] that you could actually do quite a bit better,
+[00:11:56] and you can actually build a lock,
+[00:11:57] that doesn't have suffered from the herding effect.
+[00:12:01] So a better lock,
+[00:12:09] and it's very interesting,
+[00:12:10] let me a pull out the pseudo code for this,
+[00:12:15] which is in the paper,
+[00:12:16] so we can look at it,
+[00:12:19] and discuss you know why you know this lock is better,
+[00:12:22] and particularly what we'll see is that this lock is better,
+[00:12:25] because basically there's no, there's no retry,
+[00:12:28] where all clients that didn't succeed getting the lock will retry to try to get,
+[00:12:34] instead you know basically the all the clients are sort of for a line,
+[00:12:38] and they get the lock one by one.
+[00:12:41] And the way you know that you can program that using zookeeper's primitives
+[00:12:45] as in this particular pseudo code.
+[00:12:48] And there are a couple differences that compared to the previous one,
+[00:12:52] first of all, the,
+[00:12:56] there's an additional flag you know pass to create, namely SEQUENTIAL,
+[00:13:01] which basically means that,
+[00:13:02] as these files are created,
+[00:13:05] the lock file is created,
+[00:13:06] but it will be created as, the first one, it will be lock-0,
+[00:13:10] then the next one will be lock-1, etc.
+[00:13:17] So we have like a thousand clients
+[00:13:19] rushing you know to the service to actually try to acquire to lock,
+[00:13:22] basically a thousand files will be created,
+[00:13:25] all numbered from 0 to 999.
+[00:13:29] Then, so.
+[00:13:32] So, I'll succeed creating a file,
+[00:13:33] the creator returns actually the number that that you got,
+[00:13:40] so if the client 0,
+[00:13:41] if the first client gets you know lock, creates lock-0,
+[00:13:45] then it will get 0 back,
+[00:13:47] and the second will get 1 back, etc, etc.
+[00:13:50] Then you know the pseudo code basically ask
+[00:13:52] you know to get all the children in that directory
+[00:13:55] you know which you know these files are created,
+[00:13:57] and so in this case,
+[00:13:58] maybe that would be a thousand children and thousand znodes,
+[00:14:02] and then you can just look at the n,
+[00:14:05] and see if your n,
+[00:14:08] in this case, 0 is the lowest znode to see,
+[00:14:11] and if that's the case, that means you got the lock.
+[00:14:14] And so that makes total sense,
+[00:14:15] but the first line gets actually 0 back,
+[00:14:18] all the other clients have a higher number,
+[00:14:19] because they're sequentially numbered,
+[00:14:21] and so the first client will succeed in getting it,
+[00:14:23] and all the other ones, what they're gonna do is,
+[00:14:26] they're going to look at,
+[00:14:28] they're going to find the p,
+[00:14:30] you know the number that is right in front of there,
+[00:14:32] so for example if this is client,
+[00:14:34] that got back you know lock-10,
+[00:14:36] it's going to look you know for znode 9 you know lock-9,
+[00:14:40] and basically put a watch on that file,
+[00:14:46] so this means that every client will have a watch basically on its predecessor,
+[00:14:51] so it goes to see that's all the clients form a line,
+[00:14:54] and and then you know the client just gonna wait for that notification to go off.
+[00:15:01] And so that means for example when client 0 you know we got 0 back,
+[00:15:05] you know releases the lock,
+[00:15:07] it will delete n,
+[00:15:08] this will get a notification to go off for the file one,
+[00:15:13] and so the client is actually waiting for that particular notification,
+[00:15:16] then will run,
+[00:15:18] but it's the only one that runs,
+[00:15:21] and a it will succeed.
+[00:15:25] And so here we see,
+[00:15:26] you know this is sometimes easier type of locks, called ticket locks,
+[00:15:31] in multi-core programming,
+[00:15:32] if you're familiar with them,
+[00:15:34] and they are sort of the same same idea of ticket locks,
+[00:15:38] actually you're building into this, using zookeeper primitives.
+[00:15:43] Again, what is interesting about it is that,
+[00:15:45] you know these primitives are powerful enough,
+[00:15:47] that you can actually build these kind of locks.
+[00:15:51] Any questions about this?
+[00:15:58] Okay, I want to make one more comment you know about the these locks,
+[00:16:02] before moving onto chain replication.
+[00:16:05] We have a question in the chat.
+[00:16:07] Yeah, okay, what's the question in chat?
+[00:16:08] What is the watch for on line 4?
+[00:16:12] Good, go back, on this one line 4?
+[00:16:17] Yeah, I think that's the question.
+[00:16:20] Yeah, well, that watch my comment,
+[00:16:23] the watch actually should go with you know line 5,
+[00:16:26] so there's no watch on line 4, right,
+[00:16:30] line 4 just finds p, you know the numbers right before your n,
+[00:16:40] if that doesn't answer the question,
+[00:16:41] please, if you come back later and that's fine.
+[00:16:44] Actually, I have another question.
+[00:16:45] Yeah.
+[00:16:46] This is going actually I think back a few slides,
+[00:16:48] but how does zookeeper determine that a client has failed,
+[00:16:51] and thus release the ephemeral lock,
+[00:16:54] like often, it's just like partitions for a moment.
+[00:16:57] Yeah, so, well, yeah so that could happen,
+[00:17:01] so the client might actually,
+[00:17:02] so the client has a session right with the zookeeper service,
+[00:17:06] and the client needs to,
+[00:17:08] actually the zookeeper and client basically sends heartbeats to each other,
+[00:17:13] if zookeeper service doesn't hear from a client for a little while,
+[00:17:18] then it's just desides that client is down and close the session.
+[00:17:22] And so the client is trying to send messages on the session,
+[00:17:24] but the session is just closed, is gone,
+[00:17:27] and any files that were created in the,
+[00:17:28] ephemeral files that were created during that session are basically deleted,
+[00:17:35] and so if the network reconvenes or [],
+[00:17:40] then the client will try to send messages over that session,
+[00:17:43] and basically zookeeper service say like that session doesn't exist anymore,
+[00:17:47] you gotta retry or restart a new session.
+[00:17:51] Got it, thank you.
+[00:17:53] Okay good, so there's one important point about this,
+[00:17:56] I'll call zlocks, where zookeeper locks,
+[00:18:01] and that is they're not the same or have similar semantics,
+[00:18:05] like the locks that you were using or Go locks or mutex.
+[00:18:09] And it's sort of an important point to realize,
+[00:18:11] you know even though they're different,
+[00:18:13] we'll see in a second, they're still useful,
+[00:18:14] but they're not as strong as sort of the Go locks,
+[00:18:18] in particular the case is that is interesting is,
+[00:18:20] like when the lock holder fails,
+[00:18:23] so if lock holder fails,
+[00:18:28] basically zookeeper decides that lock holder has failed, correct,
+[00:18:31] as we just discussed,
+[00:18:33] then it is possible,
+[00:18:35] that we're going to see some intermediate state.
+[00:18:43] And remember like the whole rule that locks is,
+[00:18:45] like it's critical section,
+[00:18:47] you know you're some invariant is true,
+[00:18:49] while you're going through the critical section,
+[00:18:51] so that it might not be true,
+[00:18:53] but then at the end, you reestablish [invariant].
+[00:18:56] In here, it's the case,
+[00:18:58] like it required lock,
+[00:18:59] client requires lock, does some steps,
+[00:19:01] and then you know maybe zookeeper decides
+[00:19:03] if the client decides the client crash
+[00:19:05] and basically revokes lock,
+[00:19:08] but you know the state,
+[00:19:09] you know the system might actually be some intermediate state,
+[00:19:11] return invariant was not true, right,
+[00:19:14] so it's not the case,
+[00:19:15] that basically these logs guarantee adamicity of the critical section.
+[00:19:21] So what, so what they do, what they useful for,
+[00:19:30] is for some other purposes,
+[00:19:34] in fact sort of two primary use cases,
+[00:19:36] one, I think is leader election,
+[00:19:43] so basically if we need a set of clients,
+[00:19:47] that need to select the leader among them,
+[00:19:48] you know they can all try to basically create the lock file,
+[00:19:52] one of them succeed,
+[00:19:54] that's basically then becomes a leader,
+[00:19:56] and that leader could clean up any intermediate states if possible if necessary,
+[00:20:02] or you know do these atomic updates,
+[00:20:05] using the ready trick,
+[00:20:06] where basically you do a bunch of writes to some file,
+[00:20:08] but then you expose the file only at the very end,
+[00:20:10] and that way make a set of writes
+[00:20:14] actually are more transactional work.
+[00:20:16] So that's one use case for these kind of locks,
+[00:20:19] the second use case is what I call soft locks,
+[00:20:27] the soft locks you know the way to think about is that,
+[00:20:31] let's say we have a worker in the mapreduce style,
+[00:20:34] and the map,
+[00:20:35] I want to basically arrange that you know every worker
+[00:20:39] executes a particular map task only once,
+[00:20:43] and so the one way to do that,
+[00:20:45] we basically take a lock out,
+[00:20:47] you know for that particular input file,
+[00:20:50] run you know the computation,
+[00:20:52] and then you know once the map is done,
+[00:20:55] then you release the lock file,
+[00:20:57] so this will cost only one mapper to the common case to execute a particular task,
+[00:21:04] and and that's exactly what we want,
+[00:21:07] but of course you know if the mapper would fail,
+[00:21:09] then the lock will be release,
+[00:21:11] and then we might execute it a second time,
+[00:21:13] because somebody else will try to acquire a lock,
+[00:21:16] and so in that case,
+[00:21:17] you know for the case of mapreduce, that's perfectly fine, right,
+[00:21:20] the, it's okay if the task is executed twice,
+[00:21:25] if happens twice.
+[00:21:30] And in some ways what it really is,
+[00:21:31] it's more performance optimization,
+[00:21:33] in the usual case, you wanted to,
+[00:21:35] you wanted that actually is execute the only once,
+[00:21:37] but you know if there's a failure,
+[00:21:39] it might be the case,
+[00:21:40] that you're executing a map job twice,
+[00:21:42] then that thing, you know the mapreduce means
+[00:21:44] you set up in such a way, that actually that's okay.
+[00:21:48] And so in those cases,
+[00:21:49] these sort of locks are really useful, too.
+[00:21:53] Any questions about this, about this perspective for locks,
+[00:21:57] you know the zookeeper locks are not exactly like the Go locks,
+[00:22:00] and it's just an important thing to keep in mind.
+[00:22:04] Oh.
+[00:22:04] Yeah, go ahead, Alexander.
+[00:22:07] Yeah, I had a question,
+[00:22:09] you said that, one of the differences is that,
+[00:22:13] in zlocks, the, if, if the, if the server holding the lock dies,
+[00:22:21] then the lock can be revoked,
+[00:22:23] but, does that still happen if you don't pass the,
+[00:22:28] because there's that flag called EPHEMERAL.
+[00:22:32] EPHEMERAL, yeah, it only happens with the ephemeral file.
+[00:22:36] Right, so can we just like emulate the Go locks by not passing EPHEMERAL.
+[00:22:47] Okay, good, what would happen then,
+[00:22:47] you create basically a persistent file,
+[00:22:49] the client dies.
+[00:22:51] You said the lock?
+[00:22:54] And so the lock will keep on existing and nobody will release it,
+[00:22:58] and we have a deadlock,
+[00:23:02] because the one person that could release it is dead or crashed,
+[00:23:09] and in fact, this is why EPHEMERAL [] there.
+[00:23:13] Is, is it actually the only, the only person who could release it,
+[00:23:18] because anyone can delete that file, right,
+[00:23:21] you have a background, like.
+[00:23:23] That will break,
+[00:23:25] you know maybe the other client is still running,
+[00:23:27] and also still thinks it holds a lock.
+[00:23:32] Sure.
+[00:23:34] You get are getting sort of, basically you're,
+[00:23:36] this is consensus problem all over again, right.
+[00:23:39] And you know we,
+[00:23:45] so this is sort of a clean way to get most of it,
+[00:23:48] but not all of it,
+[00:23:50] if you will,
+[00:23:50] and I think if you want to make things atomic,
+[00:23:52] across a number of a set of writes atomic,
+[00:23:56] so you basically use this trick of,
+[00:24:02] use this trick, basically the ready trick,
+[00:24:04] where you do a bunch of writes and expose them at the same time.
+[00:24:11] Could you explain those soft locks again?
+[00:24:14] Okay, soft locks means that basically an operation can happen twice.
+[00:24:18] And so in the common case,
+[00:24:20] if there's no crashes,
+[00:24:21] you know it will happen once,
+[00:24:22] you know because you know the client will take a lock out,
+[00:24:25] will do the operation release,
+[00:24:27] and, but if there client failed, halfway through,
+[00:24:31] for example, then the lock would be automatically released by zookeeper,
+[00:24:34] and then maybe a second client will execute the same map task.
+[00:24:42] So in the case of leader election,
+[00:24:44] what's the intermediate state could get exposed here,
+[00:24:47] it seems that first.
+[00:24:49] Okay, pure leader election there would be no intermediate state,
+[00:24:52] but typically the leader will create a configuration file, right,
+[00:24:55] as we saw in zookeeper,
+[00:24:56] where you know using the ready trick.
+[00:25:00] I see, and so you just write the whole file,
+[00:25:02] and then convert it atomic, use rename.
+[00:25:04] Yep.
+[00:25:07] Sorry, could you explain what the ready trick is, exactly?
+[00:25:14] I was hoping not to, I think we talked about last time.
+[00:25:16] Sorry.
+[00:25:17] So so maybe we, you can hold that question,
+[00:25:20] well I'm happy to do it at the end of the lecture again,
+[00:25:26] because otherwise I have little time to actually talk about chain replication.
+[00:25:36] Any other [] questions?
+[00:25:40] Okay, let me set the states where chain replication a little bit,
+[00:25:45] and then we'll also come back to zookeeper in some sense,
+[00:25:48] and basically turns out,
+[00:25:50] there's sort of two common approaches to build replicated state machines,
+[00:25:54] and we really haven't called out these two approaches,
+[00:25:57] and we've seen them,
+[00:25:58] but I really talked explicitly about them,
+[00:26:00] I want to do this, this time explicitly.
+[00:26:02] So.
+[00:26:06] Because there's some interesting observations to be made
+[00:26:09] approaches to building replicated state machines.
+[00:26:15] And the first one is the one we've basically seen the labs,
+[00:26:20] which is you run all operations you know through raft,
+[00:26:30] Raft, zookeeper Raft or you know Paxos,
+[00:26:33] whatever you know consensus you know the consensus algorithm you're using,
+[00:26:38] and so this is sort of like the key value store, right,
+[00:26:42] in lab 3, where you do put and get operation,
+[00:26:45] you run all the put and get operation through Raft,
+[00:26:47] and you know the service basically update you know the key value store state
+[00:26:52] as the operations are coming in on the apply channel,
+[00:26:56] and you know and basically we have our replicated states,
+[00:27:01] so this is how lab 3 works.
+[00:27:06] It turns out that style where basically Raft is used,
+[00:27:10] the also run all the operations is actually not that common,
+[00:27:14] we'll see some other designs later in the semester to do that too,
+[00:27:17] like Spanner does it,
+[00:27:18] but it's not actually completely the standard approach
+[00:27:21] or more common approach actually is to have a configuration server,
+[00:27:26] like zookeeper service,
+[00:27:35] and the configuration service itself internally might use Paxos Raft or or ZAB or whatever,
+[00:27:43] and really the configuration service really plays the role of the coordinator or the master,
+[00:27:50] like the GFS master,
+[00:27:52] and in addition to basically having configuration service
+[00:27:56] actually implemented using one of these Raft Paxos algorithms,
+[00:28:01] you actually run primary backup replication.
+[00:28:13] And so we think about GFS,
+[00:28:15] you know we saw early in the semester,
+[00:28:17] has that sort of structure,
+[00:28:19] like in the GFS was a master,
+[00:28:20] and that basically determines which set of servers hold particular chunk,
+[00:28:25] so basically determined the replica group for a chunk,
+[00:28:28] and then the replica chunk group basically executed the primary backup replication,
+[00:28:33] one of the chunks was the primary
+[00:28:35] and the other ones were the backups,
+[00:28:37] and they basically had a protocol that they use for primary backup replication.
+[00:28:41] You can think about VM-FT in a similar style,
+[00:28:44] where configuration server is basically test-and-set server,
+[00:28:47] which basically recorded who was actually the primary,
+[00:28:49] and then the primary backup have a protocol,
+[00:28:51] to basically send you know channel operation down to channel,
+[00:28:55] and so the primary backup is roughly in sync
+[00:28:58] and implement replicated state machine.
+[00:29:03] And this approach tends to be serve a more common approach,
+[00:29:10] although the approach number one also happens.
+[00:29:14] One one way to think about this,
+[00:29:17] is that you know if the Raft states,
+[00:29:21] like for example our key value server in lab 3 would be gigantic,
+[00:29:24] you know have a huge amount of this state,
+[00:29:26] you know terabytes of key value server,
+[00:29:29] would Raft be very good match for that kind of application,
+[00:29:35] or what is the risk,
+[00:29:39] or the potential problem?
+[00:29:47] We flush the log very often,
+[00:29:50] so maybe that could be problematic.
+[00:29:54] Could be problematic,
+[00:29:55] what how what's the size of the checkpoint,
+[00:30:00] if our key value server is really big.
+[00:30:05] It's linear in the size of the key value server.
+[00:30:07] Yeah, so that could also be gigantic,
+[00:30:10] so at any you know any time the checkpoint has to be sent,
+[00:30:13] you know it's going to be a big checkpoint.
+[00:30:15] And so the Raft it's not really sort of set up,
+[00:30:17] you know so the primary is going to communicate,
+[00:30:21] you know the new primary is going to communicate [] snapshots,
+[00:30:23] you did in lab 2d,
+[00:30:25] you know to the the backups,
+[00:30:26] they're gonna be big.
+[00:30:28] And so you often want to be a little bit more clever plan
+[00:30:31] to synchronize and re-synchronize new servers,
+[00:30:35] and so and one reason that,
+[00:30:38] basically often these things are split into two different pieces,
+[00:30:41] where the configuration service that basically small in terms of state,
+[00:30:45] and then you know primary backup plan actually may replicate huge amount of data.
+[00:30:50] And so this is why, one reason you see sort of both approaches.
+[00:30:55] Does that make sense?
+[00:30:58] I'll come back to that at the end of the lecture again,
+[00:31:00] but it's important to keep this in mind.
+[00:31:02] So what approach or what benefits does 1 give over 2?
+[00:31:07] You don't have to have two of them, right,
+[00:31:10] in one, you basically have Raft,
+[00:31:12] you run the operations for [] and then does the configuration for you too,
+[00:31:16] so everything is in a single, single component,
+[00:31:20] and here in number two, we have two components,
+[00:31:23] you know we have a configuration service, that includes Raft,
+[00:31:26] and we have a primary backup scheme.
+[00:31:30] So maybe this will become more clear,
+[00:31:32] as we talk about chain replication.
+[00:31:36] Yeah.
+[00:31:37] I had a really quick question,
+[00:31:39] so I [] for two,
+[00:31:41] I guess would like what the advantage being that you have like,
+[00:31:45] if consensus reached through the leader
+[00:31:47] and the leader never fails, right, like.
+[00:31:50] Yeah, so the advantage of two is that,
+[00:31:52] as we see in second in chain replication is,
+[00:31:55] there's a separate process that takes care of the configuration part,
+[00:31:58] and you don't have to worry about in terms of your primary backup replication scheme.
+[00:32:03] And that just decides like GFS,
+[00:32:05] that's sort of like the master,
+[00:32:06] it just decides for a couple of here,
+[00:32:08] set up have the service to form this particular replica group,
+[00:32:11] and backup primary backup protocol doesn't have to think about this.
+[00:32:16] Thanks.
+[00:32:17] And so this is a good introduction to chain replication,
+[00:32:21] because the chain replication is exactly
+[00:32:23] that sort of a primary backup replication scheme for approach 2.
+[00:32:36] And that is to say that you know chain replication assumes,
+[00:32:39] there is a configuration service,
+[00:32:42] and I think they called the master process in paper.
+[00:32:46] Then chain replication themselves,
+[00:32:48] there's a couple of cool properties.
+[00:32:51] One, read operations or as they call them query operations involve only one server,
+[00:33:01] namely the tail as we've seen in a second.
+[00:33:07] Another nice property about chain replication that has a very simple recovery plan.
+[00:33:14] I'm going to talk about all of these in more detail in the second.
+[00:33:19] And presumably something that you started,
+[00:33:21] have you you appreciate given the fact
+[00:33:24] how complicated can be in Raft.
+[00:33:26] And it provides actually strong strong properties, namely linearizability,
+[00:33:35] if we put and get operations.
+[00:33:37] And finally just a lot of people askes,
+[00:33:39] you know actually a reasonable influential design,
+[00:33:43] and used by quite a number of systems,
+[00:33:47] so these are used in practice.
+[00:33:50] This is going to talk about each of these components,
+[00:33:52] and we'll get more detail,
+[00:33:54] and then we'll come back to this sort of approach one versus approach two.
+[00:34:00] So in terms of an overview,
+[00:34:07] oops,
+[00:34:08] in terms of an overview,
+[00:34:10] new sort of [] of the land,
+[00:34:12] you know there is a massive process or a configuration service,
+[00:34:24] and then basically keep track
+[00:34:25] you know which server you know belong to a particular chain.
+[00:34:30] So S1 S2 S3
+[00:34:33] you know basically have a record of what the chain is,
+[00:34:35] who the head is and who the tail is,
+[00:34:37] and so that could be configuration service,
+[00:34:39] and here we do actually have our service,
+[00:34:42] you know S1 S2 S3,
+[00:34:50] and one of them is the head,
+[00:34:53] typically the one with the smaller number,
+[00:34:56] and one is the tail.
+[00:35:00] And so we have a client,
+[00:35:03] the client may talk to the configuration server,
+[00:35:06] who are actually part of the chain,
+[00:35:09] and then it sends a write request to the head,
+[00:35:13] so this is a protocol in chain replication,
+[00:35:16] the write request always goes to the, the head,
+[00:35:20] and what the head does, the head basically pushes,
+[00:35:22] you know the head actually applies the operation on its state,
+[00:35:26] and maybe it has a disk associated with it,
+[00:35:28] whatever the key value service on it,
+[00:35:31] and then it sends the update,
+[00:35:33] you know there's all of the operation down the chain in FIFO order and reliably,
+[00:35:41] so S1 will send the update to S2,
+[00:35:45] S2 it has make its own disk,
+[00:35:47] apply the operation or the state change to its state,
+[00:35:52] once it actually applyed it,
+[00:35:54] you know it will forward it to the last node in the chain,
+[00:35:58] in this, because there are only three nodes in this particular chain,
+[00:36:01] you could have chains are longer,
+[00:36:03] if you want more availability,
+[00:36:05] and when the last node gets the message with state change,
+[00:36:10] it applies to its state,
+[00:36:14] and then this is the charge actually sending an acknowledgment back to the client,
+[00:36:20] so it's the tail who sends the acknowledgement back.
+[00:36:25] And so one way to think about this is that,
+[00:36:29] when the tail or in this case S3 you know actually applies to state change,
+[00:36:34] that's sort of the commit point.
+[00:36:39] And the reason that this is the commit point
+[00:36:41] is because subsequent reads always come from the tail,
+[00:36:45] so if anybody or any other client you know does a read operation,
+[00:36:50] they always go to the tail,
+[00:36:52] and the tail basically responds immediately back to them.
+[00:36:55] So read operations go to the tail,
+[00:36:57] so here's client 1, here is client 2,
+[00:37:00] client 2 does read operation,
+[00:37:02] it goes to the tail,
+[00:37:03] the tail responds and that's it.
+[00:37:07] And so there's a couple things that I wanted to point out,
+[00:37:09] the one of the interesting points out is that,
+[00:37:13] the read operations just involve one server, right,
+[00:37:16] like if you remember from lab 3,
+[00:37:19] or if you have any progress,
+[00:37:20] we've started to do lab 3,
+[00:37:22] read operations actually involved,
+[00:37:24] you know in our implementation, read operation go through the Raft log,
+[00:37:30] and all that kind of stuff,
+[00:37:32] the paper discusses an optimization,
+[00:37:35] but the read operation always goes to the leader,
+[00:37:37] and the leader first has to contact the majority of the servers,
+[00:37:40] before it can execute the operation local.
+[00:37:42] So what you see here is that,
+[00:37:44] the read operation actually go through tail,
+[00:37:46] so that different server from write operations,
+[00:37:50] so the read and write workload is excellent spread at least over two servers,
+[00:37:54] for more read operation involves only one server,
+[00:37:59] there's never, doesn't have to talk to any other server,
+[00:38:01] it can just respond immediately,
+[00:38:02] and we'll see a little bit later,
+[00:38:04] why this is actually important,
+[00:38:06] or why this is actually,
+[00:38:07] what further optimization this allows.
+[00:38:10] So the commit point is really
+[00:38:12] you know the point that the write actually happens at the tail end,
+[00:38:16] because at that point, the write operation is visible to readers
+[00:38:20] and not before any other points.
+[00:38:23] And this also you know provides this linearizability,
+[00:38:26] so it's pretty easy to see that,
+[00:38:28] in the case of no crashes,
+[00:38:30] scheme guarantees linearizability,
+[00:38:31] because the writes are all applied in sum total order at the head,
+[00:38:35] and when the tail receives you know that update,
+[00:38:40] it's, it's the commit point,
+[00:38:42] it wants to respond to the client and sent the request back.
+[00:38:45] If you know that same client immediately does a read operation,
+[00:38:48] it will go to the tail,
+[00:38:50] and it will observe the last change.
+[00:38:52] So, certainly within a single client,
+[00:38:55] basically all operations are totally ordered,
+[00:38:58] it's pretty easy to see that in client,
+[00:39:00] if client 2 start to read operation after client 1 operation is finished,
+[00:39:05] and when it finished, when the tail has responded,
+[00:39:08] so any read operation that starts after a write operation
+[00:39:11] will observe you know the last or the result of the most recent write,
+[00:39:15] and so it's pretty easy to get an intuition here,
+[00:39:18] that you know this is going to provide us with linearizability.
+[00:39:22] Okay?
+[00:39:23] So, what I like to do now is actually to take a quick breakout room section,
+[00:39:28] and I would like you to discuss the question,
+[00:39:32] that was was post in lecture,
+[00:39:34] you know what could go wrong
+[00:39:35] or like what breaking linearizability,
+[00:39:38] if instead of having the tail responds to the client,
+[00:39:42] have the head responded to the client immediately
+[00:39:46] after it is received you know the write request,
+[00:39:51] nd maybe those are good topics
+[00:39:53] or to debate a little bit,
+[00:39:55] and if you want to go in any other direction
+[00:39:56] to talk about chain replication of course welcome,
+[00:39:58] maybe that's something to start with.
+[00:40:01] So let's take a five minute breakout room,
+[00:40:03] and then we'll do this and think,
+[00:40:07] let me see,
+[00:40:08] Jose, are you going to do it?
+[00:40:10] And yeah and okay.
+[00:40:14] You have to make you something, or.
+[00:40:15] I don't think it's necessary.
+[00:40:17] I think it Zoom change,
+[00:40:19] so it should be possible there, too.
+[00:40:25] Zoom, yep, that's right.
+[00:40:32] Yep, okay.
+[00:47:43] Jose, we're coming back.
+[00:47:45] Yeah, whenever you.
+[00:47:47] I'm ready.
+[00:47:48] Okay, I mean I think I can close to Zoom.
+[00:48:58] Alright, we're back.
+[00:49:07] Okay, so you know just quickly to summarize,
+[00:49:12] why you know that would break the linearizability,
+[00:49:15] so protocol change, change that was propagating was to
+[00:49:21] you know both keep propagating to S1 and S2 S3,
+[00:49:24] but you know as soon as S1 actually has done,
+[00:49:27] which propagation as it responds back to a client,
+[00:49:32] and clearly this will break the linearizability,
+[00:49:35] because, let's say the client 1 did write,
+[00:49:38] got the acknowledgement back you know from S1,
+[00:49:40] S1 of course has the write also in progress S2 and S3,
+[00:49:44] but maybe before you know S2 actually context S3,
+[00:49:48] the client actually sends a read operation you know to S3,
+[00:49:53] and of course, now it will return a value from before the write is done,
+[00:49:57] so the client doesn't even observe its own write,
+[00:50:00] and so clearly break linearizability,
+[00:50:03] and so it's very important,
+[00:50:04] that you know as I said earlier,
+[00:50:06] that's the tail actually sends the acknowledgement back to the client,
+[00:50:12] because really the once the tail has processed the write operation,
+[00:50:17] that is actually really what the commit point is.
+[00:50:22] Any questions about that?
+[00:50:28] Okay, so this was sort of normal operations,
+[00:50:31] and let me talk a little bit about crashes,
+[00:50:36] since it's 6.824 distributed systems,
+[00:50:38] so all the actually is where when the failures happen.
+[00:50:43] And one of the things that is cool about chain replication is,
+[00:50:47] you know the number of failure scenarios is actually quite limited.
+[00:50:51] And so, let me, basically three cases,
+[00:50:54] namely the head fails, the one of the intermediate server fails, or tail fails.
+[00:50:59] So let's look at one of each one of each of those cases,
+[00:51:02] so here's are you know the case we have a head S1,
+[00:51:06] let's say that it applied U1, U2 and U3 sort three updates,
+[00:51:12] talks to S2,
+[00:51:15] maybe S2 has done U2 and U1,
+[00:51:20] and you know here we have S3 which is the tail,
+[00:51:24] and it only has done U1 so far,
+[00:51:26] and so the client client was talking to S1,
+[00:51:32] and we now want to think about what happens,
+[00:51:35] and what needs to happen in one of these crashes.
+[00:51:38] So let's start with the case that the head crashes,
+[00:51:43] and so the head crashes, what needs to be done,
+[00:51:48] this is an easy case or hard case?
+[00:51:53] Easier.
+[00:51:54] I hope in easy case, why?
+[00:51:57] You can just cut off the head,
+[00:52:00] oh, sorry, the yeah, the head,
+[00:52:02] and you know make S2 the head now.
+[00:52:06] Yeah, you know, so what's going to happen correct is,
+[00:52:10] the configuration service discovers that S1 is gone,
+[00:52:13] when decides if S1 is gone,
+[00:52:15] and then basically can promote S2 to be the head in the subsequent operations,
+[00:52:24] and clients now in the future and talk to this guy,
+[00:52:27] and why is this correct,
+[00:52:30] so what operation have we lost?
+[00:52:33] We lost U3.
+[00:52:35] Yeah, is that a problem?
+[00:52:37] That's valid to lose operations.
+[00:52:39] Yeah, yeah, it's fair game to lose U3,
+[00:52:43] U3 has not been committed,
+[00:52:44] because only operations at the tail committed,
+[00:52:47] and so just as if the operation never happens,
+[00:52:49] you know the client could not even have observed,
+[00:52:51] you know that actually U this U2 or U3 actually it happens,
+[00:52:56] or U3 it should happen.
+[00:52:57] Okay?
+[00:52:58] So it's perfectly fine to do this,
+[00:53:00] why is it important configuration service actually involved here,
+[00:53:04] could like S2 decide on its own to become the head,
+[00:53:07] let's say yes, U2 talk to anyone anymore,
+[00:53:09] and decides like whatever I want to become head,
+[00:53:12] would that be valid?
+[00:53:15] What is that, like maybe create a split.
+[00:53:19] Yeah, yeah, that would create a split-brain, right,
+[00:53:22] because it might, S2 might just be partitioned from S1,
+[00:53:26] and so now both are heads,
+[00:53:28] maybe both are processing commands,
+[00:53:30] will be you know violate are,
+[00:53:32] you know basically the sort of the whole [] having the total order,
+[00:53:38] we can now.
+[00:53:39] Also, does S2 even know that S1 is a head,
+[00:53:44] because it just receives.
+[00:53:46] You probably got it from the configuration information in previous time,
+[00:53:50] like when configuration service decides a new configuration,
+[00:53:54] they can tell all the servers
+[00:53:55] and whatever and the clients actually care,
+[00:53:57] you know here's the new configuration.
+[00:54:00] Does this only happen when S1 to S2 connection is separate
+[00:54:04] or wait what, what causes the split-brain again?
+[00:54:08] Split-brain would happen,
+[00:54:09] if S2 on its own decided that S1 has failed and became the head,
+[00:54:13] so we're not allowed to have that happen,
+[00:54:15] and the way actually the work out in practice is that,
+[00:54:18] there is a configuration server,
+[00:54:20] that actually decides what is actually the current configuration,
+[00:54:23] and so if it decides that S1 is dead,
+[00:54:27] then it can inform S2 S3,
+[00:54:30] saying like hey you guys are now the new chain and S2 the head,
+[00:54:35] and when that change happens,
+[00:54:37] so in this case, basically S1 is dropped,
+[00:54:39] nothing else has to happen,
+[00:54:41] because S2 has,
+[00:54:44] the only update that we lost,
+[00:54:45] the one actually was not committed anyway,
+[00:54:47] so there's nothing to be repaired further.
+[00:54:50] So making this go from this setting from three replica
+[00:54:54] with the dropping the head is basically pretty straightforward operation.
+[00:55:00] Okay?
+[00:55:01] Professor, I have a question,
+[00:55:04] so there's there's an assumption here,
+[00:55:06] that like the commands that,
+[00:55:11] like like leave S1 like will arrive in order at S2,
+[00:55:18] is that like, is that a reasonable assumption, for like.
+[00:55:22] Well, I think the way they,
+[00:55:23] so they basically say,
+[00:55:24] we need a reliable FIFO between S1 and S2, right,
+[00:55:28] S2 to S3,
+[00:55:29] and I think the way they implement, that is probably using TCP connection.
+[00:55:36] Okay, thanks.
+[00:55:38] Okay, so let's look at the second case.
+[00:55:40] So we're have you know S1, you know S2, S3,
+[00:55:48] and of course there could be more you know servers into chain,
+[00:55:50] but like you know three enough for us to consider all the cases,
+[00:55:54] and so now what we want to do take the case, where a middle one crashes,
+[00:55:59] this one crashes.
+[00:56:01] And so the configuration service at some point decides S2 crash,
+[00:56:06] you know informs S1 S3, that basically they form the new chain,
+[00:56:11] and we're wondering about like what else needs to happen?
+[00:56:16] We saw in the first case,
+[00:56:17] the head drops, then nothing really has to be done,
+[00:56:20] other than updating the chain,
+[00:56:21] now we're updating the chain,
+[00:56:22] the question is, is anything needs to happen?
+[00:56:27] The S1 needs to send to S3,
+[00:56:30] the request that it sent to S2,
+[00:56:32] but didn't make it to S3.
+[00:56:38] Yes, we have you know U1 U2 U3,
+[00:56:41] this guy had see U1 and U2,
+[00:56:44] and this guy see U1,
+[00:56:46] and the U2 that's actually in progress,
+[00:56:47] you know the I got lost S2,
+[00:56:52] basically S1 has to bring S3 up to date,
+[00:56:55] basically forward U2 and U3.
+[00:56:58] Okay, so that's a little bit of work involved,
+[00:57:01] let's consider the final case, the tail.
+[00:57:05] So here we go again,
+[00:57:07] we have three cases,
+[00:57:09] S1, three servers S2, the third one S3.
+[00:57:16] And, let's see, so the tail crashes.
+[00:57:23] And so at some point in time,
+[00:57:25] the configuration service notices decides that the new chain is going to be S1 and S2,
+[00:57:31] tells S1 and S2 that they are part of the new chain,
+[00:57:34] and what else needs to happen?
+[00:57:38] Well, let's write down,
+[00:57:40] we know, this guy have seen U1 U2 and U3,
+[00:57:45] this guy have seen U1 U2,
+[00:57:48] so who becomes the new tail in this scenario?
+[00:57:52] S2.
+[00:57:53] Yes, S2 becomes new tail,
+[00:57:55] and anything else that needs to happen?
+[00:57:57] I guess the client needs to be informed that S2 is the.
+[00:58:02] Yeah, that's the client might learn from the configuration service, correct.
+[00:58:06] And so yeah, but nothing else has to happen, right,
+[00:58:08] because the, all the committed,
+[00:58:12] you know the no committed operations are lost,
+[00:58:15] and you know, and as we are still in
+[00:58:20] needs to still be actually propagated to S2 will be just happening.
+[00:58:25] Okay, so dropping the tail is also reasonable straightforward.
+[00:58:27] So dropping the tail, the head is a reasonable straightforward,
+[00:58:30] dropping the middle one is a bit more complicated,
+[00:58:32] but not much more complicated.
+[00:58:33] And the key thing go I want to sort of emphasize here is,
+[00:58:37] how does this compare to figure 7 and 8 in the Raft paper?
+[00:58:49] Maybe to.
+[00:58:51] Yeah, go ahead.
+[00:58:53] Question, so,
+[00:59:03] that these new operations have been automatically.
+[00:59:06] Um, sorry, I didn't hear you,
+[00:59:08] you were pretty pretty noisy connection there.
+[00:59:13] Yeah, like I'm just saying, that S2 becomes new tail,
+[00:59:17] don't have to send acknowledgment back to the client,
+[00:59:20] and there are some entries that have been automatically committed.
+[00:59:24] Yeah, that might be the case,
+[00:59:25] that what happens is the client is probably going to retry, right,
+[00:59:30] and we have to have a separate duplication scheme like in lab 3 anyway,
+[00:59:36] and so there's kind of a couple different ways about how to do it,
+[00:59:40] the paper are not particularly clear which one it will take.
+[00:59:44] Okay, I see, thank you.
+[00:59:46] Yeah, like in that in that case,
+[00:59:48] didn't the paper just say like,
+[00:59:50] you know it might like,
+[00:59:52] even if it doesn't respond it,
+[00:59:53] could or could not have succeeded.
+[00:59:58] Okay, so back to my actual original question,
+[01:00:00] which is like, you know how does this contrast,
+[01:00:02] this picture of my my drawn picture here on this white board,
+[01:00:06] how does that contrast to figure 7 and 8?
+[01:00:09] Simpler.
+[01:00:10] Yeah, I mean that's the key point I wanted to get across, right,
+[01:00:13] you know there's not that many cases to consider here,
+[01:00:16] basically three cases,
+[01:00:17] which is like slightly you know quite a bit simpler than the case of the Raft paper,
+[01:00:23] where the many to consider, the scenarios are quite complicated,
+[01:00:27] now part of that is because you know it's a chain, right,
+[01:00:31] you know things are pushed down in a very sort of straightforward manner,
+[01:00:36] down the replication chain,
+[01:00:38] and part of that is, of course,
+[01:00:40] the configuration part is sort of outsource to configuration manager manager.
+[01:00:45] But for the primary backup part of the recovery plan,
+[01:00:48] that's a reasonable straightforward,
+[01:00:50] there are only three configurations to consider.
+[01:00:55] One more point I want to make,
+[01:00:57] which is like how to add a replica,
+[01:00:59] because any system you know that here going to run for real time,
+[01:01:02] really at some point you gotta add a new one in,
+[01:01:06] because otherwise you're gonna lose,
+[01:01:08] you start the three,
+[01:01:09] then you have two, then get one and then you have zero,
+[01:01:11] and then you're on the [].
+[01:01:12] So, you know you have to add new replica,
+[01:01:16] so let's to consider the case,
+[01:01:18] so here's S1, it is the head,
+[01:01:22] let's say we're in a scenario,
+[01:01:23] where you know we have S1 and S2 who's the tail,
+[01:01:27] and basically we want to bring up S3,
+[01:01:32] and it turns out you know as the paper described,
+[01:01:34] it was most convenient to actually do this at the tail end of it,
+[01:01:40] so basically make the new server, the new tail.
+[01:01:45] And so the way that we proceed is,
+[01:01:47] like the client is here,
+[01:01:49] talking to S2,
+[01:01:51] because that's the current tail,
+[01:01:53] S3 comes up,
+[01:01:54] and basically the first thing it does is,
+[01:01:56] it actually copies you know old state from S3 to,
+[01:01:59] from S2 to S3.
+[01:02:01] And so this may take hours, right,
+[01:02:03] where you know tens of minutes or maybe indeed multiple hours,
+[01:02:07] you're going to copying gigabytes of data or terabytes of data from S2 to S3,
+[01:02:12] but while that's happening,
+[01:02:13] you know S2 and S3 can just serve request,
+[01:02:17] of course it does have to remember which ones are came in after S3 start copy,
+[01:02:24] so keep a list of all the updates that are sort of happened,
+[01:02:28] but there have not been propagated to S3 yet,
+[01:02:30] at some point S3 done with all the copying,
+[01:02:33] and basically tells S2,
+[01:02:34] okay, man, I'm ready you know to become the tail,
+[01:02:37] I got all the state,
+[01:02:39] S2, so sends an email, sends email, sends message to S2,
+[01:02:43] saying, okay, I want to be the tail,
+[01:02:47] S2 responses, like yeah that's okay,
+[01:02:49] but once your applied all the updates.
+[01:02:54] And so basically S2 sends the updates in response to this,
+[01:02:58] I want to go on to come to a tail request,
+[01:03:02] in response that to S3,
+[01:03:05] S3 replies the updates,
+[01:03:07] and then becomes you know the tail,
+[01:03:10] and you know clients that we're talking to S2,
+[01:03:12] and S2 can tell the client,
+[01:03:14] you know from now on, I'm not tail anymore,
+[01:03:15] you should talk to S3,
+[01:03:16] and so they can swap you know that direction.
+[01:03:19] And so that's the way to add a replica into a chain.
+[01:03:26] So question on this,
+[01:03:28] don't you run into this like infinite loop problem,
+[01:03:30] where S2 sends updates to S3,
+[01:03:32] and when S3 is like updating, its also serving more requests,
+[01:03:36] so as more updates,
+[01:03:38] that needs to send and goes back and forth?
+[01:03:40] No, no, once S2 have sent the updates,
+[01:03:44] S3 have not seen yet, you know to S2 to S3,
+[01:03:47] then from then on the normal chain replication,
+[01:03:50] whenever S2 gets a request,
+[01:03:52] you know update from S1,
+[01:03:53] it forwards it to S3.
+[01:03:57] Right, but S3 can become the tail
+[01:03:59] until it is successfully processed all the updates.
+[01:04:02] Oh, yeah so, yeah, once it sets up the TCP channel,
+[01:04:06] basically S2 can just say like for,
+[01:04:08] once you've processed these guys,
+[01:04:10] you can become the tail,
+[01:04:11] because you've seen everything.
+[01:04:12] I mean.
+[01:04:13] And everything else you can be pipelined after that, right,
+[01:04:16] in the same TCP channel.
+[01:04:19] It could become the tail, right, right after,
+[01:04:22] like even before it processes the update,
+[01:04:24] as long as it doesn't serve requests.
+[01:04:27] As long as it doesn't serve requests exactly, right,
+[01:04:29] it just has to process all the updates,
+[01:04:30] that S2 is received S3 not,
+[01:04:32] once we updated those,
+[01:04:34] then it becomes tail and start processing request.
+[01:04:39] I see, so blocks like requests for a moment,
+[01:04:42] while it processes new update.
+[01:04:49] Okay?
+[01:04:53] Okay, so now I wanna come back you know to basically questions lots of people ask,
+[01:04:58] how this contrast to sort of,
+[01:05:01] how are the CR properties, chain replication properties,
+[01:05:05] how do how does it compare,
+[01:05:08] and one of the good, one of the good properties
+[01:05:10] and mostly with [respectful] in comparison to Raft.
+[01:05:15] And of course I got to say,
+[01:05:17] of course like the chain replication just influence the primary backup scheme,
+[01:05:23] but not the configuration service,
+[01:05:24] so we'll come back to that a little bit more in detail,
+[01:05:26] but a couple things that we can know,
+[01:05:27] we just compare sort of the way,
+[01:05:32] the Raft protocol works with the chain replication protocol.
+[01:05:35] And first of all you know we can achieve,
+[01:05:37] positive aspect you know chain replication is that
+[01:05:40] the client RPCs are you know split between to the head and the tail,
+[01:05:57] that's a load of actually serving any client operation
+[01:06:00] that can be split actually between two of them,
+[01:06:02] they don't have to run through the leader as in in Raft.
+[01:06:06] Furthermore, the head sends the update once,
+[01:06:13] so unlike in Raft,
+[01:06:14] where the head or the leader basically sends updates,
+[01:06:19] the log entry to every peer,
+[01:06:21] in this particular scheme,
+[01:06:23] actually it's only happened the head always sends one basically RPC,
+[01:06:29] and so there are fewer messages involved.
+[01:06:31] Reads or query operations involve only, only the tail,
+[01:06:43] unlike in the Raft,
+[01:06:45] you know the if you, even if you implement the read-only optimization,
+[01:06:49] the read-only optimization avoid, having read operation go through the log
+[01:06:55] and being appended to all the logs to peers,
+[01:06:58] but it still requires that the leader actually contact the majority of the peers
+[01:07:03] to decide when it's actually an operation can be served.
+[01:07:10] So another positive aspect of this [] is a simple crash recovery,
+[01:07:15] as we talked about.
+[01:07:24] But you know a major downside compared to sort of the Raft scheme
+[01:07:28] is that you have one failure requires reconfiguration,
+[01:07:45] and the reason now that the reconfiguration required is,
+[01:07:48] because like write actually have to go through the whole chain,
+[01:07:52] and so, and the write cannot acknowledge
+[01:07:55] until that every server in the chain actually has processes.
+[01:07:59] And that is actually slightly different, correct,
+[01:08:00] in Raft, as you well know,
+[01:08:02] because assume it's basically majority the peers
+[01:08:05] actually accepted the particular write operation, appended to their logs,
+[01:08:09] the system can just proceed,
+[01:08:11] and so there's actually no interruption at all,
+[01:08:13] if one server fails, for example,
+[01:08:16] if the remaining servers still form a majority,
+[01:08:19] while in chain replication,
+[01:08:20] if one server would fail,
+[01:08:22] then you know some reconfiguration actually has to happen,
+[01:08:24] which means there's gonna be a short period probably downtime, right.
+[01:08:30] Does that make sense?
+[01:08:35] Now I want to make one more point
+[01:08:37] sort of in contrast you know to sort of the Raft replication scheme is this,
+[01:08:43] because the read operations involve only one server,
+[01:08:45] there's a cool extension,
+[01:08:48] if you will, that actually gets really high read performance,
+[01:08:51] and so the basic idea is as follows,
+[01:09:11] the basic idea is basically to split,
+[01:09:13] you know the split objects or they call volumes in the paper,
+[01:09:18] split the objects across multiple chains.
+[01:09:27] So instead of having one chain that I've done in the previous boards,
+[01:09:31] we're going to have multiple chains.
+[01:09:32] And so for example, we might have CH1 in chain 1,
+[01:09:38] S1 is the head, S2 is the middle guy and S3 is the tail.
+[01:09:43] And chain 2, you know we're going to rotate things around,
+[01:09:48] S2 as the head, S3 is the middle guy,
+[01:09:52] oops, S3 is the middle guy and S1 is the tail.
+[01:09:58] And chain 3, we're going to arrange basically S3 as the head guy,
+[01:10:03] S2 as, oops S1 the middle guy and S2 is the tail.
+[01:10:10] Basically we're gonna do is,
+[01:10:11] we're going to split objects across these multiple chains,
+[01:10:14] so the configuration service basically has a map,
+[01:10:16] you know saying like you know shard 1,
+[01:10:18] you know objects in shard one go to chain 1,
+[01:10:21] object in shard 2 go to chain 2,
+[01:10:24] objects in shard 3 you know go to chain 3.
+[01:10:27] And what is the cool part about it is that,
+[01:10:30] you know we have multiple tails,
+[01:10:33] and S1, S3 is tail for some chain,
+[01:10:36] S1 is a tail for some chain,
+[01:10:39] S2 is a tail for some chain,
+[01:10:41] and basically read operations to different chain
+[01:10:44] can now be completely executed in parallel,
+[01:10:46] so if the read operations hit all the different shards,
+[01:10:50] sort of uniform spread,
+[01:10:52] basically you know our read throughput is going to increase linearly
+[01:10:55] with the number of tails that we have,
+[01:10:57] and in this case, we have three tails,
+[01:10:59] so we get three times to read performance.
+[01:11:01] So we did basically sort the same,
+[01:11:03] so we get a little bit of the same properties the zookeeper had,
+[01:11:06] where the read performance can be excellent,
+[01:11:08] scale with the number of servers,
+[01:11:10] but we also get not only that,
+[01:11:12] we get the scale part,
+[01:11:14] and we maintain the linearizability,
+[01:11:18] in this scheme, we don't have to actually give up on linearizability.
+[01:11:23] So we get to two nice properties,
+[01:11:26] namely good read performance and effective scaling with the number of servers,
+[01:11:30] at least for reads to different chains,
+[01:11:33] and we got actually and we maintain linearizability.
+[01:11:43] Any questions about this?
+[01:11:50] Sorry, in this case,
+[01:11:50] the client when they are deciding which chain to read from,
+[01:11:56] would they be able to, to do like to decide themselves
+[01:12:01] or do they need to contact the configuration server to decide.
+[01:12:05] Yeah, so this is a great question,
+[01:12:07] so typically and the paper actually doesn't really explicit about it,
+[01:12:10] you know they talk about maybe talking through proxy to servers,
+[01:12:15] what you will do in lab 4 is
+[01:12:17] basically you will download the configuration,
+[01:12:19] the configuration will include the shard assignment,
+[01:12:22] and you download that from the configuration server.
+[01:12:29] You need to be careful about
+[01:12:30] how you order the servers in each of the chains,
+[01:12:32] prevent like a particular chain from being oversaturated
+[01:12:35] or particular [link] between like two servers.
+[01:12:38] Yeah, this, this, this, this scheme doesn't really take that into account,
+[01:12:42] you can imagine like the configuration plan or the configuration manager
+[01:12:46] has a sophisticated model of actually how the network is laid out,
+[01:12:50] and you know can be very careful about how the chains are done,
+[01:12:54] maybe even shard more shards to one chain,
+[01:12:56] you know fewer shards to another chain,
+[01:12:58] all the stuff is in principle possible,
+[01:13:00] because the configuration manage can just compute anything it likes,
+[01:13:03] and basically says here's the assignment.
+[01:13:08] Thank you.
+[01:13:09] Can even rebalance, if it wants to.
+[01:13:19] Answer the question,
+[01:13:19] could you explain again how linearizability is kept under this extension?
+[01:13:23] Well, nothing has really changed,
+[01:13:25] we're still doing primary backup using a chain,
+[01:13:28] and and so you know we basically carry over the linearizability from the single chain
+[01:13:36] and that's it.
+[01:13:42] This might be like speculative,
+[01:13:44] but how this compared to,
+[01:13:47] I guess maybe it's equivalent of just having groups of servers for each like link,
+[01:13:52] instead of having reusing the same ones,
+[01:13:54] or not for each link,
+[01:13:55] but for each step in the chain,
+[01:13:58] so like S1 is like three servers,
+[01:14:00] S2 has three servers,
+[01:14:02] instead of reusing the same one
+[01:14:04] and entering from different points.
+[01:14:06] Yeah yeah, what would be the advantage of that scheme that you imagine?
+[01:14:11] I mean just for scalability,
+[01:14:15] while also maintain linearizability.
+[01:14:18] Well, the the reason that this scheme is attractive is that,
+[01:14:21] because we have the tail might have quite a bit of load,
+[01:14:23] but the middle guy doesn't,
+[01:14:24] and you know by having sort of this arrangement,
+[01:14:26] we spread the load across all servers.
+[01:14:31] I see, okay.
+[01:14:40] Okay, good.
+[01:14:41] So maybe I want to summarize here,
+[01:14:48] and sort of talk a little bit about,
+[01:14:50] so we saw the approach 1,
+[01:14:53] which we're do in lab, which we do in lab 3,
+[01:14:57] which is run all the operations through Raft,
+[01:15:00] and or the replication, you know the configuration and replication is all built using Raft
+[01:15:07] and nothing else is involved,
+[01:15:09] and then sort of this approach 2,
+[01:15:10] you know which is the topic of this particular paper,
+[01:15:14] where there's a configuration server,
+[01:15:16] perhaps built using Raft or Paxos anyone
+[01:15:22] and a primary backup replication scheme,
+[01:15:26] and primary backup using chain replication.
+[01:15:40] And you can see,
+[01:15:41] you know hopefully there's a little clear,
+[01:15:43] there's some attractive properties to approach 2,
+[01:15:46] in the sense that,
+[01:15:48] you can get scalable read performance,
+[01:15:50] on the primary backups,
+[01:15:53] of course not on the configuration server,
+[01:15:55] because it runs Raft,
+[01:15:57] like you know you're doing approach 1,
+[01:15:59] but you can at least you know,
+[01:16:00] maybe scale read performance for actual operations on the replicas
+[01:16:04] or on the primary backup scheme,
+[01:16:06] put and get operations.
+[01:16:08] The other thing that is nice about this is that,
+[01:16:13] the if you have data is very very large,
+[01:16:16] you know you can have more specialized synchronization
+[01:16:21] or scheme to basically copy the state from one machine to another machine.
+[01:16:26] And you know the chain replication or when any sort of primary backup schemes,
+[01:16:31] sort of separated from the configuration server,
+[01:16:32] allows you to do that easily.
+[01:16:34] And so it's quite common,
+[01:16:36] that you know the practice you know people for approach 2,
+[01:16:40] although it is also not impossible
+[01:16:42] to actually use approach 1 for your replicated state machine,
+[01:16:47] including serving operations like put get operations,
+[01:16:51] and in fact, the lab 3 would do it,
+[01:16:53] we will see later paper in this semester Spanner,
+[01:16:57] and that actually uses Paxos to actually also do the operations.
+[01:17:04] Any further questions here?
+[01:17:15] If not,
+[01:17:15] then I wish you all good luck on the mid-term on Thursday,
+[01:17:19] and I'll see you in person, well, virtually in person next week.
+[01:17:29] And if you have any questions,
+[01:17:30] please feel free to hang around,
+[01:17:33] and I'll do my best to answer them.
+[01:17:37] I have a question about something that you mentioned about Raft,
+[01:17:42] so you mentioned that all the reads have to go through the majority of servers,
+[01:17:46] but I'm not quite sure I understand why,
+[01:17:48] because the leader has all of the committed entries, right.
+[01:17:52] Yeah, there's two two schemes,
+[01:17:54] if the leader,
+[01:17:56] so either you run into a situation,
+[01:17:58] where all recent writes are served by the leader, right,
+[01:18:02] or you know there's a possibility to serve from principle
+[01:18:05] and read operation from another peer,
+[01:18:07] but then you have to contact first majority of the servers
+[01:18:11] to make actually majority that you have the last operation.
+[01:18:15] Got it,
+[01:18:15] so that that requirement is,
+[01:18:17] if we want to spread all the reads across every peer.
+[01:18:21] We have to be more sophisticated
+[01:18:23] and we cannot do it on our own,
+[01:18:25] because that would definitely break linearizability.
+[01:18:28] Right, but if everything goes to the leader.
+[01:18:31] Then when you're going there, correct,
+[01:18:33] except you have to do this trick,
+[01:18:34] where you ask for an empty agreement,
+[01:18:37] at the beginning of every new term,
+[01:18:41] just to make sure that you actually are up to date.
+[01:18:46] Okay, thank you.
+[01:18:48] Could you, quickly go over again,
+[01:18:51] when you're adding a new server at the tail,
+[01:18:54] so just to make sure I understand,
+[01:18:57] so essentially it starts this process
+[01:18:59] for copying all the data from S2 to S3
+[01:19:02] and then if it receives requests for any of that data,
+[01:19:05] while that is still happening,
+[01:19:08] then S3 is going to ask S2 for anything that it still has directly,
+[01:19:13] and it's going to get it and then respond.
+[01:19:15] Yep.
+[01:19:16] And then it keeps doing that,
+[01:19:17] until it gets data that S2 no longer has,
+[01:19:20] and then it just goes live essentially.
+[01:19:22] Yeah, or you could do slightly differently,
+[01:19:23] you know you could actually have S3 could basically tell S2,
+[01:19:32] S3 can become the leader, oh, sorry, the tail,
+[01:19:36] and basically don't process any common operations from the client yet,
+[01:19:40] until it actually has has received the remaining operations from S2.
+[01:19:47] Oh, so in that case, S2 is still the tail.
+[01:19:51] Yeah.
+[01:19:52] Until S3 gets everything.
+[01:19:54] Yeah.
+[01:19:57] Basically, the paper describes one particular way of doing it,
+[01:20:00] you know there's a couple ways of doing it.
+[01:20:04] But if you do that then,
+[01:20:06] like how long do you wait to get everything,
+[01:20:13] I think I also had the same confusion as someone else.
+[01:20:16] You know, you know in what order the switch is happening, correct,
+[01:20:19] so for example like S3, so S2 let's say maybe has a big operations through hundreds,
+[01:20:25] you start to copy operations,
+[01:20:27] like with snapshots with a Raft,
+[01:20:29] you start the copy operation,
+[01:20:30] so when the copy operation is done,
+[01:20:32] S3 is up to data until hundred, right,
+[01:20:36] then you know maybe S2 already has 10 more operations,
+[01:20:40] so it has 101 102 and 103, right,
+[01:20:44] and basically S3 can you know contact S2,
+[01:20:48] say give me your remaining operations,
+[01:20:51] and S2 says, like well remaining operations 101 to 110,
+[01:20:55] and as a side effect,
+[01:20:57] you know S3 also tells S2 like stop being the tail,
+[01:21:02] and S2 response with those operations,
+[01:21:05] S3 applies there operation 101 to 110,
+[01:21:09] and then tells client it means it is tail,
+[01:21:12] but it doesn't process any commands from clients yet
+[01:21:15] or read operation from client yet,
+[01:21:16] until it actually process 101 to 110.
+[01:21:21] Okay, okay, I see, I see, okay, understand.
+[01:21:27] I have another question,
+[01:21:29] oh sorry.
+[01:21:32] No, go ahead, go ahead.
+[01:21:33] Okay, my question was a little similar to the extension that he talked about,
+[01:21:41] I thought, I thought about,
+[01:21:43] could you could you do a tree instead of a chain, so.
+[01:21:48] I think there's the,
+[01:21:52] there's other data structures possible,
+[01:21:54] like for example, you know number of people in email proposed,
+[01:21:59] that you could have S1,
+[01:22:00] then you could have like S3 4 5, all the intermediate ones,
+[01:22:04] you know S1 talks to them in parallel to all the intermediate ones
+[01:22:07] and the intermediate ones talk all to the tail,
+[01:22:12] is that what you mean with a tree?
+[01:22:15] I meant more if there would be,
+[01:22:21] like a number of leaves,
+[01:22:23] there would be at all roughly the same height,
+[01:22:26] so like a balanced tree,
+[01:22:28] and then the leaves will have like a chain going through them,
+[01:22:33] and I think the linearizability can be broken here,
+[01:22:39] if you like, oh, if you'd think harder about it,
+[01:22:43] but it would have the nice property,
+[01:22:46] that you wouldn't,
+[01:22:47] like the the propagation can delay would be like [logarithmic]
+[01:22:52] instead of linear as here,
+[01:22:54] and you could read from all the leaves.
+[01:22:55] Yeah, okay, reading from all the leaves is dangerous, right,
+[01:22:58] because they might have,
+[01:23:00] you know one client might have talked to another leaf earlier
+[01:23:04] and leaves might not be in sync,
+[01:23:07] so that sounds dangerous to me,
+[01:23:11] maybe your your scheme is a little bit more sophisticated than I'm thinking,
+[01:23:15] the depth of the tree or the depth of the chain
+[01:23:19] really govern by the meantime between failure, right,
+[01:23:24] if you're on the,
+[01:23:26] if you typically run with 3 servers, 3 to 5 servers,
+[01:23:29] because that's good enough for your high availability,
+[01:23:32] then because you can recover from 4 servers,
+[01:23:36] before the whole thing is done,
+[01:23:38] then that really covers the depth of the chain,
+[01:23:43] and yeah we'll introduce some latency.
+[01:23:50] Okay, that make sence, thank you.
+[01:23:52] Chain will generally be short.
+[01:23:54] Okay, okay, that makes sense, thanks.
+[01:23:57] You're welcome.
+[01:23:59] Is this the only case where the entire chain would go down,
+[01:24:03] if all the servers in the chain went down?
+[01:24:05] Yeah.
+[01:24:07] Thank you.
+[01:24:10] I also was curious how you know maintain the strong consistency,
+[01:24:14] when like S1 S2 and S3 can all do the read in this slide.
+[01:24:21] You get strong consistency per per shard or per object,
+[01:24:26] you know that's assigned to the chain, right.
+[01:24:29] So if here read, you write one object,
+[01:24:33] you write object one, you read object one,
+[01:24:35] all those operations are going to go through the same chain,
+[01:24:37] and so you get strong consistency for that particular object.
+[01:24:41] Oh, got it.
+[01:24:42] But it may not be the case,
+[01:24:43] across all the objects, we have strong consistency.
+[01:24:46] No, I don't, I will, let me hesitate that.
+[01:24:57] Let me hesitate,
+[01:24:58] I think you know that requires maybe more machinery.
+[01:25:01] Well, what does that mean,
+[01:25:02] like across all the objects getting strong consistency.
+[01:25:05] I think, the you read write object one,
+[01:25:09] you read or write object two,
+[01:25:11] and then some client read object one,
+[01:25:16] are you going to yet,
+[01:25:18] basically you know if you have a client to read both objects,
+[01:25:21] are you are guaranteed to see total order and linearizability.
+[01:25:24] Is that like serializability?
+[01:25:27] Serializability slightly different,
+[01:25:29] you know maybe, let's not talk about serializability,
+[01:25:32] we'll come back, we'll get that later in a couple weeks.
+[01:25:35] Yeah, and.
+[01:25:41] I [] to actually make a commitment right now,
+[01:25:44] I need to think a little bit about it.
+[01:25:45] Okay, that's totally fair.
+[01:25:48] So the question is like,
+[01:25:50] you know you have consistency or linearizability for a single client reading and writing,
+[01:25:55] but not for multiple, on multiple objects.
+[01:25:59] You have even multiple clients talking to this,
+[01:26:02] you know are doing operations on the same object,
+[01:26:05] have strongly linearizability correct in this scheme,
+[01:26:07] the question is,
+[01:26:08] we have linearizability across objects too.
+[01:26:13] But, why is that important
+[01:26:16] and I don't see where like where that would be important like,
+[01:26:22] because you, you gonna like, you can't group operations, right,
+[01:26:28] so like a write and a write.
+[01:26:31] I mean you read object one,
+[01:26:33] you write object one, you read object one,
+[01:26:35] you read object two, you write object two,
+[01:26:37] and you know the, the question is,
+[01:26:42] you know in linearizability, you know those operations need to be total order,
+[01:26:46] and they need to preserve this property of real time.
+[01:26:53] And since you have different chains,
+[01:26:55] that might actually not happen,
+[01:26:56] but I don't want to commit to,
+[01:26:58] no [statement] about all across chains.
+[01:27:01] You know with the chain is actually guaranteed to linearizability,
+[01:27:04] even if you have different objects.
+[01:27:08] There's something I don't understand in the paper,
+[01:27:10] which is the update propagation invariant,
+[01:27:14] where like sort of the,
+[01:27:18] for in this order of the chain.
+[01:27:21] Yep.
+[01:27:22] The like commits are prefix of each successor's commits,
+[01:27:29] is that guaranteed after like a full pass has gone through the chain?
+[01:27:35] No, it's always true, right,
+[01:27:36] like you know you go back to this picture here,
+[01:27:42] I think they make a very simple observation,
+[01:27:44] which is, let's see if we can find that picture,
+[01:27:48] I probably scribbled over everything,
+[01:27:50] so it's gonna be maybe not as clean,
+[01:27:53] basically what they're saying,
+[01:27:54] like if you look at this figure, correct,
+[01:27:56] that S3 always has a prefix of S2
+[01:28:00] and S2 always has a prefix of S1,
+[01:28:06] and that's the only thing that basically that's invariant says.
+[01:28:09] Oh, so i and j,
+[01:28:13] so the one out the successor has the prefix of the predecessor?
+[01:28:17] Yeah, and this is slightly confusing,
+[01:28:19] I just realized that later,
+[01:28:20] after somebody else asked this question,
+[01:28:23] in the definition, the i and j is in two different ways,
+[01:28:29] well, not really different ways,
+[01:28:30] one is definition,
+[01:28:32] and one is actually the invariant,
+[01:28:36] and you're gonna be a little careful,
+[01:28:39] the role of i and j in the chain.
+[01:28:43] That sort of around.
+[01:28:43] Yeah exactly.
+[01:28:44] How is that possible.
+[01:28:46] Exactly.
+[01:28:47] Thank you.
+[01:28:48] You're welcome.
+[01:28:50] I was, oops.
+[01:28:52] Yeah.
+[01:28:54] I was just gonna ask,
+[01:28:56] what happens when you have a network partition instead of crash,
+[01:29:00] so if you go to the crash slide,
+[01:29:04] what happens to the chain,
+[01:29:05] if there's a network partition,
+[01:29:06] so maybe ask something like,
+[01:29:08] like S2 is actually still alive,
+[01:29:11] but there's a partition between the configuration manager and S2 or something,
+[01:29:16] and so now both S1 and S2 are pointing to S3.
+[01:29:20] No, no, yeah, yeah,
+[01:29:23] okay, there's gonna be some obviously,
+[01:29:26] when I I think people are talking about this,
+[01:29:28] but I presume that all configurations are numbered, like [] number
+[01:29:32] and S3 will not accept any commands from S2,
+[01:29:36] if the [] numbers don't match.
+[01:29:40] Oh, you got it, thank you.
+[01:29:41] So related to that,
+[01:29:43] one thing I couldn't figure out is,
+[01:29:44] even with like configuration numbers or something,
+[01:29:47] how do you make sure that when you get rid of the tail,
+[01:29:50] in like the third scenario you drawn,
+[01:29:52] when you get rid of the tail,
+[01:29:53] that all the clients that might issue a read
+[01:29:56] are aware that this old server no longer.
+[01:29:58] Clients, I think the way you would do is,
+[01:30:01] that the configuration, when the client download the configuration from configuration manager,
+[01:30:05] they also include the [] number
+[01:30:07] and every operation includes the [] number
+[01:30:09] and S3 will say hi, that's an old [] number,
+[01:30:13] don't talk to.
+[01:30:15] I guess, when the clients talk the configurations over to get [] numbers,
+[01:30:19] I'm going to start with is a client,
+[01:30:21] that has an old.
+[01:30:22] You know, so for example, the S2 could just say retry
+[01:30:26] and the client then go back to the configuration server and reread the state.
+[01:30:32] I guess what I'm worried about is,
+[01:30:34] like S3 has been network partitioned away from from the coordinator,
+[01:30:39] and so the coordinator gets rid of S3 from the tail
+[01:30:41] and increase the version number,
+[01:30:43] but some client out there doesn't find out that the version numbers increase
+[01:30:46] and still think S3 is the tail,
+[01:30:48] talks to S3 doesn't read,
+[01:30:50] meanwhile people are do write to S1 S2,
+[01:30:52] and they have haven't seen that basically.
+[01:30:56] Yeah, this is probably the reason why the paper go through the proxy.
+[01:31:02] I see, okay.
+[01:31:07] I have a question kind of going back to that,
+[01:31:11] like unanswered questions about,
+[01:31:14] kind of like cross object linearizability,
+[01:31:17] I guess like,
+[01:31:20] is that a whole other can of [] that we haven't really talked about,
+[01:31:24] which is like if you want to do,
+[01:31:26] I don't know what the right term is,
+[01:31:26] but like transactions, that like cross multiple pieces of state,
+[01:31:32] like, if you're trying to implement an operation,
+[01:31:35] where it's like you're setting a to 1 and b to 2
+[01:31:37] and you should only see those together or not at all,
+[01:31:40] like [] of that,
+[01:31:41] have we talked about that in any of the things we've seen before.
+[01:31:44] No and we'll talk about a couple weeks,
+[01:31:47] it going to be a big topic,
+[01:31:49] basically how to do transactions.
+[01:31:51] Okay, that's good to know, thanks.
+[01:31:55] You mind going back to like the third slide?
+[01:31:58] Yep.
+[01:32:00] I can go to the third slide,
+[01:32:04] maybe not, fourth slide,
+[01:32:09] oh, it's fifth slide, sorry,
+[01:32:12] so I was a little bit confused,
+[01:32:14] when you mention like if lock holder failed intermediate stage stuff,
+[01:32:18] what exactly on this slide applies to zlocks,
+[01:32:21] and what applies to the Go locks again.
+[01:32:24] The these almost all statements about zlocks.
+[01:32:30] So is the first statement, that if the lock holder fails,
+[01:32:33] then the intermediate state is not cleaned up, or is cleaned up.
+[01:32:36] No, intermediate state is visible,
+[01:32:40] but then generally you have a leader election,
+[01:32:42] you could clean up the intermediate state,
+[01:32:43] that was just like the point.
+[01:32:47] Oh, so with with Go locks,
+[01:32:49] is that also not the case
+[01:32:50] like if there's a machine that's holding a Go lock,
+[01:32:53] that's doing stuff,
+[01:32:54] and then all of sudden dies,
+[01:32:56] isn't still the intermediate state visible.
+[01:32:59] Okay, I I think what I'm talking about Go locks,
+[01:33:02] you know is something that's a statement about multiple threads
+[01:33:05] running on the same machine, right,
+[01:33:07] and so if the Go lock disappears,
+[01:33:10] because machine crashes,
+[01:33:11] all the threads on that machine crash too.
+[01:33:21] Right, but, when you say that the intermediate state is visible to other people,
+[01:33:27] that's still true for Go locks, right.
+[01:33:31] You know if they written persistent state to disk,
+[01:33:34] or into some shared file system,
+[01:33:36] like no, the machine is gone,
+[01:33:37] the disk is gone, everything is gone.
+[01:33:40] Oh, got it, okay,
+[01:33:41] so it's saying that,
+[01:33:42] the like the persistent, like intermediate state persistent.
+[01:33:46] Zookeeper intermediate state might be visible,
+[01:33:49] we're gonna delete the guy might have created some more files
+[01:33:52] and those are visible now.
+[01:33:55] Okay I see, thank you.
+[01:33:57] So just follow that,
+[01:33:58] since the implementation that if a goroutine ever dies while holding the lock,
+[01:34:04] the entire Go program must have died too.
+[01:34:08] And as you can never have a goroutine die holding a lock with that,
+[01:34:11] and have other parts of the program continuously.
+[01:34:14] Okay.
+[01:34:15] The goroutine crashes, the application crashes.
