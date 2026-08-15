@@ -17,7 +17,7 @@ script_includes:
     <p class="reading-stats">
       <span><strong>{{ site.data.courses.size }}</strong> {% if site.data.courses.size == 1 %}course{% else %}courses{% endif %}</span>
       <span><strong>{{ course_modules.size }}</strong> modules</span>
-      <span><strong>{{ course_lectures.size }}</strong> lectures</span>
+      <span><strong>{{ course_lectures.size }}</strong> learning units</span>
     </p>
   </header>
 
@@ -31,8 +31,9 @@ script_includes:
       <span class="visually-hidden">Institution</span>
       <select data-course-institution-filter>
         <option value="">All institutions</option>
-        {% for course_entry in site.data.courses %}
-          <option value="{{ course_entry[1].institution | downcase | escape }}">{{ course_entry[1].institution }}</option>
+        {% assign courses_by_institution = site.data.courses | group_by_exp: 'course_entry', 'course_entry[1].institution' | sort: 'name' %}
+        {% for institution in courses_by_institution %}
+          <option value="{{ institution.name | downcase | escape }}">{{ institution.name }}</option>
         {% endfor %}
       </select>
     </label>
@@ -49,11 +50,15 @@ script_includes:
       {% assign course_documents = site.courses | where: 'course', course_slug %}
       {% assign course_lectures = course_documents | where: 'document_type', 'lecture' %}
       {% assign course_modules = course_documents | where: 'document_type', 'module' %}
+      {% assign course_resources = course_documents | where: 'document_type', 'resource' %}
       {% assign first_lecture = course_lectures | sort: 'lecture_number' | first %}
+      {% assign lectures_with_slides = course_lectures | where_exp: 'lecture', 'lecture.slides' %}
       {% assign course_cover = first_lecture.slides.download
         | replace: '/slides/', '/slides/rendered/'
         | replace: '.pptx', '/slide-001.jpg'
       %}
+      {% assign course_cover = first_lecture.slides.initial | default: course_cover %}
+      {% assign course_thumbnail = first_lecture.thumbnail | default: course_meta.cover %}
       <article
         class="podcast-list-item course-lecture-item course-catalog-item"
         data-course-item
@@ -61,8 +66,10 @@ script_includes:
         data-institution="{{ course_meta.institution | downcase | escape }}"
       >
         <a class="podcast-cover-link course-lecture-cover" href="{{ '/courses/' | append: course_slug | append: '/' | relative_url }}" aria-label="Open {{ course_meta.title | escape }}">
-          {% if first_lecture.slides.download %}
+          {% if first_lecture.slides.manifest %}
             <img src="{{ course_cover | relative_url }}" width="160" height="120" alt="">
+          {% elsif course_thumbnail %}
+            <img src="{{ course_thumbnail | relative_url }}" width="160" height="120" alt="{{ course_meta.title | escape }} video thumbnail">
           {% else %}
             <span aria-hidden="true"><i class="fas fa-graduation-cap"></i></span>
           {% endif %}
@@ -77,10 +84,11 @@ script_includes:
           <p>{{ course_meta.description }}</p>
           <div class="garden-topics course-resource-badges" aria-label="Course resources">
             <span>{{ course_modules.size }} modules</span>
-            <span>{{ course_lectures.size }} lectures</span>
+            <span>{{ course_lectures.size }} {{ course_meta.unit_label_plural | default: 'lectures' }}</span>
             <span>Video</span>
-            <span>Slides</span>
+            {% if lectures_with_slides.size > 0 %}<span>Slides</span>{% endif %}
             <span>Transcript</span>
+            {% if course_resources.size > 0 %}<span>Study guides</span>{% endif %}
           </div>
         </div>
         <a class="podcast-source-link" href="{{ course_meta.source_url }}" target="_blank" rel="noopener noreferrer" aria-label="Open source for {{ course_meta.title | escape }}" title="Open video source">

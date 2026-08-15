@@ -38,6 +38,7 @@ course_documents = documents.select { |_, data| data["type"] == "course" }
 lectures = course_documents.select { |_, data| data["document_type"] == "lecture" }
 modules = course_documents.select { |_, data| data["document_type"] == "module" }
 overviews = course_documents.select { |_, data| data["document_type"] == "overview" }
+resources = course_documents.select { |_, data| data["document_type"] == "resource" }
 
 assert.call(!course_registry.empty?, "course registry must not be empty")
 assert.call(overviews.size == course_registry.size, "each registered course requires one overview")
@@ -49,6 +50,11 @@ if File.file?(catalog_path)
   assert.call(
     catalog.css("[data-course-item]").size == course_registry.size,
     "course catalog count must match registry"
+  )
+  unique_institutions = course_registry.values.map { |metadata| metadata["institution"] }.uniq.size
+  assert.call(
+    catalog.css("[data-course-institution-filter] option").size == unique_institutions + 1,
+    "course institution filter must contain unique institutions"
   )
 end
 
@@ -64,6 +70,7 @@ end
 course_registry.each_key do |course_slug|
   course_modules = modules.select { |_, data| data["course"] == course_slug }
   course_lectures = lectures.select { |_, data| data["course"] == course_slug }
+  course_resources = resources.select { |_, data| data["course"] == course_slug }
   overview_path = File.join(site_dir, "courses", course_slug, "index.html")
   assert.call(File.file?(overview_path), "#{course_slug}: overview was not generated")
   next unless File.file?(overview_path)
@@ -73,6 +80,58 @@ course_registry.each_key do |course_slug|
     overview.css(".course-module-list > .course-module-item").size == course_modules.size,
     "#{course_slug}: overview module count mismatch"
   )
+  primary_resources = course_resources.count do |_, data|
+    %w[labs practice readings materials review].include?(data["resource_kind"])
+  end
+  reading_resources = course_resources.count { |_, data| data["resource_kind"] == "reading" }
+  assert.call(
+    overview.css(".course-primary-resource-list > .course-library-resource").size == primary_resources,
+    "#{course_slug}: primary resource count mismatch"
+  )
+  assert.call(
+    overview.css(".course-reading-library > a").size == reading_resources,
+    "#{course_slug}: reading guide count mismatch"
+  )
+
+  expected_official_lectures = course_registry.dig(course_slug, "official_lecture_count")
+  if expected_official_lectures
+    actual_official_lectures = course_lectures.map { |_, data| data["official_lecture_number"] }.compact.uniq.size
+    assert.call(
+      actual_official_lectures == expected_official_lectures,
+      "#{course_slug}: official lecture count mismatch"
+    )
+  end
+
+
+  practice_data_path = File.join(source_dir, "_data", "course_resources", "#{course_slug}.yml")
+  practice_groups = if File.file?(practice_data_path)
+                      Array(YAML.safe_load_file(practice_data_path, aliases: true))
+                    end
+  if practice_groups
+    assert.call(
+      overview.css(".course-practice-item").size == practice_groups.size,
+      "#{course_slug}: practice resource count mismatch"
+    )
+  end
+end
+
+course_documents.each do |path, data|
+  html_path = site_file.call(data["permalink"])
+  assert.call(File.file?(html_path), "#{File.basename(path)}: course page was not generated")
+
+  source = File.read(path, encoding: "UTF-8")
+  source.scan(/```mermaid\s*\n(.*?)```/m).each_with_index do |block, index|
+    ambiguous_label = block.first.lines.find do |line|
+      line.scan(/\b[A-Za-z][A-Za-z0-9_-]*\[(.*?)\]/).any? do |match|
+        label = match.first.strip
+        !label.start_with?('"') && label.match?(/[|()]/)
+      end
+    end
+    assert.call(
+      ambiguous_label.nil?,
+      "#{File.basename(path)}: Mermaid block #{index + 1} has an ambiguous unquoted node label"
+    )
+  end
 end
 
 timeline_sections = 0
@@ -80,6 +139,7 @@ rendered_slides = {}
 
 lectures.each do |path, data|
   label = "#{data['course']} lecture #{data['lecture_number']}"
+  course_meta = course_registry.fetch(data["course"])
   html_path = site_file.call(data["permalink"])
   assert.call(File.file?(html_path), "#{label}: page was not generated")
 
@@ -106,6 +166,35 @@ lectures.each do |path, data|
 
     asset = source_file.call(transcript[format])
     assert.call(asset && File.file?(asset), "#{label}: transcript #{format} is missing")
+  end
+  Array(transcript["captions"]).each do |caption|
+    asset = source_file.call(caption["url"])
+    assert.call(asset && File.file?(asset), "#{label}: caption asset is missing")
+  end
+
+  Array(data["resources"]).each do |resource|
+    next if resource["url"].to_s.match?(%r{\Ahttps?://})
+
+    asset = source_file.call(resource["url"])
+    assert.call(asset && File.file?(asset), "#{label}: supporting resource #{resource['title']} is missing")
+  end
+
+  thumbnail = source_file.call(data["thumbnail"])
+  assert.call(thumbnail && File.file?(thumbnail), "#{label}: video thumbnail is missing") if data["thumbnail"]
+
+  media_sources = Array(data["media_sources"])
+  preferred_provider = course_meta["preferred_video_provider"]
+  if preferred_provider && media_sources.any? { |source| source["provider"] == preferred_provider }
+    assert.call(
+      media_sources.first["provider"] == preferred_provider,
+      "#{label}: preferred video provider must be first"
+    )
+  end
+  if course_meta["disable_bilibili_embed"]
+    assert.call(
+      media_sources.none? { |source| source["provider"] == "bilibili" && source["embed_url"] },
+      "#{label}: Bilibili embed must be disabled"
+    )
   end
   jsonl_path = source_file.call(transcript["jsonl"])
   if jsonl_path && File.file?(jsonl_path)

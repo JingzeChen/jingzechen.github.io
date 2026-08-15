@@ -3,12 +3,17 @@
 {% assign course_modules = course_documents | where: 'document_type', 'module' | sort: 'module_number' %}
 {% assign featured_lecture = course_lectures | first %}
 {% assign related_lectures = course_lectures %}
+{% assign unit_label = course_meta.unit_label | default: 'Lecture' %}
+{% assign unit_label_plural = course_meta.unit_label_plural | default: 'lectures' %}
 
 {% if page.document_type == 'module' %}
   {% assign related_lectures = course_lectures | where: 'module_number', page.module_number %}
   {% assign featured_lecture = related_lectures | first %}
 {% elsif page.document_type == 'lecture' %}
   {% assign featured_lecture = page %}
+{% elsif page.document_type == 'resource' and page.official_lecture_number %}
+  {% assign related_lectures = course_lectures | where: 'official_lecture_number', page.official_lecture_number %}
+  {% assign featured_lecture = related_lectures | first %}
 {% endif %}
 
 {% assign primary_media = featured_lecture.media_sources | first %}
@@ -16,15 +21,25 @@
   | replace: '/slides/', '/slides/rendered/'
   | replace: '.pptx', '/slide-001.jpg'
 %}
+{% assign cover = featured_lecture.slides.initial | default: cover %}
+{% assign video_thumbnail = featured_lecture.thumbnail | default: course_meta.cover %}
 
 <section class="podcast-episode-intro course-note-intro" aria-label="Course resources">
-  {% if featured_lecture.slides.download %}
+  {% if featured_lecture.slides.manifest %}
     <img
       class="podcast-episode-cover course-note-cover"
       src="{{ cover | relative_url }}"
       width="192"
       height="144"
       alt="{{ course_meta.short_title }} course slide"
+    >
+  {% elsif video_thumbnail %}
+    <img
+      class="podcast-episode-cover course-note-cover course-video-thumbnail"
+      src="{{ video_thumbnail | relative_url }}"
+      width="192"
+      height="144"
+      alt="{{ featured_lecture.title | default: course_meta.title | escape }} video thumbnail"
     >
   {% else %}
     <div class="course-note-cover course-note-cover-fallback" aria-hidden="true">
@@ -42,18 +57,24 @@
       {% if page.document_type == 'overview' %}
         <div><dt>Course</dt><dd>{{ course_meta.short_title }}</dd></div>
         <div><dt>Modules</dt><dd>{{ course_modules.size }}</dd></div>
-        <div><dt>Lectures</dt><dd>{{ course_lectures.size }}</dd></div>
-        <div><dt>Notes</dt><dd>{{ course_meta.notes_language }}</dd></div>
+        <div><dt>{{ unit_label_plural }}</dt><dd>{{ course_lectures.size }}</dd></div>
+        {% if course_meta.official_lecture_count %}<div><dt>Official lectures</dt><dd>{{ course_meta.official_lecture_count }}</dd></div>{% else %}<div><dt>Notes</dt><dd>{{ course_meta.notes_language }}</dd></div>{% endif %}
       {% elsif page.document_type == 'module' %}
         <div><dt>Module</dt><dd>{{ page.module_number | prepend: '0' | slice: -2, 2 }}</dd></div>
-        <div><dt>Lectures</dt><dd>{{ related_lectures.size }}</dd></div>
+        <div><dt>{{ unit_label_plural }}</dt><dd>{{ related_lectures.size }}</dd></div>
         <div><dt>Course</dt><dd>{{ course_meta.short_title }}</dd></div>
         <div><dt>Notes</dt><dd>{{ course_meta.notes_language }}</dd></div>
-      {% else %}
-        <div><dt>Lecture</dt><dd>{{ page.lecture_number | prepend: '0' | slice: -2, 2 }}</dd></div>
+      {% elsif page.document_type == 'lecture' %}
+        {% assign display_number = page.display_number | default: page.lecture_number %}
+        <div><dt>{{ unit_label }}</dt><dd>{{ display_number | prepend: '0' | slice: -2, 2 }}</dd></div>
+        {% if course_meta.official_unit_label %}<div><dt>{{ course_meta.official_unit_label }}</dt><dd>{{ page.official_lecture_number | prepend: '0' | slice: -2, 2 }}</dd></div>{% endif %}
         <div><dt>Duration</dt><dd>{{ page.duration }}</dd></div>
         <div><dt>Module</dt><dd>{{ page.module_number | prepend: '0' | slice: -2, 2 }}</dd></div>
+      {% else %}
+        <div><dt>Resource</dt><dd>{{ page.resource_kind | default: 'guide' }}</dd></div>
+        {% if page.official_lecture_number %}<div><dt>{{ course_meta.official_unit_label | default: 'Lecture' }}</dt><dd>{{ page.official_lecture_number | prepend: '0' | slice: -2, 2 }}</dd></div>{% endif %}
         <div><dt>Course</dt><dd>{{ course_meta.short_title }}</dd></div>
+        <div><dt>Notes</dt><dd>{{ course_meta.notes_language }}</dd></div>
       {% endif %}
     </dl>
   </div>
@@ -89,7 +110,7 @@
         <i class="fas fa-book-open" aria-hidden="true"></i>
         Module guide
       </a>
-    {% else %}
+    {% elsif page.document_type == 'lecture' %}
       {% if primary_media.url %}
         <a class="podcast-action-primary" href="{{ primary_media.url }}" target="_blank" rel="noopener noreferrer">
           <i class="fas fa-play" aria-hidden="true"></i>
@@ -112,10 +133,25 @@
         <i class="fas fa-book-open" aria-hidden="true"></i>
         Notes
       </a>
+    {% else %}
+      <a class="podcast-action-primary" href="{{ '/courses/' | append: page.course | append: '/' | relative_url }}">
+        <i class="fas fa-layer-group" aria-hidden="true"></i>
+        Course overview
+      </a>
+      {% if page.official_lecture_number and featured_lecture.url %}
+        <a href="{{ featured_lecture.url | relative_url }}">
+          <i class="fas fa-circle-play" aria-hidden="true"></i>
+          Open {{ unit_label }} {{ featured_lecture.display_number | default: featured_lecture.lecture_number }}
+        </a>
+      {% endif %}
+      <a href="#course-resource">
+        <i class="fas fa-book-open" aria-hidden="true"></i>
+        Resource guide
+      </a>
     {% endif %}
   </div>
 
   <p class="podcast-transcript-note course-evidence-note">
-    Notes 依据公开课程视频与课件整理；自动 transcript 用于检索和定位，精确引用请回到原视频核验。
+    Notes 依据公开课程视频与课程资料整理；transcript 用于检索和定位，精确引用请回到原视频、讲义或论文核验。
   </p>
 </section>

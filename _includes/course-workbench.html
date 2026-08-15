@@ -1,5 +1,7 @@
 {% assign course_meta = site.data.courses[page.course] %}
 {% assign primary_media = page.media_sources | first %}
+{% assign unit_label = course_meta.unit_label | default: 'Lecture' %}
+{% assign display_number = page.display_number | default: page.lecture_number %}
 
 <section
   class="course-workbench"
@@ -13,7 +15,10 @@
 >
   <header class="course-workbench-header">
     <div>
-      <p class="garden-kicker">{{ course_meta.short_title }} · Lecture {{ page.lecture_number }}</p>
+      <p class="garden-kicker">
+        {{ course_meta.short_title }} · {{ unit_label }} {{ display_number }}
+        {% if course_meta.official_unit_label and page.official_lecture_number %} · {{ course_meta.official_unit_label }} {{ page.official_lecture_number }}{% endif %}
+      </p>
       <h2 data-toc-skip>Lecture workspace</h2>
     </div>
     <nav class="course-resource-links" aria-label="Original lecture resources">
@@ -25,8 +30,8 @@
       {% endfor %}
       {% if page.slides.download %}
         <a href="{{ page.slides.download | relative_url }}" download>
-          <i class="fas fa-file-powerpoint" aria-hidden="true"></i>
-          PPTX
+          <i class="fas {% if page.slides.pdf %}fa-file-pdf{% else %}fa-file-powerpoint{% endif %}" aria-hidden="true"></i>
+          {% if page.slides.pdf %}PDF{% else %}PPTX{% endif %}
         </a>
       {% endif %}
       {% if page.transcript.txt %}
@@ -37,6 +42,34 @@
       {% endif %}
     </nav>
   </header>
+
+  {% if page.resources.size > 0 or page.transcript.captions.size > 0 %}
+    <details class="course-supporting-resources">
+      <summary>
+        <span><i class="fas fa-folder-open" aria-hidden="true"></i> Supporting materials</span>
+        <span>{{ page.resources.size | plus: page.transcript.captions.size }} items</span>
+      </summary>
+      <div class="course-supporting-resource-list">
+        {% for resource in page.resources %}
+          <div>
+            <span>{{ resource.category | replace: '-', ' ' }}</span>
+            <a href="{{ resource.url | relative_url }}" {% if resource.url contains '://' %}target="_blank" rel="noopener noreferrer"{% endif %}>{{ resource.title }}</a>
+            {% if resource.source_url %}
+              <a class="course-resource-origin" href="{{ resource.source_url }}" target="_blank" rel="noopener noreferrer" aria-label="Open original source for {{ resource.title | escape }}" title="Original source">
+                <i class="fas fa-arrow-up-right-from-square" aria-hidden="true"></i>
+              </a>
+            {% endif %}
+          </div>
+        {% endfor %}
+        {% for caption in page.transcript.captions %}
+          <div>
+            <span>subtitle</span>
+            <a href="{{ caption.url | relative_url }}" download>{{ caption.label }}</a>
+          </div>
+        {% endfor %}
+      </div>
+    </details>
+  {% endif %}
 
   <div class="course-workbench-tabs" role="tablist" aria-label="Lecture resource view">
     {% if page.media_sources.size > 0 %}
@@ -109,6 +142,20 @@
             data-course-video-frame
           ></iframe>
         </div>
+      {% elsif page.thumbnail %}
+        <a
+          class="course-video-placeholder"
+          href="{{ primary_media.url }}"
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label="Open {{ page.title | escape }} on {{ primary_media.label | default: 'the original source' }}"
+        >
+          <img src="{{ page.thumbnail | relative_url }}" width="480" height="360" alt="{{ page.title | escape }} video thumbnail">
+          <span>
+            <i class="fas fa-arrow-up-right-from-square" aria-hidden="true"></i>
+            Open on {{ primary_media.label | default: 'the original source' }}
+          </span>
+        </a>
       {% else %}
         <p>This lecture is available from the original source.</p>
         <a href="{{ primary_media.url }}" target="_blank" rel="noopener noreferrer">Open {{ primary_media.label | default: 'video' }}</a>
@@ -125,10 +172,13 @@
       {% if page.media_sources.size > 0 %}hidden{% endif %}
     >
       {% if page.slides.manifest %}
-        {% assign initial_slide = page.slides.download
-          | replace: '/slides/', '/slides/rendered/'
-          | replace: '.pptx', '/slide-001.jpg'
-        %}
+        {% assign initial_slide = page.slides.initial %}
+        {% unless initial_slide %}
+          {% assign initial_slide = page.slides.download
+            | replace: '/slides/', '/slides/rendered/'
+            | replace: '.pptx', '/slide-001.jpg'
+          %}
+        {% endunless %}
         <figure class="course-slide-stage">
           <img
             src="{{ initial_slide | relative_url }}"

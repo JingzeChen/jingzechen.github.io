@@ -1,15 +1,22 @@
 {% assign course_documents = site.courses | where: 'course', page.course %}
 {% assign course_modules = course_documents | where: 'document_type', 'module' | sort: 'module_number' %}
 {% assign course_lectures = course_documents | where: 'document_type', 'lecture' | sort: 'lecture_number' %}
+{% assign course_resources = course_documents | where: 'document_type', 'resource' | sort: 'resource_order' %}
+{% assign reading_resources = course_resources | where: 'resource_kind', 'reading' %}
+{% assign practice_groups = site.data.course_resources[page.course] %}
+{% assign course_meta = site.data.courses[page.course] %}
+{% assign unit_label = course_meta.unit_label | default: 'Lecture' %}
+{% assign unit_label_plural = course_meta.unit_label_plural | default: 'lectures' %}
+{% assign unit_initial = unit_label | slice: 0 %}
 
 {% if page.document_type == 'overview' %}
   <section class="course-module-feed course-outline" aria-labelledby="course-outline-title">
     <header class="course-feed-header">
       <div>
         <p class="garden-kicker">Course path</p>
-        <h2 id="course-outline-title" data-toc-skip>{{ course_modules.size }} modules · {{ course_lectures.size }} lectures</h2>
+        <h2 id="course-outline-title" data-toc-skip>{{ course_modules.size }} modules · {{ course_lectures.size }} {{ unit_label_plural }}</h2>
       </div>
-      <p>先选一个知识模块，再进入按视频、slides、transcript 和 notes 对齐的逐讲工作台。</p>
+      <p>先选一个知识模块，再进入按视频、公开资料、transcript 和 notes 对齐的逐讲工作台。</p>
     </header>
     <div class="podcast-list course-module-list">
       {% for module in course_modules %}
@@ -19,10 +26,14 @@
           | replace: '/slides/', '/slides/rendered/'
           | replace: '.pptx', '/slide-001.jpg'
         %}
+        {% assign module_cover = first_lecture.slides.initial | default: module_cover %}
+        {% assign module_thumbnail = first_lecture.thumbnail | default: course_meta.cover %}
         <article class="podcast-list-item course-lecture-item course-module-item">
           <a class="podcast-cover-link course-lecture-cover" href="{{ module.url | relative_url }}" aria-label="Open {{ module.title | escape }}">
-            {% if first_lecture.slides.download %}
+            {% if first_lecture.slides.manifest %}
               <img src="{{ module_cover | relative_url }}" width="160" height="120" alt="">
+            {% elsif module_thumbnail %}
+              <img src="{{ module_thumbnail | relative_url }}" width="160" height="120" alt="{{ module.title | escape }} video thumbnail">
             {% else %}
               <span aria-hidden="true"><i class="fas fa-layer-group"></i></span>
             {% endif %}
@@ -31,13 +42,14 @@
             <p class="podcast-list-eyebrow">
               <span>{{ site.data.courses[page.course].short_title }}</span>
               <span>Module {{ module.module_number }}</span>
-              <span>{{ module_lectures.size }} lectures</span>
+              <span>{{ module_lectures.size }} {{ unit_label_plural }}</span>
             </p>
             <h3><a href="{{ module.url | relative_url }}">{{ module.title }}</a></h3>
             <p>{{ module.description }}</p>
             <div class="garden-topics course-resource-badges" aria-label="Lecture range">
               {% for lecture in module_lectures %}
-                <span>L{{ lecture.lecture_number | prepend: '0' | slice: -2, 2 }}</span>
+                {% assign display_number = lecture.display_number | default: lecture.lecture_number %}
+                <span>{{ unit_initial }}{{ display_number | prepend: '0' | slice: -2, 2 }}</span>
               {% endfor %}
             </div>
           </div>
@@ -48,27 +60,122 @@
       {% endfor %}
     </div>
   </section>
+  {% if course_resources.size > 0 %}
+    <section class="course-module-feed course-resource-library" aria-labelledby="course-resource-library-title">
+      <header class="course-feed-header">
+        <div>
+          <p class="garden-kicker">Study library</p>
+          <h2 id="course-resource-library-title" data-toc-skip>
+            {% if reading_resources.size > 0 %}{{ reading_resources.size }} reading guides · course references{% else %}{{ course_resources.size }} course guides · source references{% endif %}
+          </h2>
+        </div>
+        <p>先用指南建立问题与证据边界，再回到论文、讲义、FAQ、Question 和 Lab 页面核验。</p>
+      </header>
+      <div class="podcast-list course-primary-resource-list">
+        {% for resource in course_resources %}
+          {% if resource.resource_kind == 'labs' or resource.resource_kind == 'practice' or resource.resource_kind == 'readings' or resource.resource_kind == 'materials' or resource.resource_kind == 'review' %}
+            <article class="podcast-list-item course-library-resource">
+              <span class="course-library-resource-icon" aria-hidden="true">
+                {% if resource.resource_kind == 'labs' or resource.resource_kind == 'practice' %}<i class="fas fa-terminal"></i>{% elsif resource.resource_kind == 'readings' %}<i class="fas fa-book"></i>{% elsif resource.resource_kind == 'materials' %}<i class="fas fa-box-archive"></i>{% else %}<i class="fas fa-list-check"></i>{% endif %}
+              </span>
+              <div class="podcast-list-content course-lecture-content">
+                <p class="podcast-list-eyebrow"><span>{{ resource.resource_kind }}</span></p>
+                <h3><a href="{{ resource.url | relative_url }}">{{ resource.title }}</a></h3>
+                <p>{{ resource.description }}</p>
+              </div>
+              <a class="podcast-source-link" href="{{ resource.url | relative_url }}" aria-label="Open {{ resource.title | escape }}" title="Open resource">
+                <i class="fas fa-arrow-right" aria-hidden="true"></i>
+              </a>
+            </article>
+          {% endif %}
+        {% endfor %}
+      </div>
+      {% if reading_resources.size > 0 %}
+        <nav class="course-reading-library" aria-label="Lecture reading guides">
+          {% for resource in reading_resources %}
+            <a href="{{ resource.url | relative_url }}">
+              <span>{{ course_meta.official_unit_label | default: 'Lecture' }} {{ resource.official_lecture_number }}</span>
+              <strong>{{ resource.title | remove_first: 'Lecture ' | remove_first: resource.official_lecture_number | remove_first: ' 阅读与作业指南：' }}</strong>
+            </a>
+          {% endfor %}
+        </nav>
+      {% endif %}
+    </section>
+  {% endif %}
+  {% if practice_groups.size > 0 %}
+    <section class="course-module-feed course-practice-explorer" aria-labelledby="course-practice-title">
+      <header class="course-feed-header">
+        <div>
+          <p class="garden-kicker">Practice library</p>
+          <h2 id="course-practice-title" data-toc-skip>{{ practice_groups.size }} structured activities</h2>
+        </div>
+        <p>按课程发布类型展开；本地 notebook、slides、数据与公开视频保留原始来源和访问边界。</p>
+      </header>
+      {% assign practice_kinds = 'recitation,lab,bootcamp,assignment' | split: ',' %}
+      <div class="course-practice-groups">
+        {% for kind in practice_kinds %}
+          {% assign items = practice_groups | where: 'kind', kind %}
+          {% if items.size > 0 %}
+            <details class="course-practice-group" {% if forloop.first %}open{% endif %}>
+              <summary>
+                <span>{% case kind %}{% when 'recitation' %}Recitations{% when 'lab' %}Labs{% when 'bootcamp' %}Bootcamps & hackathons{% when 'assignment' %}Assignments{% endcase %}</span>
+                <span>{{ items.size }}</span>
+              </summary>
+              <div class="course-practice-list">
+                {% for item in items %}
+                  <article class="course-practice-item">
+                    <div class="course-practice-index">{{ item.id }}</div>
+                    <div>
+                      <p>
+                        {% if item.group %}<span>{{ item.group }}</span>{% endif %}
+                        {% if item.date %}<time>{{ item.date }}</time>{% endif %}
+                        {% if item.instructors %}<span>{{ item.instructors }}</span>{% endif %}
+                      </p>
+                      <h3>{{ item.title }}</h3>
+                    </div>
+                    <div class="course-practice-links" aria-label="Resources for {{ item.title | escape }}">
+                      {% for resource in item.resources %}
+                        <a href="{{ resource.url | relative_url }}" {% if resource.url contains '://' %}target="_blank" rel="noopener noreferrer"{% endif %}>
+                          <span>{{ resource.category | replace: '-', ' ' }}</span>
+                          {{ resource.title }}
+                        </a>
+                      {% endfor %}
+                    </div>
+                  </article>
+                {% endfor %}
+              </div>
+            </details>
+          {% endif %}
+        {% endfor %}
+      </div>
+    </section>
+  {% endif %}
 {% elsif page.document_type == 'module' %}
   {% assign module_lectures = course_lectures | where: 'module_number', page.module_number %}
   <section class="course-module-feed" aria-labelledby="course-module-lectures-title">
     <header class="course-feed-header">
       <div>
         <p class="garden-kicker">In this module</p>
-        <h2 id="course-module-lectures-title" data-toc-skip>{{ module_lectures.size }} lectures</h2>
+        <h2 id="course-module-lectures-title" data-toc-skip>{{ module_lectures.size }} {{ unit_label_plural }}</h2>
       </div>
-      <p>按课堂顺序学习；每讲均可进入视频、slides、transcript 与分节 notes。</p>
+      <p>按媒体顺序学习；每个单元均可进入视频、公开资料、transcript 与分节 notes。</p>
     </header>
     <div class="podcast-list course-lecture-list">
       {% for lecture in module_lectures %}
+        {% assign display_number = lecture.display_number | default: lecture.lecture_number %}
         {% assign lecture_source = lecture.media_sources | first %}
         {% assign lecture_cover = lecture.slides.download
           | replace: '/slides/', '/slides/rendered/'
           | replace: '.pptx', '/slide-001.jpg'
         %}
+        {% assign lecture_cover = lecture.slides.initial | default: lecture_cover %}
+        {% assign lecture_thumbnail = lecture.thumbnail | default: course_meta.cover %}
         <article class="podcast-list-item course-lecture-item">
           <a class="podcast-cover-link course-lecture-cover" href="{{ lecture.url | relative_url }}" aria-label="Open {{ lecture.title | escape }}">
-            {% if lecture.slides.download %}
+            {% if lecture.slides.manifest %}
               <img src="{{ lecture_cover | relative_url }}" width="160" height="120" alt="">
+            {% elsif lecture_thumbnail %}
+              <img src="{{ lecture_thumbnail | relative_url }}" width="160" height="120" alt="{{ lecture.title | escape }} video thumbnail">
             {% else %}
               <span aria-hidden="true"><i class="fas fa-graduation-cap"></i></span>
             {% endif %}
@@ -76,7 +183,8 @@
           <div class="podcast-list-content course-lecture-content">
             <p class="podcast-list-eyebrow">
               <span>{{ site.data.courses[page.course].short_title }}</span>
-              <span>Lecture {{ lecture.lecture_number }}</span>
+              <span>{{ unit_label }} {{ display_number }}</span>
+              {% if course_meta.official_unit_label and lecture.official_lecture_number %}<span>{{ course_meta.official_unit_label }} {{ lecture.official_lecture_number }}</span>{% endif %}
               {% if lecture.duration %}<span>{{ lecture.duration }}</span>{% endif %}
             </p>
             <h3><a href="{{ lecture.url | relative_url }}">{{ lecture.title }}</a></h3>
@@ -85,6 +193,7 @@
               {% if lecture.media_sources.size > 0 %}<span>Video</span>{% endif %}
               {% if lecture.slides %}<span>Slides</span>{% endif %}
               {% if lecture.transcript.jsonl %}<span>Transcript</span>{% endif %}
+              {% if lecture.resources.size > 0 %}<span>Course materials</span>{% endif %}
               <span>Section notes</span>
             </div>
           </div>
@@ -94,7 +203,7 @@
               href="{{ lecture_source.url }}"
               target="_blank"
               rel="noopener noreferrer"
-              aria-label="Open Lecture {{ lecture.lecture_number }} on {{ lecture_source.label | default: lecture_source.provider }}"
+              aria-label="Open {{ unit_label }} {{ display_number }} on {{ lecture_source.label | default: lecture_source.provider }}"
               title="Watch on {{ lecture_source.label | default: lecture_source.provider }}"
             >
               <i class="fas fa-arrow-up-right-from-square" aria-hidden="true"></i>
