@@ -1122,7 +1122,7 @@ bool IsPowerOfTwo(int value) {
 可写成简化语法：
 
 $$
-Encoded\to(Letter\mid Number[Encoded])^*.
+Encoded\to(Letter\mid Number[Encoded])^{\ast}.
 $$
 
 每遇到左括号，问题缩小为解码括号内部；遇到配对右括号，当前层完成并返回。

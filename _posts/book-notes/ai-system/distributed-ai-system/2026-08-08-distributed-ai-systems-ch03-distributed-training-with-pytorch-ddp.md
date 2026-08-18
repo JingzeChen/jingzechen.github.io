@@ -2247,7 +2247,7 @@ Prefetched but not consumed batches 让 exact resume 更难。生产系统常选
 Checkpoint 太频繁：I/O 和暂停高；太稀疏：故障 lost work 高。若故障间隔为 $M$、checkpoint 时间为 $C$，经典 Young 近似给 interval 直觉：
 
 $$
-I^*\approx\sqrt{2CM}
+I^{\ast}\approx\sqrt{2CM}
 $$
 
 它假设独立随机故障、固定 checkpoint cost 等，现实只作起点。还要考虑 restart/load time、preemption notice、storage bandwidth 和 checkpoint 异步化。

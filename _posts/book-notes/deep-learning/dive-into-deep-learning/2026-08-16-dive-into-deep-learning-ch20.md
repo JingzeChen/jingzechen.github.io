@@ -442,7 +442,7 @@ $$
 
 $$
 \boxed{
-D^*(x)
+D^{\ast}(x)
 =\frac{p_r(x)}{p_r(x)+p_g(x)}
 }.
 $$
@@ -459,7 +459,7 @@ $$
 ### 7.1 判别器隐含密度比
 
 $$
-\frac{D^*(x)}{1-D^*(x)}
+\frac{D^{\ast}(x)}{1-D^{\ast}(x)}
 =\frac{p_r(x)}{p_g(x)}.
 $$
 
@@ -473,11 +473,11 @@ $$
 m(x)=\frac{p_r(x)+p_g(x)}2.
 $$
 
-把 $D^*$ 代回常见价值函数：
+把 $D^{\ast}$ 代回常见价值函数：
 
 $$
 \begin{aligned}
-V(D^*,G)
+V(D^{\ast},G)
 &=\int p_r\log\frac{p_r}{p_r+p_g}\,dx
 +\int p_g\log\frac{p_g}{p_r+p_g}\,dx\\
 &=\int p_r\log\frac{p_r}{2m}\,dx
@@ -498,12 +498,12 @@ $$
 +\frac12\operatorname{KL}(p_g\Vert m).
 $$
 
-因此，理想化条件下，生成器最小化 $V(D^*,G)$ 等价于最小化 JS 散度。
+因此，理想化条件下，生成器最小化 $V(D^{\ast},G)$ 等价于最小化 JS 散度。
 
 按原书的 $J=-V$：
 
 $$
-J(D^*,G)
+J(D^{\ast},G)
 =\log4-2\operatorname{JS}(p_r\Vert p_g),
 $$
 
@@ -524,18 +524,18 @@ $$
 \boxed{
 p_g=p_r,
 \qquad
-D^*(x)=\frac12
+D^{\ast}(x)=\frac12
 }.
 $$
 
 此时：
 
 $$
-V(D^*,G)=-\log4,
+V(D^{\ast},G)=-\log4,
 $$
 
 $$
-J(D^*,G)=\log4.
+J(D^{\ast},G)=\log4.
 $$
 
 判别器只能随机猜测，不是“生成器彻底击败判别器”，而是双方达到分布匹配的 Nash 平衡。
@@ -557,11 +557,11 @@ $$
 若 $p_r$ 和 $p_g$ 支撑几乎不相交：
 
 $$
-D^*(x)=1\quad p_r\text{ 支撑上},
+D^{\ast}(x)=1\quad p_r\text{ 支撑上},
 $$
 
 $$
-D^*(x)=0\quad p_g\text{ 支撑上}.
+D^{\ast}(x)=0\quad p_g\text{ 支撑上}.
 $$
 
 此时：
@@ -1423,7 +1423,7 @@ $$
 
 下面代码只依赖 NumPy 和 PyTorch，不下载数据，在 CPU 上验证：
 
-- 最优判别器 $D^*$；
+- 最优判别器 $D^{\ast}$；
 - GAN 价值与 JS 散度恒等式；
 - saturating/non-saturating 梯度差异；
 - 判别器更新中的 `detach`；
@@ -1700,9 +1700,9 @@ print("moment error initial / best / final =",
 
 ### 24.1 代码与原理的对应关系
 
-1. 离散分布直接验证 $D^*=p_r/(p_r+p_g)$；
-2. 将 $D^*$ 代回，数值验证 $V=-\log4+2JS$；
-3. 用可训练 logits 优化判别 BCE，恢复解析 $D^*$；
+1. 离散分布直接验证 $D^{\ast}=p_r/(p_r+p_g)$；
+2. 将 $D^{\ast}$ 代回，数值验证 $V=-\log4+2JS$；
+3. 用可训练 logits 优化判别 BCE，恢复解析 $D^{\ast}$；
 4. 当 logit 为 -6 时，non-saturating 梯度比 saturating 梯度大两个数量级以上；
 5. `fake.detach()` 使 $D$ 更新后 $G$ 梯度严格为 0；
 6. 冻结 `D.parameters()` 后，梯度仍穿过 $D$ 输入流向 $G$；
@@ -1923,8 +1923,8 @@ flowchart TD
 4. 判别器输出真实概率，其 BCE 同时使用真实正例和生成负例。
 5. 常见理论写法是 $\min_G\max_DV$；原书对目标取负，写成 $\min_D\max_GJ$。
 6. 实际常用 non-saturating $-\log D(G(z))$，因为训练早期比 minimax 目标梯度更强。
-7. 固定生成器时，最优判别器是 $D^*=p_r/(p_r+p_g)$，隐含估计密度比。
-8. 将 $D^*$ 代回得到 $V=-\log4+2JS(p_r\Vert p_g)$。
+7. 固定生成器时，最优判别器是 $D^{\ast}=p_r/(p_r+p_g)$，隐含估计密度比。
+8. 将 $D^{\ast}$ 代回得到 $V=-\log4+2JS(p_r\Vert p_g)$。
 9. 理想平衡为 $p_g=p_r,D=1/2$，不是某一网络单方面获胜。
 10. JS 推导依赖无限容量、总体期望和判别器最优等理想条件，不保证实际 SGD 收敛。
 11. 更新判别器时必须 detach 假样本，避免生成器获得判别器步骤梯度。

@@ -263,7 +263,7 @@ Earth Visualizer 先下载低分辨率图并渲染，同时后台下载高分辨
 
 > **线程状态表示。** 可把线程 $i$ 的执行状态抽象为
 > $$
-> 	au_i=(PC_i,SP_i,R_i,Stack_i,Meta_i),
+> \tau_i=(PC_i,SP_i,R_i,Stack_i,Meta_i),
 > $$
 > 其中 $PC$ 是下一指令位置，$SP$ 是栈指针，$R$ 是其他寄存器，$Stack$ 保存调用链，$Meta$ 是 ID、优先级和生命周期状态。恢复这些状态后，线程应从暂停点继续。
 

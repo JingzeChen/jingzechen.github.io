@@ -189,7 +189,7 @@ $$
 $$
 \frac{dJ}{dT}=-\frac{C}{T^2}+\frac{a}{2}=0
 \quad\Longrightarrow\quad
-T^*=\sqrt{\frac{2C}{a}}.
+T^{\ast}=\sqrt{\frac{2C}{a}}.
 $$
 
 直觉是：

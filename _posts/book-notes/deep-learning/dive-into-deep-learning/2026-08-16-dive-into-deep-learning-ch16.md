@@ -1210,7 +1210,7 @@ $$
 
 $$
 L=L_{start}+L_{end}
-=-\log p_s(i^*)-\log p_e(j^*).
+=-\log p_s(i^{\ast})-\log p_e(j^{\ast}).
 $$
 
 必须把 question、special、padding 位置 logits mask 为 $-\infty$，只允许 passage positions。
@@ -2231,13 +2231,13 @@ z=\frac1T\sum_ty_t,
 \frac{\partial z}{\partial y_t}=\frac1T.
 $$
 
-Max（唯一最大位置 $t^*$）：
+Max（唯一最大位置 $t^{\ast}$）：
 
 $$
 z=\max_ty_t,
 \qquad
 \frac{\partial z}{\partial y_t}
-=\mathbf1[t=t^*].
+=\mathbf1[t=t^{\ast}].
 $$
 
 前者把梯度均匀分给所有位置，后者只强化最强 $n$-gram；这解释了模型行为差异。

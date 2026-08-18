@@ -77,7 +77,7 @@ flowchart TD
 给定超参数配置 $\mathbf x$，训练过程近似求解：
 
 $$
-\boldsymbol\theta^*(\mathbf x)
+\boldsymbol\theta^{\ast}(\mathbf x)
 \in\arg\min_{\boldsymbol\theta}
 L_{\mathrm{train}}(\boldsymbol\theta;\mathbf x).
 $$
@@ -139,7 +139,7 @@ NAS 可视为结构型 HPO，二者都属于 AutoML 的组成部分。
 $$
 \min_{\mathbf x}
 L_{\mathrm{train}}(
-\boldsymbol\theta^*(\mathbf x);\mathbf x),
+\boldsymbol\theta^{\ast}(\mathbf x);\mathbf x),
 $$
 
 往往会偏向：
@@ -161,7 +161,7 @@ $$
 用于拟合 $\boldsymbol\theta$：
 
 $$
-\boldsymbol\theta^*(\mathbf x)
+\boldsymbol\theta^{\ast}(\mathbf x)
 \approx A(D_{\mathrm{train}},\mathbf x,\xi),
 $$
 
@@ -174,7 +174,7 @@ $$
 $$
 f(\mathbf x)
 =L_{\mathrm{val}}
-(\boldsymbol\theta^*(\mathbf x);\mathbf x).
+(\boldsymbol\theta^{\ast}(\mathbf x);\mathbf x).
 $$
 
 虽然验证集不参与梯度训练，但 HPO 会反复查看它，因此配置会逐渐适应验证集。
@@ -226,7 +226,7 @@ $$
 内层训练：
 
 $$
-\boldsymbol\theta^*(\mathbf x)
+\boldsymbol\theta^{\ast}(\mathbf x)
 \in\arg\min_{\boldsymbol\theta}
 L_{\mathrm{train}}(\boldsymbol\theta;\mathbf x).
 $$
@@ -235,10 +235,10 @@ $$
 
 $$
 \boxed{
-\mathbf x^*
+\mathbf x^{\ast}
 \in\arg\min_{\mathbf x\in\mathcal X}
 L_{\mathrm{val}}
-(\boldsymbol\theta^*(\mathbf x);\mathbf x)
+(\boldsymbol\theta^{\ast}(\mathbf x);\mathbf x)
 }.
 $$
 
@@ -251,13 +251,13 @@ $$
 $$
 f(\mathbf x)
 =L_{\mathrm{val}}
-(\boldsymbol\theta^*(\mathbf x);\mathbf x),
+(\boldsymbol\theta^{\ast}(\mathbf x);\mathbf x),
 $$
 
 则：
 
 $$
-\mathbf x^*\in\arg\min_{\mathbf x\in\mathcal X}f(\mathbf x).
+\mathbf x^{\ast}\in\arg\min_{\mathbf x\in\mathcal X}f(\mathbf x).
 $$
 
 ### 5.2 随机训练下的目标
@@ -265,7 +265,7 @@ $$
 训练结果依赖随机种子 $\xi$：
 
 $$
-\boldsymbol\theta^*(\mathbf x,\xi)
+\boldsymbol\theta^{\ast}(\mathbf x,\xi)
 =A(D_{\mathrm{train}},\mathbf x,\xi).
 $$
 
@@ -276,7 +276,7 @@ F(\mathbf x)
 =\mathbb E_{\xi}
 \left[
 L_{\mathrm{val}}
-(\boldsymbol\theta^*(\mathbf x,\xi);\mathbf x)
+(\boldsymbol\theta^{\ast}(\mathbf x,\xi);\mathbf x)
 \right].
 $$
 
@@ -416,7 +416,7 @@ $$
 无论优化算法多先进，都无法找到搜索空间之外的配置：
 
 $$
-\mathbf x^*_{\mathcal X}
+\mathbf x^{\ast}_{\mathcal X}
 \in\arg\min_{\mathbf x\in\mathcal X}f(\mathbf x).
 $$
 
@@ -840,10 +840,10 @@ HPO 日志中的 validation incumbent 可能因噪声乐观。基准研究常对
 
 $$
 \text{simple regret}
-=F(\widehat{\mathbf x})-F(\mathbf x^*).
+=F(\widehat{\mathbf x})-F(\mathbf x^{\ast}).
 $$
 
-真实任务不知道 $\mathbf x^*$，可用最佳已知值或独立大预算复评近似。
+真实任务不知道 $\mathbf x^{\ast}$，可用最佳已知值或独立大预算复评近似。
 
 ## 11. 异步随机搜索
 

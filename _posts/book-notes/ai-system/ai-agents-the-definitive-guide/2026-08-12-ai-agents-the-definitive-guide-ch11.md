@@ -105,7 +105,7 @@ $$
 单次成功率 $p=0.6$，每次独立，最多 $n=5$ 次 attempts，至少一次成功：
 
 $$
-p^*=1-(1-p)^n
+p^{\ast}=1-(1-p)^n
 =1-0.4^5
 =0.98976.
 $$
@@ -222,7 +222,7 @@ $$
 Supervisor 只看 category 可走 managed API；retrieval Agent 处理 raw PII 可走 VPC/self-host。设每节点 sensitivity $s_j$、允许 deployment set $D(s_j)$，选择满足约束的最低 TCO backend：
 
 $$
-d_j^*=\arg\min_{d\in D(s_j)} C(j,d).
+d_j^{\ast}=\arg\min_{d\in D(s_j)} C(j,d).
 $$
 
 这样无需为全部 Agent 购买最严格 GPU。跨 boundary 的 handoff 只传最小、去敏、结构化信息。
@@ -478,7 +478,7 @@ $$
 忽略阶梯、API 单请求 $a$，self-host fixed $F$ + variable $vR$：
 
 $$
-R^*=\frac{F}{a-v},\quad a>v.
+R^{\ast}=\frac{F}{a-v},\quad a>v.
 $$
 
 真实应加入 GPU redundancy/headroom、峰谷、on-call、egress、commit discounts、fallback API 和 quality/retry multiplier。

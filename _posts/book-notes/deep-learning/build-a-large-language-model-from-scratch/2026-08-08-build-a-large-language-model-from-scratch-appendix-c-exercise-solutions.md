@@ -130,14 +130,14 @@ Akwirw ier
 Tokenizer 定义两个方向：
 
 $$
-\operatorname{encode}:\mathcal S\rightarrow\mathbb N^*,
+\operatorname{encode}:\mathcal S\rightarrow\mathbb N^{\ast},
 $$
 
 $$
-\operatorname{decode}:\mathbb N^*\rightarrow\mathcal S.
+\operatorname{decode}:\mathbb N^{\ast}\rightarrow\mathcal S.
 $$
 
-$\mathcal S$ 是可编码文本集合，$\mathbb N^*$ 是有限 ID 序列。GPT-2 tokenizer 的 vocabulary entry 本质上对应一段可逆 byte representation，而不一定是人类语言中的完整“词”。
+$\mathcal S$ 是可编码文本集合，$\mathbb N^{\ast}$ 是有限 ID 序列。GPT-2 tokenizer 的 vocabulary entry 本质上对应一段可逆 byte representation，而不一定是人类语言中的完整“词”。
 
 给定 ID 列表时，正确推理方向是：
 
@@ -1693,12 +1693,12 @@ else:
 过滤后只有最大 logit 有有限值，softmax distribution 是单点：
 
 $$
-p_{i^*}=1,
+p_{i^{\ast}}=1,
 \qquad
-p_j=0\ (j\ne i^*).
+p_j=0\ (j\ne i^{\ast}).
 $$
 
-即使进入 multinomial sampling，也必选 $i^*$。Temperature 对单点 support 不再改变结果。
+即使进入 multinomial sampling，也必选 $i^{\ast}$。Temperature 对单点 support 不再改变结果。
 
 ### 5.3.2 “算法确定”与“bitwise deterministic”不同
 

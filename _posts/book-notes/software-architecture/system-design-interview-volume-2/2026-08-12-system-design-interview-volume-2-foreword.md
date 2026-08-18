@@ -203,7 +203,7 @@ $$
 $$
 
 $$
-A^*=\arg\max_{A\in\mathcal{F}}
+A^{\ast}=\arg\max_{A\in\mathcal{F}}
 \left(
 w_lU_l(A)+w_aU_a(A)+w_cU_c(A)+w_mU_m(A)-w_kK(A)
 \right)

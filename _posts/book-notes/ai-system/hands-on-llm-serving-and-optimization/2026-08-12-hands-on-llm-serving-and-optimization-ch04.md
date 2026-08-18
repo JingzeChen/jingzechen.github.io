@@ -402,7 +402,7 @@ Agent 常调用：推理/规划 LLM、embedding、视觉/语音模型、分类/�
 可形式化为约束决策：
 
 $$
-m^*=\arg\min_m C(m,x)
+m^{\ast}=\arg\min_m C(m,x)
 $$
 
 $$
@@ -723,7 +723,7 @@ SageMaker JumpStart 从 curated catalog 自动选择 artifact/image 并部署到
 原章举例：按 $0.10$/百万 input tokens 与 $1.172$/实例小时比较。若只考虑这两个数字，忽略 output、空闲、冗余和运维，等价 token 率为：
 
 $$
-N^*
+N^{\ast}
 =\frac{1.172}{0.10}\times10^6
 =11.72\ \text{million input tokens/hour}.
 $$

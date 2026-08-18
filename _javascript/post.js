@@ -9,6 +9,7 @@ import {
   loadMermaid
 } from './modules/components';
 import { initPodcastEpisode } from './modules/podcast';
+import { initCourseWorkbench } from './modules/course';
 
 loadImg();
 initToc();
@@ -19,4 +20,5 @@ initClipboard();
 initTopbar();
 loadMermaid();
 initPodcastEpisode();
+initCourseWorkbench();
 basic();

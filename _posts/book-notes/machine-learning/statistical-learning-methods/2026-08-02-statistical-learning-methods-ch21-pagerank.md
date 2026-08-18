@@ -1061,7 +1061,7 @@ $$
 $$
 M^tR_0
 =R+\sum_{j\ge2}a_j\lambda_j^tu_j
-	o R.
+\to R.
 $$
 
 ### 习题 21.3

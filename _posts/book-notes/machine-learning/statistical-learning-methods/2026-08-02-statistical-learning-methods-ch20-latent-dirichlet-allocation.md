@@ -485,7 +485,7 @@ $$
 概率定义：
 
 $$
-	heta_m\sim\operatorname{Dir}(\alpha),
+\theta_m\sim\operatorname{Dir}(\alpha),
 \qquad
 P(z_{mn}=k\mid\theta_m)=\theta_{mk},
 $$
@@ -739,7 +739,7 @@ $$
 $$
 p(z\mid\theta)
 =\prod_{m=1}^{M}\prod_{k=1}^{K}
-	heta_{mk}^{n_{mk}}.
+\theta_{mk}^{n_{mk}}.
 \qquad\mathrm{(20.24)}
 $$
 
@@ -848,7 +848,7 @@ $$
 由共轭性：
 
 $$
-	heta_m\mid z_m,\alpha
+\theta_m\mid z_m,\alpha
 \sim\operatorname{Dir}(n_m+\alpha).
 \qquad\mathrm{(20.30)}
 $$
@@ -918,7 +918,7 @@ $$
 令总词元数 $I=\sum_mN_m$。朴素实现每个词元计算 $K$ 个权重：
 
 $$
-	ext{每次扫描时间}=O(IK).
+\text{每次扫描时间}=O(IK).
 $$
 
 计数存储为
@@ -1004,7 +1004,7 @@ $$
 
 $$
 \boxed{
-\log q_j^*(z_j)
+\log q_j^{\ast}(z_j)
 =E_{q_{-j}}[\log p(x,z)]+\text{常数}
 }.
 $$
@@ -1245,7 +1245,7 @@ $$
 
 $$
 \begin{aligned}
-\log q^*(\theta)
+\log q^{\ast}(\theta)
 &=E_{q(z)}[\log p(\theta,z,w\mid\alpha,\Phi)]+C\\
 &=\sum_k\left(\alpha_k-1+\sum_n\eta_{nk}\right)
 \log\theta_k+C.
@@ -1769,7 +1769,7 @@ Gibbs 输出是一个燃烧期后的代表状态；若平均多个样本，必�
 设
 
 $$
-	heta\sim\operatorname{Dir}(\alpha),
+\theta\sim\operatorname{Dir}(\alpha),
 \qquad
 \alpha_0=\sum_j\alpha_j.
 $$
@@ -1784,7 +1784,7 @@ E[\theta_i]
 \prod_j\theta_j^{\alpha_j-1}d\theta\\
 &=\frac1{B(\alpha)}
 \int_{\Delta}
-	heta_i^{\alpha_i}
+\theta_i^{\alpha_i}
 \prod_{j\ne i}\theta_j^{\alpha_j-1}d\theta\\
 &=\frac{B(\alpha+e_i)}{B(\alpha)}\\
 &=\frac{
@@ -1860,7 +1860,7 @@ $$
 文档 T3 同时包含 `book`、`market`、`stock`，变分结果为
 
 $$
-	heta_{T3}\approx(0.644,0.333,0.023),
+\theta_{T3}\approx(0.644,0.333,0.023),
 $$
 
 体现混合话题；T6、T9 的财富类话题权重分别约为 $0.962$。
@@ -2109,7 +2109,7 @@ p(\theta\mid\alpha)
 $$
 
 $$
-	heta\mid D\sim\operatorname{Dir}(\alpha+n),
+\theta\mid D\sim\operatorname{Dir}(\alpha+n),
 $$
 
 $$

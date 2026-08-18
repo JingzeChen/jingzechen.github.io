@@ -1305,7 +1305,7 @@ $$
 新请求选择：
 
 $$
-j^*=Policy(Request,ReplicaStates)
+j^{\ast}=Policy(Request,ReplicaStates)
 $$
 
 Worker间无需为**不同requests**同步；但一个replica内部的TP/PP/EP通信不变。原章对此纠偏是关键：router消除inter-replica coordination，不消除intra-model collectives。

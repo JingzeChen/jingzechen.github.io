@@ -693,7 +693,7 @@ $$
 不同变量可能量纲不同。若一个变量以“元”计、另一个以“米”计，数值尺度较大的变量会主导协方差 PCA。原书因此定义规范化变量：
 
 $$
-x_i^*=\frac{x_i-E(x_i)}{\sqrt{\operatorname{var}(x_i)}},
+x_i^{\ast}=\frac{x_i-E(x_i)}{\sqrt{\operatorname{var}(x_i)}},
 \qquad i=1,\ldots,m.
 \tag{16.33}
 $$
@@ -713,36 +713,36 @@ $$
 
 #### 规范化后的性质
 
-设 $R$ 的特征值为 $\lambda_1^*\ge\cdots\ge\lambda_m^*\ge0$：
+设 $R$ 的特征值为 $\lambda_1^{\ast}\ge\cdots\ge\lambda_m^{\ast}\ge0$：
 
 $$
-\operatorname{cov}(y)=\Lambda^*=\operatorname{diag}(\lambda_1^*,\ldots,\lambda_m^*)
+\operatorname{cov}(y)=\Lambda^{\ast}=\operatorname{diag}(\lambda_1^{\ast},\ldots,\lambda_m^{\ast})
 \tag{16.34}
 $$
 
 因为 $R$ 对角元全为 1：
 
 $$
-\sum_{k=1}^{m}\lambda_k^*=\operatorname{tr}(R)=m.
+\sum_{k=1}^{m}\lambda_k^{\ast}=\operatorname{tr}(R)=m.
 \tag{16.35}
 $$
 
 因子负荷量简化为
 
 $$
-\rho(y_k,x_i^*)=\sqrt{\lambda_k^*}\,e_{ik},
+\rho(y_k,x_i^{\ast})=\sqrt{\lambda_k^{\ast}}\,e_{ik},
 \tag{16.36}
 $$
 
-其中 $e_k$ 是 $R$ 对应 $\lambda_k^*$ 的单位特征向量。并有
+其中 $e_k$ 是 $R$ 对应 $\lambda_k^{\ast}$ 的单位特征向量。并有
 
 $$
-\sum_i\rho^2(y_k,x_i^*)=\lambda_k^*,
+\sum_i\rho^2(y_k,x_i^{\ast})=\lambda_k^{\ast},
 \tag{16.37}
 $$
 
 $$
-\sum_k\rho^2(y_k,x_i^*)=1.
+\sum_k\rho^2(y_k,x_i^{\ast})=1.
 \tag{16.38}
 $$
 
@@ -831,7 +831,7 @@ $$
 #### 样本规范化
 
 $$
-x_{ij}^*=\frac{x_{ij}-\bar x_i}{\sqrt{s_{ii}}}.
+x_{ij}^{\ast}=\frac{x_{ij}-\bar x_i}{\sqrt{s_{ii}}}.
 \tag{16.48}
 $$
 
@@ -1354,15 +1354,15 @@ $$
 #### 3. 标准化数据与得分
 
 $$
-x_1^*=\frac{x_1-4}{\sqrt{3.2}},
+x_1^{\ast}=\frac{x_1-4}{\sqrt{3.2}},
 \qquad
-x_2^*=\frac{x_2-5}{2}.
+x_2^{\ast}=\frac{x_2-5}{2}.
 $$
 
 第一主成分
 
 $$
-y_1=\frac{x_1^*+x_2^*}{\sqrt2}.
+y_1=\frac{x_1^{\ast}+x_2^{\ast}}{\sqrt2}.
 $$
 
 六个样本得分为
@@ -1491,7 +1491,7 @@ $$
 
 $$
 \boxed{\;
-L^*=V_kV_k^\top X
+L^{\ast}=V_kV_k^\top X
 =\arg\min_{\operatorname{rank}(L)\le k}\lVert X-L\rVert_F
 \;}
 $$
@@ -1499,7 +1499,7 @@ $$
 且最小误差满足
 
 $$
-\lVert X-L^*\rVert_F^2
+\lVert X-L^{\ast}\rVert_F^2
 =(n-1)\sum_{i=k+1}^{r}\lambda_i.
 $$
 

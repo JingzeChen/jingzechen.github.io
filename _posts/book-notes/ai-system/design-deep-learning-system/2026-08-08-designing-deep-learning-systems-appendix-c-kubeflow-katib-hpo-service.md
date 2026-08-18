@@ -214,7 +214,7 @@ Namespace 能隔离 names、RBAC、quota、network policy 等，但不自动等�
 设 hyperparameter space 为 $\mathcal{X}$，training/evaluation 返回目标 $f(x)$。最大化问题为：
 
 $$
-x^*=\arg\max_{x\in\mathcal{X}} f(x)
+x^{\ast}=\arg\max_{x\in\mathcal{X}} f(x)
 $$
 
 Katib 不计算 model gradient 来直接优化 $x$；它通过多次 Trial 观察 $f(x_t)$，由 search algorithm 决定下一批 $x_{t+1}$。
@@ -2704,7 +2704,7 @@ HPO service 的可靠性取决于四项 contract 同时闭合，而不是某个 
 ### Optimization Objective
 
 $$
-x^*=\arg\max_{x\in\mathcal{X}}f(x)
+x^{\ast}=\arg\max_{x\in\mathcal{X}}f(x)
 $$
 
 Minimize 时改为 $\arg\min$。有限 Trial budget 下只能返回 observed best，不保证 global optimum。

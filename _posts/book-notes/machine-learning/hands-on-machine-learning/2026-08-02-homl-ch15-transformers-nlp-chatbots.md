@@ -619,7 +619,7 @@ print(outputs.seq_relationship_logits.shape)
 Extractive QA 选择：
 
 $$
-(i^*,j^*)=
+(i^{\ast},j^{\ast})=
 \arg\max_{i\le j,\ j-i+1\le L_{max}}
 \left(s_i^{start}+s_j^{end}\right)
 $$
@@ -973,7 +973,7 @@ $$
 对固定 $x$，上一节 objective 的 optimal policy 满足：
 
 $$
-\pi^*(y\mid x)
+\pi^{\ast}(y\mid x)
 =\frac{1}{Z(x)}\pi_{ref}(y\mid x)
 \exp\left(\frac{r(x,y)}{\beta}\right)
 $$
@@ -982,7 +982,7 @@ $$
 
 $$
 r(x,y)=\beta\left[
-\log\frac{\pi^*(y\mid x)}{\pi_{ref}(y\mid x)}
+\log\frac{\pi^{\ast}(y\mid x)}{\pi_{ref}(y\mid x)}
 {}+\log Z(x)
 \right]
 $$
@@ -994,7 +994,7 @@ P(y_c\succ y_r\mid x)
 =\sigma(r(x,y_c)-r(x,y_r))
 $$
 
-代入 reward，因同一 prompt 的 $\log Z(x)$ 相消；用当前 $\pi_\theta$ 近似 $\pi^*$，定义：
+代入 reward，因同一 prompt 的 $\log Z(x)$ 相消；用当前 $\pi_\theta$ 近似 $\pi^{\ast}$，定义：
 
 $$
 \delta_\theta(y)
@@ -1691,7 +1691,7 @@ print(sources[["Title", "Release Year", "score"]])
 
 $$
 \boxed{
-	ext{Attention Architecture}
+\text{Attention Architecture}
 \rightarrow\text{Self-Supervised Pretraining}
 \rightarrow\text{Task/Preference Adaptation}
 \rightarrow\text{Grounded and Governed System}

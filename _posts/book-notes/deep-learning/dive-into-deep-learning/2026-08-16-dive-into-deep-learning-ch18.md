@@ -1079,7 +1079,7 @@ $$
 $$
 p(\mathbf y\mid X,\theta)
 =\int
-p(\mathbf y\mid\mathbf f,	heta)
+p(\mathbf y\mid\mathbf f,\theta)
 p(\mathbf f\mid X,\theta)
 d\mathbf f.
 $$

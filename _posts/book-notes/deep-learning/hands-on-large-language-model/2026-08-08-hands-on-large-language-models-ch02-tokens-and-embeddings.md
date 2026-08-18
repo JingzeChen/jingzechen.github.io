@@ -449,7 +449,7 @@ $$
 Unigram 与 BPE 的方向相反：先准备较大的候选词表，为 token 建概率模型，再逐步删除那些对语料似然损害较小的 token。一个字符串可能有多种切法，算法选择总负对数概率较小的分词：
 
 $$
-T^*=\arg\min_{T\in\mathcal{S}(x)}
+T^{\ast}=\arg\min_{T\in\mathcal{S}(x)}
 -\sum_{t\in T}\log p(t)
 $$
 
@@ -463,7 +463,7 @@ SentencePiece 可在未预先空格分词的原始文本上训练 BPE 或 Unigra
 
 ##### 词表大小
 
-设词表大小为 $|V|$、隐藏维度为 $d$，输入嵌入矩阵参数量为：
+设词表大小为 $\lvert V\rvert$、隐藏维度为 $d$，输入嵌入矩阵参数量为：
 
 $$
 N_{embedding}=|V|d
@@ -535,7 +535,7 @@ Tokenization 只把无限字符串映射到有限 ID 序列；ID 本身仍不可
 
 ### 2.1 语言模型为 Tokenizer 词表保存嵌入（A Language Model Holds Embeddings for the Vocabulary of Its Tokenizer）
 
-设词表大小为 $|V|$、模型隐藏维度为 $d$，嵌入矩阵为：
+设词表大小为 $\lvert V\rvert$、模型隐藏维度为 $d$，嵌入矩阵为：
 
 $$
 E\in\mathbb{R}^{|V|\times d}

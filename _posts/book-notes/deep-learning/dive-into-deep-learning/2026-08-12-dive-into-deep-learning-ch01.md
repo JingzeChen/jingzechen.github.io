@@ -435,7 +435,7 @@ $$
 设真实状态为 $y$，行动为 $a$，采取行动的损失为 $C(a,y)$。给定输入后的理性决策应最小化条件期望损失：
 
 $$
-a^*(\mathbf{x})
+a^{\ast}(\mathbf{x})
 =\arg\min_a\sum_y C(a,y)P(y\mid\mathbf{x}).
 $$
 

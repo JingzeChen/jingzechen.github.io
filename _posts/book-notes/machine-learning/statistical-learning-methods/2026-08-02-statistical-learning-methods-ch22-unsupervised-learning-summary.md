@@ -770,7 +770,7 @@ $$
 LDA 把 PLSA 的文档话题参数随机化：
 
 $$
-	heta_d\sim\operatorname{Dir}(\alpha),
+\theta_d\sim\operatorname{Dir}(\alpha),
 $$
 
 并在完整模型中令
@@ -1240,9 +1240,9 @@ fixed-point residual = 1.810e-14
 
 $$
 \boxed{
-	ext{优化目标验证数值正确性，}
+\text{优化目标验证数值正确性，}
 \quad
-	ext{外部任务与稳定性验证结构是否有用。}
+\text{外部任务与稳定性验证结构是否有用。}
 }
 $$
 

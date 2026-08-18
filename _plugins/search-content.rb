@@ -7,7 +7,7 @@ module Garden
     safe true
     priority :low
 
-    EXCLUDED_TYPES = %i[codeblock codespan table html_element xml_comment img].freeze
+    EXCLUDED_TYPES = %i[codeblock table html_element xml_comment img].freeze
     MAX_EXCERPT_LENGTH = 220
     MAX_SEARCH_TEXT_LENGTH = 12_000
 
@@ -52,7 +52,7 @@ module Garden
 
     def extract_text(element)
       return "" if EXCLUDED_TYPES.include?(element.type)
-      return element.value.to_s if element.type == :text
+      return element.value.to_s if %i[text codespan].include?(element.type)
 
       element.children.map { |child| extract_text(child) }.join(" ")
     end

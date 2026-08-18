@@ -1196,7 +1196,7 @@ Layered architecture 的 simplicity 与成本可能适合某项目；microservic
 风格选择可教学化表示为约束问题：
 
 $$
-a^*=\operatorname*{arg\,min}_{a\in Feasible(Context)}AcceptedDisadvantages(a)
+a^{\ast}=\operatorname*{arg\,min}_{a\in Feasible(Context)}AcceptedDisadvantages(a)
 $$
 
 这不是可直接计算的原书公式。它表达 least-worst：先排除违反硬约束者，再选择其缺点在当前上下文最可接受的方案。

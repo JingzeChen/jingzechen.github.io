@@ -1315,7 +1315,7 @@ func main(){q:=NewCircularQueue(3);fmt.Println(q.Enqueue(1),q.Enqueue(2),q.Enque
 | 主题 | 实现 | 核心不变量 |
 |---|---|---|
 | 循环队列/双端队列 | `CircularQueue/Deque` | 模 $C$ 回绕，长度区分空满 |
-| 前中后队列 | `FrontMiddleBackQueue` | $|left|=|right|$ 或 $|left|=|right|+1$ |
+| 前中后队列 | `FrontMiddleBackQueue` | $\lvert left|=|right\rvert$ 或 $|left|=|right|+1$ |
 | 双栈队列 | `QueueWithStacks` | `output` 栈顶是最早未出队元素 |
 | 午餐模拟 | `countStudents` | 当前类型人数为 0 时系统停滞 |
 | 最近请求 | `RecentCounter` | 队中恰为闭区间 $[t-3000,t]$ |

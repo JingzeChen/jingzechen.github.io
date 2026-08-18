@@ -132,7 +132,7 @@ w^\top x_0+b
 =t\lVert w\rVert_2。
 $$
 
-于是 $|t|=|w^\top x_0+b|/\lVert w\rVert_2$，而 $|t|$ 正是欧氏距离。
+于是 $|t|=|w^\top x_0+b|/\lVert w\rVert_2$，而 $\lvert t\rvert$ 正是欧氏距离。
 
 #### 2.1.4 偏置的作用与增广向量
 
@@ -141,17 +141,17 @@ $$
 定义增广向量：
 
 $$
-	ilde x=
+\tilde x=
 \begin{pmatrix}x\\1\end{pmatrix},
 \qquad
-	ilde w=
+\tilde w=
 \begin{pmatrix}w\\b\end{pmatrix}，
 $$
 
 则：
 
 $$
-	ilde w^\top\tilde x=w^\top x+b。
+\tilde w^\top\tilde x=w^\top x+b。
 $$
 
 这种写法可以把 $w$ 和 $b$ 的两个更新统一成一个向量更新。
@@ -368,9 +368,9 @@ $$
 为简化记号，将偏置并入增广向量：
 
 $$
-	ilde x_i=(x_i^\top,1)^\top，
+\tilde x_i=(x_i^\top,1)^\top，
 \qquad
-	ilde w=(w^\top,b)^\top。
+\tilde w=(w^\top,b)^\top。
 $$
 
 假设训练集线性可分，则存在单位向量 $\tilde w_*$ 和常数 $\gamma>0$，使所有样本满足：
@@ -416,7 +416,7 @@ $$
 设第 $k$ 次误分类更新使用样本 $(\tilde x_i,y_i)$：
 
 $$
-	ilde w_k
+\tilde w_k
 =\tilde w_{k-1}+\eta y_i\tilde x_i。
 $$
 
@@ -424,7 +424,7 @@ $$
 
 $$
 \begin{aligned}
-	ilde w_k^\top\tilde w_*
+\tilde w_k^\top\tilde w_*
 &=\tilde w_{k-1}^\top\tilde w_*
 +\eta y_i\tilde x_i^\top\tilde w_*\\
 &\ge\tilde w_{k-1}^\top\tilde w_*+\eta\gamma。
@@ -434,7 +434,7 @@ $$
 从 $\tilde w_0=0$ 递推 $k$ 次：
 
 $$
-	ilde w_k^\top\tilde w_*
+\tilde w_k^\top\tilde w_*
 \ge k\eta\gamma。
 $$
 
@@ -489,7 +489,7 @@ $$
 由 Cauchy-Schwarz 不等式和 $\lVert\tilde w_*\rVert_2=1$：
 
 $$
-	ilde w_k^\top\tilde w_*
+\tilde w_k^\top\tilde w_*
 \le\lVert\tilde w_k\rVert_2
 \lVert\tilde w_*\rVert_2
 =\lVert\tilde w_k\rVert_2。

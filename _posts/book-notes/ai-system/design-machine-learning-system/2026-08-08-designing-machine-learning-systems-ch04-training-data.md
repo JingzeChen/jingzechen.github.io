@@ -1141,7 +1141,7 @@ $C_{ij}$ 表示真实类为 $i$、采取或预测类 $j$ 的代价；通常 $C_{
 给定模型后验 $P(Y=i\mid x)$，最小风险决策是
 
 $$
-j^*(x)=\arg\min_j\sum_i C_{ij}P(Y=i\mid x).
+j^{\ast}(x)=\arg\min_j\sum_i C_{ij}P(Y=i\mid x).
 $$
 
 原章还给出已知真实类 $i$ 时，对预测分布的期望代价：

@@ -158,7 +158,7 @@ $$
 \sigma'(z)=\sigma(z)[1-\sigma(z)]\le\frac14
 $$
 
-当 $|z|$ 很大时，$\sigma'(z)\approx0$。如果权重尺度也不合适，底层梯度会趋近 0，权重几乎不更新，这就是**梯度消失**。反之，若连乘的有效增益长期大于 1，梯度和更新会爆炸，出现震荡、`inf` 或 `NaN`。
+当 $\lvert z\rvert$ 很大时，$\sigma'(z)\approx0$。如果权重尺度也不合适，底层梯度会趋近 0，权重几乎不更新，这就是**梯度消失**。反之，若连乘的有效增益长期大于 1，梯度和更新会爆炸，出现震荡、`inf` 或 `NaN`。
 
 不稳定梯度意味着不同层学习速度悬殊。梯度爆炸在 RNN 中尤其明显，因为同一递归变换跨很多时间步反复相乘。
 
@@ -1100,7 +1100,7 @@ AdamW 把衰减独立应用：
 
 $$
 \boxed{
-	heta_i
+\theta_i
 \leftarrow
 (1-\eta\lambda)\theta_i
 -\eta\frac{\widehat m_i}
@@ -1412,9 +1412,9 @@ $$
 SGD 更新：
 
 $$
-	heta
+\theta
 \leftarrow
-	heta-\eta(\nabla J+\lambda\theta)
+\theta-\eta(\nabla J+\lambda\theta)
 =(1-\eta\lambda)\theta-\eta\nabla J
 $$
 

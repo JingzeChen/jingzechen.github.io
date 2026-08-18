@@ -442,7 +442,7 @@ $$
 得到 Young 近似：
 
 $$
-\boxed{I^*=\sqrt{2CM}}.
+\boxed{I^{\ast}=\sqrt{2CM}}.
 $$
 
 二阶导 $2C/I^3>0$，故为最小。它假设 checkpoint 成本小于间隔、故障独立、恢复成本/连续故障忽略；实际还要考虑写带宽、RPO、RTO 和故障相关性。
@@ -599,9 +599,9 @@ flowchart TD
 网页攻击要完全接管物理主机，可能需连续突破：
 
 $$
-	ext{脚本运行时/浏览器}\rightarrow
-	ext{guest OS}\rightarrow
-	ext{VMM/host}.
+\text{脚本运行时/浏览器}\rightarrow
+\text{guest OS}\rightarrow
+\text{VMM/host}.
 $$
 
 每层使用独立代码和权限，攻击者需要多个不同漏洞，降低联合成功概率。若简单假设各层独立、突破概率 $p_i$，全链概率为
@@ -1290,7 +1290,7 @@ $$
 | $N_{mem}=(g+1)(h+1)$ | Nested walk 最坏内存引用数（含数据） | guest $g$ 级、host $h$ 级、全部未缓存 |
 | $Saving=(n-1)P$ | 合并 $n$ 个相同页的毛节省 | 忽略元数据、页大小 $P$ |
 | $O(I)=C/I+I/(2M)$ | Checkpoint 平均损失近似 | Poisson 故障、间隔 $I$、MTTF $M$ |
-| $I^*=\sqrt{2CM}$ | Young 最优 checkpoint 间隔 | 上述模型、忽略恢复/二次故障 |
+| $I^{\ast}=\sqrt{2CM}$ | Young 最优 checkpoint 间隔 | 上述模型、忽略恢复/二次故障 |
 | $dP\le BI$ | 增量在下一周期前写完 | 周期脏页 $d$、带宽 $B$、间隔 $I$ |
 | $r_{dirty}\le B/P$ | 整页增量最大新脏页率 | 每脏页写一整页、无额外开销 |
 | $State_i=C_0\oplus\Delta_1\cdots\oplus\Delta_i$ | 基线加顺序增量恢复 | 每个 delta 完整原子提交 |
@@ -1344,7 +1344,7 @@ $$
 - [ ] 能证明暂停边界 + COW 后台快照的一致性。
 - [ ] 能说明 checkpoint 系统调用/网络副作用为何难恢复。
 - [ ] 能推导 pre-copy 迁移收敛条件 $D<B$。
-- [ ] 能推导 $I^*=\sqrt{2CM}$ 并列出假设。
+- [ ] 能推导 $I^{\ast}=\sqrt{2CM}$ 并列出假设。
 - [ ] 能说明增量 checkpoint 如何捕获首次写、提交 manifest 与恢复。
 - [ ] 能用 $dP\le BI$ 判断 dirty 速率是否可持续。
 - [ ] 能比较块级 diff 与写屏障的子页增量方案。

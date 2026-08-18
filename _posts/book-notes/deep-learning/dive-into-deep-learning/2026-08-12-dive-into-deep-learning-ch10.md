@@ -949,7 +949,7 @@ $$
 \log P(y_t\mid y_{<t},c).
 $$
 
-输出词表 $|\mathcal Y|$、最大长度 $T'$ 时，候选树规模约
+输出词表 $\lvert \mathcal Y\rvert$、最大长度 $T'$ 时，候选树规模约
 
 $$
 O(|\mathcal Y|^{T'}).

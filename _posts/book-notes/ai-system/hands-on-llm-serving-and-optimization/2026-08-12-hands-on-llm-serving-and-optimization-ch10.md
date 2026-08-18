@@ -106,9 +106,9 @@ $$
 候选 hit：
 
 $$
-k^*=\arg\max_k s(q,k),
+k^{\ast}=\arg\max_k s(q,k),
 \qquad
-\text{hit if }s(q,k^*)\ge\tau.
+\text{hit if }s(q,k^{\ast})\ge\tau.
 $$
 
 $\tau$ 低提高 hit/成本节省，却增加 false positive；高则相反。应在 labeled paraphrase/non-equivalent pairs 上画 precision-recall，并按错误代价选 threshold：
@@ -170,7 +170,7 @@ Embedding/classifier 选择 external frontier、internal medium、small SLM 或 
 可写成 constrained routing：
 
 $$
-m^*=\arg\min_m C(m,q)
+m^{\ast}=\arg\min_m C(m,q)
 $$
 
 $$
@@ -446,7 +446,7 @@ $$
 Edge 做 wake word、隐私过滤、轻 intent、feature extraction/compression；cloud 做大模型 reasoning。Adaptive offloading 决策：
 
 $$
-place^*=\arg\min_{p\in\{edge,cloud,hybrid\}}
+place^{\ast}=\arg\min_{p\in\{edge,cloud,hybrid\}}
 \left(w_L\hat L_p+w_E\hat E_p+w_C\hat C_p+w_R\hat R_p\right)
 $$
 

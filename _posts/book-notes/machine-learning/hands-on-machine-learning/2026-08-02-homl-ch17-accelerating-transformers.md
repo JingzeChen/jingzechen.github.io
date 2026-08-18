@@ -1861,7 +1861,7 @@ Full matrix 16,777,216 parameters，LoRA 为约 0.78125%。这只计算该 matri
 
 $$
 \boxed{
-    ext{Measure}
+\text{Measure}
 \rightarrow\text{Locate the Bottleneck}
 \rightarrow\text{Remove Redundancy / Data Movement}
 \rightarrow\text{Trade Compute, Memory, Communication and Quality}

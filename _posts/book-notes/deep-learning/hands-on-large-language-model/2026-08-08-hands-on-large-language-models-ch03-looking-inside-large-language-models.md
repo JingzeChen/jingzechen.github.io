@@ -140,7 +140,7 @@ print(result[0]["generated_text"])
 
 #### 1.2.1 从 ID 到隐藏状态
 
-若词表大小为 $|V|$、模型维度为 $d_{model}$，输入嵌入矩阵为：
+若词表大小为 $\lvert V\rvert$、模型维度为 $d_{model}$，输入嵌入矩阵为：
 
 $$
 E\in\mathbb{R}^{|V|\times d_{model}}

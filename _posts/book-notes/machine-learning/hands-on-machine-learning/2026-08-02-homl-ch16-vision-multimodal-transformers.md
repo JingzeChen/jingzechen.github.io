@@ -214,7 +214,7 @@ $$
 
 $$
 \mathcal L_{DETR}
-=-\sum_{j=1}^{M}w(c_j^*)\log\hat p_j(c_j^*)
+=-\sum_{j=1}^{M}w(c_j^{\ast})\log\hat p_j(c_j^{\ast})
 {}+\sum_{i=1}^{n}
 \mathcal L_{box}(b_i,\hat b_{\hat\sigma(i)})
 $$
@@ -789,7 +789,7 @@ Swin v2 主要改善大模型和高 resolution transfer 的稳定性，包括 sc
 
 $$
 \boxed{
-    heta_t\leftarrow m\theta_t+(1-m)\theta_s
+\theta_t\leftarrow m\theta_t+(1-m)\theta_s
 }
 $$
 
@@ -2264,7 +2264,7 @@ Caption evaluation 不能只看语法流畅度，应人工检查 object count、
 
 $$
 \boxed{
-    ext{Raw Modalities}
+\text{Raw Modalities}
 \rightarrow\text{Tokens and Coordinates}
 \rightarrow\text{Efficient Intra-Modal Modeling}
 \rightarrow\text{Cross-Modal Fusion and Alignment}

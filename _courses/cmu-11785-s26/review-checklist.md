@@ -140,7 +140,7 @@ math: true
 
 - 讲次笔记：[NOTES.md](/courses/cmu-11785-s26/lectures/007/)。
 - `00:03:55` · **ASR 术语或名称** · ASR 中多次出现 “aphine / aine term”，应为 affine term。 ([001.md](/courses/cmu-11785-s26/lectures/007/#section-01))
-- `00:04:57` · **课件与口述差异** · “ykus one” 应为 \(y^{k-1}\) 的口头读法。 ([001.md](/courses/cmu-11785-s26/lectures/007/#section-01))
+- `00:04:57` · **课件与口述差异** · “ykus one” 应为 $y^{k-1}$ 的口头读法。 ([001.md](/courses/cmu-11785-s26/lectures/007/#section-01))
 - `00:09:10` · **课件与口述差异** · 老师口头说 “answer: A”，但 transcript 未完整保留投票选项文本；所幸课件 p.8-p.9 保留了选项，可据课件确认。 ([001.md](/courses/cmu-11785-s26/lectures/007/#section-01))
 - `00:13:56` · **上下文或语义不清** · transcript 中 “this function doesn't actually go to Z1 or zero” 语义不顺，应核对老师原话究竟是 “go to zero” 还是 “go to one”。 ([002.md](/courses/cmu-11785-s26/lectures/007/#section-02))
 - `00:18:18` · **ASR 术语或名称** · “spoiler” 一词多次出现，含义清楚，但若后续课程采用别的中文术语，可统一为“扰动点/捣乱点”。 ([002.md](/courses/cmu-11785-s26/lectures/007/#section-02))
@@ -148,14 +148,14 @@ math: true
 - `00:27:22` · **上下文或语义不清** · street light effect 的笑话细节可再回听，以便若后续统一课程风格时需要更准确的中文复述。 ([003.md](/courses/cmu-11785-s26/lectures/007/#section-03))
 - `00:31:17` · **公式、符号或数值** · transcript 混入了二次方程求根公式 “-b ± sqrt(b^2-4ac)/(2a)”；老师当时是在泛泛提醒二次函数有 closed-form 解，还是想说最小值位置，应再听原音避免误读。 ([004.md](/courses/cmu-11785-s26/lectures/007/#section-04))
 - `00:33:05` · **公式、符号或数值** · ASR 把 Taylor 公式中的二阶导读成 “fprime of x0 by”，公式文字化不完整，但整体推导链清楚。 ([004.md](/courses/cmu-11785-s26/lectures/007/#section-04))
-- `00:36:41` · **ASR 术语或名称** · “E prime inverse” 实际应是 \([E''(w_k)]^{-1}\)；ASR 在 prime / double prime 上有混淆。 ([004.md](/courses/cmu-11785-s26/lectures/007/#section-04))
-- `00:42:43` · **课件与口述差异** · transcript 中二元二次函数口头式有缺字，尤其 \(w_2\) 的平方项附近 ASR 断裂；本笔记按老师后文解释补写成对称二次式。 ([005.md](/courses/cmu-11785-s26/lectures/007/#section-05))
+- `00:36:41` · **ASR 术语或名称** · “E prime inverse” 实际应是 $[E''(w_k)]^{-1}$；ASR 在 prime / double prime 上有混淆。 ([004.md](/courses/cmu-11785-s26/lectures/007/#section-04))
+- `00:42:43` · **课件与口述差异** · transcript 中二元二次函数口头式有缺字，尤其 $w_2$ 的平方项附近 ASR 断裂；本笔记按老师后文解释补写成对称二次式。 ([005.md](/courses/cmu-11785-s26/lectures/007/#section-05))
 - `00:48:48` · **公式、符号或数值** · “optimal step size is 33” 属于老师图上的数值例子，若后续需要和原图完全一致，应回听或直接看对应 slide 图示。 ([005.md](/courses/cmu-11785-s26/lectures/007/#section-05))
 - `00:55:23` · **ASR 术语或名称** · transcript 中 “it will stay in large values sonic” 明显 ASR 失真，应回听确认老师原意，推测是在解释为什么大学习率会帮助找到更大的 basin。 ([006.md](/courses/cmu-11785-s26/lectures/007/#section-06))
 - `00:58:00` · **课件与口述差异** · Poll 2 的完整题面未在 prompt 中给出，只保留了解析；若后续要重建课堂提问，应补看原投票画面或 slide。 ([006.md](/courses/cmu-11785-s26/lectures/007/#section-06))
 - `01:03:49` · **上下文或语义不清** · “this tends to overshoot small values” 的具体语义略糊，推测是在说 Rprop 更容易跨过浅小谷底；若后续需要更精确措辞，应回听原音。 ([007.md](/courses/cmu-11785-s26/lectures/007/#section-07))
 - `01:06:18` · **上下文或语义不清** · “Scott Fman” 应为 Scott Fahlman。 ([007.md](/courses/cmu-11785-s26/lectures/007/#section-07))
-- `01:10:09` · **公式、符号或数值** · transcript 中老师一开始把 running average 写成 “alpha * xbar_{k-1} + x_k”，随后又给出精确系数 \(k/(k+1)\) 与 \(1/(k+1)\)；前者应理解为口头概括，后者才是严格公式。 ([008.md](/courses/cmu-11785-s26/lectures/007/#section-08))
+- `01:10:09` · **公式、符号或数值** · transcript 中老师一开始把 running average 写成 “alpha * xbar_{k-1} + x_k”，随后又给出精确系数 $k/(k+1)$ 与 $1/(k+1)$；前者应理解为口头概括，后者才是严格公式。 ([008.md](/courses/cmu-11785-s26/lectures/007/#section-08))
 - `01:16:51` · **ASR 术语或名称** · “Nsteros / Nastro / Nestto” 均为 ASR 失真，应统一为 Nesterov。 ([008.md](/courses/cmu-11785-s26/lectures/007/#section-08))
 - `01:21:33` · **ASR 术语或名称** · “demonstrabably superior” 的具体比较对象是“other methods” 还是“plain gradient descent / some methods”，ASR 未保留完整上下文，可回听确认措辞强度。 ([009.md](/courses/cmu-11785-s26/lectures/007/#section-09))
 

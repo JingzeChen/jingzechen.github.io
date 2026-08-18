@@ -5,120 +5,344 @@ layout: page
 
 {% include lang.html %}
 
-{% assign sorted_categories = site.categories | sort %}
+{% assign reading_posts = site.posts | where: 'type', 'reading' | sort: 'date' | reverse %}
+{% assign podcast_posts = site.posts | where: 'type', 'podcast' | sort: 'episode_number' | reverse %}
+{% assign course_overviews = site.courses | where: 'document_type', 'overview' %}
+{% assign archive_entries = reading_posts.size | plus: site.courses.size | plus: podcast_posts.size %}
 
-<div id="archives" class="archive-directory">
-  {% for category in sorted_categories %}
-    {% assign category_name = category | first %}
-    {% assign category_posts = category | last | sort: 'date' %}
-    {% assign first_post = category_posts | first %}
+<div id="archives" class="archive-directory" data-archive-directory>
+  <header class="archive-console-header">
+    <div>
+      <p class="archive-console-label"><span aria-hidden="true"></span> Knowledge directory</p>
+      <p>Choose a collection first, then open only the series, course, or show you need.</p>
+    </div>
+    <dl class="archive-console-stats" aria-label="Archive summary">
+      <div><dt>Collections</dt><dd>3</dd></div>
+      <div><dt>Indexed entries</dt><dd>{{ archive_entries }}</dd></div>
+    </dl>
+  </header>
 
-    {% if category_name == first_post.categories[0] %}
-      {% assign second_categories = '' | split: '' %}
-      {% assign direct_category_posts = '' | split: '' %}
+  <nav class="archive-portals" role="tablist" aria-label="Archive content types">
+    <button
+      id="archive-tab-reading"
+      type="button"
+      role="tab"
+      aria-controls="archive-reading"
+      aria-selected="true"
+      data-archive-tab="reading"
+    >
+      <span class="archive-portal-index" aria-hidden="true">01</span>
+      <i class="fas fa-book-open" aria-hidden="true"></i>
+      <span class="archive-portal-copy">
+        <strong>Reading</strong>
+        <small>Books and chapter notes</small>
+      </span>
+      <span class="archive-portal-metric"><strong>{{ reading_posts.size }}</strong><small>notes</small></span>
+    </button>
 
-      {% for post in category_posts %}
-        {% assign second_category = post.categories[1] %}
-        {% if second_category %}
-          {% unless second_categories contains second_category %}
-            {% assign second_categories = second_categories | push: second_category %}
-          {% endunless %}
-        {% else %}
-          {% assign direct_category_posts = direct_category_posts | push: post %}
-        {% endif %}
+    <button
+      id="archive-tab-courses"
+      type="button"
+      role="tab"
+      aria-controls="archive-courses"
+      aria-selected="false"
+      tabindex="-1"
+      data-archive-tab="courses"
+    >
+      <span class="archive-portal-index" aria-hidden="true">02</span>
+      <i class="fas fa-graduation-cap" aria-hidden="true"></i>
+      <span class="archive-portal-copy">
+        <strong>Courses</strong>
+        <small>Guides, lectures, and resources</small>
+      </span>
+      <span class="archive-portal-metric"><strong>{{ course_overviews.size }}</strong><small>courses</small></span>
+    </button>
+
+    <button
+      id="archive-tab-listening"
+      type="button"
+      role="tab"
+      aria-controls="archive-listening"
+      aria-selected="false"
+      tabindex="-1"
+      data-archive-tab="listening"
+    >
+      <span class="archive-portal-index" aria-hidden="true">03</span>
+      <i class="fas fa-headphones" aria-hidden="true"></i>
+      <span class="archive-portal-copy">
+        <strong>Listening</strong>
+        <small>Episodes and timestamped notes</small>
+      </span>
+      <span class="archive-portal-metric"><strong>{{ podcast_posts.size }}</strong><small>episodes</small></span>
+    </button>
+  </nav>
+
+  <noscript>
+    <p class="archive-noscript">
+      JavaScript is required for the archive switcher. Open
+      <a href="{{ '/reading/' | relative_url }}">Reading</a>,
+      <a href="{{ '/courses/' | relative_url }}">Courses</a>, or
+      <a href="{{ '/podcasts/' | relative_url }}">Listening</a> directly.
+    </p>
+  </noscript>
+
+  <section
+    id="archive-reading"
+    class="archive-panel"
+    role="tabpanel"
+    aria-labelledby="archive-tab-reading"
+    data-archive-panel="reading"
+  >
+    <header class="archive-panel-header">
+      <div>
+        <p>Collection 01 / Subject directory</p>
+        <h2>Reading archive</h2>
+        <span>Choose a subject first, then open a book or series to browse its notes in chapter order.</span>
+      </div>
+      <a href="{{ '/reading/' | relative_url }}">Open Reading index <span aria-hidden="true">→</span></a>
+    </header>
+
+    <div class="archive-groups">
+      {% assign reading_subjects = '' | split: '' %}
+      {% for post in reading_posts %}
+        {% assign subject_name = post.categories[1] | default: 'Standalone Notes' %}
+        {% unless reading_subjects contains subject_name %}
+          {% assign reading_subjects = reading_subjects | push: subject_name %}
+        {% endunless %}
       {% endfor %}
+      {% assign reading_subjects = reading_subjects | sort %}
 
-      {% assign second_categories = second_categories | sort %}
+      {% for subject_name in reading_subjects %}
+        {% assign subject_posts = '' | split: '' %}
+        {% assign leaf_categories = '' | split: '' %}
+        {% assign direct_subject_posts = '' | split: '' %}
+        {% for post in reading_posts %}
+          {% assign post_subject = post.categories[1] | default: 'Standalone Notes' %}
+          {% if post_subject == subject_name %}
+            {% assign subject_posts = subject_posts | push: post %}
+            {% assign leaf_category = post.categories[2] %}
+            {% if leaf_category %}
+              {% unless leaf_categories contains leaf_category %}
+                {% assign leaf_categories = leaf_categories | push: leaf_category %}
+              {% endunless %}
+            {% else %}
+              {% assign direct_subject_posts = direct_subject_posts | push: post %}
+            {% endif %}
+          {% endif %}
+        {% endfor %}
+        {% assign leaf_categories = leaf_categories | sort %}
 
-      <section class="archive-category">
-        <header class="archive-category-header">
-          {% capture category_url %}/categories/{{ category_name | slugify | url_encode }}/{% endcapture %}
-          <h2>
-            <i class="far fa-folder-open fa-fw" aria-hidden="true"></i>
-            <a href="{{ category_url | relative_url }}">{{ category_name }}</a>
-          </h2>
-          <span class="archive-count">{{ category_posts | size }}</span>
-        </header>
+        <details class="archive-group archive-subject-group" data-archive-reading-subject>
+          <summary>
+            <span class="archive-group-marker" aria-hidden="true"></span>
+            <span class="archive-group-copy">
+              <strong>{{ subject_name }}</strong>
+              <small>{{ leaf_categories.size }} book collections in this subject</small>
+            </span>
+            <span class="archive-group-count">{{ subject_posts.size }} notes</span>
+            <i class="fas fa-plus" aria-hidden="true"></i>
+          </summary>
+          <div class="archive-group-body archive-subject-body">
+            {% unless subject_name == 'Standalone Notes' %}
+              {% capture subject_url %}/categories/{{ subject_name | slugify | url_encode }}/{% endcapture %}
+              <a class="archive-group-action" href="{{ subject_url | relative_url }}">
+                Open subject overview <span aria-hidden="true">→</span>
+              </a>
+            {% endunless %}
 
-        {% if direct_category_posts.size > 0 %}
-          <ul class="archive-posts list-unstyled">
-            {% for post in direct_category_posts %}
-              <li>
-                <a href="{{ post.url | relative_url }}">{{ post.title }}</a>
-                {% include datetime.html date=post.date class='archive-post-date' lang=lang %}
-              </li>
-            {% endfor %}
-          </ul>
-        {% endif %}
-
-        <div class="archive-subcategories">
-          {% for second_category in second_categories %}
-            {% assign third_categories = '' | split: '' %}
-            {% assign direct_subcategory_posts = '' | split: '' %}
-
-            {% for post in category_posts %}
-              {% if post.categories[1] == second_category %}
-                {% assign third_category = post.categories[2] %}
-                {% if third_category %}
-                  {% unless third_categories contains third_category %}
-                    {% assign third_categories = third_categories | push: third_category %}
-                  {% endunless %}
-                {% else %}
-                  {% assign direct_subcategory_posts = direct_subcategory_posts | push: post %}
-                {% endif %}
-              {% endif %}
-            {% endfor %}
-
-            {% assign third_categories = third_categories | sort %}
-
-            <section class="archive-subcategory">
-              {% capture second_category_url %}/categories/{{ second_category | slugify | url_encode }}/{% endcapture %}
-              <h3>
-                <a href="{{ second_category_url | relative_url }}">{{ second_category }}</a>
-              </h3>
-
-              {% if direct_subcategory_posts.size > 0 %}
-                <ul class="archive-posts list-unstyled">
-                  {% for post in direct_subcategory_posts %}
-                    <li>
+            {% if direct_subject_posts.size > 0 %}
+              <section class="archive-direct-notes">
+                <h3>Standalone notes <span>{{ direct_subject_posts.size }}</span></h3>
+                <ol class="archive-items">
+                  {% for post in direct_subject_posts %}
+                    <li data-archive-reading-entry>
+                      <span>—</span>
                       <a href="{{ post.url | relative_url }}">{{ post.title }}</a>
-                      {% include datetime.html date=post.date class='archive-post-date' lang=lang %}
+                      {% include datetime.html date=post.updated class='archive-item-date' lang=lang %}
                     </li>
                   {% endfor %}
-                </ul>
-              {% endif %}
+                </ol>
+              </section>
+            {% endif %}
 
-              {% for third_category in third_categories %}
-                {% assign third_category_posts = '' | split: '' %}
-                {% for post in category_posts %}
-                  {% if post.categories[1] == second_category and post.categories[2] == third_category %}
-                    {% assign third_category_posts = third_category_posts | push: post %}
+            <div class="archive-subcategories archive-reading-categories">
+              {% for leaf_category in leaf_categories %}
+                {% assign leaf_posts = '' | split: '' %}
+                {% for post in subject_posts %}
+                  {% if post.categories[2] == leaf_category %}
+                    {% assign leaf_posts = leaf_posts | push: post %}
                   {% endif %}
                 {% endfor %}
-
-                <details class="archive-series">
+                {% assign leaf_posts = leaf_posts | sort: 'series_order' %}
+                {% assign first_leaf_post = leaf_posts | first %}
+                {% assign leaf_series_meta = site.data.series[first_leaf_post.series] %}
+                <details class="archive-series" data-archive-reading-group>
                   <summary class="archive-series-header">
-                    {% capture third_category_url %}/categories/{{ third_category | slugify | url_encode }}/{% endcapture %}
                     <i class="fas fa-angle-right fa-fw archive-series-toggle" aria-hidden="true"></i>
-                    <a href="{{ third_category_url | relative_url }}" onclick="event.stopPropagation()">
-                      {{- third_category -}}
-                    </a>
-                    <span class="archive-count">{{ third_category_posts | size }}</span>
+                    <span class="archive-series-copy">
+                      <strong>{{ leaf_series_meta.title | default: leaf_category }}</strong>
+                      {% if leaf_series_meta.description %}<small>{{ leaf_series_meta.description }}</small>{% endif %}
+                    </span>
+                    <span class="archive-count">{{ leaf_posts.size }}</span>
                   </summary>
-                  <ul class="archive-posts list-unstyled">
-                    {% for post in third_category_posts %}
-                      <li>
-                        <a href="{{ post.url | relative_url }}">{{ post.title }}</a>
-                        {% include datetime.html date=post.date class='archive-post-date' lang=lang %}
-                      </li>
-                    {% endfor %}
-                  </ul>
+                  <div class="archive-series-body">
+                    {% capture leaf_category_url %}/categories/{{ leaf_category | slugify | url_encode }}/{% endcapture %}
+                    <a class="archive-series-action" href="{{ leaf_category_url | relative_url }}">
+                      Open series overview <span aria-hidden="true">→</span>
+                    </a>
+                    <ol class="archive-posts list-unstyled">
+                      {% for post in leaf_posts %}
+                        <li data-archive-reading-entry>
+                          <a href="{{ post.url | relative_url }}">{{ post.title }}</a>
+                          {% include datetime.html date=post.updated class='archive-post-date' lang=lang %}
+                        </li>
+                      {% endfor %}
+                    </ol>
+                  </div>
                 </details>
               {% endfor %}
-            </section>
-          {% endfor %}
-        </div>
-      </section>
-    {% endif %}
-  {% endfor %}
+            </div>
+          </div>
+        </details>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section
+    id="archive-courses"
+    class="archive-panel"
+    role="tabpanel"
+    aria-labelledby="archive-tab-courses"
+    data-archive-panel="courses"
+    hidden
+  >
+    <header class="archive-panel-header">
+      <div>
+        <p>Collection 02 / {{ course_overviews.size }} courses</p>
+        <h2>Course archive</h2>
+        <span>Enter a course, then choose a module, lecture, or supporting resource.</span>
+      </div>
+      <a href="{{ '/courses/' | relative_url }}">Open Courses index <span aria-hidden="true">→</span></a>
+    </header>
+
+    <div class="archive-groups">
+      {% for course in course_overviews %}
+        {% assign course_meta = site.data.courses[course.course] %}
+        {% assign course_documents = site.courses | where: 'course', course.course %}
+        {% assign course_modules = course_documents | where: 'document_type', 'module' | sort: 'module_number' %}
+        {% assign course_lectures = course_documents | where: 'document_type', 'lecture' | sort: 'lecture_number' %}
+        {% assign course_resources = course_documents | where: 'document_type', 'resource' | sort: 'title' %}
+        <details class="archive-group archive-course-group" data-archive-course-group>
+          <summary>
+            <span class="archive-group-marker" aria-hidden="true"></span>
+            <span class="archive-group-copy">
+              <strong>{{ course_meta.title }}</strong>
+              <small>{{ course_meta.institution }} · {{ course_meta.term }}</small>
+            </span>
+            <span class="archive-group-count">{{ course_documents.size }} entries</span>
+            <i class="fas fa-plus" aria-hidden="true"></i>
+          </summary>
+          <div class="archive-group-body archive-course-body">
+            <a class="archive-group-action" href="{{ course.url | relative_url }}" data-archive-course-entry>
+              Open course guide <span aria-hidden="true">→</span>
+            </a>
+            <div class="archive-course-sections">
+              {% if course_modules.size > 0 %}
+                <section>
+                  <h3>Modules <span>{{ course_modules.size }}</span></h3>
+                  <ol class="archive-items archive-course-items">
+                    {% for document in course_modules %}
+                      <li data-archive-course-entry>
+                        <span>M{{ document.module_number | prepend: '0' | slice: -2, 2 }}</span>
+                        <a href="{{ document.url | relative_url }}">{{ document.title }}</a>
+                      </li>
+                    {% endfor %}
+                  </ol>
+                </section>
+              {% endif %}
+              {% if course_lectures.size > 0 %}
+                <section>
+                  <h3>Lectures <span>{{ course_lectures.size }}</span></h3>
+                  <ol class="archive-items archive-course-items">
+                    {% for document in course_lectures %}
+                      <li data-archive-course-entry>
+                        <span>L{{ document.lecture_number | prepend: '0' | slice: -2, 2 }}</span>
+                        <a href="{{ document.url | relative_url }}">{{ document.title }}</a>
+                      </li>
+                    {% endfor %}
+                  </ol>
+                </section>
+              {% endif %}
+              {% if course_resources.size > 0 %}
+                <section>
+                  <h3>Resources <span>{{ course_resources.size }}</span></h3>
+                  <ol class="archive-items archive-course-items">
+                    {% for document in course_resources %}
+                      <li data-archive-course-entry>
+                        <span>R</span>
+                        <a href="{{ document.url | relative_url }}">{{ document.title }}</a>
+                      </li>
+                    {% endfor %}
+                  </ol>
+                </section>
+              {% endif %}
+            </div>
+          </div>
+        </details>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section
+    id="archive-listening"
+    class="archive-panel"
+    role="tabpanel"
+    aria-labelledby="archive-tab-listening"
+    data-archive-panel="listening"
+    hidden
+  >
+    <header class="archive-panel-header">
+      <div>
+        <p>Collection 03 / {{ podcast_posts.size }} episodes</p>
+        <h2>Listening archive</h2>
+        <span>Open a show to browse its episode notes and return to the source audio.</span>
+      </div>
+      <a href="{{ '/podcasts/' | relative_url }}">Open Listening index <span aria-hidden="true">→</span></a>
+    </header>
+
+    <div class="archive-groups">
+      {% for show_entry in site.data.podcast_shows %}
+        {% assign show_slug = show_entry[0] %}
+        {% assign show_meta = show_entry[1] %}
+        {% assign show_posts = podcast_posts | where: 'podcast_show', show_slug | sort: 'episode_number' | reverse %}
+        {% if show_posts.size > 0 %}
+          <details class="archive-group" data-archive-listening-group>
+            <summary>
+              <span class="archive-group-marker" aria-hidden="true"></span>
+              <span class="archive-group-copy">
+                <strong>{{ show_meta.title }}</strong>
+                <small>{{ show_meta.platform }}</small>
+              </span>
+              <span class="archive-group-count">{{ show_posts.size }} episodes</span>
+              <i class="fas fa-plus" aria-hidden="true"></i>
+            </summary>
+            <div class="archive-group-body">
+              <a class="archive-group-action" href="{{ show_meta.url }}" target="_blank" rel="noopener noreferrer">
+                Open source show <span aria-hidden="true">↗</span>
+              </a>
+              <ol class="archive-items">
+                {% for post in show_posts %}
+                  <li data-archive-listening-entry>
+                    <span>EP{{ post.episode_number }}</span>
+                    <a href="{{ post.url | relative_url }}">{{ post.title }}</a>
+                    <small class="archive-item-date">{{ post.episode_duration }}</small>
+                  </li>
+                {% endfor %}
+              </ol>
+            </div>
+          </details>
+        {% endif %}
+      {% endfor %}
+    </div>
+  </section>
 </div>

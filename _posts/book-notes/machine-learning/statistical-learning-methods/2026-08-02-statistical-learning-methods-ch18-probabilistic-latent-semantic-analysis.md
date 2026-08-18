@@ -487,7 +487,7 @@ $$
 $$
 \phi_{ik}=P(w_i\mid z_k),
 \qquad
-	heta_{kj}=P(z_k\mid d_j).
+\theta_{kj}=P(z_k\mid d_j).
 $$
 
 为简化记号，下文用 $n_{ij}=n(w_i,d_j)$。
@@ -652,7 +652,7 @@ $$
 $$
 1=\frac{\sum_iS_{ik}}{\tau_k}
 \quad\Longrightarrow\quad
-	au_k=\sum_iS_{ik}.
+\tau_k=\sum_iS_{ik}.
 $$
 
 于是
@@ -690,7 +690,7 @@ $$
 $$
 \frac{R_{kj}}{\theta_{kj}}-\rho_j=0
 \quad\Longrightarrow\quad
-	heta_{kj}=\frac{R_{kj}}{\rho_j}.
+\theta_{kj}=\frac{R_{kj}}{\rho_j}.
 $$
 
 归一化给出
@@ -812,7 +812,7 @@ $$
 LDA 在文档话题比例上引入狄利克雷先验：
 
 $$
-	heta_d\sim\operatorname{Dirichlet}(\alpha),
+\theta_d\sim\operatorname{Dirichlet}(\alpha),
 $$
 
 从而真正定义新文档的生成机制，并通过先验平滑短文档。PLSA 则把每个 $\theta_d$ 当作独立参数，训练文档增多时参数数目随之增长，更容易过拟合。

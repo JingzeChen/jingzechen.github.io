@@ -352,7 +352,7 @@ $$
 
 $$
 \boxed{\;
-f^*(x)=\arg\max_{c_k}P(Y=c_k\mid X=x)
+f^{\ast}(x)=\arg\max_{c_k}P(Y=c_k\mid X=x)
 \;}
 $$
 
@@ -1058,7 +1058,7 @@ $$
 
 **（1）多项式朴素贝叶斯（Multinomial NB）**
 
-用于词频计数。把文档看成从类别 $c_k$ 的词分布中做 $|d|$ 次独立抽样：
+用于词频计数。把文档看成从类别 $c_k$ 的词分布中做 $\lvert d\rvert$ 次独立抽样：
 
 $$
 P(d\mid c_k)\propto\prod_{j=1}^{n}P(w_j\mid c_k)^{t_j}，

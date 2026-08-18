@@ -789,7 +789,7 @@ $V$ 把质量改善映射成业务/风险价值。最频繁的 cadence 只有在
 Embedding、ranker、calibrator、rules 变化速度不同。组件 $i$ 的 cadence 可分别求：
 
 $$
-k_i^*=\arg\max_{k_i} U_i(k_i),
+k_i^{\ast}=\arg\max_{k_i} U_i(k_i),
 $$
 
 再受依赖约束，例如 embedding 更新后必须重验下游 ranker。不要把整套系统强制绑到最快组件的日程。
@@ -1144,10 +1144,10 @@ A/B 通常按预定比例分流，结束后统一分析；bandit 根据累计 re
 
 #### 5.6.3 Regret：边学习边少犯错
 
-在平稳 stochastic bandit 中，令每个 arm 的期望 reward $\mu_a$ 固定，最佳固定 arm 的期望 reward 为 $\mu^*$，第 $t$ 轮选 $a_t$。相对于“始终选择最佳固定 arm”的 expected pseudo-regret 为：
+在平稳 stochastic bandit 中，令每个 arm 的期望 reward $\mu_a$ 固定，最佳固定 arm 的期望 reward 为 $\mu^{\ast}$，第 $t$ 轮选 $a_t$。相对于“始终选择最佳固定 arm”的 expected pseudo-regret 为：
 
 $$
-R_T=T\mu^*-
+R_T=T\mu^{\ast}-
 \mathbb E\left[\sum_{t=1}^{T}r_t\right].
 $$
 
@@ -1806,7 +1806,7 @@ $$
 把性能收益映射为净效用，并受数据、标签、评估吞吐约束：
 
 $$
-k^*=\arg\max_k U(k)
+k^{\ast}=\arg\max_k U(k)
 \quad
 {\mathrm{s.t.}}\quad
 N_{mature}(k)\ge N_{min},

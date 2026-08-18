@@ -583,7 +583,7 @@ c-TF-IDF 或语义相似度容易返回 `summary`、`summaries`、`summarization
 设候选集合为 $R$、已选集合为 $S$、topic/query 表示为 $q$：
 
 $$
-d^*=\arg\max_{d\in R\setminus S}
+d^{\ast}=\arg\max_{d\in R\setminus S}
 \left[
 \lambda\operatorname{sim}(d,q)
 -(1-\lambda)\max_{s\in S}\operatorname{sim}(d,s)

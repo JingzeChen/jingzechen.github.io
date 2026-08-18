@@ -537,7 +537,7 @@ $$
 两条 roof 相交的 hardware balance/crossover：
 
 $$
-I^*=\frac{P_{peak}}{B_{mem}}.
+I^{\ast}=\frac{P_{peak}}{B_{mem}}.
 $$
 
 **Table 5-8：L40S 与 roofline 计算相关的核心规格**
@@ -555,12 +555,12 @@ $$
 对原章 L40S FP16：
 
 $$
-I^*=\frac{362\times10^{12}}
+I^{\ast}=\frac{362\times10^{12}}
 {864\times10^9}
 \approx418.98\ \mathrm{FLOP/byte}.
 $$
 
-当 $I<I^*$，斜线 $B I$ 较低，受 bandwidth 上界；当 $I>I^*$，水平线 $P_{peak}$ 较低，受 compute 上界。
+当 $I<I^{\ast}$，斜线 $B I$ 较低，受 bandwidth 上界；当 $I>I^{\ast}$，水平线 $P_{peak}$ 较低，受 compute 上界。
 
 210 FLOP/byte 的理论 performance：
 

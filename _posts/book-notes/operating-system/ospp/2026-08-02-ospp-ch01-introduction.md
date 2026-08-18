@@ -1157,7 +1157,7 @@ $$
 不能只比较“一条指令”与“零条指令”，完整成本应包括：
 
 $$
-	ext{净收益}
+\text{净收益}
 =\text{运行期累计节省}
 -\text{开发与审查成本}
 -\text{调试与停机风险}
@@ -2049,19 +2049,19 @@ $$
 把虚拟地址拆成虚拟页号 $v$ 和页内偏移 $d$：
 
 $$
-	ext{VA}=(v,d).
+\text{VA}=(v,d).
 $$
 
 页表把虚拟页号映射到物理页框号 $p$ 并附带权限：
 
 $$
-	ext{PageTable}[v]=(p,\text{permission},\text{present},\ldots).
+\text{PageTable}[v]=(p,\text{permission},\text{present},\ldots).
 $$
 
 若页面驻留内存，则物理地址为
 
 $$
-	ext{PA}=(p,d).
+\text{PA}=(p,d).
 $$
 
 页内偏移保持不变，因为虚拟页和物理页框大小相同。
@@ -2103,7 +2103,7 @@ $$
 客户页表把客户虚拟地址映射到“客户物理地址”，监控器还要把客户物理地址映射到真实机器地址：
 
 $$
-	ext{GVA}\xrightarrow{\text{guest page table}}\text{GPA}
+\text{GVA}\xrightarrow{\text{guest page table}}\text{GPA}
 \xrightarrow{\text{monitor mapping}}\text{HPA}.
 $$
 
@@ -2143,11 +2143,11 @@ $$
 先把更新描述和必要数据写到日志区，然后等待日志稳定持久化。关键顺序约束为：
 
 $$
-	ext{log records durable}
+\text{log records durable}
 \prec
-	ext{commit record durable}
+\text{commit record durable}
 \prec
-	ext{home locations reusable/visible under the protocol}.
+\text{home locations reusable/visible under the protocol}.
 $$
 
 符号 $\prec$ 表示“必须先于”。仅调用普通写操作不一定保证物理顺序，还需刷盘、屏障或设备提供的持久化语义。

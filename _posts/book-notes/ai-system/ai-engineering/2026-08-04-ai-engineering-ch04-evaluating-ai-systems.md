@@ -1054,7 +1054,7 @@ $$C_{self}(N)=F+c_sN.$$
 令二者相等：
 
 $$
-N^*=\frac{F}{c_a-c_s}.
+N^{\ast}=\frac{F}{c_a-c_s}.
 $$
 
 只有 $c_a>c_s$ 时存在正的盈亏平衡点；若 API 边际成本更低，自托管不会靠规模回本。模型忽略维护、资金时间价值、峰值容量、供应商折扣和迁移风险，因此只适合初筛。
@@ -1361,7 +1361,7 @@ sample=2 overlap_count=0 dirty=False
 AI 应用开发能否持续推进，取决于团队能否稳定地区分好结果与坏结果。评估流水线不是一组零散脚本，而是连接以下对象的系统：
 
 $$
-    ext{业务目标}
+\text{业务目标}
 \rightarrow\text{评价标准}
 \rightarrow\text{数据与切片}
 \rightarrow\text{评估方法}
@@ -1890,7 +1890,7 @@ T_{total}\approx T_{TTFT}+(n-1)T_{TPOT}
 $$
 
 $$
-N^*=\frac{F}{c_a-c_s}
+N^{\ast}=\frac{F}{c_a-c_s}
 $$
 
 $$

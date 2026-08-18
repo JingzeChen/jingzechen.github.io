@@ -207,7 +207,7 @@ $$
 硬件的平衡点：
 
 $$
-I^*=\frac{P_{peak}}{B_{peak}}.
+I^{\ast}=\frac{P_{peak}}{B_{peak}}.
 $$
 
 Roofline 可达到的性能：
@@ -223,11 +223,11 @@ $$
 2. 每秒最多搬 $B_{peak}$ bytes，每 byte 做 $I$ 次运算，所以 $P\le B_{peak}I$；
 3. 两个上限同时成立，取较小者。
 
-若 $I<I^*$：
+若 $I<I^{\ast}$：
 
 $$B_{peak}I<P_{peak},$$
 
-为 bandwidth-bound；若 $I>I^*$，为 compute-bound。$I=I^*$ 是屋顶斜线与水平线交点。
+为 bandwidth-bound；若 $I>I^{\ast}$，为 compute-bound。$I=I^{\ast}$ 是屋顶斜线与水平线交点。
 
 Roofline 通常使用 log-log 图。实际性能低于 roof 还可能来自并行度不足、shape 不友好、分支、通信和 kernel launch。
 
@@ -987,7 +987,7 @@ $$
 
 ### 11.4 怎样判定“最不重要”
 
-最简单 magnitude pruning 按 $|w_i|$ 小删除，但小权重可能与其他权重组合重要。二阶近似提供更严格直觉。
+最简单 magnitude pruning 按 $\lvert w_i\rvert$ 小删除，但小权重可能与其他权重组合重要。二阶近似提供更严格直觉。
 
 在局部最优 $\nabla\mathcal L\approx0$ 附近，把某参数变化 $\Delta w$ 对 loss 的影响 Taylor 展开：
 

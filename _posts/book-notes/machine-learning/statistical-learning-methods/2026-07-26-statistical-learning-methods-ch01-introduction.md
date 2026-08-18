@@ -365,7 +365,7 @@ $$
 理想目标是：
 
 $$
-f^*=\arg\min_{f\in\mathcal F}R_{\exp}(f)。
+f^{\ast}=\arg\min_{f\in\mathcal F}R_{\exp}(f)。
 $$
 
 但 $P(X,Y)$ 未知，所以期望风险无法直接计算。如果分布已知，许多情况下可直接由 $P(Y\mid X)$ 作出最优决策，也就失去了从样本学习的必要。
@@ -641,13 +641,13 @@ $$
 - 要求置信度越高，即 $\delta$ 越小，上界越宽；
 - 泛化来自“拟合程度”和“模型复杂度”共同控制，这正是结构风险最小化的理论动机。
 
-对于 ERM 解 $\hat f=\arg\min_f\hat R_N(f)$，上述“对所有 $f$ 同时成立”非常关键，因为 $\hat f$ 依赖训练数据。进一步，如果 $f^*=\arg\min_{f\in\mathcal F}R(f)$，使用双侧一致偏差界可得到典型结论：
+对于 ERM 解 $\hat f=\arg\min_f\hat R_N(f)$，上述“对所有 $f$ 同时成立”非常关键，因为 $\hat f$ 依赖训练数据。进一步，如果 $f^{\ast}=\arg\min_{f\in\mathcal F}R(f)$，使用双侧一致偏差界可得到典型结论：
 
 $$
 R(\hat f)
 \le \hat R_N(\hat f)+\varepsilon
-\le \hat R_N(f^*)+\varepsilon
-\le R(f^*)+2\varepsilon。
+\le \hat R_N(f^{\ast})+\varepsilon
+\le R(f^{\ast})+2\varepsilon。
 $$
 
 它说明 ERM 的真实风险最多比假设空间内的最优风险多一个随样本量衰减的复杂度项。这也是“更多数据能改善泛化”的定量解释。

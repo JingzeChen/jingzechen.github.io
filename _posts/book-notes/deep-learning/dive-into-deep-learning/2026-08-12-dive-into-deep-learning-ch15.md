@@ -76,7 +76,7 @@ flowchart TD
 
 ### 2.1 One-hot 为什么不够
 
-词表大小为 $|\mathcal V|$，索引 $i$ 的 one-hot 向量：
+词表大小为 $\lvert \mathcal V\rvert$，索引 $i$ 的 one-hot 向量：
 
 $$
 e_i\in\mathbb R^{|\mathcal V|},
@@ -312,7 +312,7 @@ bank = 河岸
 
 ### 3.1 完整 softmax 的瓶颈
 
-词表可能有几十万或数百万词。每个正对都对全部 $|\mathcal V|$ 输出做归一化，成本过高。近似方法希望每步只访问少量参数：
+词表可能有几十万或数百万词。每个正对都对全部 $\lvert \mathcal V\rvert$ 输出做归一化，成本过高。近似方法希望每步只访问少量参数：
 
 - Negative sampling：把多分类改成若干二分类；
 - Hierarchical softmax：把词概率分解成树路径决策。
@@ -433,7 +433,7 @@ $$
 在理想化独立计数、充分容量和固定噪声分布下，令中心 $c$ 与上下文 $o$ 的最优 score 为 $s_{co}$。正样本期望计数与 $p_{data}(c,o)$ 成正比，负样本与 $Kp_{data}(c)q(o)$ 成正比。二分类最优 log-odds：
 
 $$
-s_{co}^*
+s_{co}^{\ast}
 =\log\frac{p_{data}(c,o)}
 {Kp_{data}(c)q(o)}.
 $$
@@ -441,7 +441,7 @@ $$
 若 $q(o)=p_{data}(o)$：
 
 $$
-s_{co}^*
+s_{co}^{\ast}
 =\operatorname{PMI}(c,o)-\log K.
 $$
 
@@ -1519,7 +1519,7 @@ $$
 R=\max(1,\operatorname{round}(0.15|tokens|)).
 $$
 
-这里 $|tokens|$ 包含特殊 token，而候选集不含特殊 token，因此并非严格对普通 token 取 15%。更准确：
+这里 $\lvert tokens\rvert$ 包含特殊 token，而候选集不含特殊 token，因此并非严格对普通 token 取 15%。更准确：
 
 $$
 R=\max(1,\operatorname{round}(0.15|C|)),

@@ -498,7 +498,7 @@ Router 位于主路径，延迟和错误影响所有请求。可用：
 可选满足约束的最低成本路径：
 
 $$
-m^*(x)=\arg\min_m C_m(x)
+m^{\ast}(x)=\arg\min_m C_m(x)
 $$
 
 subject to：
@@ -852,12 +852,12 @@ What is Vietnam's capital city?
 ### 10.1 算法
 
 1. 计算 query embedding $e(q)$；
-2. 在 cache embeddings 中找最近邻 $q^*$；
-3. 计算 similarity $s(e(q),e(q^*))$；
+2. 在 cache embeddings 中找最近邻 $q^{\ast}$；
+3. 计算 similarity $s(e(q),e(q^{\ast}))$；
 4. 若 $s\ge\tau$，复用 cached result；否则完整执行并写入。
 
 $$
-q^*=\arg\max_{q_i\in C}
+q^{\ast}=\arg\max_{q_i\in C}
 \operatorname{sim}(e(q),e(q_i)).
 $$
 

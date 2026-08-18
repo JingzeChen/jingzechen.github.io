@@ -393,7 +393,7 @@ score(AB)
 }
 $$
 
-$|V|$ 对同一轮所有 pair 是常数，不改变排名。分母惩罚本身极常见的 A/B，偏好“共同出现超出独立预期”的 pair。若用 corpus token 总数 $N$ 代替常数，log score 近似 pointwise mutual information：
+$\lvert V\rvert$ 对同一轮所有 pair 是常数，不改变排名。分母惩罚本身极常见的 A/B，偏好“共同出现超出独立预期”的 pair。若用 corpus token 总数 $N$ 代替常数，log score 近似 pointwise mutual information：
 
 $$
 PMI(A,B)

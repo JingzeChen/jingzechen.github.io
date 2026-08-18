@@ -1840,7 +1840,7 @@ feature定义应versioned，并记录source snapshot与statistics。
 training input为feature dataset，output为weights/model artifacts：
 
 $$
-    heta^*=\arg\min_{\theta}\sum_{(x_i,y_i)\in D}\mathcal{L}(f_{\theta}(x_i),y_i)
+    heta^{\ast}=\arg\min_{\theta}\sum_{(x_i,y_i)\in D}\mathcal{L}(f_{\theta}(x_i),y_i)
 $$
 
 batch engine负责data preparation/distribution，specialized ML runtime负责gradient/optimizer。随机训练还需seed、library/hardware version才能提高reproducibility。

@@ -1456,7 +1456,7 @@ $$
 
 ### 3.6 邻接矩阵
 
-**邻接矩阵（adjacency matrix）**是 $|V|\times|V|$ 的二维数组：
+**邻接矩阵（adjacency matrix）**是 $\lvert V|\times|V\rvert$ 的二维数组：
 
 $$
 A_{ij}=

@@ -775,7 +775,7 @@ $$
 - 分界算术强度：
 
 $$
-I^*=\frac{P_{\mathrm{peak}}}{B_{\mathrm{mem}}}.
+I^{\ast}=\frac{P_{\mathrm{peak}}}{B_{\mathrm{mem}}}.
 $$
 
 提高性能的路径不同：memory-bound 应减少搬运、融合和复用；compute-bound 应提高矩阵内核效率、低精度和并行度。

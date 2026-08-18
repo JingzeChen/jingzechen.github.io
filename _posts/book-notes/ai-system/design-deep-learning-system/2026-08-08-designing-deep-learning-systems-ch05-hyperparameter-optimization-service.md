@@ -68,7 +68,7 @@ $$
 可以把训练写成内层求解：
 
 $$
-\theta^*(\lambda)=\arg\min_{\theta}
+\theta^{\ast}(\lambda)=\arg\min_{\theta}
 L_{train}(\theta;\lambda)
 $$
 
@@ -123,7 +123,7 @@ $$
 因此“最优”不是天然唯一。如果目标只最小化 validation loss，会忽略时延和成本；实际可用约束优化：
 
 $$
-\min_{\lambda}L_{val}(\theta^*(\lambda),\lambda)
+\min_{\lambda}L_{val}(\theta^{\ast}(\lambda),\lambda)
 \quad\text{s.t.}\quad
 T_{train}\le T_{max},\ M_{peak}\le M_{device},\ C\le B
 $$
@@ -147,14 +147,14 @@ $$
 HPO（hyperparameter optimization / tuning）寻找能让模型在**未参与参数拟合的验证数据**上表现最佳的超参数：
 
 $$
-\lambda^*=\arg\min_{\lambda\in\Lambda}
-L_{val}\left(\theta^*(\lambda);\lambda\right)
+\lambda^{\ast}=\arg\min_{\lambda\in\Lambda}
+L_{val}\left(\theta^{\ast}(\lambda);\lambda\right)
 $$
 
 其中：
 
 $$
-\theta^*(\lambda)=\arg\min_{\theta}L_{train}(\theta;\lambda)
+\theta^{\ast}(\lambda)=\arg\min_{\theta}L_{train}(\theta;\lambda)
 $$
 
 - $\Lambda$：超参数搜索空间；
@@ -359,10 +359,10 @@ $$
 
 只 exploitation 容易困在局部好区域；只 exploration 退化成缺少聚焦的覆盖。
 
-Expected Improvement（以最小化为例）的直觉是：在代理后验下，候选超过当前最好值 $y^*$ 的期望改善：
+Expected Improvement（以最小化为例）的直觉是：在代理后验下，候选超过当前最好值 $y^{\ast}$ 的期望改善：
 
 $$
-EI(\lambda)=\mathbb{E}\left[\max(y^*-Y(\lambda),0)\right]
+EI(\lambda)=\mathbb{E}\left[\max(y^{\ast}-Y(\lambda),0)\right]
 $$
 
 预测均值好或不确定性高的点都可能有较大 EI。
@@ -485,7 +485,7 @@ flowchart LR
 | 容错与历史 | 依赖库和项目实现 | 平台统一提供 |
 | 适用阶段 | 探索、小规模 | 生产、共享、大规模 |
 
-原章强调：HPO 不是一次性工作。数据集变化会改变 objective landscape，即使模型架构不变，原最优 $\lambda^*$ 也可能不再最优；训练代码、特征处理、硬件与业务目标变化时也应重新 HPO。
+原章强调：HPO 不是一次性工作。数据集变化会改变 objective landscape，即使模型架构不变，原最优 $\lambda^{\ast}$ 也可能不再最优；训练代码、特征处理、硬件与业务目标变化时也应重新 HPO。
 
 ---
 

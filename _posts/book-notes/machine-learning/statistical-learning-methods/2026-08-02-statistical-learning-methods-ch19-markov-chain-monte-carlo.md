@@ -127,13 +127,13 @@ $$
 
 这要求 $q$ 的支持覆盖 $p$ 的支持。算法 19.1：
 
-1. 抽取候选 $X^*\sim q$；
+1. 抽取候选 $X^{\ast}\sim q$；
 2. 独立抽取 $U\sim\operatorname{Uniform}(0,1)$；
 3. 若
    $$
-   U\le\frac{p(X^*)}{cq(X^*)},
+   U\le\frac{p(X^{\ast})}{cq(X^{\ast})},
    $$
-   则接受 $X^*$，否则拒绝并重来；
+   则接受 $X^{\ast}$，否则拒绝并重来；
 4. 直到得到 $n$ 个样本。
 
 #### 3. 为什么接受后的样本服从 $p$【补充推导】
@@ -142,9 +142,9 @@ $$
 
 $$
 \begin{aligned}
-P(X^*\in B,A)
+P(X^{\ast}\in B,A)
 &=\int_B q(x)
-P\left(U\le\frac{p(x)}{cq(x)}\mid X^*=x\right)dx\\
+P\left(U\le\frac{p(x)}{cq(x)}\mid X^{\ast}=x\right)dx\\
 &=\int_Bq(x)\frac{p(x)}{cq(x)}dx\\
 &=\frac1c\int_Bp(x)dx.
 \end{aligned}
@@ -159,8 +159,8 @@ $$
 因此
 
 $$
-P(X^*\in B\mid A)
-=\frac{P(X^*\in B,A)}{P(A)}
+P(X^{\ast}\in B\mid A)
+=\frac{P(X^{\ast}\in B,A)}{P(A)}
 =\int_Bp(x)dx.
 $$
 
@@ -262,7 +262,7 @@ I\approx\frac1n\sum_{i=1}^{n}\frac{h(X_i)}{p(X_i)}.
 \qquad\mathrm{(19.5)}
 $$
 
-这也是重要性抽样的基本恒等式。$p$ 的选择不改变期望，但显著影响方差；理想上应让 $p(x)$ 与 $|h(x)|$ 形状接近。
+这也是重要性抽样的基本恒等式。$p$ 的选择不改变期望，但显著影响方差；理想上应让 $p(x)$ 与 $\lvert h(x)\rvert$ 形状接近。
 
 #### 例 19.1
 
@@ -814,7 +814,7 @@ $$
 其中
 
 $$
-	au_{\mathrm{int}}
+\tau_{\mathrm{int}}
 =1+2\sum_{k=1}^{\infty}\rho_k
 $$
 
@@ -1326,7 +1326,7 @@ $$
 
 与 $x_1$ 无关的项并入归一化常数，即得到均值 $\rho x_2$、方差 $1-\rho^2$。第二式对称。
 
-当 $|\rho|$ 接近 1 时，每次条件方差很小，链沿狭长椭圆缓慢移动，自相关很强。Gibbs “每步都接受”不代表混合一定快。
+当 $\lvert \rho\rvert$ 接近 1 时，每次条件方差很小，链沿狭长椭圆缓慢移动，自相关很强。Gibbs “每步都接受”不代表混合一定快。
 
 #### Gibbs 与单分量 MH
 
@@ -1926,7 +1926,7 @@ $$
 先验为
 
 $$
-	heta\sim\operatorname{Beta}(1,1),
+\theta\sim\operatorname{Beta}(1,1),
 $$
 
 观测 $n=10$ 次伯努利试验中成功 $k=4$ 次。似然核为
@@ -1945,7 +1945,7 @@ $$
 即
 
 $$
-	heta\mid y\sim\operatorname{Beta}(5,7).
+\theta\mid y\sim\operatorname{Beta}(5,7).
 $$
 
 解析均值和方差：
@@ -1967,7 +1967,7 @@ $$
 采用对称随机游走
 
 $$
-	heta'=\theta+\varepsilon,
+\theta'=\theta+\varepsilon,
 \qquad \varepsilon\sim U(-0.3,0.3),
 $$
 
@@ -2008,7 +2008,7 @@ $$
 概率非负要求
 
 $$
-	heta>0,
+\theta>0,
 \qquad\eta>0,
 \qquad\theta+\eta<1.
 $$
@@ -2037,7 +2037,7 @@ $$
 \boxed{
 p(\theta,\eta\mid y)
 \propto
-	heta(2\theta+1)^{14}
+\theta(2\theta+1)^{14}
 \eta(2\eta+3)
 (1-\theta-\eta)^5
 }.
@@ -2050,7 +2050,7 @@ $$
 $$
 p(\theta\mid\eta,y)
 \propto
-	heta(2\theta+1)^{14}(1-\theta-\eta)^5,
+\theta(2\theta+1)^{14}(1-\theta-\eta)^5,
 \quad0<\theta<1-\eta.
 $$
 
@@ -2068,7 +2068,7 @@ $$
 #### 4. Gibbs 步骤
 
 $$
-	heta^{(t)}\sim p(\theta\mid\eta^{(t-1)},y),
+\theta^{(t)}\sim p(\theta\mid\eta^{(t-1)},y),
 $$
 
 $$
@@ -2086,7 +2086,7 @@ $$
 
 $$
 \int_{\theta>0,\eta>0,\theta+\eta<1}
-	heta^r\eta^s(1-\theta-\eta)^5d\theta d\eta
+\theta^r\eta^s(1-\theta-\eta)^5d\theta d\eta
 =\frac{\Gamma(r+1)\Gamma(s+1)\Gamma(6)}
 {\Gamma(r+s+8)}.
 $$

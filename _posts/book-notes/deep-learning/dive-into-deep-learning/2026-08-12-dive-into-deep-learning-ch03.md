@@ -185,7 +185,7 @@ $$
 训练目标为
 
 $$
-(\mathbf w^*,b^*)
+(\mathbf w^{\ast},b^{\ast})
 =\operatorname*{argmin}_{\mathbf w,b}L(\mathbf w,b).
 $$
 
@@ -265,16 +265,16 @@ $$
 若 $\mathbf X$ 列满秩，则 $\mathbf X^\top\mathbf X$ 可逆，唯一解为
 
 $$
-\mathbf w^*
+\mathbf w^{\ast}
 =(\mathbf X^\top\mathbf X)^{-1}\mathbf X^\top\mathbf y.
 $$
 
 #### 几何解释
 
-$\mathbf X\mathbf w^*$ 是 $\mathbf y$ 在 $\mathbf X$ 列空间上的正交投影。正规方程可重写为
+$\mathbf X\mathbf w^{\ast}$ 是 $\mathbf y$ 在 $\mathbf X$ 列空间上的正交投影。正规方程可重写为
 
 $$
-\mathbf X^\top(\mathbf y-\mathbf X\mathbf w^*)=\mathbf0,
+\mathbf X^\top(\mathbf y-\mathbf X\mathbf w^{\ast})=\mathbf0,
 $$
 
 说明最优残差与每一列特征都正交；沿任何模型可以表达的方向继续移动，都不能再降低平方距离。
@@ -341,7 +341,7 @@ b&\leftarrow b
 \end{aligned}
 $$
 
-$\eta>0$ 是学习率。梯度已经对批量取平均时，代码中不应再次除以批量大小。若损失改为求和，梯度扩大约 $|\mathcal B|$ 倍，通常需要相应减小学习率。
+$\eta>0$ 是学习率。梯度已经对批量取平均时，代码中不应再次除以批量大小。若损失改为求和，梯度扩大约 $\lvert \mathcal B\rvert$ 倍，通常需要相应减小学习率。
 
 #### 算法步骤
 
@@ -1585,7 +1585,7 @@ $$
 令其为零：
 
 $$
-b^*=\frac1n\sum_i x_i.
+b^{\ast}=\frac1n\sum_i x_i.
 $$
 
 二阶导 $J''(b)=2n>0$，所以是唯一极小值。这与高斯分布未知均值的最大似然估计一致。

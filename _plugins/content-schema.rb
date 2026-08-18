@@ -15,6 +15,14 @@ module Garden
     COURSE_REQUIRED_FIELDS = %w[uid type document_type course title description content_lang permalink].freeze
     COURSE_DOCUMENT_TYPES = %w[overview module lecture resource].freeze
     TEMPLATE_DESCRIPTION = /梳理核心概念、论证结构、适用边\s*界与实践要点/.freeze
+    INLINE_MATH = /(?<!\\)(?<!\$)\$(?!\$)(?=\S)[^$\n]+?(?<=\S)\$(?!\$)/.freeze
+    DISPLAY_MATH = /(?<!\\)\$\$|\\\[|\\\(/.freeze
+    UNSAFE_STAR_SUPERSCRIPT = /\^\*/.freeze
+    UNSAFE_ABSOLUTE_VALUE = /(?<!\$)\$(?!\$)\|[^$\n]+\|\$(?!\$)/.freeze
+    UNSAFE_INLINE_DELIMITER = /\\\(|\\\)/.freeze
+    UNSAFE_DISPLAY_DELIMITER = /^\s*\\[\[\]]\s*$/.freeze
+    CORRUPTED_TEX_COMMAND = /\t(?:heta|ext|au|imes|op|ilde|o|anh|riangle|ag)(?=[^A-Za-z]|$)/.freeze
+    MISSING_TEX_BACKSLASH = /^\s+(?:heta|ext)(?=[_{(])/.freeze
 
     def generate(site)
       content_types = site.config.dig("garden", "content_types") || []
@@ -27,9 +35,12 @@ module Garden
       seen_uids = {}
       seen_episodes = {}
       seen_lectures = {}
+      reading_series_by_category = {}
       errors = []
 
       site.posts.docs.each do |post|
+        enable_math(post)
+        validate_math_source(post, errors)
         post.data["garden_description_valid"] = !post.data["description"].to_s.match?(TEMPLATE_DESCRIPTION)
         unless post.data["garden_description_valid"]
           errors << "#{post.relative_path}: replace the template description with a specific summary"
@@ -45,6 +56,7 @@ module Garden
         validate_topics(post, hidden_topics, errors)
         validate_series_order(post, errors)
         validate_series(post, series_registry, errors)
+        validate_reading_taxonomy(post, reading_series_by_category, errors)
         validate_podcast(post, podcast_show_registry, seen_episodes, errors)
         validate_featured(post, errors)
 
@@ -63,6 +75,8 @@ module Garden
       end
 
       site.collections.fetch("courses").docs.each do |document|
+        enable_math(document)
+        validate_math_source(document, errors)
         COURSE_REQUIRED_FIELDS.each do |field|
           errors << "#{document.relative_path}: missing '#{field}'" if blank?(document.data[field])
         end
@@ -161,6 +175,38 @@ module Garden
 
     private
 
+    def enable_math(document)
+      content = document.content.to_s
+      document.data["math"] = true if content.match?(INLINE_MATH) || content.match?(DISPLAY_MATH)
+    end
+
+    def validate_math_source(document, errors)
+      content = prose_content(document.content.to_s)
+      path = document.relative_path
+      if content.match?(UNSAFE_STAR_SUPERSCRIPT)
+        errors << "#{path}: use '^{\\ast}' instead of '^*' in math"
+      end
+      if content.match?(UNSAFE_ABSOLUTE_VALUE)
+        errors << "#{path}: use '\\lvert ... \\rvert' instead of '$|...|$'"
+      end
+      if content.match?(UNSAFE_INLINE_DELIMITER) || content.match?(UNSAFE_DISPLAY_DELIMITER)
+        errors << "#{path}: use '$...$' or '$$...$$' math delimiters"
+      end
+      if content.match?(CORRUPTED_TEX_COMMAND)
+        errors << "#{path}: restore the leading backslash in a tab-corrupted TeX command"
+      end
+      if content.match?(MISSING_TEX_BACKSLASH)
+        errors << "#{path}: restore the leading backslash in a TeX command"
+      end
+    end
+
+    def prose_content(content)
+      content
+        .gsub(/```.*?```/m, "")
+        .gsub(/~~~.*?~~~/m, "")
+        .gsub(/`[^`\n]*`/, "")
+    end
+
     def blank?(value)
       value.nil? || value.respond_to?(:empty?) && value.empty?
     end
@@ -197,6 +243,33 @@ module Garden
       return if blank?(series) || registry.key?(series)
 
       errors << "#{post.relative_path}: series '#{series}' has no _data/series.yml entry"
+    end
+
+    def validate_reading_taxonomy(post, series_by_category, errors)
+      return unless post.data["type"] == "reading"
+
+      categories = post.data["categories"]
+      unless categories.is_a?(Array) && categories.size >= 3
+        errors << "#{post.relative_path}: reading content requires root, subject, and series categories"
+        return
+      end
+
+      subject = categories[1]
+      leaf = categories[2]
+      series = post.data["series"]
+      if blank?(subject) || blank?(leaf)
+        errors << "#{post.relative_path}: reading subject and series categories cannot be blank"
+        return
+      end
+      return if blank?(series)
+
+      category_key = [subject, leaf]
+      existing_series = series_by_category[category_key]
+      if existing_series && existing_series != series
+        errors << "#{post.relative_path}: category '#{subject} / #{leaf}' maps to both '#{existing_series}' and '#{series}'"
+      else
+        series_by_category[category_key] = series
+      end
     end
 
     def validate_featured(post, errors)

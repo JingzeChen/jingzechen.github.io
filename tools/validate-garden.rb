@@ -44,6 +44,7 @@ course_documents = Dir.glob(File.join(source_dir, "_courses", "**", "*.md")).map
   data = YAML.safe_load(front_matter, permitted_classes: [Date, Time], aliases: true) || {}
   [path, data]
 end
+course_overviews = course_documents.select { |_, data| data["document_type"] == "overview" }
 status_by_uid = posts.to_h { |_, data| [data["uid"], data["status"]] }
 series_registry = YAML.safe_load_file(File.join(source_dir, "_data", "series.yml"), aliases: true)
 podcast_show_registry = YAML.safe_load_file(File.join(source_dir, "_data", "podcast_shows.yml"), aliases: true)
@@ -76,6 +77,28 @@ assert.call(
   "reading.json statuses must match source posts"
 )
 assert.call(reading_data.none? { |item| item["seriesOrder"].nil? }, "reading.json requires seriesOrder")
+reading_source_by_uid = reading_posts.to_h { |_, data| [data["uid"], data] }
+search_by_uid = search_data.to_h { |item| [item["uid"], item] }
+reading_data.each do |item|
+  source = reading_source_by_uid[item["uid"]]
+  assert.call(!source.nil?, "reading.json uid '#{item['uid']}' must resolve to a source post")
+  next if source.nil?
+
+  series = source["series"]
+  expected_published = source["date"].strftime("%Y-%m-%d")
+  expected_updated = (source["updated"] || source["date"]).strftime("%Y-%m-%d")
+  assert.call(item["title"] == source["title"], "reading.json title mismatch for #{item['uid']}")
+  assert.call(item["url"] == search_by_uid.dig(item["uid"], "url"), "reading.json url mismatch for #{item['uid']}")
+  assert.call(item["series"] == series, "reading.json series mismatch for #{item['uid']}")
+  assert.call(item["seriesTitle"] == series_registry.dig(series, "title"), "reading.json series title mismatch for #{item['uid']}")
+  assert.call(item["seriesOrder"] == source["series_order"], "reading.json series order mismatch for #{item['uid']}")
+  assert.call(item["topics"] == Array(source["topics"]), "reading.json topics mismatch for #{item['uid']}")
+  assert.call(item["contentLang"] == source["content_lang"], "reading.json language mismatch for #{item['uid']}")
+  assert.call(item["status"] == source["status"], "reading.json status mismatch for #{item['uid']}")
+  assert.call(item["description"] == source["description"], "reading.json description mismatch for #{item['uid']}")
+  assert.call(item["published"] == expected_published, "reading.json published date mismatch for #{item['uid']}")
+  assert.call(item["updated"] == expected_updated, "reading.json updated date mismatch for #{item['uid']}")
+end
 assert.call(search_data.size == posts.size + course_documents.size, "search.json count must match posts and courses")
 assert.call(search_data.all? { |item| !item["contentLang"].to_s.empty? }, "search.json language mismatch")
 assert.call(
@@ -96,6 +119,7 @@ assert.call(
 home = parse.call("index.html")
 reading = parse.call("reading/index.html")
 podcasts = parse.call("podcasts/index.html")
+archives = parse.call("archives/index.html")
 sidebar_labels = home.css("#sidebar .nav-item span").map(&:text)
 type_labels = {
   "note" => "Notes",
@@ -112,6 +136,13 @@ expected_sidebar = ["Garden"] + type_labels.filter_map do |type, label|
 end + ["About"]
 assert.call(sidebar_labels == expected_sidebar, "sidebar routes do not match published content types")
 assert.call(home.css(".garden-topic-map > a[href^='/topics/']").size == topic_registry.size, "homepage must link all mapped topics")
+assert.call(home.css("[data-home-channel]").size == 3, "homepage must feature Reading, Courses, and Listening")
+assert.call(home.css("[data-home-course]").size == course_overviews.size, "homepage course links must match course overviews")
+home_archive_links = home.css("[data-home-archive-link]").map { |link| link["data-home-archive-link"] }
+assert.call(home_archive_links == %w[reading courses listening], "homepage archive links must match archive tabs")
+expected_entry_count = posts.size + course_documents.size
+actual_entry_count = home.at_css("[data-home-entry-count]")&.[]("data-home-entry-count")&.to_i
+assert.call(actual_entry_count == expected_entry_count, "homepage entry count must include posts and course documents")
 visible_featured_count = [featured.size, 3].min
 assert.call(home.css(".garden-featured-link").size == visible_featured_count, "homepage featured-link count mismatch")
 assert.call(home.css(".garden-featured-reason").size == visible_featured_count, "homepage featured-reason count mismatch")
@@ -121,6 +152,28 @@ assert_status_markers.call(
   home.css(".garden-featured-grid .garden-entry-status"),
   featured_statuses,
   "homepage status markers"
+)
+archive_tabs = archives.css("[data-archive-tab]").map { |tab| tab["data-archive-tab"] }
+archive_panels = archives.css("[data-archive-panel]").map { |panel| panel["data-archive-panel"] }
+expected_archive_collections = %w[reading courses listening]
+assert.call(archive_tabs == expected_archive_collections, "Archives tabs must follow sidebar content order")
+assert.call(archive_panels == expected_archive_collections, "Archives panels must match archive tabs")
+reading_subject_count = reading_posts.map { |_, data| Array(data["categories"])[1] || "Standalone Notes" }.uniq.size
+assert.call(
+  archives.css("[data-archive-reading-subject]").size == reading_subject_count,
+  "Archives Reading subjects must match source categories"
+)
+assert.call(
+  archives.css("[data-archive-reading-entry]").size == reading_posts.size,
+  "Archives must index every reading post"
+)
+assert.call(
+  archives.css("[data-archive-course-entry]").size == course_documents.size,
+  "Archives must index every course document"
+)
+assert.call(
+  archives.css("[data-archive-listening-entry]").size == podcast_posts.size,
+  "Archives must index every podcast post"
 )
 assert.call(reading.css(".reading-series-item").size == series_registry.size, "Reading must render every mapped series")
 assert.call(reading.css(".reading-note-row").empty?, "Reading initial HTML must not render all notes")
@@ -233,6 +286,18 @@ topic_files.each do |path|
   assert.call(document.css(".topic-start article").size == expected_start_count, "#{path} Start here count mismatch")
   assert.call(!document.at_css(".topic-notes .garden-entry").nil?, "#{path} is missing notes")
 end
+
+category_page = parse.call("categories/ai-engineering/index.html")
+assert.call(
+  category_page.at_css("#topbar-title")&.text&.strip == "AI Engineering",
+  "category topbar must show the current taxonomy title"
+)
+ai_system_category = parse.call("categories/ai-系统/index.html")
+ai_system_podcasts = podcast_posts.count { |_, data| Array(data["categories"])[1] == "AI 系统" }
+assert.call(
+  ai_system_category.css('[data-taxonomy-direct-group="podcast"] li').size == ai_system_podcasts,
+  "cross-type category pages must label direct Listening entries"
+)
 
 core_files = %w[index.html reading/index.html archives/index.html categories/ai-engineering/index.html]
 core_files.each do |path|

@@ -942,8 +942,8 @@ Random forest trees: 475
 应综合验证：
 
 $$
-	ext{效用}=
-	ext{预测质量}
+\text{效用}=
+\text{预测质量}
 -\lambda_1\text{延迟}
 -\lambda_2\text{内存}
 -\lambda_3\text{训练成本}
@@ -1721,7 +1721,7 @@ Linear Discriminant Analysis 是监督式线性方法，使用标签寻找类别
 目标直觉：
 
 $$
-	ext{最大化类间散布，最小化类内散布}
+\text{最大化类间散布，最小化类内散布}
 $$
 
 二类 Fisher 方向：

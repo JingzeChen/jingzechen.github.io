@@ -708,7 +708,7 @@ for (j = CNT; j - sizeof(int) >= 0; j -= sizeof(int))
 
 ### 12. 综合代码题：判断并解释 `x == (int)(float)x`、`2/3 == 2/3.0`、`(d+f)-d == f` 是否总成立。
 
-**答案要点：** 三者都不总成立。32-bit `int -> float` 可能舍低位，转回不能恢复；`2/3` 先执行 integer division 得 0，而 `2/3.0` 是 floating division；若 $|d|\gg|f|$，`d+f` 的中间舍入可先丢掉 $f$，再减 $d$ 得 0。最后一题体现 floating addition 不结合。
+**答案要点：** 三者都不总成立。32-bit `int -> float` 可能舍低位，转回不能恢复；`2/3` 先执行 integer division 得 0，而 `2/3.0` 是 floating division；若 $\lvert d|\gg|f\rvert$，`d+f` 的中间舍入可先丢掉 $f$，再减 $d$ 得 0。最后一题体现 floating addition 不结合。
 
 ## 推荐复习顺序
 

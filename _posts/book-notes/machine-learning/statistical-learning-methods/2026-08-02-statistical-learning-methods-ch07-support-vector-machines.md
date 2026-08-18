@@ -88,13 +88,13 @@ $$
 **定义 7.1（线性可分支持向量机）** 通过间隔最大化学习得到的分离超平面
 
 $$
-w^*\cdot x+b^*=0
+w^{\ast}\cdot x+b^{\ast}=0
 $$
 
 及分类决策函数
 
 $$
-f(x)=\operatorname{sign}(w^*\cdot x+b^*)
+f(x)=\operatorname{sign}(w^{\ast}\cdot x+b^{\ast})
 $$
 
 称为线性可分支持向量机。
@@ -266,8 +266,8 @@ $$
 
 **算法 7.1（最大间隔法）**
 
-1. 构造并求解上述凸二次规划，得 $w^*,b^*$；
-2. 得到分离超平面 $w^*\cdot x+b^*=0$ 与决策函数 $f(x)=\operatorname{sign}(w^*\cdot x+b^*)$。
+1. 构造并求解上述凸二次规划，得 $w^{\ast},b^{\ast}$；
+2. 得到分离超平面 $w^{\ast}\cdot x+b^{\ast}=0$ 与决策函数 $f(x)=\operatorname{sign}(w^{\ast}\cdot x+b^{\ast})$。
 
 #### 7.1.4 解的存在唯一性
 
@@ -277,35 +277,35 @@ $$
 
 **（一）存在性**
 
-线性可分 $\Rightarrow$ 优化问题存在可行解；目标函数 $\frac12\lVert w\rVert^2\ge0$ 有下界，故最优解存在，记 $(w^*,b^*)$。
+线性可分 $\Rightarrow$ 优化问题存在可行解；目标函数 $\frac12\lVert w\rVert^2\ge0$ 有下界，故最优解存在，记 $(w^{\ast},b^{\ast})$。
 
-又因训练集中既有正类又有负类，$(w,b)=(0,b)$ 不满足约束（此时 $y_i\cdot b\ge1$ 对正负类不能同时成立），故 $w^*\ne0$。
+又因训练集中既有正类又有负类，$(w,b)=(0,b)$ 不满足约束（此时 $y_i\cdot b\ge1$ 对正负类不能同时成立），故 $w^{\ast}\ne0$。
 
 **（二）唯一性**
 
-先证 $w^*$ 唯一。反设有两个最优解 $(w_1^*,b_1^*)$ 和 $(w_2^*,b_2^*)$，则 $\lVert w_1^*\rVert=\lVert w_2^*\rVert=c$。
+先证 $w^{\ast}$ 唯一。反设有两个最优解 $(w_1^{\ast},b_1^{\ast})$ 和 $(w_2^{\ast},b_2^{\ast})$，则 $\lVert w_1^{\ast}\rVert=\lVert w_2^{\ast}\rVert=c$。
 
-令 $w=\frac{w_1^*+w_2^*}{2}$，$b=\frac{b_1^*+b_2^*}{2}$，则 $(w,b)$ 也是可行解（约束是线性的，凸组合仍可行）。于是
+令 $w=\frac{w_1^{\ast}+w_2^{\ast}}{2}$，$b=\frac{b_1^{\ast}+b_2^{\ast}}{2}$，则 $(w,b)$ 也是可行解（约束是线性的，凸组合仍可行）。于是
 
 $$
-c\le\lVert w\rVert\le\frac12\lVert w_1^*\rVert+\frac12\lVert w_2^*\rVert=c，
+c\le\lVert w\rVert\le\frac12\lVert w_1^{\ast}\rVert+\frac12\lVert w_2^{\ast}\rVert=c，
 $$
 
-**不等号必须取等号**。这意味着三角不等式取等，故 $w_1^*=\lambda w_2^*$ 且 $|\lambda|=1$。
+**不等号必须取等号**。这意味着三角不等式取等，故 $w_1^{\ast}=\lambda w_2^{\ast}$ 且 $|\lambda|=1$。
 
 若 $\lambda=-1$，则 $w=0$，与 $(w,b)$ 是可行解矛盾。故 $\lambda=1$，即
 
 $$
-w_1^*=w_2^*。
+w_1^{\ast}=w_2^{\ast}。
 $$
 
-再证 $b^*$ 唯一。设 $x_1',x_2'$ 分别是使 $(w^*,b_1^*)$ 的约束取等号的正、负类点，则可推出
+再证 $b^{\ast}$ 唯一。设 $x_1',x_2'$ 分别是使 $(w^{\ast},b_1^{\ast})$ 的约束取等号的正、负类点，则可推出
 
 $$
-b_1^*=-\frac12\bigl[w^*\cdot x_1'+w^*\cdot x_2'\bigr]，
+b_1^{\ast}=-\frac12\bigl[w^{\ast}\cdot x_1'+w^{\ast}\cdot x_2'\bigr]，
 $$
 
-同理 $b_2^*$ 也有相同表达式，故 $b_1^*=b_2^*$。$\blacksquare$
+同理 $b_2^{\ast}$ 也有相同表达式，故 $b_1^{\ast}=b_2^{\ast}$。$\blacksquare$
 
 > **对比第 2 章**：感知机的解**不唯一**（依赖初始化和样本顺序），SVM 的解**唯一**。这正是"加了间隔最大化这个额外准则"带来的好处——它从无穷多可行超平面中挑出了唯一确定的那个。
 
@@ -509,69 +509,69 @@ $$
 
 $$
 \begin{aligned}
-&\text{(1) 稳定性：}&&w^*=\sum_i\alpha_i^*y_ix_i,\quad\sum_i\alpha_i^*y_i=0\\
-&\text{(2) 原始可行：}&&y_i(w^*\cdot x_i+b^*)-1\ge0\\
-&\text{(3) 对偶可行：}&&\alpha_i^*\ge0\\
-&\text{(4) 互补松弛：}&&\alpha_i^*\bigl[y_i(w^*\cdot x_i+b^*)-1\bigr]=0
+&\text{(1) 稳定性：}&&w^{\ast}=\sum_i\alpha_i^{\ast}y_ix_i,\quad\sum_i\alpha_i^{\ast}y_i=0\\
+&\text{(2) 原始可行：}&&y_i(w^{\ast}\cdot x_i+b^{\ast})-1\ge0\\
+&\text{(3) 对偶可行：}&&\alpha_i^{\ast}\ge0\\
+&\text{(4) 互补松弛：}&&\alpha_i^{\ast}\bigl[y_i(w^{\ast}\cdot x_i+b^{\ast})-1\bigr]=0
 \end{aligned}
 $$
 
-**互补松弛条件是理解 SVM 的钥匙**。它说：对每个样本，$\alpha_i^*$ 与 $\bigl[y_i(w^*\cdot x_i+b^*)-1\bigr]$ 中**至少有一个为 0**：
+**互补松弛条件是理解 SVM 的钥匙**。它说：对每个样本，$\alpha_i^{\ast}$ 与 $\bigl[y_i(w^{\ast}\cdot x_i+b^{\ast})-1\bigr]$ 中**至少有一个为 0**：
 
 | 情况 | 含义 |
 | --- | --- |
-| $\alpha_i^*=0$ | 该样本**不影响** $w^*$，在间隔边界之外 |
-| $\alpha_i^*>0$ | 必有 $y_i(w^*\cdot x_i+b^*)=1$，即样本**恰在间隔边界上** |
+| $\alpha_i^{\ast}=0$ | 该样本**不影响** $w^{\ast}$，在间隔边界之外 |
+| $\alpha_i^{\ast}>0$ | 必有 $y_i(w^{\ast}\cdot x_i+b^{\ast})=1$，即样本**恰在间隔边界上** |
 
 $$
-\boxed{\;\alpha_i^*>0\;\Longleftrightarrow\;x_i\text{ 是支持向量}\;}
+\boxed{\;\alpha_i^{\ast}>0\;\Longleftrightarrow\;x_i\text{ 是支持向量}\;}
 $$
 
 这从数学上严格解释了"只有支持向量决定超平面"。
 
 #### 7.2.4 由对偶解还原原始解
 
-**定理 7.2** 设 $\alpha^*$ 是对偶问题的解，则存在下标 $j$ 使 $\alpha_j^*>0$，且
+**定理 7.2** 设 $\alpha^{\ast}$ 是对偶问题的解，则存在下标 $j$ 使 $\alpha_j^{\ast}>0$，且
 
 $$
-w^*=\sum_{i=1}^{N}\alpha_i^*y_ix_i，
+w^{\ast}=\sum_{i=1}^{N}\alpha_i^{\ast}y_ix_i，
 $$
 
 $$
-b^*=y_j-\sum_{i=1}^{N}\alpha_i^*y_i(x_i\cdot x_j)。
+b^{\ast}=y_j-\sum_{i=1}^{N}\alpha_i^{\ast}y_i(x_i\cdot x_j)。
 $$
 
-**$w^*$ 的推导**：直接来自 KKT 稳定性条件。
+**$w^{\ast}$ 的推导**：直接来自 KKT 稳定性条件。
 
-**存在 $\alpha_j^*>0$ 的证明**（反证）：若所有 $\alpha_i^*=0$，则 $w^*=0$。但 $w^*=0$ 时超平面退化，不满足约束 $y_i\cdot b\ge1$（正负类不能同时满足），与最优解矛盾。
+**存在 $\alpha_j^{\ast}>0$ 的证明**（反证）：若所有 $\alpha_i^{\ast}=0$，则 $w^{\ast}=0$。但 $w^{\ast}=0$ 时超平面退化，不满足约束 $y_i\cdot b\ge1$（正负类不能同时满足），与最优解矛盾。
 
-**$b^*$ 的推导**：取任一 $\alpha_j^*>0$，由互补松弛：
+**$b^{\ast}$ 的推导**：取任一 $\alpha_j^{\ast}>0$，由互补松弛：
 
 $$
-y_j(w^*\cdot x_j+b^*)-1=0。
+y_j(w^{\ast}\cdot x_j+b^{\ast})-1=0。
 $$
 
 两边乘 $y_j$，利用 $y_j^2=1$：
 
 $$
-w^*\cdot x_j+b^*=y_j
+w^{\ast}\cdot x_j+b^{\ast}=y_j
 \quad\Longrightarrow\quad
-b^*=y_j-w^*\cdot x_j
-=y_j-\sum_i\alpha_i^*y_i(x_i\cdot x_j)。
+b^{\ast}=y_j-w^{\ast}\cdot x_j
+=y_j-\sum_i\alpha_i^{\ast}y_i(x_i\cdot x_j)。
 $$
 
 **分类决策函数的对偶形式**：
 
 $$
 \boxed{\;
-f(x)=\operatorname{sign}\left(\sum_{i=1}^{N}\alpha_i^*y_i(x\cdot x_i)+b^*\right)
+f(x)=\operatorname{sign}\left(\sum_{i=1}^{N}\alpha_i^{\ast}y_i(x\cdot x_i)+b^{\ast}\right)
 \;}
 $$
 
 **关键观察**：决策函数**只依赖于待预测样本与训练样本的内积**。这意味着：
 
-1. 不需要显式计算 $w^*$（在高维/无穷维空间中 $w^*$ 可能无法表示）；
-2. 只需对**支持向量**求和（$\alpha_i^*=0$ 的项自动消失）；
+1. 不需要显式计算 $w^{\ast}$（在高维/无穷维空间中 $w^{\ast}$ 可能无法表示）；
+2. 只需对**支持向量**求和（$\alpha_i^{\ast}=0$ 的项自动消失）；
 3. 把内积换成核函数即可处理非线性问题。
 
 #### 7.2.5 例 7.2：用对偶算法求解
@@ -624,24 +624,24 @@ $$
 最小值在 $\alpha_2=0,\alpha_1=\frac14$ 处，此时 $\alpha_3=\alpha_1+\alpha_2=\frac14$。
 
 $$
-\alpha^*=\left(\tfrac14,\;0,\;\tfrac14\right)^\top。
+\alpha^{\ast}=\left(\tfrac14,\;0,\;\tfrac14\right)^\top。
 $$
 
 **还原原始解**：
 
 $$
-w^*=\tfrac14(1)(3,3)^\top+0+\tfrac14(-1)(1,1)^\top
+w^{\ast}=\tfrac14(1)(3,3)^\top+0+\tfrac14(-1)(1,1)^\top
 =\left(\tfrac12,\tfrac12\right)^\top，
 $$
 
 $$
-b^*=y_1-\sum_i\alpha_i^*y_iG_{i1}
+b^{\ast}=y_1-\sum_i\alpha_i^{\ast}y_iG_{i1}
 =1-\left(\tfrac14\cdot18-\tfrac14\cdot6\right)=1-3=-2。
 $$
 
 与例 7.1 的直接求解结果**完全一致**。
 
-$\alpha_1^*,\alpha_3^*>0$ 说明 $x_1,x_3$ 是支持向量，$\alpha_2^*=0$ 说明 $x_2$ 不是——这与 7.1.6 节的观察吻合。
+$\alpha_1^{\ast},\alpha_3^{\ast}>0$ 说明 $x_1,x_3$ 是支持向量，$\alpha_2^{\ast}=0$ 说明 $x_2$ 不是——这与 7.1.6 节的观察吻合。
 
 ---
 
@@ -708,7 +708,7 @@ $$
 
 **定义 7.5（线性支持向量机）** 求解上述凸二次规划得到的分离超平面与决策函数称为线性支持向量机。
 
-> **解的性质**：$w^*$ 唯一，但 $b^*$ **可能不唯一**（存在于一个区间中）。这与硬间隔不同。实践中通常取所有满足 $0<\alpha_i^*<C$ 的样本算出的 $b$ 的平均值。
+> **解的性质**：$w^{\ast}$ 唯一，但 $b^{\ast}$ **可能不唯一**（存在于一个区间中）。这与硬间隔不同。实践中通常取所有满足 $0<\alpha_i^{\ast}<C$ 的样本算出的 $b$ 的平均值。
 
 #### 7.3.3 对偶问题推导
 
@@ -784,41 +784,41 @@ $$
 
 > 这个结果非常优雅：引入了 $N$ 个松弛变量，对偶问题却**没有增加任何变量**，只是给原有变量加了个上界。
 
-**定理 7.3**：设 $\alpha^*$ 是对偶解，若存在分量 $0<\alpha_j^*<C$，则
+**定理 7.3**：设 $\alpha^{\ast}$ 是对偶解，若存在分量 $0<\alpha_j^{\ast}<C$，则
 
 $$
-w^*=\sum_i\alpha_i^*y_ix_i,
+w^{\ast}=\sum_i\alpha_i^{\ast}y_ix_i,
 \qquad
-b^*=y_j-\sum_i\alpha_i^*y_i(x_i\cdot x_j)。
+b^{\ast}=y_j-\sum_i\alpha_i^{\ast}y_i(x_i\cdot x_j)。
 $$
 
-> 注意计算 $b^*$ 时必须选**严格在 $(0,C)$ 内**的 $\alpha_j^*$。原因见下节：只有这类样本恰好落在间隔边界上，才有 $y_j(w^*\cdot x_j+b^*)=1$。
+> 注意计算 $b^{\ast}$ 时必须选**严格在 $(0,C)$ 内**的 $\alpha_j^{\ast}$。原因见下节：只有这类样本恰好落在间隔边界上，才有 $y_j(w^{\ast}\cdot x_j+b^{\ast})=1$。
 
 #### 7.3.4 支持向量的完整分类
 
 软间隔的 KKT 互补条件为：
 
 $$
-\alpha_i^*\bigl[y_i(w^*\cdot x_i+b^*)-1+\xi_i^*\bigr]=0,
+\alpha_i^{\ast}\bigl[y_i(w^{\ast}\cdot x_i+b^{\ast})-1+\xi_i^{\ast}\bigr]=0,
 \qquad
-\mu_i^*\xi_i^*=0，
+\mu_i^{\ast}\xi_i^{\ast}=0，
 $$
 
-结合 $\mu_i^*=C-\alpha_i^*$，可以完整刻画每个样本的位置：
+结合 $\mu_i^{\ast}=C-\alpha_i^{\ast}$，可以完整刻画每个样本的位置：
 
-| $\alpha_i^*$ | $\mu_i^*=C-\alpha_i^*$ | $\xi_i^*$ | 样本位置 |
+| $\alpha_i^{\ast}$ | $\mu_i^{\ast}=C-\alpha_i^{\ast}$ | $\xi_i^{\ast}$ | 样本位置 |
 | :---: | :---: | :---: | --- |
-| $\alpha_i^*=0$ | $>0$ | $=0$ | 间隔边界**外**，分类正确（非支持向量） |
-| $0<\alpha_i^*<C$ | $>0$ | $=0$ | **恰在间隔边界上** |
-| $\alpha_i^*=C$ | $=0$ | $0<\xi_i<1$ | 间隔内部，分类**正确** |
-| $\alpha_i^*=C$ | $=0$ | $\xi_i=1$ | 恰在分离超平面上 |
-| $\alpha_i^*=C$ | $=0$ | $\xi_i>1$ | 分类**错误** |
+| $\alpha_i^{\ast}=0$ | $>0$ | $=0$ | 间隔边界**外**，分类正确（非支持向量） |
+| $0<\alpha_i^{\ast}<C$ | $>0$ | $=0$ | **恰在间隔边界上** |
+| $\alpha_i^{\ast}=C$ | $=0$ | $0<\xi_i<1$ | 间隔内部，分类**正确** |
+| $\alpha_i^{\ast}=C$ | $=0$ | $\xi_i=1$ | 恰在分离超平面上 |
+| $\alpha_i^{\ast}=C$ | $=0$ | $\xi_i>1$ | 分类**错误** |
 
 **推理链条**：
 
-- 若 $\alpha_i^*<C$，则 $\mu_i^*=C-\alpha_i^*>0$，由 $\mu_i^*\xi_i^*=0$ 得 $\xi_i^*=0$；
-- 若 $\alpha_i^*>0$，由第一个互补条件得 $y_i(w^*\cdot x_i+b^*)=1-\xi_i^*$；
-- 两者结合：$0<\alpha_i^*<C\Rightarrow\xi_i^*=0\Rightarrow y_i(w^*\cdot x_i+b^*)=1$，即恰在间隔边界上。
+- 若 $\alpha_i^{\ast}<C$，则 $\mu_i^{\ast}=C-\alpha_i^{\ast}>0$，由 $\mu_i^{\ast}\xi_i^{\ast}=0$ 得 $\xi_i^{\ast}=0$；
+- 若 $\alpha_i^{\ast}>0$，由第一个互补条件得 $y_i(w^{\ast}\cdot x_i+b^{\ast})=1-\xi_i^{\ast}$；
+- 两者结合：$0<\alpha_i^{\ast}<C\Rightarrow\xi_i^{\ast}=0\Rightarrow y_i(w^{\ast}\cdot x_i+b^{\ast})=1$，即恰在间隔边界上。
 
 ```text
          H₂        分离超平面      H₁
@@ -1028,7 +1028,7 @@ $$
 $$
 
 $$
-f(x)=\operatorname{sign}\left(\sum_{i=1}^{N}\alpha_i^*y_iK(x,x_i)+b^*\right)。
+f(x)=\operatorname{sign}\left(\sum_{i=1}^{N}\alpha_i^{\ast}y_iK(x,x_i)+b^{\ast}\right)。
 $$
 
 **这等价于**：先用 $\phi$ 把数据映射到高维特征空间，再在那里学习线性 SVM。但整个过程中**从未显式计算过 $\phi(x)$**。
@@ -1166,7 +1166,7 @@ $$
 对应 $p$ 次多项式分类器：
 
 $$
-f(x)=\operatorname{sign}\left(\sum_i\alpha_i^*y_i(x_i\cdot x+1)^p+b^*\right)。
+f(x)=\operatorname{sign}\left(\sum_i\alpha_i^{\ast}y_i(x_i\cdot x+1)^p+b^{\ast}\right)。
 $$
 
 **2. 高斯核函数（RBF 核）**
@@ -1178,8 +1178,8 @@ $$
 对应**高斯径向基函数分类器**：
 
 $$
-f(x)=\operatorname{sign}\left(\sum_i\alpha_i^*y_i
-\exp\left(-\frac{\lVert x-x_i\rVert^2}{2\sigma^2}\right)+b^*\right)。
+f(x)=\operatorname{sign}\left(\sum_i\alpha_i^{\ast}y_i
+\exp\left(-\frac{\lVert x-x_i\rVert^2}{2\sigma^2}\right)+b^{\ast}\right)。
 $$
 
 > **高斯核的特征空间是无穷维的**——这可以由 $e^t$ 的泰勒展开看出。这正是核技巧威力的最好体现：无穷维空间中的线性分类，计算量却和维数无关。
@@ -1218,7 +1218,7 @@ $\lambda<1$ 使得**间隔越大的匹配贡献越小**，符合"连续匹配更
 **定义 7.8** 通过核函数与软间隔最大化学习得到的分类决策函数
 
 $$
-f(x)=\operatorname{sign}\left(\sum_{i=1}^{N}\alpha_i^*y_iK(x,x_i)+b^*\right)
+f(x)=\operatorname{sign}\left(\sum_{i=1}^{N}\alpha_i^{\ast}y_iK(x,x_i)+b^{\ast}\right)
 $$
 
 称为**非线性支持向量机**。
@@ -1235,10 +1235,10 @@ $$
 \text{s.t.}\;\sum_i\alpha_iy_i=0,\quad0\le\alpha_i\le C；
 $$
 
-2. 选择 $0<\alpha_j^*<C$，计算
+2. 选择 $0<\alpha_j^{\ast}<C$，计算
 
 $$
-b^*=y_j-\sum_i\alpha_i^*y_iK(x_i,x_j)；
+b^{\ast}=y_j-\sum_i\alpha_i^{\ast}y_iK(x_i,x_j)；
 $$
 
 3. 构造决策函数。
@@ -1480,7 +1480,7 @@ $$
 
 **第 2 个变量（内层循环）**：希望 $\alpha_2$ 有**足够大的变化**。
 
-由更新式，变化量正比于 $|E_1-E_2|$，所以选使 $|E_1-E_2|$ **最大**的 $\alpha_2$：
+由更新式，变化量正比于 $\lvert E_1-E_2\rvert$，所以选使 $\lvert E_1-E_2\rvert$ **最大**的 $\alpha_2$：
 
 - 若 $E_1>0$，选最小的 $E_i$；
 - 若 $E_1<0$，选最大的 $E_i$。
@@ -2035,7 +2035,7 @@ $$
 **模型**
 
 $$
-f(x)=\operatorname{sign}\left(\sum_{i=1}^{N}\alpha_i^*y_iK(x,x_i)+b^*\right)。
+f(x)=\operatorname{sign}\left(\sum_{i=1}^{N}\alpha_i^{\ast}y_iK(x,x_i)+b^{\ast}\right)。
 $$
 
 属于**判别**、**非概率**模型。线性核时是参数化模型，高斯核时是非参数化模型（复杂度随样本增长）。
@@ -2060,12 +2060,12 @@ $$
 4. 间隔 $=\dfrac{2}{\lVert w\rVert}$，故最小化 $\lVert w\rVert$ 即最大化间隔。
 5. 转对偶的两个理由：更易求解；**自然引入核函数**。第二点是决定性的。
 6. 对偶推导给出 $w=\sum_i\alpha_iy_ix_i$ 和 $\sum_i\alpha_iy_i=0$，前者说明 $w$ 是样本的线性组合。
-7. **KKT 互补松弛** $\alpha_i^*[y_i(w^*\cdot x_i+b^*)-1]=0$ 是核心，它给出 $\alpha_i^*>0\Leftrightarrow$ 支持向量。
+7. **KKT 互补松弛** $\alpha_i^{\ast}[y_i(w^{\ast}\cdot x_i+b^{\ast})-1]=0$ 是核心，它给出 $\alpha_i^{\ast}>0\Leftrightarrow$ 支持向量。
 8. 只有支持向量决定超平面；删除其他样本解不变。
 9. 软间隔引入 $\xi_i$ 与惩罚 $C$；$C$ 大易过拟合，$C$ 小易欠拟合，$C\to\infty$ 退化为硬间隔。
 10. **软间隔对偶中的上界 $0\le\alpha_i\le C$ 来自 $C-\alpha_i-\mu_i=0$ 与 $\mu_i\ge0$**，不是人为规定。
 11. 软间隔对偶与硬间隔**目标函数完全相同**，只多了上界约束——引入 $N$ 个 $\xi$ 却没增加对偶变量。
-12. 软间隔支持向量按 $\alpha_i$ 与 $\xi_i$ 分为五种情形；计算 $b^*$ 必须选 $0<\alpha_j^*<C$ 的样本。
+12. 软间隔支持向量按 $\alpha_i$ 与 $\xi_i$ 分为五种情形；计算 $b^{\ast}$ 必须选 $0<\alpha_j^{\ast}<C$ 的样本。
 13. SVM 等价于最小化**合页损失 + $L_2$ 正则**；合页损失是 0-1 损失的凸上界（代理损失）。
 14. 合页损失比感知机损失要求更高：不仅要分对，还要间隔 $\ge1$。
 15. 核函数 $K(x,z)=\phi(x)\cdot\phi(z)$；核技巧是**只定义 $K$ 而不显式定义 $\phi$**。
@@ -2074,7 +2074,7 @@ $$
 18. 高斯核对应**无穷维**特征空间，但计算量与维数无关。
 19. SMO 每次优化**两个**变量（因等式约束，一个变量无法独立变动），子问题有**解析解**。
 20. $\eta=K_{11}+K_{22}-2K_{12}=\lVert\phi(x_1)-\phi(x_2)\rVert^2$，更新量 $\propto(E_1-E_2)/\eta$。
-21. 第 1 个变量选违反 KKT 最严重者，第 2 个选使 $|E_1-E_2|$ 最大者。
+21. 第 1 个变量选违反 KKT 最严重者，第 2 个选使 $\lvert E_1-E_2\rvert$ 最大者。
 22. 间隔最大化的泛化保证：VC 维上界 $\propto R^2/\gamma^2$，**与特征空间维数无关**。
 
 ---
@@ -2108,12 +2108,12 @@ $$
 **SVM 对偶形式**：
 
 $$
-w^*=\sum_{i=1}^{N}\alpha_i^*y_ix_i,
+w^{\ast}=\sum_{i=1}^{N}\alpha_i^{\ast}y_ix_i,
 \qquad
-b^*=y_j-\sum_i\alpha_i^*y_i(x_i\cdot x_j)，
+b^{\ast}=y_j-\sum_i\alpha_i^{\ast}y_i(x_i\cdot x_j)，
 $$
 
-其中 $\alpha^*$ 由凸二次规划确定：
+其中 $\alpha^{\ast}$ 由凸二次规划确定：
 
 $$
 \min_\alpha\;\frac12\sum_i\sum_j\alpha_i\alpha_jy_iy_j(x_i\cdot x_j)-\sum_i\alpha_i
@@ -2165,17 +2165,17 @@ $$
 **求解**（代码用 SMO 求得，下面给出验证）：
 
 $$
-\alpha^*=\left(0.5,\;0,\;2.0,\;0,\;2.5\right)^\top，
+\alpha^{\ast}=\left(0.5,\;0,\;2.0,\;0,\;2.5\right)^\top，
 $$
 
 $$
-w^*=\sum_i\alpha_i^*y_ix_i
+w^{\ast}=\sum_i\alpha_i^{\ast}y_ix_i
 =0.5\binom12+2\binom33-2.5\binom32
 =\binom{-1}{2}，
 $$
 
 $$
-b^*=-2。
+b^{\ast}=-2。
 $$
 
 **分离超平面**：
@@ -2192,7 +2192,7 @@ $$
 
 **验证所有约束**：
 
-| 点 | $y_i$ | $w\cdot x_i+b$ | $y_i(w\cdot x_i+b)$ | $\alpha_i^*$ | 支持向量 |
+| 点 | $y_i$ | $w\cdot x_i+b$ | $y_i(w\cdot x_i+b)$ | $\alpha_i^{\ast}$ | 支持向量 |
 | --- | ---: | ---: | ---: | ---: | :---: |
 | $x_1=(1,2)$ | $+1$ | $-1+4-2=1$ | $1$ | $0.5$ | **是** |
 | $x_2=(2,3)$ | $+1$ | $-2+6-2=2$ | $2$ | $0$ | 否 |
@@ -2200,12 +2200,12 @@ $$
 | $x_4=(2,1)$ | $-1$ | $-2+2-2=-2$ | $2$ | $0$ | 否 |
 | $x_5=(3,2)$ | $-1$ | $-3+4-2=-1$ | $1$ | $2.5$ | **是** |
 
-所有 $y_i(w\cdot x_i+b)\ge1$ ✓，等式约束 $\sum\alpha_i^*y_i=0.5+2.0-2.5=0$ ✓
+所有 $y_i(w\cdot x_i+b)\ge1$ ✓，等式约束 $\sum\alpha_i^{\ast}y_i=0.5+2.0-2.5=0$ ✓
 
 **间隔**：
 
 $$
-\lVert w^*\rVert=\sqrt{(-1)^2+2^2}=\sqrt5\approx2.236，
+\lVert w^{\ast}\rVert=\sqrt{(-1)^2+2^2}=\sqrt5\approx2.236，
 $$
 
 $$

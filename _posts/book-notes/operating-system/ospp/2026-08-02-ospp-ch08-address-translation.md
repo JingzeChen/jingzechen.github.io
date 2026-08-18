@@ -95,7 +95,7 @@ $$
 T(ASID,v,op)=
 \begin{cases}
 PA, & \text{映射存在且权限允许},\\
-	ext{exception}, & \text{映射不存在或权限不允许}.
+\text{exception}, & \text{映射不存在或权限不允许}.
 \end{cases}
 $$
 

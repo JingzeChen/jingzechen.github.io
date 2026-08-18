@@ -762,7 +762,7 @@ $$
 没有统一协议时，每个 Agent runtime 都要分别适配 Slack、GitHub、数据库、文件系统等 API：
 
 $$
-    ext{adapter count}\approx N_{clients}\times M_{systems}.
+\text{adapter count}\approx N_{clients}\times M_{systems}.
 $$
 
 若每个底层系统只包一层标准 server，每个 Agent client 只实现 MCP，集成面更接近：
@@ -873,7 +873,7 @@ def read_file(request: ReadFileRequest) -> str: ...
 正确字节数应是：
 
 $$
-    ext{bytes\_written}
+\text{bytes\_written}
 =
 \left|content.encode(\text{"utf-8"})\right|.
 $$

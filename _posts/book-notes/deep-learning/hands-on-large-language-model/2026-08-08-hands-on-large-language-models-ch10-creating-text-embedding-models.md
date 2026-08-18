@@ -535,7 +535,7 @@ Hard-negative mining：先用已有 retriever 召回 top candidates，排除已�
 从 `bert-base-uncased` 构建 sentence model，需要先学通用 sentence geometry。若已有高质量 embedding checkpoint，继续训练目标域数据通常更省样本和算力：
 
 $$
-\theta^*=\arg\min_{\theta\leftarrow\theta_0}
+\theta^{\ast}=\arg\min_{\theta\leftarrow\theta_0}
 \mathcal{L}_{target}(\theta)
 $$
 

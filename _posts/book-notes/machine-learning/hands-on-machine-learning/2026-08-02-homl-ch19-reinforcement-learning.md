@@ -427,15 +427,15 @@ $$
 最优 value：
 
 $$
-V^*(s)=\max_\pi V^\pi(s)
+V^{\ast}(s)=\max_\pi V^\pi(s)
 $$
 
 第一步选 action，之后仍最优（principle of optimality）：
 
 $$
 \boxed{
-V^*(s)=\max_a\sum_{s'}P(s'\mid s,a)
-[R(s,a,s')+\gamma V^*(s')]
+V^{\ast}(s)=\max_a\sum_{s'}P(s'\mid s,a)
+[R(s,a,s')+\gamma V^{\ast}(s')]
 }
 $$
 
@@ -453,11 +453,11 @@ $$
 \le\gamma\|V-U\|_\infty
 $$
 
-$\gamma<1$ 时是 contraction。Banach fixed-point theorem 保证唯一 fixed point $V^*$，迭代收敛，误差上界：
+$\gamma<1$ 时是 contraction。Banach fixed-point theorem 保证唯一 fixed point $V^{\ast}$，迭代收敛，误差上界：
 
 $$
-\|V_k-V^*\|_\infty
-\le\gamma^k\|V_0-V^*\|_\infty
+\|V_k-V^{\ast}\|_\infty
+\le\gamma^k\|V_0-V^{\ast}\|_\infty
 $$
 
 Finite episodic undiscounted MDP 也可收敛，但需要 proper termination 等额外条件；不能盲目把 continuing $\gamma=1$ 套入 contraction proof。
@@ -475,8 +475,8 @@ $$
 每轮应用一次 Bellman operator。收敛后 greedy policy：
 
 $$
-\pi^*(s)\in\arg\max_a
-\sum_{s'}P(s'\mid s,a)[R+\gamma V^*(s')]
+\pi^{\ast}(s)\in\arg\max_a
+\sum_{s'}P(s'\mid s,a)[R+\gamma V^{\ast}(s')]
 $$
 
 Value iteration 是 model-based dynamic programming：需要已知完整 $P,R$，每轮遍历 states/actions/next states。
@@ -492,7 +492,7 @@ Q_{k+1}(s,a)
 $$
 
 $$
-\pi^*(s)\in\arg\max_aQ^*(s,a)
+\pi^{\ast}(s)\in\arg\max_aQ^{\ast}(s,a)
 $$
 
 Q 直接编码 action choice，不需再用 known transition model 提取 policy。
@@ -806,11 +806,11 @@ $$
 Max noisy estimates 有 upward bias。Online 选 action，target 估值：
 
 $$
-a^*=\arg\max_aQ_\theta(s',a)
+a^{\ast}=\arg\max_aQ_\theta(s',a)
 $$
 
 $$
-y=r+\gamma Q_{\theta^-}(s',a^*)
+y=r+\gamma Q_{\theta^-}(s',a^{\ast})
 $$
 
 Selection/evaluation noise 解耦，减少 overestimation。
@@ -1483,7 +1483,7 @@ Classic BipedalWalker 通常以 100 consecutive episodes average ≥300 为 solv
 | --- | --- |
 | Return | $G_t=\sum_k\gamma^kr_{t+k+1}$ |
 | REINFORCE | $-\sum_t\log\pi_\theta(a_t\mid s_t)\hat A_t$ |
-| Bellman optimal | $V^*=\max_aE[R+\gamma V^*]$ |
+| Bellman optimal | $V^{\ast}=\max_aE[R+\gamma V^{\ast}]$ |
 | TD error | $\delta=r+\gamma V(s')-V(s)$ |
 | Q-learning | $Q\leftarrow Q+\alpha[r+\gamma\max Q'-Q]$ |
 | DQN target | $y=r+\gamma(1-d)\max Q_{\theta^-}(s',a')$ |

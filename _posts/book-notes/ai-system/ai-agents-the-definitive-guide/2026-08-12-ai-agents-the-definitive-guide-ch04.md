@@ -942,7 +942,7 @@ $$
 假设固定月成本 $F$，自托管每百万 token 可变成本 $v$，API 单位成本 $p$，且 $p>v$，粗略 break-even volume：
 
 $$
-V^*=\frac{F}{p-v}.
+V^{\ast}=\frac{F}{p-v}.
 $$
 
 流量稳定、利用率高时自托管更可能便宜；早期低流量或突发负载下，API 避免 idle GPU 和专业团队成本，可能更优。

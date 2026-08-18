@@ -562,7 +562,7 @@ SentencePiece 是一个 toolkit/框架，可支持 BPE 与 unigram language mode
 Unigram tokenizer 的抽象是：给一个 string 的所有合法 segmentations $s$，选择 token probability product 较高者：
 
 $$
-s^*
+s^{\ast}
 =\arg\max_{s\in\mathcal S(x)}
 \prod_{u\in s}p(u).
 $$
@@ -1320,7 +1320,7 @@ flowchart LR
 Continual pretraining 从已有参数 $\vartheta_0$ 出发，在新 domain/time-period corpus 上继续 next-token training：
 
 $$
-\vartheta^*
+\vartheta^{\ast}
 =\arg\min_{\vartheta}
 \mathbb E_{x\sim p_{new}}
 [\mathcal L_{LM}(x;\vartheta)].

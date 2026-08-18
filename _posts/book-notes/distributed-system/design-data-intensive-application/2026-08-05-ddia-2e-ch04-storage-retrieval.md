@@ -682,7 +682,7 @@ $$
 给定 $m/n$，最优哈希数近似：
 
 $$
-k^*=\frac{m}{n}\ln2
+k^{\ast}=\frac{m}{n}\ln2
 $$
 
 代入后：
@@ -698,7 +698,7 @@ $$
 每 key 10 bits：
 
 $$
-k^*\approx10\ln2\approx6.93
+k^{\ast}\approx10\ln2\approx6.93
 $$
 
 取 $k=7$：

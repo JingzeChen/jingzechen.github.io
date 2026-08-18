@@ -1203,7 +1203,7 @@ Feature store 在此角色类似专用 data warehouse/compute layer，但还关�
 训练样本在 prediction time $t_p$ 只能使用当时已经可得的 feature record：
 
 $$
-f^*(e,t_p)=
+f^{\ast}(e,t_p)=
 \arg\max_{f:
 f.entity=e,\ f.event\_time\le t_p,
 \ f.available\_time\le t_p}

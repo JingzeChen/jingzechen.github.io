@@ -570,7 +570,7 @@ void free(void *p);
 申请 $n$ 个 `int` 时：
 
 $$
-	ext{requested bytes}=n\times sizeof(int).
+\text{requested bytes}=n\times sizeof(int).
 $$
 
 Lecture 19 还提到 `calloc`、`realloc` 与 allocator 内部扩堆所用的 `sbrk`。本讲图示常按 word 计数，并暂把 word 当作 int-sized；真实 API 按 byte 计数，不能混用。
@@ -589,7 +589,7 @@ Lecture 19 还提到 `calloc`、`realloc` 与 allocator 内部扩堆所用的 `s
 给定请求序列 $R_0,R_1,\ldots,R_{n-1}$：
 
 $$
-	ext{throughput}=\frac{\text{completed requests}}{\text{time}}.
+\text{throughput}=\frac{\text{completed requests}}{\text{time}}.
 $$
 
 例如 10 秒内完成 5,000 次 `malloc` 与 5,000 次 `free`：
@@ -961,9 +961,9 @@ C 不满足这些假设。课堂 conservative 方案把每个 machine word 当�
 若普通 integer 恰落在 allocated interval：
 
 $$
-	ext{integer mistaken for pointer}
+\text{integer mistaken for pointer}
 \Longrightarrow
-	ext{block retained}.
+\text{block retained}.
 $$
 
 误判方向是“保留部分实际 garbage”，而不是“释放仍可达对象”。这是 conservative 的含义。

@@ -271,7 +271,7 @@ GPT-3 上 few-shot 相比 zero-shot 提升显著；强模型在通用任务上�
 固定 few-shot 示例对所有请求未必最优。可从示例库中检索与当前输入相似、且能覆盖不同边界的 $k$ 个示例。目标可以写为：
 
 $$
-S^*(x)=\arg\max_{S\subseteq\mathcal E,|S|=k}
+S^{\ast}(x)=\arg\max_{S\subseteq\mathcal E,|S|=k}
 \operatorname{Utility}(S,x),
 $$
 
@@ -819,12 +819,12 @@ CoT 和自我批评增加输出 token 与调用次数。若初稿、批评、修
 给定候选提示空间 $\mathcal P$、开发集 $D_{dev}$ 和效用函数 $J$：
 
 $$
-p^*=\arg\max_{p\in\mathcal P}J(p;D_{dev}).
+p^{\ast}=\arg\max_{p\in\mathcal P}J(p;D_{dev}).
 $$
 
 若不断查看同一开发集并修改提示，提示会过拟合该集合。最终结果必须在独立测试集 $D_{test}$ 上报告：
 
-$$J(p^*;D_{test}).$$
+$$J(p^{\ast};D_{test}).$$
 
 效用应包含多目标：
 
@@ -861,7 +861,7 @@ $$
 从优化角度，它与 AutoML 类似：
 
 $$
-p^*=\arg\max_{p\in\mathcal P}J(p;D_{dev}).
+p^{\ast}=\arg\max_{p\in\mathcal P}J(p;D_{dev}).
 $$
 
 区别是搜索变量不只是数值超参数，还包括自然语言、示例、结构和多步工作流。候选之间没有平滑几何关系，改一个词可能造成非连续变化。
@@ -1183,7 +1183,7 @@ republish_error= version already exists
 可以把输入来源划分为信任等级：
 
 $$
-    ext{system policy}
+\text{system policy}
 >\text{developer instruction}
 >\text{authenticated user request}
 >\text{model output}
@@ -1280,7 +1280,7 @@ flowchart LR
 自动攻击本质上是黑盒优化：
 
 $$
-p^*=\arg\max_{p\in\mathcal P}
+p^{\ast}=\arg\max_{p\in\mathcal P}
 \mathrm{AttackScore}(f(p)).
 $$
 
@@ -1438,7 +1438,7 @@ $$
 可以把决策表示为：在候选指令集合 $I$ 中，选择不违反更高层策略的最高优先级指令：
 
 $$
-i^*=\arg\max_{i\in I,\ \mathrm{Allowed}(i)}\mathrm{Priority}(i).
+i^{\ast}=\arg\max_{i\in I,\ \mathrm{Allowed}(i)}\mathrm{Priority}(i).
 $$
 
 OpenAI 的指令层级训练使用对齐与冲突指令合成数据进行微调，部分评价中鲁棒性最高提升约 63%，标准能力退化较小。它能降低风险，不是完整安全证明。
@@ -1678,7 +1678,7 @@ flowchart TD
 ### 提示结构
 
 $$
-    ext{Prompt}
+\text{Prompt}
 =\text{Instruction}
 +\text{Examples}
 +\text{Context}

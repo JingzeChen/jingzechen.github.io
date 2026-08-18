@@ -1875,7 +1875,7 @@ true true
 |---|---|---|
 | 三种 DFS | `preorder/inorder/postorder` | NLR、LNR、LRN |
 | 直径 | `diameter` | $depth(L)+depth(R)$ |
-| 坡度 | `tree_tilt` | $|sum(L)-sum(R)|$ |
+| 坡度 | `tree_tilt` | $\lvert sum(L)-sum(R)\rvert$ |
 | 层序 | `levels` | 轮首队列大小等于当前层结点数 |
 | 最大宽度 | `max_width` | $R_h-L_h+1$，逐层归一化编号 |
 | 层排序 | `minimum_swaps` | $m-r$，$r$ 为置换环数 |

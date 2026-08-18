@@ -517,7 +517,7 @@ FIFO 不是“无调度”，而是以到达时间作为唯一优先级。低并
 **SSTF/SPTF。** Shortest Seek Time First 从当前磁头位置选择 seek 最短的 pending request；Shortest Positioning Time First 进一步把 rotational latency 也算入，选择估计定位时间最短者：
 
 $$
-r^*=\arg\min_{r\in Q}
+r^{\ast}=\arg\min_{r\in Q}
 \bigl(T_{seek}(head,r)+T_{rot}(phase,r)\bigr).
 $$
 

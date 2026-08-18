@@ -948,7 +948,7 @@ $$
 
 ### 14.3.2 策略
 
-> $k$ 均值聚类归结为样本集合 $X$ 的划分，或者从样本到类的函数的选择问题。**$k$ 均值聚类的策略是通过损失函数的最小化选取最优的划分或函数 $C^*$。**
+> $k$ 均值聚类归结为样本集合 $X$ 的划分，或者从样本到类的函数的选择问题。**$k$ 均值聚类的策略是通过损失函数的最小化选取最优的划分或函数 $C^{\ast}$。**
 
 #### 第一步：确定样本间的距离（式 14.18）
 
@@ -999,7 +999,7 @@ $$
 > $k$ 均值聚类就是求解最优化问题：
 
 $$
-C^*=\arg\min_{C}W(C)=\arg\min_{C}\sum_{l=1}^{k}\sum_{C(i)=l}\lVert x_i-\bar x_l\rVert^2
+C^{\ast}=\arg\min_{C}W(C)=\arg\min_{C}\sum_{l=1}^{k}\sum_{C(i)=l}\lVert x_i-\bar x_l\rVert^2
 \tag{14.20}
 $$
 
@@ -1159,7 +1159,7 @@ $$
 > **算法 14.2（$k$ 均值聚类算法）**
 >
 > **输入**：$n$ 个样本的集合 $X$；
-> **输出**：样本集合的聚类 $C^*$。
+> **输出**：样本集合的聚类 $C^{\ast}$。
 >
 > **(1) 初始化**。令 $t=0$，随机选择 $k$ 个样本点作为初始聚类中心 $m^{(0)}=(m_1^{(0)},\ldots,m_l^{(0)},\ldots,m_k^{(0)})$。
 >
@@ -1167,7 +1167,7 @@ $$
 >
 > **(3) 计算新的类中心**。对聚类结果 $C^{(t)}$，计算当前各个类中的样本的均值，作为新的类中心 $m^{(t+1)}=(m_1^{(t+1)},\ldots,m_l^{(t+1)},\ldots,m_k^{(t+1)})$。
 >
-> **(4)** 如果**迭代收敛或符合停止条件**，输出 $C^*=C^{(t)}$。否则，令 $t=t+1$，返回步 (2)。
+> **(4)** 如果**迭代收敛或符合停止条件**，输出 $C^{\ast}=C^{(t)}$。否则，令 $t=t+1$，返回步 (2)。
 
 > $k$ 均值聚类算法的复杂度是 $O(mnk)$，其中 $m$ 是样本维数，$n$ 是样本个数，$k$ 是类别个数。
 
@@ -1299,7 +1299,7 @@ $$
 > **由于得到的新的类没有改变，聚类停止。** 得到聚类结果：
 
 $$
-\boxed{\;G_1^*=\{x_1,x_5\},\qquad G_2^*=\{x_2,x_3,x_4\}\;}
+\boxed{\;G_1^{\ast}=\{x_1,x_5\},\qquad G_2^{\ast}=\{x_2,x_3,x_4\}\;}
 $$
 
 与原书结论一致 ✅（代码 2 轮收敛）
@@ -2686,28 +2686,28 @@ $$
 {\displaystyle\sum_{j=1}^{k}\exp\left(-\dfrac{\lVert x_i-\mu_j\rVert^2}{2\sigma^2}\right)}
 $$
 
-记 $l^*=\arg\min_j\lVert x_i-\mu_j\rVert^2$（设唯一），分子分母同时除以 $\exp\left(-\frac{\lVert x_i-\mu_{l^*}\rVert^2}{2\sigma^2}\right)$：
+记 $l^{\ast}=\arg\min_j\lVert x_i-\mu_j\rVert^2$（设唯一），分子分母同时除以 $\exp\left(-\frac{\lVert x_i-\mu_{l^{\ast}}\rVert^2}{2\sigma^2}\right)$：
 
 $$
 \gamma_{il}=\frac{\exp\left(-\dfrac{\Delta_l}{2\sigma^2}\right)}
 {\displaystyle\sum_{j=1}^{k}\exp\left(-\dfrac{\Delta_j}{2\sigma^2}\right)},
-\qquad \Delta_j:=\lVert x_i-\mu_j\rVert^2-\lVert x_i-\mu_{l^*}\rVert^2\ge0
+\qquad \Delta_j:=\lVert x_i-\mu_j\rVert^2-\lVert x_i-\mu_{l^{\ast}}\rVert^2\ge0
 $$
 
-注意 $\Delta_{l^*}=0$，而对 $l\ne l^*$ 有 $\Delta_l>0$。当 $\sigma^2\to0^+$：
+注意 $\Delta_{l^{\ast}}=0$，而对 $l\ne l^{\ast}$ 有 $\Delta_l>0$。当 $\sigma^2\to0^+$：
 
 $$
 \exp\left(-\frac{\Delta_l}{2\sigma^2}\right)\to
 \begin{cases}
-1,&l=l^*\quad(\Delta_{l^*}=0)\\
-0,&l\ne l^*\quad(\Delta_l>0)
+1,&l=l^{\ast}\quad(\Delta_{l^{\ast}}=0)\\
+0,&l\ne l^{\ast}\quad(\Delta_l>0)
 \end{cases}
 $$
 
 故
 
 $$
-\gamma_{il}\longrightarrow\mathbb 1[l=l^*]=\mathbb 1\!\left[l=\arg\min_j\lVert x_i-\mu_j\rVert^2\right]
+\gamma_{il}\longrightarrow\mathbb 1[l=l^{\ast}]=\mathbb 1\!\left[l=\arg\min_j\lVert x_i-\mu_j\rVert^2\right]
 $$
 
 **这正是 $k$ 均值的"指派到最近中心"** $\blacksquare$

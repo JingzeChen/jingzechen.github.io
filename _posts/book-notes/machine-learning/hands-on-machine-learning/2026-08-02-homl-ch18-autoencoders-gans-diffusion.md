@@ -907,8 +907,8 @@ print("encoder 有梯度:", discrete_vae.encoder.weight.grad is not None)
 Encoder 输出 embeddings $z_e(x)$，codebook $e_1,\ldots,e_k\in\mathbb R^m$。Quantization：
 
 $$
-j^*=\arg\min_j\|z_e(x)-e_j\|_2,
-\qquad z_q=e_{j^*}
+j^{\ast}=\arg\min_j\|z_e(x)-e_j\|_2,
+\qquad z_q=e_{j^{\ast}}
 $$
 
 Nearest-neighbor 不可导，STE 在 backward 假装 quantization 是 identity。典型 loss：
@@ -970,14 +970,14 @@ $$
 $$
 f'(D)=\frac aD-\frac b{1-D}=0
 \Rightarrow
-\boxed{D^*(x)=\frac{p_{data}(x)}{p_{data}(x)+p_g(x)}}
+\boxed{D^{\ast}(x)=\frac{p_{data}(x)}{p_{data}(x)+p_g(x)}}
 $$
 
 二阶导为负，确为 maximum。令 $m=(p_{data}+p_g)/2$，代入：
 
 $$
 \begin{aligned}
-V(D^*,G)
+V(D^{\ast},G)
 &=-2\log2
 {}+D_{KL}(p_{data}\|m)
 {}+D_{KL}(p_g\|m)\\
@@ -988,7 +988,7 @@ $$
 JS divergence 非负，且仅当 distributions 相等时为 0，因此 global optimum：
 
 $$
-p_g=p_{data},\qquad D^*(x)=1/2
+p_g=p_{data},\qquad D^{\ast}(x)=1/2
 $$
 
 这个结论不保证 alternating gradient descent 收敛。Neural game 非凸非凹，players 同时变化，可振荡/循环。
@@ -2229,7 +2229,7 @@ MLP 是教学 baseline；实际 U-Net block 将 projected time/class embeddings 
 
 $$
 \boxed{
-    ext{Constrain Reconstruction}
+\text{Constrain Reconstruction}
 \rightarrow\text{Regularize a Sampleable Latent Space}
 \rightarrow\text{Learn by Adversarial Feedback}
 \rightarrow\text{Learn to Reverse Noise}

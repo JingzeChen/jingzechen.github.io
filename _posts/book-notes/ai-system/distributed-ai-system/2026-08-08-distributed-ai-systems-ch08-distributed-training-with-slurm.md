@@ -2333,7 +2333,7 @@ $$
 Checkpoint耗时 $C$。经典近似最优interval与failure MTBF相关（Young/Daly思想）：
 
 $$
-I^*\approx\sqrt{2C\cdot MTBF}
+I^{\ast}\approx\sqrt{2C\cdot MTBF}
 $$
 
 它忽略很多现实因素，但说明save越贵/故障越少，interval可更长。还受time-limit grace、storage、async save和quality milestones约束。
@@ -3701,7 +3701,7 @@ $$
 Young近似：
 
 $$
-I^*\approx\sqrt{2T_{save}\cdot MTBF}
+I^{\ast}\approx\sqrt{2T_{save}\cdot MTBF}
 $$
 
 ### 26.8 Job array grid
@@ -4209,7 +4209,7 @@ $$
 Save 60 s、MTBF 24 h=86400 s：
 
 $$
-I^*\approx\sqrt{2\times60\times86400}
+I^{\ast}\approx\sqrt{2\times60\times86400}
 \approx3219.9\ s\approx53.7\ min
 $$
 

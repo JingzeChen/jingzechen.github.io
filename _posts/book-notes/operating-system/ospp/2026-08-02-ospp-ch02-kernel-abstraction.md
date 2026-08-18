@@ -726,7 +726,7 @@ trapframe 是硬件和入口代码保存在内核栈底部、描述被中断用�
 书中 32 位例子：硬件/统一错误槽共保存 6 个 32 位值，`pushad` 保存 8 个，故：
 
 $$
-	ext{size}=(6+8)\times4=56\text{ bytes}.
+\text{size}=(6+8)\times4=56\text{ bytes}.
 $$
 
 该结论依赖这里采用的简化布局，不含对齐、向量号、浮点/SIMD 状态等；真实 trapframe 可不同。

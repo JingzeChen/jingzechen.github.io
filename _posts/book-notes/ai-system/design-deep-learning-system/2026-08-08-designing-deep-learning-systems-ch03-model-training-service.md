@@ -329,7 +329,7 @@ $\ell$ 是单样本损失函数，$J$ 是全数据平均损失。分类任务可
 训练的理想目标是：
 
 $$
-\theta^*=\arg\min_{\theta}J(\theta)
+\theta^{\ast}=\arg\min_{\theta}J(\theta)
 $$
 
 深度网络通常无法直接求闭式解，因此使用迭代优化。

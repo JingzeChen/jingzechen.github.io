@@ -22,7 +22,7 @@ export function initLocaleDatetime() {
   dayjs.extend(window.dayjs_plugin_localizedFormat);
 
   document
-    .querySelectorAll(`[${LocaleHelper.datetimeAttr}]`)
+    .querySelectorAll(`[${LocaleHelper.datetimeAttr}][data-df]`)
     .forEach((elem) => {
       const date = dayjs(LocaleHelper.getDatetime(elem));
       elem.textContent = date.format(elem.dataset.df);

@@ -543,7 +543,7 @@ $$
 
 - 完美预测：PPL $=1$；
 - 真实词元概率为零：PPL $=\infty$；
-- 在 $|\mathcal V|$ 个词元上均匀：PPL $=|\mathcal V|$。
+- 在 $\lvert \mathcal V\rvert$ 个词元上均匀：PPL $=|\mathcal V|$。
 
 例如平均交叉熵为 $\log 4$，困惑度为 $4$。
 
@@ -1719,7 +1719,7 @@ $$
 M^kx=\sum_i\alpha_i\lambda_i^kv_i.
 $$
 
-若 $|\lambda_1|>|\lambda_2|$ 且 $\alpha_1\neq0$，归一化后方向以比例
+若 $\lvert \lambda_1|>|\lambda_2\rvert$ 且 $\alpha_1\neq0$，归一化后方向以比例
 
 $$
 \left|\frac{\lambda_2}{\lambda_1}\right|^k

@@ -521,7 +521,7 @@ $$
 }.
 $$
 
-直接连乘随长度指数变化。GSPO 取 $|o_i|$ 次方根，即 token ratio 的几何平均：
+直接连乘随长度指数变化。GSPO 取 $\lvert o_i\rvert$ 次方根，即 token ratio 的几何平均：
 
 $$
 s_i(\theta)
@@ -1036,7 +1036,7 @@ Repeated sampling 对同一个 prompt 独立生成多个答案：
 $$
 o_1,\ldots,o_K\overset{iid}{\sim}\pi_\theta(\cdot\mid q),
 \qquad
-o^*=\underset{o_i}{\operatorname{argmax}}\ V(o_i).
+o^{\ast}=\underset{o_i}{\operatorname{argmax}}\ V(o_i).
 $$
 
 它适合：
@@ -1243,7 +1243,7 @@ $$
 选择：
 
 $$
-k^*=\underset{k}{\operatorname{argmax}}\ \widetilde{\mu}_k.
+k^{\ast}=\underset{k}{\operatorname{argmax}}\ \widetilde{\mu}_k.
 $$
 
 均值高的分支常抽到高值，因此被利用；不确定性大的分支偶尔抽到很高值，因此获得探索机会。随着观测增加，后验变窄，选择逐渐集中。
@@ -1506,7 +1506,7 @@ MCTS 的 selection、expansion、simulation、backpropagation 都产生可记录
 可以写成双层优化：
 
 $$
-    heta^*
+    heta^{\ast}
 =
 \underset{\theta}{\operatorname{argmax}}
 \mathbb{E}_{q\sim\mathcal{D}}

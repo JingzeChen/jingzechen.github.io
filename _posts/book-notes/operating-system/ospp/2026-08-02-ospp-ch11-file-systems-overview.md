@@ -165,7 +165,7 @@ $$
 令 `nlink` 为持久目录硬链接数，`nopen` 为当前打开引用数。Unix 式生命周期可概括为：
 
 $$
-	ext{reclaim file only if }nlink=0\land nopen=0.
+\text{reclaim file only if }nlink=0\land nopen=0.
 $$
 
 `unlink(path)` 只删除指定目录项并减少 `nlink`；已经 `open` 的 fd 仍引用文件对象，后续 `read` 可继续。最后 fd 关闭后，若 `nlink=0`，才回收 inode 与数据块。这支持安全临时文件和无竞态替换。

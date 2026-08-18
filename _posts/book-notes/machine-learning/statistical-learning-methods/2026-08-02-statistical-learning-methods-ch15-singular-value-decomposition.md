@@ -1325,7 +1325,7 @@ $$
 
 $$
 \lVert A\rVert_F=\left(\sum_{i=1}^{m}\sum_{j=1}^{n}a_{ij}^2\right)^{\frac12}
-	ag{15.25}
+\tag{15.25}
 $$
 
 **三种等价理解**【补充】：
@@ -1361,7 +1361,7 @@ $$
 
 $$
 \lVert A\rVert_F=\left(\sigma_1^2+\sigma_2^2+\cdots+\sigma_n^2\right)^{\frac12}
-	ag{15.26}
+\tag{15.26}
 $$
 
 **证明。** 原书先证明弗罗贝尼乌斯范数在左右正交变换下不变。
@@ -1382,28 +1382,28 @@ $$
 
 $$
 \lVert QA\rVert_F=\lVert A\rVert_F
-	ag{15.27}
+\tag{15.27}
 $$
 
 同样，若 $P$ 是 $n$ 阶正交矩阵，则
 
 $$
 \lVert AP^\top\rVert_F=\lVert A\rVert_F
-	ag{15.28}
+\tag{15.28}
 $$
 
 于是对 $A=U\Sigma V^\top$：
 
 $$
 \lVert A\rVert_F=\lVert U\Sigma V^\top\rVert_F=\lVert\Sigma\rVert_F
-	ag{15.29}
+\tag{15.29}
 $$
 
 而 $\Sigma$ 只有对角元非零，所以
 
 $$
 \lVert\Sigma\rVert_F=\left(\sigma_1^2+\sigma_2^2+\cdots+\sigma_n^2\right)^{\frac12}
-	ag{15.30}
+\tag{15.30}
 $$
 
 引理得证 $\blacksquare$
@@ -1442,7 +1442,7 @@ $$
 
 $$
 \lVert A-X\rVert_F=\min_{S\in\mathcal M_k}\lVert A-S\rVert_F
-	ag{15.31}
+\tag{15.31}
 $$
 
 > 称矩阵 $X$ 为矩阵 $A$ 在弗罗贝尼乌斯范数意义下的**最优近似**。
@@ -1457,14 +1457,14 @@ $$
 
 $$
 \lVert A-X\rVert_F=\min_{S\in\mathcal M_k}\lVert A-S\rVert_F
-	ag{15.32}
+\tag{15.32}
 $$
 
 > 则
 
 $$
 \lVert A-X\rVert_F=\left(\sigma_{k+1}^2+\sigma_{k+2}^2+\cdots+\sigma_r^2\right)^{\frac12}
-	ag{15.33}
+\tag{15.33}
 $$
 
 > 特别地，若 $A'=U\Sigma'V^\top$，其中
@@ -1483,13 +1483,13 @@ $$
 $$
 \lVert A-A'\rVert_F=\left(\sigma_{k+1}^2+\sigma_{k+2}^2+\cdots+\sigma_r^2\right)^{\frac12}
 =\min_{S\in\mathcal M_k}\lVert A-S\rVert_F
-	ag{15.34}
+\tag{15.34}
 $$
 
 $$
 \boxed{\;
 A_k=U_k\Sigma_kV_k^\top\text{ 是秩不超过 }k\text{ 的所有矩阵中离 }A\text{ 最近的一个，}\\
-	ext{最小误差 = 被丢掉的奇异值的平方和开根号}
+\text{最小误差 = 被丢掉的奇异值的平方和开根号}
 \;}
 $$
 
@@ -1518,7 +1518,7 @@ $$
 
 $$
 \min_{S\in\mathcal M_k}\lVert A-S\rVert_F\le\lVert A-A'\rVert_F=\sqrt{\sum_{i=k+1}^{r}\sigma_i^2}
-	ag{15.35}
+\tag{15.35}
 $$
 
 **还缺什么**：必须证明**任何**秩不超过 $k$ 的 $X$ 都不可能低于这个误差，即下界
@@ -1553,7 +1553,7 @@ $$
 \lVert A-X\rVert_F
 =\lVert Q(B-\Omega)P^\top\rVert_F
 =\lVert B-\Omega\rVert_F
-	ag{15.36}
+\tag{15.36}
 $$
 
 **这一步的意义**：把坐标系转到 $X$ 自己的奇异向量基里。在这个坐标系里 $X$ 的形状最简单——只有左上角 $k\times k$ 的 $\Omega_k$ 非零。
@@ -1574,7 +1574,7 @@ $$
 &=\lVert B-\Omega\rVert_F^2\\
 &=\lVert B_{11}-\Omega_k\rVert_F^2+\lVert B_{12}\rVert_F^2+\lVert B_{21}\rVert_F^2+\lVert B_{22}\rVert_F^2
 \end{aligned}
-	ag{15.37}
+\tag{15.37}
 $$
 
 **这一步只是“矩阵元素平方和”的分块相加**——四个块互不重叠，故总平方和等于四块平方和。
@@ -1591,7 +1591,7 @@ $$
 
 $$
 \lVert A-Y\rVert_F^2=\lVert B_{21}\rVert_F^2+\lVert B_{22}\rVert_F^2
-	ag{15.38}
+\tag{15.38}
 $$
 
 若 $B_{12}\ne0$（或者 $B_{11}\ne\Omega_k$），式 (15.38) 会严格小于式 (15.37)，与 $X$ 已经是最优解矛盾。故最优解坐标系下的“交叉块”不能保留额外误差。类似可处理 $B_{21}$。
@@ -1600,7 +1600,7 @@ $$
 
 $$
 \lVert A-X\rVert_F^2=\lVert B_{11}-\Omega_k\rVert_F^2+\lVert B_{22}\rVert_F^2
-	ag{15.39}
+\tag{15.39}
 $$
 
 ##### 第二步：最优解必须有 $B_{11}=\Omega_k$
@@ -1617,7 +1617,7 @@ $$
 \lVert A-Z\rVert_F^2=\lVert B_{22}\rVert_F^2
 \le\lVert B_{11}-\Omega_k\rVert_F^2+\lVert B_{22}\rVert_F^2
 =\lVert A-X\rVert_F^2
-	ag{15.40}
+\tag{15.40}
 $$
 
 因为 $X$ 已经是最优解，不能存在严格更小的 $Z$，故必须
@@ -1630,7 +1630,7 @@ $$
 
 $$
 \lVert A-X\rVert_F=\lVert B_{22}\rVert_F
-	ag{15.41}
+\tag{15.41}
 $$
 
 ##### 第三步：$B_{22}$ 的奇异值就是 $A$ 剩余的奇异值
@@ -1654,7 +1654,7 @@ $$
 $$
 \widetilde U^\top Q^\top AP\widetilde V
 =\begin{bmatrix}\Omega_k&0\\0&\Lambda\end{bmatrix}
-	ag{15.42}
+\tag{15.42}
 $$
 
 等价地
@@ -1663,7 +1663,7 @@ $$
 A=(Q\widetilde U)
 \begin{bmatrix}\Omega_k&0\\0&\Lambda\end{bmatrix}
 (P\widetilde V)^\top
-	ag{15.43}
+\tag{15.43}
 $$
 
 这本身是 $A$ 的一个 SVD，故对角线上的数合起来必须是 $A$ 的奇异值。前 $k$ 个由 $X$ 捕获，$B_{22}$ 的奇异值是剩下的部分。因此由引理 15.1：
@@ -1672,7 +1672,7 @@ $$
 \lVert A-X\rVert_F=\lVert B_{22}\rVert_F
 =\lVert\Lambda\rVert_F
 \ge\sqrt{\sigma_{k+1}^2+\cdots+\sigma_r^2}
-	ag{15.44}
+\tag{15.44}
 $$
 
 结合式 (15.35) 的上界，得到
@@ -1757,7 +1757,7 @@ $$
 
 $$
 A=\sigma_1u_1v_1^\top+\sigma_2u_2v_2^\top+\cdots+\sigma_nu_nv_n^\top
-	ag{15.45}
+\tag{15.45}
 $$
 
 > 式 (15.45) 称为矩阵 $A$ 的**外积展开式**，其中 $u_kv_k^\top$ 为 $m\times n$ 矩阵，是列向量 $u_k$ 和行向量 $v_k^\top$ 的外积，其第 $i$ 行第 $j$ 列元素为 $u_k$ 的第 $i$ 个元素与 $v_k$ 的第 $j$ 个元素的乘积。
@@ -1772,7 +1772,7 @@ $$
 
 $$
 A=\sum_{k=1}^{n}A_k=\sum_{k=1}^{n}\sigma_ku_kv_k^\top
-	ag{15.46}
+\tag{15.46}
 $$
 
 > 式 (15.46) 将矩阵 $A$ 分解为矩阵的**有序加权和**。
@@ -1788,7 +1788,7 @@ $u_kv_k^\top$ 的每一列都是 $u_k$ 的标量倍：第 $j$ 列 $=v_{jk}u_k$�
 
 $$
 \boxed{\;
-	ext{SVD 把任意矩阵拆成一串互相正交的秩 1“图层”，}\\
+\text{SVD 把任意矩阵拆成一串互相正交的秩 1“图层”，}\\
 \sigma_k\text{ 是第 }k\text{ 层的权重，越大越重要}
 \;}
 $$
@@ -1799,7 +1799,7 @@ $$
 
 $$
 A=\sigma_1u_1v_1^\top+\sigma_2u_2v_2^\top+\cdots+\sigma_nu_nv_n^\top
-	ag{15.47}
+\tag{15.47}
 $$
 
 保留前 $n-1$ 项得到秩 $n-1$ 的最优近似，保留前 $n-2$ 项得到秩 $n-2$ 的最优近似。一般地：
@@ -1861,7 +1861,7 @@ $$
 
 $$
 \boxed{\;
-       ext{第 }k\text{ 个奇异值 }\sigma_k\text{ 精确衡量了第 }k\text{ 个秩 1 图层带来的能量}
+\text{第 }k\text{ 个奇异值 }\sigma_k\text{ 精确衡量了第 }k\text{ 个秩 1 图层带来的能量}
 \;}
 $$
 

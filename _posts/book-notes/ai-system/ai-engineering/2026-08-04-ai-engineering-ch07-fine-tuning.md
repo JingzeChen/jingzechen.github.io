@@ -80,7 +80,7 @@ $$
 微调从 $\theta_0$ 出发，在这个可行域中最小化目标任务损失：
 
 $$
-θ^*=\arg\min_{θ\in\Omega_{\mathcal T}}
+θ^{\ast}=\arg\min_{θ\in\Omega_{\mathcal T}}
 \frac{1}{N}\sum_{i=1}^{N}\mathcal L
 \big(f_θ(x_i),y_i\big).
 $$
@@ -99,7 +99,7 @@ $$
 - **全量微调**：$\mathcal T$ 包含原模型全部坐标；
 - **部分微调**：$\mathcal T$ 只包含原模型的部分层或参数；
 - **PEFT**：冻结绝大多数原参数，$\mathcal T$ 主要包含少量新增参数或特定坐标；
-- **推理/提示适配**：根本不求新的 $\theta^*$，仍使用 $\theta_0$。
+- **推理/提示适配**：根本不求新的 $\theta^{\ast}$，仍使用 $\theta_0$。
 
 训练从随机初始化参数开始，而微调从已经训练过的 $\theta_0$ 开始。这个初始点不是小差别：它已经编码语言、世界知识和通用模式，所以目标任务通常只需较少数据和较小更新。
 
@@ -123,7 +123,7 @@ $$
 - 源域与源任务为 $(\mathcal X_s,P_s,T_s)$；
 - 目标域与目标任务为 $(\mathcal X_t,P_t,T_t)$。
 
-基础模型先从源分布获得参数 $\theta_0$，再用目标分布数据求 $\theta^*$。如果源任务学到的结构对目标任务有用，优化起点 $\theta_0$ 会比随机起点更接近目标解，所需样本和更新步数都更少。
+基础模型先从源分布获得参数 $\theta_0$，再用目标分布数据求 $\theta^{\ast}$。如果源任务学到的结构对目标任务有用，优化起点 $\theta_0$ 会比随机起点更接近目标解，所需样本和更新步数都更少。
 
 这就是 **sample efficiency（样本效率）** 的直觉：达到同一目标质量时，所需目标样本更少。它不是无条件定理，依赖源任务和目标任务相关。如果迁移来的表示误导目标任务，就会出现 **negative transfer（负迁移）**。
 
@@ -174,7 +174,7 @@ $$
 
 $$
 \begin{aligned}
-\theta^*
+\theta^{\ast}
 &=\arg\max_\theta p_\theta(z)\\
 &=\arg\max_\theta \log p_\theta(z)\\
 &=\arg\max_\theta
@@ -2265,22 +2265,22 @@ $\eta_t$ 太小，收敛慢；太大则跨过低谷、振荡甚至发散。
 设一维 loss：
 
 $$
-\mathcal L(\theta)=\frac{a}{2}(\theta-\theta^*)^2,
+\mathcal L(\theta)=\frac{a}{2}(\theta-\theta^{\ast})^2,
 \qquad a>0.
 $$
 
 梯度：
 
 $$
-\nabla\mathcal L(\theta)=a(\theta-\theta^*).
+\nabla\mathcal L(\theta)=a(\theta-\theta^{\ast}).
 $$
 
-定义误差 $e_t=\theta_t-\theta^*$，代入更新：
+定义误差 $e_t=\theta_t-\theta^{\ast}$，代入更新：
 
 $$
 \begin{aligned}
 e_{t+1}
-&=\theta_t-\eta a(\theta_t-\theta^*)-\theta^*\\
+&=\theta_t-\eta a(\theta_t-\theta^{\ast})-\theta^{\ast}\\
 &=(1-\eta a)e_t.
 \end{aligned}
 $$

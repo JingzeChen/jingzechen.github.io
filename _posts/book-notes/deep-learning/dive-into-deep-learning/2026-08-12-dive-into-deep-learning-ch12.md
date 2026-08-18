@@ -128,10 +128,10 @@ $f$ 模拟平滑的总体风险，$g$ 模拟有限样本下更波动的经验风
 
 ### 2.3 局部极小
 
-若 $x^*$ 在某邻域内满足
+若 $x^{\ast}$ 在某邻域内满足
 
 $$
-f(x^*)\le f(x),
+f(x^{\ast})\le f(x),
 $$
 
 则是局部极小；若对全域成立，则是全局极小。
@@ -165,7 +165,7 @@ $$
 
 沿 $x$ 方向上升，沿 $y$ 方向下降，Hessian 不定。
 
-在平稳点 $\nabla f(x^*)=0$：
+在平稳点 $\nabla f(x^{\ast})=0$：
 
 - $H\succ0$：严格局部极小的充分条件；
 - $H\prec0$：严格局部极大的充分条件；
@@ -316,16 +316,16 @@ $$
 
 ### 3.5 局部极小为何也是全局极小
 
-假设凸函数 $f$ 的局部极小点为 $x^*$，却存在 $x'$ 满足
+假设凸函数 $f$ 的局部极小点为 $x^{\ast}$，却存在 $x'$ 满足
 
 $$
-f(x')<f(x^*).
+f(x')<f(x^{\ast}).
 $$
 
-在线段上取靠近 $x^*$ 的点：
+在线段上取靠近 $x^{\ast}$ 的点：
 
 $$
-y=\lambda x^*+(1-\lambda)x',
+y=\lambda x^{\ast}+(1-\lambda)x',
 \qquad \lambda\approx1.
 $$
 
@@ -333,11 +333,11 @@ $$
 
 $$
 f(y)
-\le\lambda f(x^*)+(1-\lambda)f(x')
-<f(x^*),
+\le\lambda f(x^{\ast})+(1-\lambda)f(x')
+<f(x^{\ast}),
 $$
 
-与 $x^*$ 在邻域内最小矛盾。因此凸函数的局部极小必为全局极小。
+与 $x^{\ast}$ 在邻域内最小矛盾。因此凸函数的局部极小必为全局极小。
 
 注意：这不保证最小点唯一，也不保证下确界能在有限点取得。例如 $e^x$ 在实数域下确界为 $0$，却没有点达到 $0$。
 
@@ -382,13 +382,13 @@ g(1)-g(0)\ge g'(0)
 =\langle\nabla f(x),y-x\rangle.
 $$
 
-若 $\nabla f(x^*)=0$，立即有
+若 $\nabla f(x^{\ast})=0$，立即有
 
 $$
-f(y)\ge f(x^*)
+f(y)\ge f(x^{\ast})
 $$
 
-对所有 $y$ 成立，所以 $x^*$ 是全局最优。SGD 收敛证明正是用这一条件把梯度内积转成风险差。
+对所有 $y$ 成立，所以 $x^{\ast}$ 是全局最优。SGD 收敛证明正是用这一条件把梯度内积转成风险差。
 
 ### 3.8 二阶判据
 
@@ -461,14 +461,14 @@ L(x,\alpha)
 \qquad \alpha_i\ge0.
 $$
 
-对 $x$ 最小化、对 $\alpha$ 最大化。活跃约束在最优点满足 $c_i(x^*)=0$，非活跃约束通常有 $\alpha_i^*=0$。
+对 $x$ 最小化、对 $\alpha$ 最大化。活跃约束在最优点满足 $c_i(x^{\ast})=0$，非活跃约束通常有 $\alpha_i^{\ast}=0$。
 
 KKT 条件：
 
-1. primal feasibility：$c_i(x^*)\le0$；
-2. dual feasibility：$\alpha_i^*\ge0$；
-3. complementary slackness：$\alpha_i^*c_i(x^*)=0$；
-4. stationarity：$\nabla f(x^*)+\sum_i\alpha_i^*\nabla c_i(x^*)=0$。
+1. primal feasibility：$c_i(x^{\ast})\le0$；
+2. dual feasibility：$\alpha_i^{\ast}\ge0$；
+3. complementary slackness：$\alpha_i^{\ast}c_i(x^{\ast})=0$；
+4. stationarity：$\nabla f(x^{\ast})+\sum_i\alpha_i^{\ast}\nabla c_i(x^{\ast})=0$。
 
 “Lagrangian 鞍点等于原问题解”需要适当正则条件；凸问题中 Slater 条件常保证强对偶。非凸问题一般没有同样保证。
 
@@ -670,9 +670,9 @@ $$
 用 $\eta=1/L$ 可得：
 
 $$
-f(x_t)-f^*
+f(x_t)-f^{\ast}
 \le\left(1-\frac\mu L\right)^t
-[f(x_0)-f^*].
+[f(x_0)-f^{\ast}].
 $$
 
 条件数：
@@ -890,7 +890,7 @@ $$
 - $f(\xi,x)$ 对 $x$ 凸；
 - 随机样本 $\xi_t$ 独立同分布；
 - 随机梯度范数有界：$\|g_t\|\le G$；
-- 最优解 $x^*$ 存在；
+- 最优解 $x^{\ast}$ 存在；
 - $R(x)=\mathbb E_\xi[f(\xi,x)]$。
 
 更新：
@@ -903,9 +903,9 @@ $$
 
 $$
 \begin{aligned}
-\|x_{t+1}-x^*\|^2
-&=\|x_t-x^*\|^2
--2\eta_t\langle x_t-x^*,g_t\rangle
+\|x_{t+1}-x^{\ast}\|^2
+&=\|x_t-x^{\ast}\|^2
+-2\eta_t\langle x_t-x^{\ast},g_t\rangle
 +\eta_t^2\|g_t\|^2.
 \end{aligned}
 $$
@@ -913,18 +913,18 @@ $$
 凸性一阶条件：
 
 $$
-f(\xi_t,x_t)-f(\xi_t,x^*)
-\le\langle g_t,x_t-x^*\rangle.
+f(\xi_t,x_t)-f(\xi_t,x^{\ast})
+\le\langle g_t,x_t-x^{\ast}\rangle.
 $$
 
 结合梯度界：
 
 $$
 \begin{aligned}
-\|x_t-x^*\|^2-
-\|x_{t+1}-x^*\|^2
+\|x_t-x^{\ast}\|^2-
+\|x_{t+1}-x^{\ast}\|^2
 \ge
-2\eta_t[f(\xi_t,x_t)-f(\xi_t,x^*)]
+2\eta_t[f(\xi_t,x_t)-f(\xi_t,x^{\ast})]
 -\eta_t^2G^2.
 \end{aligned}
 $$
@@ -933,9 +933,9 @@ $$
 
 $$
 2\sum_{t=1}^{T}\eta_t
-[\mathbb E R(x_t)-R^*]
+[\mathbb E R(x_t)-R^{\ast}]
 \le
-\|x_1-x^*\|^2
+\|x_1-x^{\ast}\|^2
 +G^2\sum_{t=1}^{T}\eta_t^2.
 $$
 
@@ -959,21 +959,21 @@ $$
 
 $$
 \boxed{
-\mathbb E[R(\bar x_T)]-R^*
+\mathbb E[R(\bar x_T)]-R^{\ast}
 \le
 \frac{
-\|x_1-x^*\|^2
+\|x_1-x^{\ast}\|^2
 +G^2\sum_t\eta_t^2}
 {2\sum_t\eta_t}
 }.
 $$
 
-原文最后一式左端误排成类似 $\mathbb E[\bar x_T]-R^*$，量纲不对；必须是平均迭代点的**风险**。
+原文最后一式左端误排成类似 $\mathbb E[\bar x_T]-R^{\ast}$，量纲不对；必须是平均迭代点的**风险**。
 
 若预知总步数 $T$，令
 
 $$
-r=\|x_1-x^*\|,
+r=\|x_1-x^{\ast}\|,
 \qquad
 \eta=\frac{r}{G\sqrt T},
 $$
@@ -981,7 +981,7 @@ $$
 可得：
 
 $$
-\mathbb E[R(\bar x_T)]-R^*
+\mathbb E[R(\bar x_T)]-R^{\ast}
 \le\frac{rG}{\sqrt T}.
 $$
 
@@ -1318,7 +1318,7 @@ $$
 最优点：
 
 $$
-x^*=-Q^{-1}c.
+x^{\ast}=-Q^{-1}c.
 $$
 
 正确配方：
@@ -1346,7 +1346,7 @@ $$
 令
 
 $$
-z=O(x-x^*),
+z=O(x-x^{\ast}),
 $$
 
 则各特征方向独立成为
@@ -1842,7 +1842,7 @@ v_t
 \odot\operatorname{sgn}(g_t^2-v_{t-1}).
 $$
 
-当 $g_t^2>v_{t-1}$ 时增加，当其更小时减少；每次改变量的绝对大小由 $g_t^2$ 控制，而不是由差值 $|g_t^2-v_{t-1}|$ 控制，减缓二阶 state 的剧烈变化。
+当 $g_t^2>v_{t-1}$ 时增加，当其更小时减少；每次改变量的绝对大小由 $g_t^2$ 控制，而不是由差值 $\lvert g_t^2-v_{t-1}\rvert$ 控制，减缓二阶 state 的剧烈变化。
 
 Yogi 不是 Adam 的唯一修复，也不能保证所有任务都更好；应在同一学习率搜索和训练预算下比较。
 

@@ -464,7 +464,7 @@ Mediator 应知道 workflow sequence，不应知道每个 module 的内部业务
 - $E$ 是允许的跨模块依赖；
 - 每条边表示一个 module 的代码依赖另一个 module public API。
 
-目标不是简单最小化 $|E|$，而是：
+目标不是简单最小化 $\lvert E\rvert$，而是：
 
 - 边与业务 workflow 一致；
 - 方向清楚；
@@ -786,7 +786,7 @@ for module in modules:
         send_alert(module, total)
 ```
 
-上面的整理版选用“无向相邻模块数”：同一相邻 module 即使存在双向边，也只计一次。它与原书文字所说 incoming + outgoing coupling points 不是同一指标；若忠实采用两个方向之和，应计算 $|Incoming|+|Outgoing|$，双向关系会计 2。原书伪代码本身还有多余 `{`、`incoming count` 非法标识符，以及在 source-file 循环中反复覆盖 `total_count`、最后可能只检查最后一个文件等问题。因此，实践中必须先明确聚合层级和计数单位：
+上面的整理版选用“无向相邻模块数”：同一相邻 module 即使存在双向边，也只计一次。它与原书文字所说 incoming + outgoing coupling points 不是同一指标；若忠实采用两个方向之和，应计算 $\lvert Incoming|+|Outgoing\rvert$，双向关系会计 2。原书伪代码本身还有多余 `{`、`incoming count` 非法标识符，以及在 source-file 循环中反复覆盖 `total_count`、最后可能只检查最后一个文件等问题。因此，实践中必须先明确聚合层级和计数单位：
 
 - unique module dependency；
 - unique public API；

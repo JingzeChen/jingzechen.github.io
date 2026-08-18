@@ -312,8 +312,8 @@ Owner、permissions、size、timestamps、link count 若复制进每个 director
 把 metadata 放在由 file number 唯一定位的 inode/MFT record/dnode 中，让所有 names 共享一份状态：
 
 $$
-	ext{many directory entries}\longrightarrow
-	ext{one file header}\longrightarrow\text{data}.
+\text{many directory entries}\longrightarrow
+\text{one file header}\longrightarrow\text{data}.
 $$
 
 FAT 把 metadata 放在 directory entry，正因其设计不支持 hard links；这不是单纯格式偏好，而是数据模型选择带来的约束。
@@ -459,7 +459,7 @@ Unix Fast File System 用 **multi-level index** 解决 FAT 的随机访问问题
 FFS 把 inode 放在 inode array 中，inumber 是 array index，因此可由
 
 $$
-	ext{inode address}
+\text{inode address}
 =\text{inode-array base}+\text{inumber}\times\text{inode size}
 $$
 
@@ -743,7 +743,7 @@ NTFS 不为每种内部结构随意划固定区域，而把大多数 metadata �
 `$Secure` 还展示 metadata normalization：许多 files 的 ACL 完全相同，若每个都复制一份浪费空间。NTFS 把每个 unique security descriptor 存一次并按 fixed-length key 索引，MFT record 只保存 key：
 
 $$
-	ext{many files}\longrightarrow\text{one deduplicated ACL record}.
+\text{many files}\longrightarrow\text{one deduplicated ACL record}.
 $$
 
 更新/删除必须维护引用和一致性，但节省重复 metadata。
@@ -1021,15 +1021,15 @@ $$
 本章把文件系统还原为两个 persistent dictionaries 加一个 allocator：
 
 $$
-	ext{directory}: name\to file\ number,
+\text{directory}: name\to file\ number,
 $$
 
 $$
-	ext{file index}: (file\ number,offset)\to block,
+\text{file index}: (file\ number,offset)\to block,
 $$
 
 $$
-	ext{free map}: allocation\ request\to free\ extent.
+\text{free map}: allocation\ request\to free\ extent.
 $$
 
 Locality heuristics 再根据介质与 workload 决定“合法映射中选哪一个”。FAT、FFS、NTFS、ZFS 分别展示链表、固定树、动态 extent tree、COW version tree 的不同答案。

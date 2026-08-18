@@ -195,7 +195,7 @@ $$
 
 | 条件 | 典型结论 |
 | --- | --- |
-| $f$ 凸且 $L$-smooth，步长 $1/L$ | $f(x_k)-f^*=O(1/k)$ |
+| $f$ 凸且 $L$-smooth，步长 $1/L$ | $f(x_k)-f^{\ast}=O(1/k)$ |
 | $f$ 为 $\mu$-强凸且 $L$-smooth | 线性/几何收敛 |
 | 一般非凸 smooth 函数 | 可保证某种梯度范数趋小，不保证全局最优 |
 | 函数非光滑 | 应使用次梯度、近端法等 |
@@ -209,9 +209,9 @@ $$
 取步长 $1/L$ 时：
 
 $$
-f(x_k)-f^*
+f(x_k)-f^{\ast}
 \le\left(1-\frac\mu L\right)^k
-[f(x_0)-f^*].
+[f(x_0)-f^{\ast}].
 $$
 
 条件数 $\kappa=L/\mu$ 越大，收敛越慢，这解释了标准化和预条件的重要性。
@@ -219,7 +219,7 @@ $$
 ### A.8 停止条件的误区
 
 - $\|x_{k+1}-x_k\|$ 小可能只是步长太小；
-- $|f_{k+1}-f_k|$ 小可能位于平坦区而非最优点；
+- $\lvert f_{k+1}-f_k\rvert$ 小可能位于平坦区而非最优点；
 - $\|\nabla f\|$ 小在非凸问题中可能是极大点或鞍点；
 - 应结合梯度、目标变化、参数变化、最大迭代数和验证集表现。
 
@@ -340,11 +340,11 @@ $$
 
 #### 5. 收敛边界【补充】
 
-若 $x^*$ 附近 Hessian Lipschitz 连续、$H(x^*)$ 非奇异且初值足够接近，则 Newton 法局部二次收敛：
+若 $x^{\ast}$ 附近 Hessian Lipschitz 连续、$H(x^{\ast})$ 非奇异且初值足够接近，则 Newton 法局部二次收敛：
 
 $$
-\|x^{(k+1)}-x^*\|
-\le C\|x^{(k)}-x^*\|^2.
+\|x^{(k+1)}-x^{\ast}\|
+\le C\|x^{(k)}-x^{\ast}\|^2.
 $$
 
 “收敛快”是局部结论；远离最优点时二次模型不可靠，必须全局化。
@@ -358,7 +358,7 @@ $$
 Hessian 恒为 $H$，Newton 一步到达
 
 $$
-x^*=H^{-1}b.
+x^{\ast}=H^{-1}b.
 $$
 
 ### B.2 拟牛顿法的思路
@@ -637,7 +637,7 @@ $$
 定义
 
 $$
-   heta_P(x)
+\theta_P(x)
 =\sup_{\alpha\ge0,\beta}L(x,\alpha,\beta).
 \qquad\mathrm{(C.5)}
 $$
@@ -651,7 +651,7 @@ $$
 故
 
 $$
-   heta_P(x)=
+\theta_P(x)=
 \begin{cases}
 f(x),&x\text{ 可行},\\
 {+}\infty,&x\text{ 不可行}.
@@ -662,7 +662,7 @@ $$
 原问题等价于
 
 $$
-p^*
+p^{\ast}
 =\inf_x\sup_{\alpha\ge0,\beta}L(x,\alpha,\beta).
 \qquad\mathrm{(C.8)/(C.9)}
 $$
@@ -672,7 +672,7 @@ $$
 定义对偶函数
 
 $$
-   heta_D(\alpha,\beta)
+\theta_D(\alpha,\beta)
 =\inf_xL(x,\alpha,\beta).
 \qquad\mathrm{(C.10)}
 $$
@@ -682,9 +682,9 @@ $$
 对偶问题为
 
 $$
-d^*
+d^{\ast}
 =\sup_{\alpha\ge0,\beta}
-   heta_D(\alpha,\beta)
+\theta_D(\alpha,\beta)
 =\sup_{\alpha\ge0,\beta}\inf_xL(x,\alpha,\beta).
 \qquad\mathrm{(C.11)-(C.14)}
 $$
@@ -701,7 +701,7 @@ $$
 对任意对偶可行 $(\alpha,\beta)$ 和原始可行 $x$：
 
 $$
-   heta_D(\alpha,\beta)
+\theta_D(\alpha,\beta)
 =\inf_zL(z,\alpha,\beta)
 \le L(x,\alpha,\beta).
 $$
@@ -717,20 +717,20 @@ $$
 所以
 
 $$
-   heta_D(\alpha,\beta)\le f(x).
+\theta_D(\alpha,\beta)\le f(x).
 $$
 
 对左侧取上确界、右侧取下确界：
 
 $$
-\boxed{d^*\le p^*}.
+\boxed{d^{\ast}\le p^{\ast}}.
 \qquad\mathrm{(C.15)}
 $$
 
 这就是弱对偶，对凸与非凸问题都成立。差
 
 $$
-p^*-d^*\ge0
+p^{\ast}-d^{\ast}\ge0
 $$
 
 称为对偶间隙。
@@ -748,7 +748,7 @@ $$
 则 Slater 条件保证
 
 $$
-\boxed{p^*=d^*=L(x^*,\alpha^*,\beta^*)}.
+\boxed{p^{\ast}=d^{\ast}=L(x^{\ast},\alpha^{\ast},\beta^{\ast})}.
 \qquad\mathrm{(C.20)}
 $$
 
@@ -762,57 +762,57 @@ $$
 
 1. **驻点**
    $$
-   \nabla_xL(x^*,\alpha^*,\beta^*)=0;
+   \nabla_xL(x^{\ast},\alpha^{\ast},\beta^{\ast})=0;
    \qquad\mathrm{(C.21)}
    $$
 2. **互补松弛**
    $$
-   \alpha_i^*c_i(x^*)=0;
+   \alpha_i^{\ast}c_i(x^{\ast})=0;
    \qquad\mathrm{(C.22)}
    $$
 3. **原始可行**
    $$
-   c_i(x^*)\le0,
-   \quad h_j(x^*)=0;
+   c_i(x^{\ast})\le0,
+   \quad h_j(x^{\ast})=0;
    \qquad\mathrm{(C.23),(C.25)}
    $$
 4. **对偶可行**
    $$
-   \alpha_i^*\ge0.
+   \alpha_i^{\ast}\ge0.
    \qquad\mathrm{(C.24)}
    $$
 
 互补松弛含义：
 
 $$
-\alpha_i^*>0\Longrightarrow c_i(x^*)=0,
+\alpha_i^{\ast}>0\Longrightarrow c_i(x^{\ast})=0,
 $$
 
 $$
-c_i(x^*)<0\Longrightarrow\alpha_i^*=0.
+c_i(x^{\ast})<0\Longrightarrow\alpha_i^{\ast}=0.
 $$
 
 只有活跃约束才能有正影子价格。
 
 #### 为什么 KKT 足够【补充证明】
 
-若 $f,c_i$ 凸、$h_j$ 仿射，驻点说明 $x^*$ 是凸函数
+若 $f,c_i$ 凸、$h_j$ 仿射，驻点说明 $x^{\ast}$ 是凸函数
 
 $$
-L(x,\alpha^*,\beta^*)
+L(x,\alpha^{\ast},\beta^{\ast})
 $$
 
 的全局极小点，因此
 
 $$
-   heta_D(\alpha^*,\beta^*)
-=L(x^*,\alpha^*,\beta^*).
+\theta_D(\alpha^{\ast},\beta^{\ast})
+=L(x^{\ast},\alpha^{\ast},\beta^{\ast}).
 $$
 
 由原始可行和互补松弛：
 
 $$
-L(x^*,\alpha^*,\beta^*)=f(x^*).
+L(x^{\ast},\alpha^{\ast},\beta^{\ast})=f(x^{\ast}).
 $$
 
 于是对偶值等于原始值，弱对偶迫使二者最优。
@@ -845,7 +845,7 @@ $$
 \quad\alpha\ge0.
 $$
 
-无约束解 $x=2$ 不可行，所以约束活跃：$x^*=1$，进而 $\alpha^*=2$，最优值 $p^*=1$。
+无约束解 $x=2$ 不可行，所以约束活跃：$x^{\ast}=1$，进而 $\alpha^{\ast}=2$，最优值 $p^{\ast}=1$。
 
 ### C.6 常见误解
 
@@ -1049,7 +1049,7 @@ $$
 r\in N(A^\top)=R(A)^\perp.
 $$
 
-所以 $Ax^*$ 是 $b$ 在列空间上的正交投影，正规方程为
+所以 $Ax^{\ast}$ 是 $b$ 在列空间上的正交投影，正规方程为
 
 $$
 A^\top Ax=A^\top b.
@@ -1058,7 +1058,7 @@ $$
 若 $A$ 不满列秩，解不唯一；所有解相差零空间向量。Moore–Penrose 伪逆给最小范数解
 
 $$
-x^*=A^+b.
+x^{\ast}=A^+b.
 $$
 
 ### D.7 常见误解
@@ -1669,7 +1669,7 @@ E[log theta] theory = [-1.828968, -1.328968, -0.745635]
 最大似然可以写成经验分布到模型分布的 KL 最小化；变分推理把难后验近似转成 KL 最小化与 ELBO 最大化；指数族让所需期望变成对数配分函数导数。
 
 $$
-   ext{最大似然}
+\text{最大似然}
 \Longleftrightarrow
 \min D_{KL}(\widehat P\Vert P_\theta),
 $$
@@ -1768,7 +1768,7 @@ L(x,\alpha,\beta)
 $$
 
 $$
-d^*\le p^*,
+d^{\ast}\le p^{\ast},
 $$
 
 $$

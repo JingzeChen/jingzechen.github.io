@@ -584,7 +584,7 @@ $$
 （因为 $L(\theta^{(i)})$ 此时是常数）。KL 散度在 $q=P(Z\mid Y,\theta^{(i)})$ 时取最小值 $0$，故
 
 $$
-\boxed{\;q^*(Z)=P\bigl(Z\mid Y,\theta^{(i)}\bigr)\;}
+\boxed{\;q^{\ast}(Z)=P\bigl(Z\mid Y,\theta^{(i)}\bigr)\;}
 $$
 
 **这正是 E 步计算的后验分布！** 且此时 $\mathrm{KL}=0$，即
@@ -729,8 +729,8 @@ $$
 
 **定理 9.2** 设 $L(\theta)=\log P(Y\mid\theta)$，$\theta^{(i)}$ 为 EM 得到的参数序列：
 
-1. 如果 $P(Y\mid\theta)$ **有上界**，则 $L(\theta^{(i)})$ 收敛到某一值 $L^*$；
-2. 在 $Q$ 与 $L$ 满足一定条件下，$\theta^{(i)}$ 的收敛值 $\theta^*$ 是 $L(\theta)$ 的**稳定点**。
+1. 如果 $P(Y\mid\theta)$ **有上界**，则 $L(\theta^{(i)})$ 收敛到某一值 $L^{\ast}$；
+2. 在 $Q$ 与 $L$ 满足一定条件下，$\theta^{(i)}$ 的收敛值 $\theta^{\ast}$ 是 $L(\theta)$ 的**稳定点**。
 
 **（1）的证明**：由定理 9.1，$L(\theta^{(i)})$ 单调不减；若又有上界，由**单调有界数列必收敛**即得。
 
@@ -1152,9 +1152,9 @@ $$
 \;}
 $$
 
-**定理 9.3** 若 $F(\tilde P,\theta)$ 在 $(\tilde P^*,\theta^*)$ 有局部极大值，则 $L(\theta)$ 也在 $\theta^*$ 有局部极大值；全局最大值的结论类似。
+**定理 9.3** 若 $F(\tilde P,\theta)$ 在 $(\tilde P^{\ast},\theta^{\ast})$ 有局部极大值，则 $L(\theta)$ 也在 $\theta^{\ast}$ 有局部极大值；全局最大值的结论类似。
 
-**证明思路**：由引理 9.1、9.2，$L(\theta)=F(\tilde P_\theta,\theta)$ 对任意 $\theta$ 成立。若存在 $\theta^{**}$ 使 $L(\theta^{**})>L(\theta^*)$，则 $F(\tilde P_{\theta^{**}},\theta^{**})>F(\tilde P^*,\theta^*)$；由 $\tilde P_\theta$ 随 $\theta$ 连续变化，$\tilde P_{\theta^{**}}$ 应接近 $\tilde P^*$，与 $(\tilde P^*,\theta^*)$ 是局部极大点矛盾。
+**证明思路**：由引理 9.1、9.2，$L(\theta)=F(\tilde P_\theta,\theta)$ 对任意 $\theta$ 成立。若存在 $\theta^{**}$ 使 $L(\theta^{**})>L(\theta^{\ast})$，则 $F(\tilde P_{\theta^{**}},\theta^{**})>F(\tilde P^{\ast},\theta^{\ast})$；由 $\tilde P_\theta$ 随 $\theta$ 连续变化，$\tilde P_{\theta^{**}}$ 应接近 $\tilde P^{\ast}$，与 $(\tilde P^{\ast},\theta^{\ast})$ 是局部极大点矛盾。
 
 #### 9.5.5 GEM 算法
 

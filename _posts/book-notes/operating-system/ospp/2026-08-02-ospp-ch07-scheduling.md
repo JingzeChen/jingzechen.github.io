@@ -1059,17 +1059,17 @@ $$
 p\lambda<\mu.
 $$
 
-为了把利用率控制在目标 $U^*<1$、保留延迟和突发余量，应满足
+为了把利用率控制在目标 $U^{\ast}<1$、保留延迟和突发余量，应满足
 
 $$
-\frac{p\lambda}{\mu}\le U^*,
+\frac{p\lambda}{\mu}\le U^{\ast},
 $$
 
 $$
-p\le\frac{U^*\mu}{\lambda}.
+p\le\frac{U^{\ast}\mu}{\lambda}.
 $$
 
-例如 $\lambda=1500$/s，$\mu=1000$/s，希望 $U^*=0.8$，最多接受
+例如 $\lambda=1500$/s，$\mu=1000$/s，希望 $U^{\ast}=0.8$，最多接受
 
 $$
 p\le\frac{0.8\times1000}{1500}=0.5333.
@@ -1165,16 +1165,16 @@ flowchart LR
 
 ### 容量规划
 
-若每台后端稳定服务率为 $\mu$，有 $m$ 台，目标平均利用率为 $U^*$，简单容量条件为
+若每台后端稳定服务率为 $\mu$，有 $m$ 台，目标平均利用率为 $U^{\ast}$，简单容量条件为
 
 $$
-\lambda\le mU^*\mu,
+\lambda\le mU^{\ast}\mu,
 $$
 
 所以
 
 $$
-m\ge\left\lceil\frac{\lambda}{U^*\mu}\right\rceil.
+m\ge\left\lceil\frac{\lambda}{U^{\ast}\mu}\right\rceil.
 $$
 
 例如预计峰值 $\lambda=8000$/s，每台极限 $\mu=1000$/s，希望不超过 70% 利用：

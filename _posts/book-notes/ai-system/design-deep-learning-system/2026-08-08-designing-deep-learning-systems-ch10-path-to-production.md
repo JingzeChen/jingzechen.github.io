@@ -1687,10 +1687,10 @@ MAB 在给定时间内尽量让最佳模型获得更多 traffic，最大化累�
 可用 cumulative pseudo-regret 表达目标：
 
 $$
-R_T=T\mu^*-\sum_{t=1}^{T}\mu_{a_t}
+R_T=T\mu^{\ast}-\sum_{t=1}^{T}\mu_{a_t}
 $$
 
-- $\mu^*$：最佳 arm 的期望 reward；
+- $\mu^{\ast}$：最佳 arm 的期望 reward；
 - $a_t$：第 $t$ 次选择的 arm；
 - $R_T$：按各 arm 期望收益计算的累计 pseudo-regret；若策略选择含随机性，再对该量取策略期望可得到 expected pseudo-regret。
 

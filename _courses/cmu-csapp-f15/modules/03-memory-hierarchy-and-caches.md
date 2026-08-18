@@ -775,7 +775,7 @@ $$
 - [ ] 能画出 CPU 发起 disk read 后 controller、DMA、main memory、interrupt 的路径。
 - [ ] 能分别从 data 和 instructions 判断 temporal/spatial locality。
 - [ ] 能根据 row-major layout 判断 stride-1、stride-$N$ 与 `k → i → j`。
-- [ ] 能区分 cold、capacity、conflict misses，并用 $|W|$ 与 placement rule 解释原因。
+- [ ] 能区分 cold、capacity、conflict misses，并用 $\lvert W\rvert$ 与 placement rule 解释原因。
 - [ ] 给定 $m,S,E,B$，能求 $s,b,t,C$ 并画出 tag/index/offset。
 - [ ] 能按“index → valid/tag → offset”说明一次读 hit。
 - [ ] 能完整手算 direct-mapped 与 two-way 的 `0,1,7,8,0` 轨迹。

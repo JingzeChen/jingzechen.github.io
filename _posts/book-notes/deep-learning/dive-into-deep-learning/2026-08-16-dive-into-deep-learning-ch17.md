@@ -556,17 +556,17 @@ $$
 ### 5.1 最优价值函数
 
 $$
-V^*(s)=\max_\pi V^\pi(s),
+V^{\ast}(s)=\max_\pi V^\pi(s),
 $$
 
 $$
-Q^*(s,a)=\max_\pi Q^\pi(s,a).
+Q^{\ast}(s,a)=\max_\pi Q^\pi(s,a).
 $$
 
-最优策略从每个状态都达到 $V^*$。原书一处仅针对初始状态 $s_0$ 写
+最优策略从每个状态都达到 $V^{\ast}$。原书一处仅针对初始状态 $s_0$ 写
 
 $$
-\pi^*=\arg\max_\pi V^\pi(s_0).
+\pi^{\ast}=\arg\max_\pi V^\pi(s_0).
 $$
 
 若只关心固定初始分布，这个目标可用；标准最优策略通常要求对所有状态最优，或最大化
@@ -575,17 +575,17 @@ $$
 J(\pi)=\mathbb E_{S_0\sim\rho_0}V^\pi(S_0).
 $$
 
-### 5.2 Bellman 最优方程：$V^*$
+### 5.2 Bellman 最优方程：$V^{\ast}$
 
 在状态 $s$ 选择第一步动作，之后继续最优：
 
 $$
 \boxed{
-V^*(s)
+V^{\ast}(s)
 =\max_{a\in\mathcal A}
 \left[
 r(s,a)
-+\gamma\sum_{s'}P(s'\mid s,a)V^*(s')
++\gamma\sum_{s'}P(s'\mid s,a)V^{\ast}(s')
 \right]
 }.
 $$
@@ -595,14 +595,14 @@ $$
 - `max` 返回价值标量；
 - `argmax` 返回动作。
 
-### 5.3 Bellman 最优方程：$Q^*$
+### 5.3 Bellman 最优方程：$Q^{\ast}$
 
 $$
 \boxed{
-Q^*(s,a)
+Q^{\ast}(s,a)
 =r(s,a)
 +\gamma\sum_{s'}P(s'\mid s,a)
-\max_{a'}Q^*(s',a')
+\max_{a'}Q^{\ast}(s',a')
 }.
 $$
 
@@ -629,21 +629,21 @@ $$
 
 ### 5.4 从最优价值提取策略
 
-若有 $V^*$：
+若有 $V^{\ast}$：
 
 $$
-\pi^*(s)
+\pi^{\ast}(s)
 \in\arg\max_a
 \left[
 r(s,a)+\gamma\sum_{s'}
-P(s'\mid s,a)V^*(s')
+P(s'\mid s,a)V^{\ast}(s')
 \right].
 $$
 
-若有 $Q^*$：
+若有 $Q^{\ast}$：
 
 $$
-\pi^*(s)\in\arg\max_aQ^*(s,a).
+\pi^{\ast}(s)\in\arg\max_aQ^{\ast}(s,a).
 $$
 
 若多个动作并列，它们都可构成最优确定性策略，也可在这些动作间随机化。
@@ -663,7 +663,7 @@ $$
 最优价值是不动点：
 
 $$
-V^*=\mathcal T_*V^*.
+V^{\ast}=\mathcal T_*V^{\ast}.
 $$
 
 定义固定策略算子：
@@ -766,8 +766,8 @@ $$
 $0\le\gamma<1$ 时是压缩映射，存在唯一不动点，且：
 
 $$
-\|V_k-V^*\|_\infty
-\le\gamma^k\|V_0-V^*\|_\infty.
+\|V_k-V^{\ast}\|_\infty
+\le\gamma^k\|V_0-V^{\ast}\|_\infty.
 $$
 
 ### 6.4 停止条件与误差界
@@ -781,7 +781,7 @@ $$
 由压缩性质可得粗略后验误差界：
 
 $$
-\|V_k-V^*\|_\infty
+\|V_k-V^{\ast}\|_\infty
 \le\frac{\gamma}{1-\gamma}
 \|V_k-V_{k-1}\|_\infty.
 $$
@@ -940,7 +940,7 @@ Gymnasium 默认通常 `is_slippery=True`：动作可能向预期方向或两个
 #### $\gamma=0$
 
 $$
-V^*(s)=\max_ar(s,a).
+V^{\ast}(s)=\max_ar(s,a).
 $$
 
 只看一步奖励。除一步可进目标的状态外，其余值常为 0，无法传播长期路径信息。
@@ -950,7 +950,7 @@ $$
 距离目标 $d$ 步、途中零奖励、最后奖励 1 时：
 
 $$
-V^*(s)=\gamma^{d-1}.
+V^{\ast}(s)=\gamma^{d-1}.
 $$
 
 远处价值快速衰减。
@@ -1256,7 +1256,7 @@ $$
 
 ### 10.2 表格型收敛条件
 
-有限 MDP 中，经典 Q-learning 几乎必然收敛到 $Q^*$ 的典型条件：
+有限 MDP 中，经典 Q-learning 几乎必然收敛到 $Q^{\ast}$ 的典型条件：
 
 1. 奖励有界；
 2. $0\le\gamma<1$；
@@ -1419,7 +1419,7 @@ env.action_space.seed(seed)
 确定性安全路径，距离 goal 还需 $d$ 个动作，进入 goal 时奖励 1。若中间奖励 0：
 
 $$
-V^*(s)=\gamma^{d-1}.
+V^{\ast}(s)=\gamma^{d-1}.
 $$
 
 例如 $\gamma=0.95$：
@@ -1781,7 +1781,7 @@ $\gamma$ 控制远期价值，探索由行为策略控制。
 
 ### 14.10 $V(s)$ 是环境固有属性
 
-一般是 $V^\pi(s)$，依赖策略；只有最优值 $V^*$ 对应最优策略集合。
+一般是 $V^\pi(s)$，依赖策略；只有最优值 $V^{\ast}$ 对应最优策略集合。
 
 ### 14.11 $Q(s,a)$ 只表示即时动作好坏
 
@@ -1845,7 +1845,7 @@ Bellman expectation 对固定策略是回报递归的精确恒等式。
 
 ### 14.26 $\epsilon=1$ 时不可能学到最优 Q
 
-行为完全随机，但 Q-learning 是 off-policy；若充分覆盖、学习率满足条件，仍可学 $Q^*$，评估需改为贪心。
+行为完全随机，但 Q-learning 是 off-policy；若充分覆盖、学习率满足条件，仍可学 $Q^{\ast}$，评估需改为贪心。
 
 ### 14.27 常数 $\alpha=0.9$ 且 256 episodes 足以证明收敛
 
@@ -1940,7 +1940,7 @@ $$
 由
 
 $$
-\|V_k-V^*\|_\infty
+\|V_k-V^{\ast}\|_\infty
 \le\gamma^kE_0
 $$
 
@@ -1967,7 +1967,7 @@ $$
 
 ### 15.7 Value Iteration 的稀疏复杂度
 
-每个状态 $|A|$ 个动作，每个动作至多 $d$ 个后继：
+每个状态 $\lvert A\rvert$ 个动作，每个动作至多 $d$ 个后继：
 
 $$
 O(K|S||A|d)
@@ -2016,7 +2016,7 @@ $$
 
 #### $\epsilon=1$
 
-行为完全随机，覆盖较广但到达稀疏奖励慢。Q-learning target 仍贪心，理论上可学 $Q^*$；训练 return 低，贪心评估可高。
+行为完全随机，覆盖较广但到达稀疏奖励慢。Q-learning target 仍贪心，理论上可学 $Q^{\ast}$；训练 return 低，贪心评估可高。
 
 ### 15.11 $\gamma=0,0.5,1$ 对 Q-learning
 
@@ -2128,7 +2128,7 @@ flowchart TD
 5. 策略是状态到动作分布；确定性策略只是特殊情况。
 6. Bellman expectation 方程来自 $G_t=R_{t+1}+\gamma G_{t+1}$、Markov 性和全期望公式。
 7. $V^\pi(s)=\sum_a\pi(a|s)Q^\pi(s,a)$；$Q$ 固定第一步动作，$V$ 对第一步动作按策略平均。
-8. Bellman 最优方程中 $V^*$ 取 value 的 `max`，策略才取动作的 `argmax`。
+8. Bellman 最优方程中 $V^{\ast}$ 取 value 的 `max`，策略才取动作的 `argmax`。
 9. 随机后继下应对每个 $s'$ 先取下一动作最大值，再对 $s'$ 求期望。
 10. Value Iteration 需要已知完整 MDP，反复应用 Bellman 最优算子；$\gamma<1$ 时该算子是压缩映射。
 11. 固定迭代次数不等于收敛，通用实现应检查 sup-norm residual 并提取贪心策略。

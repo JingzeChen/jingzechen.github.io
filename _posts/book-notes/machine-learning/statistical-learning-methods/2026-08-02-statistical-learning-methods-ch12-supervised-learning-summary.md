@@ -1510,9 +1510,9 @@ $$
 
 即 $\eta>\frac12$ 判正类，$\eta<\frac12$ 判负类。
 
-下面逐一求出三种代理损失的**总体极小元** $f^*=\arg\min_fR(f)$。
+下面逐一求出三种代理损失的**总体极小元** $f^{\ast}=\arg\min_fR(f)$。
 
-#### （1）逻辑斯谛损失：$f^*=\log\dfrac{\eta}{1-\eta}$
+#### （1）逻辑斯谛损失：$f^{\ast}=\log\dfrac{\eta}{1-\eta}$
 
 $$
 R(f)=\eta\ln(1+e^{-f})+(1-\eta)\ln(1+e^{f})
@@ -1531,7 +1531,7 @@ $$
 \;\Longrightarrow\;
 \eta=(1-\eta)e^f
 \;\Longrightarrow\;
-\boxed{\;f^*=\log\frac{\eta}{1-\eta}\;}
+\boxed{\;f^{\ast}=\log\frac{\eta}{1-\eta}\;}
 $$
 
 （$R$ 严格凸，驻点即全局极小。）
@@ -1539,7 +1539,7 @@ $$
 **这就是对数几率（log-odds）！** 反解得
 
 $$
-\eta=\frac{1}{1+e^{-f^*}}=\sigma(f^*)
+\eta=\frac{1}{1+e^{-f^{\ast}}}=\sigma(f^{\ast})
 $$
 
 $$
@@ -1551,7 +1551,7 @@ $$
 
 代码验证：$\eta=0.7$ 时数值解 $0.8473$，理论值 $\ln\frac{0.7}{0.3}=0.8473$ ✅
 
-#### （2）指数损失：$f^*=\dfrac12\log\dfrac{\eta}{1-\eta}$
+#### （2）指数损失：$f^{\ast}=\dfrac12\log\dfrac{\eta}{1-\eta}$
 
 $$
 R(f)=\eta e^{-f}+(1-\eta)e^{f}
@@ -1562,7 +1562,7 @@ R'(f)=-\eta e^{-f}+(1-\eta)e^{f}=0
 \;\Longrightarrow\;
 e^{2f}=\frac{\eta}{1-\eta}
 \;\Longrightarrow\;
-\boxed{\;f^*=\frac12\log\frac{\eta}{1-\eta}\;}
+\boxed{\;f^{\ast}=\frac12\log\frac{\eta}{1-\eta}\;}
 $$
 
 **恰好是逻辑斯谛损失极小元的一半**，而这正是**第 8 章 8.4.3 节**在推导 AdaBoost 时得到的结论。
@@ -1570,11 +1570,11 @@ $$
 **两个重要推论**：
 
 1. **AdaBoost 的输出 $f(x)$ 是"半个对数几率"**，所以要把它转成概率必须用 $P(Y{=}1\mid x)=\sigma(2f(x))$，而不是 $\sigma(f(x))$。
-2. **指数损失和逻辑斯谛损失给出的分类决策完全一致**（因为 $\operatorname{sign}(f^*)$ 相同），只是"刻度"差一倍。这解释了为什么 AdaBoost 与逻辑斯谛回归在干净数据上表现常常相近。
+2. **指数损失和逻辑斯谛损失给出的分类决策完全一致**（因为 $\operatorname{sign}(f^{\ast})$ 相同），只是"刻度"差一倍。这解释了为什么 AdaBoost 与逻辑斯谛回归在干净数据上表现常常相近。
 
 代码验证：$\eta=0.7$ 时数值解 $0.4236=0.8473/2$ ✅
 
-#### （3）合页损失：$f^*=\operatorname{sign}(2\eta-1)$
+#### （3）合页损失：$f^{\ast}=\operatorname{sign}(2\eta-1)$
 
 $$
 R(f)=\eta[1-f]_++(1-\eta)[1+f]_+
@@ -1590,15 +1590,15 @@ $$
 
 所以极小值必在 $[-1,1]$ 内取到，且由中间那段的斜率决定：
 
-- $\eta>\frac12$：斜率 $1-2\eta<0$，递减 $\Rightarrow$ 极小在 $f^*=+1$
-- $\eta<\frac12$：斜率 $1-2\eta>0$，递增 $\Rightarrow$ 极小在 $f^*=-1$
+- $\eta>\frac12$：斜率 $1-2\eta<0$，递减 $\Rightarrow$ 极小在 $f^{\ast}=+1$
+- $\eta<\frac12$：斜率 $1-2\eta>0$，递增 $\Rightarrow$ 极小在 $f^{\ast}=-1$
 - $\eta=\frac12$：$R\equiv1$ 在 $[-1,1]$ 上恒定，**极小元不唯一**
 
 $$
-\boxed{\;f^*=\operatorname{sign}(2\eta-1)\quad(\eta\ne\tfrac12)\;}
+\boxed{\;f^{\ast}=\operatorname{sign}(2\eta-1)\quad(\eta\ne\tfrac12)\;}
 $$
 
-**关键观察**：$f^*$ 只取 $\pm1$ 两个值，**完全不含 $\eta$ 的大小信息**！
+**关键观察**：$f^{\ast}$ 只取 $\pm1$ 两个值，**完全不含 $\eta$ 的大小信息**！
 
 $$
 \boxed{\;
@@ -1615,12 +1615,12 @@ $$
 **分类校准性**（classification-calibrated）指：
 
 $$
-\operatorname{sign}(f^*)=\operatorname{sign}(2\eta-1)=f_{\text{Bayes}}
+\operatorname{sign}(f^{\ast})=\operatorname{sign}(2\eta-1)=f_{\text{Bayes}}
 $$
 
 逐一验证：
 
-| 损失 | $f^*$ | $\eta>\frac12$ 时 $f^*$ 的符号 | $\eta<\frac12$ 时 |
+| 损失 | $f^{\ast}$ | $\eta>\frac12$ 时 $f^{\ast}$ 的符号 | $\eta<\frac12$ 时 |
 | --- | --- | :---: | :---: |
 | 合页 | $\operatorname{sign}(2\eta-1)$ | $+$ ✅ | $-$ ✅ |
 | 逻辑斯谛 | $\log\frac{\eta}{1-\eta}$ | $+$（因 $\frac{\eta}{1-\eta}>1$）✅ | $-$ ✅ |
@@ -1641,10 +1641,10 @@ $$
 
 #### （5）总结表
 
-| 损失 | $f^*$ | 能否恢复 $\eta$ | 对应方法 |
+| 损失 | $f^{\ast}$ | 能否恢复 $\eta$ | 对应方法 |
 | --- | --- | :---: | --- |
-| 逻辑斯谛 | $\log\frac{\eta}{1-\eta}$ | ✅ $\eta=\sigma(f^*)$ | 逻辑斯谛回归、最大熵、CRF |
-| 指数 | $\frac12\log\frac{\eta}{1-\eta}$ | ✅ $\eta=\sigma(2f^*)$ | AdaBoost |
+| 逻辑斯谛 | $\log\frac{\eta}{1-\eta}$ | ✅ $\eta=\sigma(f^{\ast})$ | 逻辑斯谛回归、最大熵、CRF |
+| 指数 | $\frac12\log\frac{\eta}{1-\eta}$ | ✅ $\eta=\sigma(2f^{\ast})$ | AdaBoost |
 | 合页 | $\operatorname{sign}(2\eta-1)$ | ❌ | SVM |
 
 ### 12.6.2 三种损失的"性格"对比
@@ -1891,7 +1891,7 @@ $$
 28. **只有三个凸优化问题**：SVM、逻辑斯谛回归/最大熵、CRF。它们的模型关于参数 $w$ 线性，且损失凸。
 29. **EM 收敛性有保证（定理 9.1 似然单调不减），但不保证全局最优（定理 9.2）**。
 30. **【补充】总体极小元**：逻辑斯谛损失 $\to\log\frac{\eta}{1-\eta}$（对数几率）；指数损失 $\to\frac12\log\frac{\eta}{1-\eta}$（半个对数几率）；合页损失 $\to\operatorname{sign}(2\eta-1)$（只有符号）。
-31. **【补充】三种代理损失都是分类校准的**：$\operatorname{sign}(f^*)=\operatorname{sign}(2\eta-1)$，与贝叶斯最优分类器一致。这是用代理损失替代 0-1 损失的第二重合法性。
+31. **【补充】三种代理损失都是分类校准的**：$\operatorname{sign}(f^{\ast})=\operatorname{sign}(2\eta-1)$，与贝叶斯最优分类器一致。这是用代理损失替代 0-1 损失的第二重合法性。
 32. **【补充】合页损失丢掉了概率信息**，所以 SVM 不直接输出概率——这是损失函数层面的性质，不是实现上的疏忽。
 
 ---

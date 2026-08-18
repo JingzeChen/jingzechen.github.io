@@ -881,7 +881,7 @@ Tensor keys/shapes/dtypes/placements不变时复用planner metadata，减少CPU/
 Save cost $C$、MTBF $M$，Young近似：
 
 $$
-I^*\approx\sqrt{2CM}
+I^{\ast}\approx\sqrt{2CM}
 $$
 
 Daly有更细修正。假设failure process/constant cost，实际还受queue/time limit、async overlap、storage和recovery cost。
@@ -2219,7 +2219,7 @@ Input gradient finite: True
 | No failure | $P_0=r^N$ | 仅在independent identical survival下 |
 | Any failure | $1-r^N$ | Scale使“至少一个failure”迅速接近1 |
 | Expected failures | $N(1-r)$ | 期望值，不描述correlation/tail |
-| Young interval | $I^*\approx\sqrt{2CM}$ | Save cost $C$、MTBF $M$的近似 |
+| Young interval | $I^{\ast}\approx\sqrt{2CM}$ | Save cost $C$、MTBF $M$的近似 |
 | Global batch | $B=bDA$ | Elastic DP变化会改变optimization |
 
 ### 15.5 Multimodal

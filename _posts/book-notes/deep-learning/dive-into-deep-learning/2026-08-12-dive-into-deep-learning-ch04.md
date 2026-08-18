@@ -557,7 +557,7 @@ $$
 Argmax 对应所有误分类代价相同的 0-1 损失。若动作 $a$ 与真实类别 $y$ 的代价为 $C(a,y)$，最优决策应最小化条件期望代价：
 
 $$
-a^*(\mathbf x)
+a^{\ast}(\mathbf x)
 =\operatorname*{argmin}_{a}
 \sum_yC(a,y)P(y\mid\mathbf x).
 $$
@@ -1565,7 +1565,7 @@ $$
 给定损失矩阵 $L(y,a)$，选择动作
 
 $$
-a^*=\operatorname*{argmin}_a
+a^{\ast}=\operatorname*{argmin}_a
 E[L(Y,a)\mid X=x]
 =\operatorname*{argmin}_a
 \sum_yL(y,a)P(y\mid x).

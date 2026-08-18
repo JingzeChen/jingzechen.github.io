@@ -461,7 +461,7 @@ Route返回：backend pool + normalized request，不应允许client任意指定
 可建约束优化：
 
 $$
-m^*=\arg\min_m ExpectedCost(m,x)
+m^{\ast}=\arg\min_m ExpectedCost(m,x)
 $$
 
 约束：
