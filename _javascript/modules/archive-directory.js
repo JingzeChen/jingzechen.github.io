@@ -65,6 +65,7 @@ export function initArchiveDirectory() {
     activate(archiveNameFromHash(location.hash, names));
   });
 
-  activate(archiveNameFromHash(location.hash, names));
+  const initialName = archiveNameFromHash(location.hash, names);
+  activate(initialName);
   directory.dataset.archiveReady = 'true';
 }

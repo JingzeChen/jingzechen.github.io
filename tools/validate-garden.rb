@@ -158,6 +158,15 @@ archive_panels = archives.css("[data-archive-panel]").map { |panel| panel["data-
 expected_archive_collections = %w[reading courses listening]
 assert.call(archive_tabs == expected_archive_collections, "Archives tabs must follow sidebar content order")
 assert.call(archive_panels == expected_archive_collections, "Archives panels must match archive tabs")
+expected_archive_collections.each do |collection|
+  tab = archives.at_css(%([data-archive-tab="#{collection}"]))
+  assert.call(!archives.at_css("#archive-#{collection}").nil?, "Archives requires public ##{collection} hash target")
+  assert.call(
+    tab&.[]("aria-controls") == "archive-panel-#{collection}" &&
+      !archives.at_css("#archive-panel-#{collection}").nil?,
+    "Archives #{collection} tab must control its panel"
+  )
+end
 reading_subject_count = reading_posts.map { |_, data| Array(data["categories"])[1] || "Standalone Notes" }.uniq.size
 assert.call(
   archives.css("[data-archive-reading-subject]").size == reading_subject_count,
