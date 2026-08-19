@@ -1,0 +1,53 @@
+name: "Site Health"
+
+on:
+  schedule:
+    - cron: "17,47 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    name: "Probe ${{ matrix.name }}"
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Home
+            url: https://jingzechen.github.io/
+            expected: '<link rel="canonical" href="https://jingzechen.github.io/"'
+          - name: Reading
+            url: https://jingzechen.github.io/reading/
+            expected: '<link rel="canonical" href="https://jingzechen.github.io/reading/"'
+          - name: Course
+            url: https://jingzechen.github.io/courses/cmu-csapp-f15/
+            expected: '<link rel="canonical" href="https://jingzechen.github.io/courses/cmu-csapp-f15/"'
+
+    steps:
+      - name: "Check ${{ matrix.url }}"
+        env:
+          EXPECTED: ${{ matrix.expected }}
+          URL: ${{ matrix.url }}
+        run: |
+          response_file="$(mktemp)"
+          metrics="$(curl \
+            --fail \
+            --silent \
+            --show-error \
+            --location \
+            --retry 2 \
+            --retry-all-errors \
+            --connect-timeout 10 \
+            --max-time 30 \
+            --header 'Cache-Control: no-cache' \
+            --user-agent 'jingzechen-site-health/1.0' \
+            --output "$response_file" \
+            --write-out '%{http_code} %{time_total} %{size_download}' \
+            "$URL")"
+          grep --fixed-strings --quiet "$EXPECTED" "$response_file"
+          read -r status total_seconds bytes <<< "$metrics"
+          echo "status=$status total_seconds=$total_seconds bytes=$bytes url=$URL"
