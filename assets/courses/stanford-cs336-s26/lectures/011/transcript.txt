@@ -1,0 +1,1808 @@
+[00:00:05] OK, we are going to continue our scaling journey.
+[00:00:09] Today's a bit of a grab bag of stuff.
+[00:00:12] I mean, we're really going to talk about some
+[00:00:14] of the more advanced details of scaling laws
+[00:00:17] and how we scale up models.
+[00:00:20] And in doing so, we're going to cover
+[00:00:21] what I feel like are some important details in how
+[00:00:25] you would scale up a language model in practice.
+[00:00:27] So we might want to ask some questions, like the scaling law
+[00:00:33] stuff that you talked about two lectures ago,
+[00:00:35] does that actually work at real building open-source model
+[00:00:39] scales?
+[00:00:41] It would be nice if we could optimize some of this.
+[00:00:43] There's a lot of learning rate tricks and other things
+[00:00:45] that people do that I think you should know
+[00:00:48] as people that are informed about how
+[00:00:50] to build language models.
+[00:00:51] So we'll talk about some of these optimization details.
+[00:00:54] And then I think the last thing I want to talk about
+[00:00:57] is, when we scale up, there are certain things that
+[00:01:00] are going to be a little bit trickier to tune.
+[00:01:03] We know that optimizers and optimizer behavior
+[00:01:06] is going to be actually pretty scale sensitive.
+[00:01:08] And because of that, things like initializations,
+[00:01:11] learning rates, batch size, those
+[00:01:12] we need to carefully think about as a function of scale.
+[00:01:15] So we will talk about how to think about those carefully.
+[00:01:20] So up until now, most of our discussions
+[00:01:24] is what I would call the classical scaling laws cannon.
+[00:01:27] We talked about Kaplan.
+[00:01:29] We talked about, oh, even Hestnes and then the Chinchilla
+[00:01:32] paper.
+[00:01:33] So we're up to date with, I don't know, 2022 or something.
+[00:01:37] Since then, there have been a number
+[00:01:39] of scaling papers that are published
+[00:01:41] by people who train big models.
+[00:01:44] Although, I think the number of such papers
+[00:01:46] have decreased in recent years, and most of them
+[00:01:48] have come out of the open-source community in China.
+[00:01:51] And so today, I want to talk about a number of these
+[00:01:55] that I've curated and selected to give you a sense of,
+[00:01:59] what does scaling at the frontier, at least
+[00:02:01] open frontier, look like?
+[00:02:03] What are the things that these people
+[00:02:04] care about or worry about?
+[00:02:06] And what would you need to do to speedrun
+[00:02:08] your way from Chinchilla all the way to, let's say,
+[00:02:11] Kimi K2, the most recent release that has some scaling details.
+[00:02:16] So that's going to be the first part of this lecture.
+[00:02:18] We're going to go through a couple of papers,
+[00:02:19] and we're going to go through the details.
+[00:02:21] The second part is going to be a discussion of optimizers
+[00:02:24] and initializations.
+[00:02:26] And remember, I spent a nontrivial amount of time
+[00:02:29] two lectures ago on the selection of batch sizes.
+[00:02:33] That's going to be an important factor.
+[00:02:34] And it's also going to be important
+[00:02:36] thinking about how we're going to tune things
+[00:02:37] like learning rates.
+[00:02:38] Those are very sensitive, very important to get right.
+[00:02:42] And so it turns out that a lot of effort
+[00:02:44] has been invested into getting those things right.
+[00:02:46] And we will talk about some of the techniques to do so.
+[00:02:48] And this may, in fact, even be useful in your day
+[00:02:50] to day lives of training various language models
+[00:02:53] because they'll give you a sense of how
+[00:02:54] to change your hyperparameters and your experiments
+[00:02:57] as you scale up or down.
+[00:02:59] So I'm going to spend a nontrivial amount of time
+[00:03:03] talking about two papers in particular.
+[00:03:05] They're not the newest papers.
+[00:03:08] They're not necessarily the most-- actually,
+[00:03:10] DeepSeek one might be one of the more detailed ones--
+[00:03:13] most detailed scaling paper in general.
+[00:03:15] But I think this hits a sweet spot.
+[00:03:17] So both of these papers are serious scaling investigations
+[00:03:22] from people who build reasonably high-performance models.
+[00:03:25] And importantly, they take pretty different approaches
+[00:03:27] to some of the key questions that we will ask today.
+[00:03:30] And so I think they're a good way
+[00:03:31] to motivate a lot of the rest of the lecture.
+[00:03:34] So I'm going to talk about these two.
+[00:03:36] First one is MiniCPM.
+[00:03:38] This was, I think, back in 2024, high-performance small language
+[00:03:42] model.
+[00:03:42] And DeepSeek-- you all are now familiar with this.
+[00:03:44] I no longer have to justify why I'm talking
+[00:03:46] about DeepSeek, which is great.
+[00:03:48] We'll start by talking about MiniCPM, though.
+[00:03:51] I do like this paper, especially when it first came out.
+[00:03:54] It felt very fresh and new and at the cutting edge.
+[00:03:58] Even in 2026, I feel a lot of the things
+[00:04:00] that the CPM folks did has been informative to us.
+[00:04:04] I'll talk about this later as I get to the newer papers.
+[00:04:07] But I think it's becoming the case
+[00:04:08] that a lot of this classic scaling
+[00:04:11] stuff, how you set learning rates, How do you do Chinchilla?
+[00:04:14] those kinds of things I think are now taken for granted.
+[00:04:17] Everyone just assumes that you how to do those things.
+[00:04:19] And so people don't really talk about those as much
+[00:04:21] anymore in the paper, so it's really nice to talk about some
+[00:04:24] of these older papers for that reason.
+[00:04:28] So MiniCPM is an effort by a bunch
+[00:04:31] of industry academic partnerships folks over
+[00:04:35] in the Chinese open-source community
+[00:04:36] to come up with a high-performance, small-ish
+[00:04:40] language model.
+[00:04:40] And at the time when this came out,
+[00:04:42] it was basically state of the art for the 1 to 2
+[00:04:45] billion parameter bracket.
+[00:04:46] Nowadays, Gemma and other models--
+[00:04:49] Jemma-- and other models at 2D or 3D are going to be higher
+[00:04:52] performance.
+[00:04:53] But these are competitive, well-trained models,
+[00:04:55] at least as at 2024 standards.
+[00:04:59] So how do you train these models?
+[00:05:00] As I said before, we have to get some of these scaling parameters
+[00:05:06] right.
+[00:05:06] And one of the things that I'll talk about today that I'll
+[00:05:09] emphasize quite a bit is, initializations
+[00:05:12] are very important.
+[00:05:13] Initializations are important because they
+[00:05:15] allow you to make certain hyperparameters less scale
+[00:05:19] dependent.
+[00:05:21] So the first technique that I want
+[00:05:22] to talk about from this MiniCPM paper
+[00:05:25] is a special class of initializations called muP.
+[00:05:30] So muP, the whole point of this approach is to say,
+[00:05:33] I want to make sure that my optimal learning
+[00:05:35] rate is the same as I scale up and down.
+[00:05:38] I talked about this very briefly in the two lectures ago,
+[00:05:42] so you should hopefully remember that a little bit.
+[00:05:44] But this is the first real instantiation
+[00:05:46] that we're going to talk about.
+[00:05:48] What does that look like specifically?
+[00:05:50] The MiniCPM paper has a nice list of things to do,
+[00:05:54] so they scale the embedding output.
+[00:05:56] They scale the residual connections
+[00:05:58] by the square root of the number of layers.
+[00:06:00] They scale the initialization of all
+[00:06:02] of their matrix-shaped tensors by the fan-in, fan-out ratio.
+[00:06:06] They scale the learning rates of tensors.
+[00:06:08] And you should pay attention to this one
+[00:06:09] because this is exotic if you aren't
+[00:06:11] used to per parameter learning rates.
+[00:06:14] And then they also scale the LM heads.
+[00:06:16] We'll talk about why you do these things,
+[00:06:18] or how you derive this particular set of scalings.
+[00:06:21] Suffice to say that you're just going to change up
+[00:06:23] how you're going to do your initializations
+[00:06:25] and your learning rates a little bit
+[00:06:27] in the hopes of stabilizing your learning rates a little bit.
+[00:06:32] And of course, we're training a small model here,
+[00:06:34] but we're still wanting to do a nice scaling strategy.
+[00:06:36] Part of the point of this study is not
+[00:06:39] that you want to brute force a 1.5 model,
+[00:06:42] like training hundreds of them.
+[00:06:43] You want to get the hyperparameters exactly right
+[00:06:45] the first time.
+[00:06:46] So you're going to train a bunch much smaller models and then get
+[00:06:49] a scaling ladder up all the way to your target size of 5x or so.
+[00:06:54] And so there's about a 5x gap between the biggest model they
+[00:06:58] train on their ladder and the actual model that they're going
+[00:07:00] to finally release.
+[00:07:01] And their goal is going to nail down,
+[00:07:04] I think, what most people consider
+[00:07:06] to be the sensitive parameters, like optimal batch size,
+[00:07:09] learning rate.
+[00:07:10] And then the token-to-size ratio that we talked about
+[00:07:12] at Chinchilla.
+[00:07:13] They also want to replicate a Chinchilla analysis,
+[00:07:16] much less important to us now and probably to you
+[00:07:19] even if you're training.
+[00:07:20] But I'm going to talk about it regardless because there's
+[00:07:22] one important thing in the way they
+[00:07:24] do that and that I think has been informative and useful.
+[00:07:27] So as I said earlier, the whole point
+[00:07:31] of going through this weird initialization
+[00:07:33] or nonstandard initialization called
+[00:07:35] muP is to try to make the optimal learning rate stable.
+[00:07:39] Is it?
+[00:07:40] At least in the MiniCPM case, the answer is yes.
+[00:07:43] In fact, it's very, very clean in their experiments.
+[00:07:45] They sweep learning rate across a variety of models,
+[00:07:48] so each line is a model size.
+[00:07:50] The minimal loss is basically right on 10 to the negative 2.
+[00:07:54] I guess the minima slightly shifted for the smallest model.
+[00:07:57] But even then, it's quite close to the minimum.
+[00:08:00] So this is a nice success case of the muP approach.
+[00:08:03] We will talk about several other models
+[00:08:05] and other papers that use muP.
+[00:08:07] This is not the only way to do it,
+[00:08:09] but this is one effective way to do it.
+[00:08:11] And if you can get something like this
+[00:08:12] now you've removed the need to tune the learning rate.
+[00:08:16] But of course, even if you have a nice parameterization that
+[00:08:19] fixes your learning rate to a single of optimum,
+[00:08:22] your optimal batch size is still not going to be the same.
+[00:08:26] So the batch size actually varies
+[00:08:29] as a function of both data set size and model size.
+[00:08:34] So in their case, they run these model training runs.
+[00:08:37] So each column of points that you see on these plots
+[00:08:41] is a training run.
+[00:08:42] So they have a fixed batch size, and they
+[00:08:44] increase the number of tokens processed, I guess,
+[00:08:46] from bottom to top.
+[00:08:48] And then they ask, OK, we've done
+[00:08:49] many of these training runs.
+[00:08:51] What is the optimal batch size fitting these quadratic curves
+[00:08:55] onto each of these lines over here, this equal loss contour?
+[00:09:00] What they find is this kind of optimal batch size
+[00:09:03] scaling as a function of the number of tokens processed,
+[00:09:05] and they do this across different model sizes.
+[00:09:09] Maybe you would not be surprised by this, given the nice scalings
+[00:09:13] that we saw in the Kaplan paper for critical batch sizes.
+[00:09:17] But the optimal batch size does have a power law structure
+[00:09:20] with respect to the target loss.
+[00:09:23] And so we see exactly the Kaplan-style analysis
+[00:09:26] of, if your loss is lower on the left,
+[00:09:29] your batch size should be bigger,
+[00:09:30] critical batch size scaling.
+[00:09:32] And so now given a particular loss
+[00:09:34] target, which you can back out from the scaling laws,
+[00:09:38] you can basically set what the optimal or critical batch sizes
+[00:09:41] that would give you the best trade-offs.
+[00:09:43] So there's a nice clean trend here.
+[00:09:45] This will let you set batch size very easily and precisely.
+[00:09:48] So those two, the batch size and the learning rate scaling,
+[00:09:52] they're going to come back over and over again.
+[00:09:54] Those are arguably the most important and sensitive
+[00:09:57] parameters to do scaling laws on.
+[00:10:00] But I'll talk about one last thing in the MiniCPM paper
+[00:10:03] that I think is important.
+[00:10:05] So remember, to do Chinchilla, we
+[00:10:08] need to train a lot of different models.
+[00:10:10] So we're going to, let's say, do IsoFLOPs.
+[00:10:12] That means I'm going to fix a FLOPs budget,
+[00:10:14] and I'm going to vary my trade-offs between number
+[00:10:17] of tokens and model size.
+[00:10:19] And to do that, I'm going to, let's
+[00:10:20] say, increase the amount of data I train on,
+[00:10:22] so increase the number of sequences.
+[00:10:24] But as I increase the number of sequences,
+[00:10:26] remember that each one of these gets a different learning rate
+[00:10:29] schedule.
+[00:10:29] You all training on cosine learning rates.
+[00:10:32] Cosine learning rates look different.
+[00:10:33] You need to know the terminal total
+[00:10:35] budget before you train in order to have a cosine schedule.
+[00:10:38] And so this leads to an annoying fact,
+[00:10:42] which is that you just need to keep retraining your models.
+[00:10:44] If you want to train a 8 million sequence model,
+[00:10:48] you can't restart from the end of a 4-million sequence model.
+[00:10:51] You have to just restart from scratch
+[00:10:53] because your learning rate schedule is just
+[00:10:55] fundamentally different.
+[00:10:56] This is just very annoying.
+[00:10:57] It's like a quadratic cost in some sense of doing this
+[00:11:00] because you have to keep restarting your runs just
+[00:11:03] from the start.
+[00:11:05] And this seems very wasteful, and I think lots of other people
+[00:11:08] did, too.
+[00:11:09] And I think one of the nice solutions from the MiniCPM paper
+[00:11:14] is what's now called, I think, the warmup stable decay
+[00:11:17] learning rate.
+[00:11:17] Or this is the popular term for this,
+[00:11:20] and it's basically a big trapezoid.
+[00:11:22] So you've got a warmup phase.
+[00:11:24] The warmup phase is usually defined
+[00:11:25] as a constant number of steps, not as a fraction
+[00:11:28] of your training target.
+[00:11:29] So this is independent of your training horizon.
+[00:11:32] You've got a fairly long run where you're holding
+[00:11:35] the learning rate constant.
+[00:11:36] That's the stable phase.
+[00:11:38] And then at the end, you're going to decay fairly rapidly
+[00:11:40] down to 0.
+[00:11:41] That's the decay phase.
+[00:11:42] And generally, the decay phase is something like 10% to 20%
+[00:11:47] of your total training run.
+[00:11:48] So you're going to be stable for the vast majority
+[00:11:50] of your training run and then do a very rapid decay down
+[00:11:53] to usually about 10% of your maximum
+[00:11:56] learning rate at the very end here.
+[00:11:58] And that's a very typical warmup, stable,
+[00:12:02] decay learning rate.
+[00:12:04] And why do we do this?
+[00:12:05] What's the point of doing this?
+[00:12:06] Well, we do WSD because now we can
+[00:12:09] restart a run at any point at the end of the stable phase.
+[00:12:12] So if I want to reuse a run and train it for longer,
+[00:12:15] I'll just roll back my training to the last stable checkpoint.
+[00:12:19] And then I'll just run the stable learning rates forward
+[00:12:21] and then decay the model down to 0.
+[00:12:23] So this provides a very easy way for us
+[00:12:26] to essentially run scale in data experiments
+[00:12:30] without constantly rerunning your experiments.
+[00:12:32] So you do have to redecay every time,
+[00:12:36] but that's maybe 10% of the total cost.
+[00:12:38] It's a much better situation to be repeatedly decaying
+[00:12:41] than to repeatedly rerun your pre-training runs.
+[00:12:44] And this is a very common trick that's used in many places.
+[00:12:49] I'll show, I guess, a performance comparison.
+[00:12:52] There have been many plots of this form.
+[00:12:54] I think, who was the most recent folks that were--
+[00:12:59] maybe it was Martin Jaggi and others,
+[00:13:01] I think, over at ETH had an extensive study
+[00:13:04] of WSD performance.
+[00:13:06] But I think a lot of papers have shown similar things of,
+[00:13:09] you have a well-tuned cosine learning curve.
+[00:13:12] This is the orange line over here.
+[00:13:14] And then you've got various WSD curves.
+[00:13:16] And WSD curves always look a little bit funky
+[00:13:18] because it looks like you're way underperforming until you
+[00:13:20] hit the decay phase, where suddenly you
+[00:13:22] reclaim all of your gains.
+[00:13:24] And then you match or even sometimes exceed
+[00:13:27] the cosine learning rate performance.
+[00:13:30] Anecdotally, I think if you talk to a bunch of people training
+[00:13:32] networks, I think a lot of people
+[00:13:34] will say the cosine is slightly better in many cases.
+[00:13:36] But WSD is basically as good in many other situations.
+[00:13:40] It is a very versatile default learning rate.
+[00:13:43] It doesn't necessarily suffer from having
+[00:13:45] to rerun if you want to just continue runs.
+[00:13:50] It is very cool though, to see just how much of an impact
+[00:13:52] learning rate decay has if you haven't played with that before.
+[00:13:56] This part of decaying the learning rate
+[00:13:58] is just incredibly important to getting the final annealing
+[00:14:02] parts of your training together.
+[00:14:06] OK, so that's the comparison there.
+[00:14:09] So now that we're equipped with WSD SGD style learning rates,
+[00:14:13] Chinchilla style analyzes are actually very easy.
+[00:14:15] What you're going to do is you're
+[00:14:17] going to essentially run one long run,
+[00:14:19] and then you'll just rewind the checkpoints and then repeatedly
+[00:14:22] decay.
+[00:14:23] And that will give you sweeps along the data dimension.
+[00:14:26] And then you'll also do sweeps along the model dimension.
+[00:14:28] You can do flops or any other kind of analysis
+[00:14:30] that you would like.
+[00:14:32] The MiniCPM authors, for whatever reason,
+[00:14:34] choose to try to replicate methods
+[00:14:35] 1 and 3, which, to me, are the least reliable
+[00:14:39] of the Chinchilla methods.
+[00:14:41] But they do get fairly nice looking scaling curves.
+[00:14:44] If you look at the MiniCPM Chinchilla method 1,
+[00:14:48] they see nice, lower envelopes that look mostly linear
+[00:14:52] across these, which is good.
+[00:14:55] And then method 3, they get nice, smooth scaling
+[00:14:58] for the most part in both the compute
+[00:15:01] to nonembedding parameter trade-off.
+[00:15:03] So it seems like, for the most part,
+[00:15:06] they get reasonable Chinchilla-looking fits.
+[00:15:08] One thing I will point out is that they
+[00:15:11] get pretty different exponents for their overall joint fit
+[00:15:15] compared to Chinchilla.
+[00:15:17] They claim in the paper that this
+[00:15:19] means that they should be training with way more
+[00:15:22] pieces of text than Chinchilla.
+[00:15:24] It is highly unclear to me whether this is a really true
+[00:15:27] or whether their Chinchilla fits are a little bit
+[00:15:29] strange relative to the Chinchilla paper.
+[00:15:33] OK, I'll stop here for a moment in case someone
+[00:15:35] has questions about MiniCPM.
+[00:15:37] Maybe the main couple things to take away
+[00:15:39] is, one is the use of muP is a useful trick,
+[00:15:43] I guess, to try to stabilize how your learning rate changes
+[00:15:45] over scales.
+[00:15:46] And then the second thing maybe to remember
+[00:15:48] is the WSD learning rate.
+[00:15:49] That's just a very common trick.
+[00:15:51] You should all know about this learning rate.
+[00:15:53] That's a basic thing to know.
+[00:15:55] OK, good.
+[00:15:58] All right, so then I'll move on to DeepSeek.
+[00:16:02] This is the original DeepSeek paper,
+[00:16:05] before they started talking about MOEs and all
+[00:16:07] these other very cool things.
+[00:16:09] And I think, even at the very first DeepSeek paper,
+[00:16:12] you could tell that these were very serious people
+[00:16:14] because I think DeepSeek LLM, even now, is,
+[00:16:17] I think, one of the more nicely executed scaling analyses
+[00:16:21] in the open world.
+[00:16:22] And I feel like they have lots of great taste
+[00:16:24] in the experiments that they run.
+[00:16:25] So even before R1 and so on came out,
+[00:16:28] it was kind of clear that these people were going places.
+[00:16:32] All right, so DeepSeek takes a very different scaling strategy
+[00:16:37] than MiniCPM and several others in trying to optimize
+[00:16:42] their hyperparameters.
+[00:16:43] They're not going to really do muP.
+[00:16:45] They're not going to do this interesting scaling adjustments.
+[00:16:49] Instead, they're going to try to fit a scaling law
+[00:16:53] to estimate both the optimal batch size
+[00:16:55] and the optimal learning rate.
+[00:16:57] So we that the learning rate and batch sizes
+[00:17:00] should actually change with scale.
+[00:17:02] But if the way in which they change
+[00:17:03] are predictable, just like a scaling law,
+[00:17:05] then we're good to go.
+[00:17:06] We don't really need to worry about very much.
+[00:17:10] So what they do is they basically run extensive grid
+[00:17:13] searches at various different scales,
+[00:17:15] and they try to find the optimum.
+[00:17:17] So this is an example of the kind of thing they're doing.
+[00:17:19] They're sweeping learning rates.
+[00:17:21] They're sweeping batch sizes.
+[00:17:22] And they're looking at the terminal loss
+[00:17:25] if they're processing a particular number of tokens.
+[00:17:28] So they fixed the compute, and then they vary these two.
+[00:17:32] They'll do this across several different scales,
+[00:17:34] and then they'll basically try to identify
+[00:17:36] what the lowest loss is, so in this case, the lightest color.
+[00:17:39] So they'll put a little star there,
+[00:17:41] and then they'll do this across scales.
+[00:17:42] So if you do this across sufficiently many scales,
+[00:17:46] you will get a plot that looks a little like this.
+[00:17:49] And this plot is saying, OK, I'm going
+[00:17:52] to vary my nonembedding trading flops across some range.
+[00:17:56] And you can see these gray dots over here.
+[00:17:58] And as I vary this, my optimal batch size will change.
+[00:18:04] Remember, the optimal batch size is
+[00:18:06] derived by looking at these big grids and finding the minimizer.
+[00:18:12] And I will get something that looks like a line.
+[00:18:15] The optimal batch size should scale
+[00:18:17] with my nonembedding FLOPs.
+[00:18:19] And similarly for my optimal learning rate,
+[00:18:21] I'll get a bunch of gray dots in my nonembedding FLOPs range.
+[00:18:26] And then I can fit a line to that
+[00:18:28] to try to estimate what my optimal learning
+[00:18:30] rate should look like.
+[00:18:31] So this is fairly nice.
+[00:18:36] And I guess one thing I'll point out
+[00:18:37] is, their full runs are on the star.
+[00:18:41] These are the runs that they chose.
+[00:18:43] At higher FLOPs, they have much higher batch sizes
+[00:18:46] and much lower learning rates.
+[00:18:48] The stars are the things they actually ran for their big runs.
+[00:18:52] These fits look reasonable for the batches.
+[00:18:56] This does look like a line.
+[00:18:58] The one on the learning rate--
+[00:19:00] I'm not quite sure that constitutes
+[00:19:03] the best linear fits that I've seen in my life,
+[00:19:06] but I guess it works.
+[00:19:07] It's probably fine.
+[00:19:08] The models do train.
+[00:19:10] The models do get reasonable things.
+[00:19:11] I think this is the one, I would say,
+[00:19:13] like drawback of the learning rates approach.
+[00:19:15] It's not really clear that if you try to do this grid search
+[00:19:17] kind of thing, unless your grid is in the right place,
+[00:19:20] you've got a lot of quantization error.
+[00:19:22] And then you're not getting very good scaling law fits,
+[00:19:25] and you end up with something that looks like an arbitrary
+[00:19:28] linear thing going on.
+[00:19:30] OK, oh, yeah, sorry.
+[00:19:34] How come for the same number of training swaps there,
+[00:19:38] you get multiple data points with a large range
+[00:19:41] of optimal vertices?
+[00:19:43] Why is it that you get a large range of optimal learning rates
+[00:19:46] for different training FLOPs?
+[00:19:47] Is that the question on the y-axis over here?
+[00:19:50] Yeah, so the reason I think there
+[00:19:53] is because of the changes to the model sizes
+[00:19:56] and things like this.
+[00:20:03] So 2024 was back in the era where
+[00:20:06] I think every open model builder was replicating
+[00:20:09] the entire scaling law stack.
+[00:20:12] And so DeepSeek also complements the learning rate analysis
+[00:20:18] with basically a Chinchilla replication.
+[00:20:22] And to do that, they're also going to do
+[00:20:24] the same thing as MiniCPM.
+[00:20:25] They're going to follow the WSD-style learning rate.
+[00:20:28] They have a weird little variation
+[00:20:29] where they do two decay phases instead of one.
+[00:20:32] I am not really sure why this is.
+[00:20:36] It hasn't really been a thing that has taken off afterwards,
+[00:20:38] but it is a thing that they do.
+[00:20:39] Regardless, the whole point here is to say,
+[00:20:41] WSD is an effective approach.
+[00:20:43] And you can use that to replicate Chinchilla.
+[00:20:46] And DeepSeek has much nicer scaling curves
+[00:20:50] than MiniCPM because of their choice to go IsoFLOPs.
+[00:20:53] So they get these very nice, clean sweeps
+[00:20:57] across the fixed flops ranges.
+[00:20:59] And then they also get fairly nice and clean
+[00:21:02] Chinchilla-style trade-offs as before.
+[00:21:06] So this allows them to essentially replicate
+[00:21:08] the Chinchilla results and get a similar kind of data model
+[00:21:13] scaling law.
+[00:21:14] Really, the point that I'm showing with this
+[00:21:16] is just to say, look, the Chinchilla laws have
+[00:21:18] been replicated by other people at large-ish compute ranges.
+[00:21:22] So that analysis is generally sound.
+[00:21:25] Finally, I think, this is the--
+[00:21:28] I'm a little bit sad that these kinds of plots
+[00:21:30] are now somewhat rare in open-source release papers,
+[00:21:33] but this is really the final punchline
+[00:21:35] of a lot of scaling law work.
+[00:21:37] You train a bunch of small, curated models
+[00:21:40] at smaller compute ranges, and then you draw out the power law.
+[00:21:45] And then in the end, you get something
+[00:21:46] pretty close to reality if you scale out enough.
+[00:21:49] So the two stars are the models that they actually trained.
+[00:21:52] The gray dots are their scaling law fits.
+[00:21:54] And they're getting pretty good predictions on their star.
+[00:21:57] I mean, it could be better, but it's not bad at all.
+[00:22:00] And so they're able to get some pretty accurate scaling law
+[00:22:03] predictions on real open-source models that they've trained.
+[00:22:08] OK, I'm actually I'll stop here.
+[00:22:10] If people have questions about the DeepSeek stuff,
+[00:22:13] feel free to ask them.
+[00:22:14] I think my one-line summary here is to say,
+[00:22:17] this is the other approach to dealing
+[00:22:19] with the sensitive hyperparameters.
+[00:22:20] You can either attempt to stabilize them,
+[00:22:22] or you can attempt to just scaling law
+[00:22:24] fit them and then just go with the scaling law.
+[00:22:26] And DeepSeek represents the more fit the scaling law approach
+[00:22:30] to this problem.
+[00:22:33] Good, OK.
+[00:22:35] So there are other models, more recent ones
+[00:22:39] that have nice scaling laws that they talk about.
+[00:22:43] As I said before, though, I think a lot of this work
+[00:22:46] is now--
+[00:22:47] what's the-- it's all known to everybody.
+[00:22:51] And so no one is really putting a lot of this stuff
+[00:22:53] into big sections into the paper.
+[00:22:55] So if you look at Qwen 2.5, they say something like,
+[00:22:58] OK, well, we need to tune some optimal hyperparameters,
+[00:23:00] like batch sizes and learning rates.
+[00:23:02] So we do a bunch of scaling experiments
+[00:23:04] to figure out what the optimum are.
+[00:23:05] And then we have a scaling law, and we predict the optimum.
+[00:23:08] And then we're able to do that even for MOEs.
+[00:23:10] So this is basically the same thing as the DeepSeek analysis
+[00:23:14] that they're talking about in Qwen 2.5.
+[00:23:17] Same thing with Qwen 3.
+[00:23:18] By the time it's Qwen 3, they say,
+[00:23:20] all right, we've already figured out what to do in Qwen 2.5.
+[00:23:23] We're just doing exactly the same thing.
+[00:23:24] So this has become part of a very standard recipe
+[00:23:27] that you use in order to nail down the optimal learning
+[00:23:31] rates and batches.
+[00:23:34] Kimi K2 is probably the newest paper
+[00:23:38] that I'll talk about of the series.
+[00:23:40] At this point, I'm just going to quickly go
+[00:23:41] through several papers maybe to give you
+[00:23:44] an overview of what people are doing
+[00:23:47] in terms of scaling work in the open-source model releases.
+[00:23:51] So Kimi K2 and a few others have focused on essentially MoE
+[00:23:56] scaling laws.
+[00:23:57] So it's 2026.
+[00:23:59] Most people know how to do a Chinchilla scaling law or even
+[00:24:02] a learning rate scaling law.
+[00:24:04] What things are new?
+[00:24:05] Well, a lot of these companies are now switching to MoEs,
+[00:24:07] fully switching to MoEs.
+[00:24:08] And if you're doing that, you really want to know,
+[00:24:11] am I training the right amount of active parameters?
+[00:24:14] And so they're doing things, like, OK, we're
+[00:24:16] going to vary the flops and look at my losses.
+[00:24:19] And I'm going to do so for different levels of sparsity
+[00:24:21] so that I can figure out how much sparsity helps or hurts
+[00:24:25] my losses.
+[00:24:26] And their conclusion, of course, is
+[00:24:28] if you look at the different sparsity levels, the more sparse
+[00:24:30] your network, the better your validation loss,
+[00:24:34] given a FLOP-- unsurprising.
+[00:24:36] But now the fact that they can quantitatively
+[00:24:38] know what the relationship is between sparsity and loss
+[00:24:41] means that they can make more rational decisions
+[00:24:44] about how much sparsity to put into their model.
+[00:24:47] And they look at this, and they say, OK,
+[00:24:49] what we're going to do is we're going to use sparsity of 48,
+[00:24:51] because at that point we're hitting diminishing returns
+[00:24:53] on our scaling loss.
+[00:24:54] So you can see how this kind of analysis
+[00:24:58] is used to justify different architectural decisions
+[00:25:02] across different open-source releases.
+[00:25:04] Hunyuan, which is another open-source MoE from a few years
+[00:25:09] ago now, they do a very similar thing.
+[00:25:12] I think every company, once they switch to the MoE,
+[00:25:14] has to do this kind of MoE scaling law
+[00:25:17] to figure out how the number of activated
+[00:25:20] parameters or the amount of sparsity city
+[00:25:22] changes training loss.
+[00:25:23] And then they redo a lot of these analyses.
+[00:25:26] So for example, in Hunyuan's case,
+[00:25:28] they end up with a 96 data point per active parameter ratio.
+[00:25:32] In their case, they're fixing the sparsity level.
+[00:25:34] And so that's not a thing that they're searching over.
+[00:25:38] LLaMA 3 also has some nice scaling laws.
+[00:25:41] Unfortunately, they're not particularly useful ones.
+[00:25:45] They do IsoFLOP-style scaling and get
+[00:25:47] slightly different but similar ratios for token-to-model.
+[00:25:51] The most interesting thing that they do in terms of scaling
+[00:25:54] in LLaMA 3 is the plot on the right
+[00:25:57] here, which is, they have the usual scaling
+[00:26:00] law, which is the left panel.
+[00:26:01] That's saying, if I have more compute,
+[00:26:04] then the logprob on the answer for a benchmark
+[00:26:08] decays consistently.
+[00:26:10] And on the right side, they show, OK, well,
+[00:26:13] if you have better log loss, then
+[00:26:16] the downstream accuracy also goes up.
+[00:26:18] So they're basically saying, well,
+[00:26:20] we can just fit a sigmoid on these purple points.
+[00:26:22] And that might give us a sense of how good
+[00:26:24] these different models are.
+[00:26:26] You can see their systematic deviations from the curve.
+[00:26:29] So I don't really know if I would really
+[00:26:30] buy that this curve is like the one truth that's going on.
+[00:26:33] But you can certainly see that it
+[00:26:35] is consistent with a sigmoidal scaling
+[00:26:38] mapping from the loss to the accuracy, which I think
+[00:26:40] is very useful because we've been talking only
+[00:26:42] about log losses.
+[00:26:44] But there is a tight coupling in some cases, or in many cases,
+[00:26:47] between log losses and downstream accuracy.
+[00:26:54] And then for one last paper that I
+[00:26:59] want to talk about for scaling, MiniMax-01 from last year
+[00:27:04] had this nice set of scaling experiments
+[00:27:05] where they were doing the exact kind of thing
+[00:27:07] I was saying is a useful affordance of scaling
+[00:27:11] from two lectures ago, and that is architecture variations.
+[00:27:14] And so they wanted to understand,
+[00:27:16] OK, I have lightning attention, which
+[00:27:17] is some kind of a linear attention architecture.
+[00:27:20] I have a softmax version like full attention,
+[00:27:23] and I have a hybrid version that mixes the two.
+[00:27:25] How do these things scale?
+[00:27:27] Is it the case that if I scale up, one of them
+[00:27:28] will get much worse than the other?
+[00:27:31] And so you can see, they're replicating essentially
+[00:27:35] the Kaplan plots of, as I increase FLOPs,
+[00:27:39] how do the learning curves change?
+[00:27:41] And is the number of parameters that I
+[00:27:43] need different for different levels of compute
+[00:27:45] for these different architectures?
+[00:27:47] And the answer is, for the most part, no,
+[00:27:50] that hybrid and lightning and softmax
+[00:27:52] are all comparable for the most part.
+[00:27:54] And they require similar model sizes.
+[00:27:56] And this set of plots is used to justify
+[00:27:59] their use of the hybrid architecture
+[00:28:01] in the actual deployed system.
+[00:28:02] So this is exactly the kind of decision making that you would
+[00:28:05] do based upon a scaling law.
+[00:28:09] So that's basically what I wanted
+[00:28:11] to cover for the recent scaling law recipes
+[00:28:15] from the various companies.
+[00:28:16] So the two things, as I said before, for the DeepSeek recipe.
+[00:28:20] Really, the key thing is the scaling analysis
+[00:28:22] on the batch and learning rate.
+[00:28:23] This is the scaling-based approach.
+[00:28:25] And MiniCPM follows a more of a muP-style approach
+[00:28:28] to try to get invariances.
+[00:28:31] And then we see some trends.
+[00:28:33] We see that Kimi and Qwen and others, or in Hunyuan,
+[00:28:36] are doing these MoE scaling experiments
+[00:28:38] as they switch to MoEs.
+[00:28:40] We see some architecture work by MiniMax,
+[00:28:43] and we also see some IsoFLOPs analysis being
+[00:28:45] replicated by several others.
+[00:28:48] And to return to our previous point,
+[00:28:50] the point here is, I think a lot of companies
+[00:28:52] are now less detailed because the core scaling
+[00:28:54] machinery, like doing Chinchilla or doing learning rate scaling,
+[00:28:58] is now fairly well understood by everybody.
+[00:29:00] So there's no necessarily extra value
+[00:29:04] in showing those experiments for some of these releases.
+[00:29:07] Or at least that's my guess for why
+[00:29:08] we have much fewer of these kinds of experiments
+[00:29:11] in the release.
+[00:29:12] OK, I'll take one minute and then pause
+[00:29:16] and let you digest and ask a question or two, in case you
+[00:29:18] have questions for this part.
+[00:29:27] OK, so all these cover the proofing stage.
+[00:29:32] So my question is, what changes and what
+[00:29:34] do not change when no post training is standardized process
+[00:29:39] for model development?
+[00:29:41] Yeah, so the question was about, what
+[00:29:44] changes about this when you do-- or when
+[00:29:45] you think about post training, I guess, broadly?
+[00:29:48] I think that's still a big, open question.
+[00:29:51] There's no great way to do fully integrated scaling
+[00:29:54] with post-training accounted for,
+[00:29:56] because post-training can sometimes really change
+[00:29:59] the nature of what pre-training you should do.
+[00:30:03] The closest things that I can think
+[00:30:04] of to thinking about post-training
+[00:30:07] is there's been some work on understanding coverage
+[00:30:11] or diversity notions in pre-training that would help
+[00:30:15] predict what happens in post-training,
+[00:30:16] but it's still pretty nascent work.
+[00:30:17] I don't think there's any good answer to the question of,
+[00:30:20] what do we do about synergy with post-training?
+[00:30:26] Cool.
+[00:30:27] OK, so now we're going to talk about the other piece.
+[00:30:32] So I think the two remaining parts of this lecture
+[00:30:35] map on cleanly to the two examples.
+[00:30:38] So I'm going to talk about one approach, one set of approaches,
+[00:30:42] which is about scaling laws for learning rates,
+[00:30:44] batch sizes, and optimizers.
+[00:30:46] That corresponds to the DeepSeek approach to the world.
+[00:30:50] And then I'm going to talk about the muP stuff.
+[00:30:53] That's the MiniCPM approach to the world.
+[00:30:56] Can we just reparameterize everything
+[00:30:58] to make it so that we don't have to worry about scale?
+[00:31:01] So we're going to now talk about the DeepSeek approach.
+[00:31:04] How do we scale learning rate properly?
+[00:31:07] And so there's going to be a hyperparameter part
+[00:31:09] and an optimizer choice part.
+[00:31:11] And I'm going to draw quite a bit
+[00:31:13] from this pretty recent preprint from the StepFun folks.
+[00:31:18] I don't think there's a great, really, truly
+[00:31:21] reliable, robust study on hyperparameters,
+[00:31:26] especially learning rates.
+[00:31:28] But this is probably getting somewhat close.
+[00:31:31] The StepFun folks train credible large models and release them.
+[00:31:35] And they burned a ton of compute in grid
+[00:31:38] searching the space of hyperparameters in this scaling
+[00:31:41] law study.
+[00:31:41] So I'll go through this and show you
+[00:31:43] some intriguing empirical phenomena
+[00:31:45] about how learning rates, batch size, and all of those
+[00:31:48] affect downstream losses.
+[00:31:51] So lots of people have talked about lots of different ways
+[00:31:57] of scaling, learning rate and batch sizes as roughly
+[00:32:00] as a function of compute.
+[00:32:02] And the StepFun survey-- not survey paper,
+[00:32:05] the hyperparameter tuning paper has this very nice table
+[00:32:07] that captures a lot of this.
+[00:32:10] And I'll point out a couple of different things.
+[00:32:13] Some of this we already know.
+[00:32:14] So the very top row, this OpenAI scaling law-- this
+[00:32:18] is from Kaplan.
+[00:32:19] If you look at the batch size over there,
+[00:32:20] notice how it says 2eE18, capital L to the exponent.
+[00:32:26] That's critical batch sizes right.
+[00:32:27] It's basically saying, you should scale your batch size
+[00:32:30] as a function of your terminal loss.
+[00:32:32] Great.
+[00:32:33] DeepSeek we just saw.
+[00:32:35] This is the compute-based scaling loss for both learning
+[00:32:39] rate and batch size.
+[00:32:40] And there's been a couple of other folks
+[00:32:42] that have proposed various kinds of scaling, including MiniCPM,
+[00:32:45] which we talked about as well.
+[00:32:48] Another important thing that I want to point out
+[00:32:50] is that these formulas for learning rate and batch sizes,
+[00:32:53] they don't even have the same inputs.
+[00:32:55] People don't even seem to agree, what
+[00:32:57] are the variables that should affect these learning rates?
+[00:32:59] Like, the OpenAI one is terminal loss.
+[00:33:02] Whereas, the StepFun folks, they claim
+[00:33:05] that the right batch size scaling
+[00:33:07] is a function of the data.
+[00:33:08] So there's a lot of different disagreements about the nature
+[00:33:12] of scaling for hyperparameters.
+[00:33:15] And I think one thing I'll say as I go through this
+[00:33:18] is not to take even this last row as gospel.
+[00:33:22] A lot of these things are pretty brittle in many ways,
+[00:33:25] but the experiments and the phenomena
+[00:33:27] are things that you can learn well from.
+[00:33:28] So I'll do that.
+[00:33:31] So the design of this paper is very similar to the DeepSeek
+[00:33:35] one.
+[00:33:35] They're just going to train a ton of models
+[00:33:38] to grid out both the learning rate space and the batch size
+[00:33:42] space and do them across a range of models and range
+[00:33:45] of data set sizes.
+[00:33:47] And by doing so, they hope to essentially saturate
+[00:33:50] the hyperparameter space for a set of small models
+[00:33:53] and then nail down what the optimum is.
+[00:33:55] And much like in the DeepSeek design,
+[00:33:57] they're going to be-- after they grid up
+[00:33:59] the space-- in this case, they have a contour plot.
+[00:34:02] But the underlying objects are just,
+[00:34:03] they run a bunch of models.
+[00:34:05] They aim to try to minimize the losses.
+[00:34:08] And the contour plots are quite nice.
+[00:34:10] I feel like they give a good visualization.
+[00:34:13] They ran a pretty high resolution grid.
+[00:34:17] And thanks to that, one of the things that we can see
+[00:34:20] is that they can actually plot out
+[00:34:21] a fairly high-resolution contour of what the hyperparameter
+[00:34:25] space looks like.
+[00:34:26] In this case, this is a slice at 1b parameters and 100b tokens,
+[00:34:31] I believe.
+[00:34:32] And you can see on the right side,
+[00:34:34] that surface is the hyperparameter landscape.
+[00:34:37] As a function of the batch size, which is one axis, and learning
+[00:34:40] rate, which is the other axis, how does the loss
+[00:34:42] change if you fix the total amount of data in the model?
+[00:34:47] Now, we see that each slice, if you
+[00:34:50] fix a batch size or you fix a learning rate--
+[00:34:52] each slice is kind of nice and convex.
+[00:34:54] And it's almost even smooth.
+[00:34:57] And this is quite nice because it
+[00:34:58] means that you can search for the optimal hyperparameter
+[00:35:02] fairly nicely, and you can be confident that the minima is not
+[00:35:05] too far off.
+[00:35:05] This was very jaggedy.
+[00:35:07] You might have some very serious doubts
+[00:35:09] about whether this kind of program of gridding the space
+[00:35:12] is even viable.
+[00:35:13] Also, this should maybe give you some nice intuition
+[00:35:15] about the smoothness of the hyperparameter space in general.
+[00:35:20] And I think there's actually one really interesting
+[00:35:23] general scaling trend.
+[00:35:25] And looking at other related papers to this topic, I think,
+[00:35:28] I don't know if I've seen any contradicting evidence
+[00:35:30] to this observation.
+[00:35:33] So I think the one thing that seems very interesting
+[00:35:36] and one of the key takeaways of this work
+[00:35:38] is, essentially, if you're looking at the optimal batch
+[00:35:41] size, the only thing that seems to depend on
+[00:35:44] is the total amount of data that you're training on.
+[00:35:47] So this right-hand plot is the one to look at.
+[00:35:50] So x-axis here is the amount of data that you're training on.
+[00:35:53] The different colored dots-- those are different models.
+[00:35:55] Notice how the different colored dots seem
+[00:35:57] to follow roughly the same trend line here,
+[00:36:00] fairly predictable one.
+[00:36:02] And this is in log-log scale, so you
+[00:36:04] should expect some of a power law that's a function of D.
+[00:36:08] On the left panel, we have the dependence of learning rate.
+[00:36:12] And we see that this is a very different behavior.
+[00:36:15] So if you go from blue all the way to this pink color right,
+[00:36:18] bigger models have smaller optimal learning rate.
+[00:36:22] And larger amounts of data have higher optimal learning rate,
+[00:36:27] which is counterintuitive, actually.
+[00:36:31] And so this might be a little fragile.
+[00:36:33] There are other kinds of papers that
+[00:36:35] argue that the dependence on D should be reversed.
+[00:36:38] But the trends here are at least on this experiment,
+[00:36:40] are quite clear.
+[00:36:45] And one final thing that I want to point out
+[00:36:49] is, the learning rates are actually pretty robust.
+[00:36:52] And I think this is backed up by a lot of experiences
+[00:36:54] and experiments that people have.
+[00:36:56] I think people have a sense of-- actually as a poll,
+[00:37:00] do people know what a good hyperparameter is?
+[00:37:02] If you were told to train a language model tomorrow,
+[00:37:05] would it be 1e negative 3, 1e negative 4?
+[00:37:08] I feel like we roughly have a sense of, actually,
+[00:37:10] this range of hyperparameters for learning rates is generally
+[00:37:13] a good starting point.
+[00:37:15] And that is generally true.
+[00:37:17] So the scaling laws that they got actually
+[00:37:21] transfer over to, for example, MoEs to a certain extent.
+[00:37:25] The yellow stars, which might be a little harder to see,
+[00:37:27] are the predictions from their scaling laws.
+[00:37:29] The red x's are the optima that are derived directly
+[00:37:34] on the MoEs.
+[00:37:35] And so you switch to an MoE.
+[00:37:37] You don't end up with a very different scaling
+[00:37:39] law, as long as you're roughly controlling
+[00:37:41] for active parameters.
+[00:37:44] The one thing that does seem a little bit more
+[00:37:46] potentially dicey is, as you shift
+[00:37:48] the training data, the optimal learning
+[00:37:51] rates and the optimal batch sizes do shift a little bit,
+[00:37:53] which means that all of these phenomena are likely contingent.
+[00:37:57] The specific numbers that are in these scaling laws and so on
+[00:38:00] are potentially contingent to the data
+[00:38:02] that you train on more so than others.
+[00:38:04] And so I want to flash this back up before I move on.
+[00:38:09] So you end up with some of simple scaling
+[00:38:12] law at the end, which says, OK, batch size maybe
+[00:38:15] should be roughly square root of the number of data
+[00:38:17] times some constant.
+[00:38:19] Your learning rate should scale upwards
+[00:38:22] with batch size or upwards with data
+[00:38:24] but downwards with the model size.
+[00:38:27] And that's a surprising effect but not maybe crazy,
+[00:38:32] because these experiments often, in many cases,
+[00:38:34] are assuming Chinchilla-like scaling, in which
+[00:38:36] case, those two would cancel.
+[00:38:38] And as you increase compute, your learning rate
+[00:38:40] should go down.
+[00:38:42] And hopefully, that Chinchilla comment was clear.
+[00:38:44] What I mean is when you're scaling by Chinchilla,
+[00:38:46] N and D are both driven by compute.
+[00:38:49] And as compute goes up, you expect your learning rate
+[00:38:51] to go down.
+[00:38:52] And so you will end up with something like the DeepSeek
+[00:38:54] Law, where the learning rate decreases with compute,
+[00:38:56] and the batch size increases with compute,
+[00:38:58] albeit with different exponents than the DeepSeek Law.
+[00:39:03] Cool.
+[00:39:05] OK, so in some sense, this is the newest and most
+[00:39:10] large-scale version of the DeepSeek analysis.
+[00:39:13] And visit one way that, if you were
+[00:39:15] doing the scaling-law-style approach,
+[00:39:17] you would approach this problem of fitting a learning rate.
+[00:39:23] So that's the hyperparameter story.
+[00:39:25] If someone has questions, feel free to stop me.
+[00:39:28] And then next, right after, I'm going to move on
+[00:39:30] to talking about optimizers.
+[00:39:32] I think this is one thing that didn't have time to talk about
+[00:39:36] in the architectures lecture.
+[00:39:39] That was already a pretty packed lecture.
+[00:39:41] But I think it would be a disservice to if I
+[00:39:44] don't talk about optimizers.
+[00:39:46] And optimizers are scale dependent,
+[00:39:47] so this is a good place to put them and talk about some
+[00:39:50] of the latest and greatest developments in optimizers
+[00:39:53] and their relationship with scale.
+[00:39:56] Oh, yeah?
+[00:39:58] So I guess I'm trying to figure out how to interpret this.
+[00:40:01] Does that mean we should just take the scaling laws that we
+[00:40:04] have and then apply them, rather than running our own grid
+[00:40:08] search?
+[00:40:09] Yeah, I mean, I think it depends what regime you're in.
+[00:40:12] The question is like-- oh, sorry, I
+[00:40:13] have to repeat it for the online folks-- is should we just take
+[00:40:16] the scaling law and run them, or should we just
+[00:40:18] do our own grid search?
+[00:40:20] It does depend on the amount of compute budget that you have
+[00:40:24] and how much you need to nail it.
+[00:40:26] I do think, for example, maybe the StepFun law--
+[00:40:30] if you're in the right compute regime,
+[00:40:31] like close to where they were running the grid,
+[00:40:33] these are probably really good defaults.
+[00:40:35] I would bet on these over something I pull out of my hat.
+[00:40:39] That said, if you were doing your own big pre-training run,
+[00:40:43] you're probably going to have minor differences.
+[00:40:45] Someone might say, I really believe
+[00:40:47] we should have a big weight decay.
+[00:40:48] My architecture has a big weight decay.
+[00:40:50] We don't know necessarily that those things
+[00:40:53] are going to scale the same.
+[00:40:55] And so you might want to actually redo a lot of this.
+[00:40:57] And this is why I think a lot of the reports I showed
+[00:41:00] you were redoing Chinchilla, redoing all
+[00:41:02] these things, because there's enough minor differences
+[00:41:05] that people want to check and make sure
+[00:41:07] that they're roughly first-order correct with these results.
+[00:41:12] I think this will come up again in this next optimizer part.
+[00:41:14] And I was talking about this with [MUTED] earlier,
+[00:41:17] which is, scaling laws have this very scientific feel to them.
+[00:41:20] It's like, yes, fit these lines and extrapolate them.
+[00:41:23] But ultimately, a big part of scaling laws is still vibes.
+[00:41:26] It's like, do I really believe that the experiment setting
+[00:41:29] of this StepFun survey is similar enough to mine
+[00:41:32] that they will transfer?
+[00:41:33] We can't possibly right.
+[00:41:34] There are always tiny differences.
+[00:41:40] Good, OK, so now I get to talk about optimizers.
+[00:41:43] And I think there's been some really exciting developments
+[00:41:46] in LLM optimizers, and maybe even
+[00:41:48] deep learning optimizers in general
+[00:41:50] over the past year or two.
+[00:41:52] And so this is an exciting time to talk about them.
+[00:41:55] And so a story that I want to start with
+[00:41:58] and one that should maybe motivate this subsection
+[00:42:02] is this comparison over here, or maybe we'll
+[00:42:04] start on this left panel.
+[00:42:05] So this is from NanoGPT speedrun, which
+[00:42:09] inspired our assignment 1.
+[00:42:10] And there you have a really teeny, tiny model
+[00:42:13] that you're training on a fairly short amount of time,
+[00:42:16] and you want to get the, I forget, 3 point-some loss
+[00:42:18] as quickly as possible.
+[00:42:21] And many people have been hill climbing on this benchmark.
+[00:42:24] And I think one of the more remarkable things that
+[00:42:27] have happened on the benchmark is as a benchmark called
+[00:42:30] muon in purple over here came and got really significant gains
+[00:42:35] over Adam, which is blue.
+[00:42:36] It's right underneath the green line over there.
+[00:42:39] So you can just look at the green
+[00:42:40] and the purple and that gap.
+[00:42:41] And you say, wow, lots of big gains
+[00:42:44] from just changing the optimizer to this muon thing.
+[00:42:47] And it's not even slower than Adam, much slower than Adam.
+[00:42:49] That's great.
+[00:42:51] But then there's a question of, well,
+[00:42:54] is this thing actually good at scale?
+[00:42:56] And then you go and run some scaling studies,
+[00:42:58] and maybe they're not quite as good.
+[00:43:00] This is a really tricky and important part
+[00:43:03] of how we do research.
+[00:43:05] We have a small-scale experiment.
+[00:43:06] We have something that's scale-dependent, for sure,
+[00:43:09] like an optimizer.
+[00:43:10] And then we see really big gains in the small scale.
+[00:43:12] What do we do about the large scale?
+[00:43:15] And more than providing a solid, concrete prescription,
+[00:43:18] I want us to maybe almost even provide a story here so
+[00:43:22] that you can get a sense of what we can do
+[00:43:24] and what things we can't necessarily know.
+[00:43:27] So actually, before I move on to the next slide,
+[00:43:31] and this kind of thing happens all the time, where you're like,
+[00:43:34] come up with a great thing small scale.
+[00:43:35] And it just doesn't maybe pan out large scale.
+[00:43:38] So what's the difference?
+[00:43:39] I'm going to spend a few slides talking about Kaiyue and Tengyu
+[00:43:44] and Percy and David's paper on basically doing
+[00:43:47] a large-scale set of experiments on comparing optimizers
+[00:43:51] and trying to do that comparison better.
+[00:43:54] And there's a lot to learn about scaling and other things
+[00:43:56] from that, but also just standard deep learning stuff.
+[00:43:59] There's really basic things.
+[00:44:00] Like, the hyperparameters for different models are different.
+[00:44:04] So if you're scaling things up, maybe they even
+[00:44:06] have different scaling exponents.
+[00:44:07] So you have to tune Adam really well.
+[00:44:10] So if you tune it badly you get this darker, brown line.
+[00:44:13] And you're like, wow, this thing is much worse
+[00:44:15] than all these other algorithms that I have over here
+[00:44:18] on the left.
+[00:44:18] But then you change the learning rate a little bit.
+[00:44:20] And you're like, wow, actually, all my gains went away.
+[00:44:24] Similarly on the right, you can have cases where maybe you've
+[00:44:27] tuned your learning rate well.
+[00:44:28] But now you've got other stuff like weight decay
+[00:44:30] that is not optimally tuned.
+[00:44:32] And so if you use the same weight decay,
+[00:44:34] then you're certainly going to get a much worse result
+[00:44:36] for this green line.
+[00:44:37] If you pick this small weight decay,
+[00:44:39] you'll get a much worse result for this green line
+[00:44:42] than if you pick the optimal weight decay.
+[00:44:43] So there's all sorts of pretty tricky things going on,
+[00:44:46] technically not a scaling thing, but a very important
+[00:44:48] general empirical machine learning thing
+[00:44:50] that I want to point out.
+[00:44:54] But maybe more relevant to the discussion in this class right
+[00:44:58] now is the scale dependence of these things.
+[00:45:00] And I think this is a good case study and example of how
+[00:45:04] to really think about algorithm development
+[00:45:06] as a function of scale, because to me, there
+[00:45:09] are two variables that are always important when
+[00:45:12] thinking about scale.
+[00:45:13] And this paper exposes, to most extent, both of them.
+[00:45:18] So one axis is compute.
+[00:45:20] And if you're fixing the model size to data ratio,
+[00:45:25] like the two are coupled together,
+[00:45:26] then this is essentially a compute axis on the x-axis here.
+[00:45:30] So whenever you're doing a study essentially scale up the compute
+[00:45:35] and look at the trends as a function of scale.
+[00:45:39] And we see right here that if we look
+[00:45:41] at the relative speedup between Adam, which
+[00:45:44] is at 1.0 by definition, and all these other alternatives,
+[00:45:47] we see that muons are really good at small scale.
+[00:45:50] And that gain diminishes down as we increase in scale.
+[00:45:54] That's not really necessarily the picture
+[00:45:57] that you want to see.
+[00:45:59] There's another axis that you should always
+[00:46:01] be vigilant of if you're doing algorithm development,
+[00:46:03] and the other one that you should be vigilant of
+[00:46:05] is the Chinchilla ratio.
+[00:46:06] So the Chinchilla ratio can be thought of.
+[00:46:09] It is the ratio between how much data
+[00:46:11] you have and the amount of model you have.
+[00:46:13] And this is a really, really, really important parameter
+[00:46:16] because some algorithms work well
+[00:46:18] in the overparameterized case where
+[00:46:20] you have a way bigger model than you have lots of data.
+[00:46:22] Maybe your algorithm adds some implicit regularization.
+[00:46:26] Or maybe it is data inefficient, but it works well
+[00:46:29] because of compute reasons.
+[00:46:31] So some algorithms might work well at the small Chinchilla
+[00:46:34] ratio case.
+[00:46:35] In contrast, other algorithms might work well
+[00:46:37] in the large Chinchilla ratio case, where
+[00:46:39] you have lots of data per unit parameter
+[00:46:43] because you can pack knowledge more efficiently
+[00:46:46] into the parameters.
+[00:46:47] So this is a big, big big confounder.
+[00:46:50] Even papers that I think have pretty good hygiene in doing
+[00:46:53] scaling experiments on the model size axis often neglect
+[00:46:57] to or just don't have the compute
+[00:46:59] to study the Chinchilla token to parameter ratio.
+[00:47:03] And this turns out to be surprisingly important
+[00:47:05] a lot of time.
+[00:47:06] In this case, it's not.
+[00:47:07] In this case, you see that the optimizer gains
+[00:47:11] are pretty consistent.
+[00:47:13] The ratio is between all the lines
+[00:47:14] are the same at different Chinchilla ratios.
+[00:47:16] But this is not always the case.
+[00:47:18] You always want to be vigilant about both of these scaling
+[00:47:20] factors.
+[00:47:21] That's quite important.
+[00:47:23] And then I'm going to also point out,
+[00:47:26] if you have a new algorithm or a new setting,
+[00:47:30] establishing scaling is quite nontrivial.
+[00:47:32] So I've taken this from one of--
+[00:47:36] Will Held was working with Marin,
+[00:47:38] which was Percy's open-source language model training project.
+[00:47:42] And there they were basically trying
+[00:47:44] to prove out a particular set of hyperparameters.
+[00:47:47] This is even like a new algorithm.
+[00:47:48] So this is cautious AdamC, which is
+[00:47:50] like an Adam variant, square root, batch size
+[00:47:53] scaling and a bunch of other standard-looking things.
+[00:47:56] And they're doing essentially the same Chinchilla analysis
+[00:48:00] that you've seen all the other papers do.
+[00:48:02] But because this is not necessarily a paper,
+[00:48:04] this is a bunch of people doing experiments,
+[00:48:07] you don't just publish the successful one.
+[00:48:08] They have the niceness of publishing their failed runs.
+[00:48:12] And the example here is that they're
+[00:48:13] doing basically standard Chinchilla stuff,
+[00:48:15] and it's looking great.
+[00:48:17] If you go up to this dashed vertical line at 10
+[00:48:19] to the 20 something, this is a really beautiful-looking scaling
+[00:48:23] loft here.
+[00:48:24] And then, as you scale up, it's like, well, it's
+[00:48:26] a little bit worse.
+[00:48:27] It's a lot worse.
+[00:48:28] And then, wow, now that run is not so good anymore.
+[00:48:31] So it's totally blown up on you.
+[00:48:34] And the point here is that even good-looking scaling
+[00:48:37] trends for many orders of magnitude can suddenly bite you.
+[00:48:41] It can deviate from linear, and then it
+[00:48:43] can then blow up immediately.
+[00:48:45] And in their case, the fix here is just
+[00:48:48] picking more careful muP-style parameterizations.
+[00:48:51] Optimizer changes.
+[00:48:52] They switch to a different kind of optimizer,
+[00:48:55] and they get nicer scaling across more orders of magnitude.
+[00:48:58] But the point here is to say, when I go back here,
+[00:49:01] and I say, OK, well, you should all do scaling experiments,
+[00:49:04] you should scale all your learning rates
+[00:49:05] and so on, that's not easy.
+[00:49:07] You end up fairly nontrivial fraction of the time
+[00:49:11] with plots that look like this.
+[00:49:12] And it's all horrible, and you're not
+[00:49:14] quite sure what has gone wrong.
+[00:49:18] Good.
+[00:49:19] OK.
+[00:49:21] And then, so the last thing I want to end with
+[00:49:24] is just talking a little bit about muon
+[00:49:26] and the closing of the muon story.
+[00:49:30] So I feel like I have to talk about muon in a little bit
+[00:49:34] more detail than I already have, just because it's
+[00:49:37] beginning to be integrated into a large scale model
+[00:49:40] training runs.
+[00:49:41] That's the inclusion criteria for a lot of new research
+[00:49:45] topics for the class.
+[00:49:46] Has it been in a big training run?
+[00:49:48] And muon now checks that mark.
+[00:49:50] And it's also just an interesting algorithm,
+[00:49:52] so I'll mention it and talk about it for a few minutes
+[00:49:54] and then move on.
+[00:49:56] So in gradient descent, we usually
+[00:49:58] have a fairly simple thing that's happening.
+[00:50:01] Ignore line for the moment, sorry, line 5 for the moment.
+[00:50:05] And then you're going to get roughly
+[00:50:06] a standard momentum-based optimizer.
+[00:50:09] I take a gradient.
+[00:50:11] I add it to B of t.
+[00:50:12] This is my momentum step, so I continue my momentum
+[00:50:16] from before with parameter mu.
+[00:50:18] And then I update my parameters based on this momentum gradient.
+[00:50:21] Very standard momentum gradient stuff.
+[00:50:24] But then I think the really interesting and, to me at least,
+[00:50:28] a bit of an out of the box set of ideas is to say,
+[00:50:31] well, gradients have this property that they treat,
+[00:50:34] all the parameters are the same.
+[00:50:35] But we know that not all the parameters in a language model,
+[00:50:39] or even a deep neural network, are the same.
+[00:50:41] Some parameters are like vector parameters.
+[00:50:44] They belong to the RMS norm.
+[00:50:46] Some parameters are matrix parameters,
+[00:50:48] like for the attention or for MLPs.
+[00:50:50] And matrix parameters are probably
+[00:50:53] different than vector parameters.
+[00:50:55] And so that's the starting point for this idea
+[00:50:57] and I think a really interesting one.
+[00:50:59] And so the one thing that you could do about matrix parameters
+[00:51:02] is you can start to look at their spectra.
+[00:51:04] They are matrices.
+[00:51:06] Matrices have eigenvalues and singular values.
+[00:51:09] And so you can do things to the singular values.
+[00:51:11] And so what you do here in Muon is this fairly simple idea.
+[00:51:15] You compute a gradient.
+[00:51:16] You take a momentum step.
+[00:51:18] And now I take my update B of t.
+[00:51:21] And instead of directly applying it
+[00:51:22] to my parameters in line 6, what I'm going to do
+[00:51:25] is I'm going to do this NewtonSchultz thing,
+[00:51:27] NewtonSchultz 5 to be specific.
+[00:51:29] And what that is it's going to orthogonalize the B of t matrix.
+[00:51:34] And so I've written the operation down there
+[00:51:35] on the bottom.
+[00:51:36] Let's say I take B of t.
+[00:51:38] I write it as singular value decomposition, USV transpose.
+[00:51:42] And then I make all of my singular values 1.
+[00:51:45] So if my singular values are really big,
+[00:51:47] I'll shrink them back to unit.
+[00:51:48] If they're really small, I'll expand them
+[00:51:50] back up to being unit.
+[00:51:51] And then I take UV transpose, and that's my new update
+[00:51:54] that I'm going to apply.
+[00:51:55] If you want intuition for this, and you already
+[00:51:59] have intuition for something like adagrad or these other,
+[00:52:02] or Adam even.
+[00:52:03] In adagrad or Adam, you're going to divide
+[00:52:05] by the size of the gradient.
+[00:52:07] So every coordinate is roughly going to be the same size.
+[00:52:12] In muon, you are operating in the spectral norm instead.
+[00:52:15] So every kind of direction is going to be unit size.
+[00:52:19] And notice that this only makes sense for a matrix.
+[00:52:21] I can only define this notion of a singular value decomposition
+[00:52:25] for a matrix valued B of t.
+[00:52:27] So the interesting thing about muon
+[00:52:29] is it's a matrix optimizer, so you apply it
+[00:52:31] to these matrix valued parameters.
+[00:52:33] And for the vector-valued ones, you
+[00:52:35] might still use something like AdamW
+[00:52:37] because those don't really have any interaction
+[00:52:39] with the NewtonSchultz term.
+[00:52:41] Also, NewtonSchultz is an approximation
+[00:52:44] to that operation that only uses matrix multiplies.
+[00:52:46] So it's systems efficient and not
+[00:52:49] exactly the orthogonalization.
+[00:52:52] But OK, why have I spent all this time talking about muon?
+[00:52:55] Well, first of all, it's very powerful for things
+[00:52:59] like the NanoGPT speedrun.
+[00:53:01] It was discovered for this set of things.
+[00:53:04] And so you might think that it works well.
+[00:53:06] As I said in the previous slide, there
+[00:53:08] have been some scaling studies that
+[00:53:10] have argued that the gain for muon decreases as scale goes up.
+[00:53:15] But then I want to close off this story, which, I think,
+[00:53:20] initially this came out.
+[00:53:21] And I was like, wow, muon is interesting.
+[00:53:23] I wonder if anyone will scale it up.
+[00:53:25] And then [INAUDIBLE] and others scaled up muon.
+[00:53:27] And they said, well, maybe it doesn't work super well.
+[00:53:29] And I thought the story was closed here.
+[00:53:31] I was like, well, maybe this is done.
+[00:53:33] No one will spend the big compute to scale this guy up
+[00:53:37] to the full pre-training size.
+[00:53:38] And then Kimi K2 comes out, and that whole model
+[00:53:41] is trained with muon, fully with muon,
+[00:53:44] with a few bells and whistles to prevent muon
+[00:53:46] from blowing up on you.
+[00:53:47] They found a whole bunch of instability issues.
+[00:53:50] But Kimi K2 is an outstandingly good model.
+[00:53:53] It's a very good model, and the training curves look reasonable.
+[00:53:58] And so really, what this suggests is like,
+[00:54:00] well, muon worked at scale.
+[00:54:02] Is it better than Adam?
+[00:54:04] Kimi K2 certainly doesn't have any ablation,
+[00:54:06] so we don't know at that scale.
+[00:54:07] But it is certainly a valid and workable solution.
+[00:54:11] And so what's the point of this story?
+[00:54:13] It's to say, It's really hard to whether something
+[00:54:15] works at scale.
+[00:54:16] It's very, very hard.
+[00:54:18] But thus far, a lot of small scale experiments
+[00:54:21] and transferring them up to large scale
+[00:54:23] has been the way by which we do science.
+[00:54:25] And so you still want to respect things
+[00:54:27] like the NanoGPT speedrun.
+[00:54:28] We learn quite a bit from that and get good ideas.
+[00:54:31] And then eventually, they make their way to the big models.
+[00:54:33] We'll see if people continue to do ablations at big scale
+[00:54:36] and really nail down, is muon better than AdamW at scale
+[00:54:40] and so on?
+[00:54:40] Those are interesting questions to which we don't yet
+[00:54:42] have the answers.
+[00:54:45] OK, I'll pause here for a moment.
+[00:54:47] This is the end of my optimizer section.
+[00:54:48] I want to make sure everyone's good, also especially because I
+[00:54:51] was talking about muon.
+[00:54:52] And that's a whole new can of worms
+[00:54:54] that I haven't talked about much before.
+[00:54:57] Yeah?
+[00:54:58] [INAUDIBLE] letter [INAUDIBLE] faster on GPU?
+[00:55:02] OK, [INAUDIBLE].
+[00:55:03] Great.
+[00:55:04] Yeah, the question was, is SVD fast on GPUs?
+[00:55:06] SVD is not fast on GPUs, but they're not doing SVD.
+[00:55:09] What they're doing is NewtonSchultz.
+[00:55:11] NewtonSchultz is a matrix multiply only finite iteration
+[00:55:14] algorithm that approximates the process of orthogonalizing
+[00:55:17] a matrix.
+[00:55:19] So there's several clever pieces here.
+[00:55:22] One of them is the idea of treating it
+[00:55:25] as a matrix on its own.
+[00:55:26] And then there's this orthogonalization idea,
+[00:55:28] and then there's the systems piece
+[00:55:30] of doing it with NewtonSchultz.
+[00:55:31] So those are all important, interesting pieces?
+[00:55:34] Yeah, back there?
+[00:55:35] Are hyperparameters for nontrivial [INAUDIBLE] ones?
+[00:55:40] Are the hyperparameters here-- no, they're different, yeah.
+[00:55:43] I think there are several people that
+[00:55:45] have been working on this muon-style line of work.
+[00:55:48] And one of them, I think, like Jeremy Bernstein,
+[00:55:51] I think he's been saying, actually
+[00:55:53] every layer should have its own learning rate.
+[00:55:55] I think the ultimate limit of this
+[00:55:57] is like, you go from-- or even, sorry,
+[00:56:00] every layer should have its own optimizer.
+[00:56:02] The ultimate limit of this is to say,
+[00:56:04] every parameter in a transformer is different.
+[00:56:06] Why not have a different optimizer for each one of them?
+[00:56:09] And so you would have to tune hyperparameters
+[00:56:11] for each one of them as well, which I do not want to do.
+[00:56:14] But that's maybe the future of optimization.
+[00:56:16] Yes?
+[00:56:17] What's the validity of like--
+[00:56:20] like, on the learning rate and batch size,
+[00:56:23] you just consider these two things.
+[00:56:25] And then you pick the best out of those,
+[00:56:27] and then you can use it to tune other things.
+[00:56:30] But do these things interact with each other?
+[00:56:34] Yeah, or maybe the version of the question that I interpreted
+[00:56:38] was, a lot of these people are just
+[00:56:40] tuning learning rate and batch size.
+[00:56:41] And they do this on the grid.
+[00:56:43] But presumably, these things interact with a whole bunch
+[00:56:45] of other hyperparameters.
+[00:56:46] Aren't you worried about that?
+[00:56:47] And I think, in general, yes, you
+[00:56:48] are worried about hyperparameter interactions.
+[00:56:51] But realistically, they grow exponentially.
+[00:56:54] This is not a thing where you can grid out the whole space.
+[00:56:57] And so I think the thing that people often do
+[00:57:00] is they grid the stuff that's most concerning and most
+[00:57:03] sensitive.
+[00:57:04] And learning rates are very important.
+[00:57:05] I think, if you ever tune stuff, learning rates
+[00:57:07] are the most important thing to tune.
+[00:57:09] So they very aggressively go on that.
+[00:57:11] And then stuff like weight decay,
+[00:57:12] they might do a univariate sweep afterwards
+[00:57:14] to be locally optimal with respect to those parameters.
+[00:57:19] Good.
+[00:57:20] OK.
+[00:57:23] All right, so the final part of this lecture
+[00:57:25] is I want to talk about muP.
+[00:57:27] muP is a bit of a mysterious object.
+[00:57:29] Even with many papers written about it
+[00:57:32] and, in fact, even many implementations,
+[00:57:35] I don't think all of them even agree
+[00:57:37] on what the underlying math is or what the underlying
+[00:57:39] implementation should be.
+[00:57:41] But there's a core set of ideas that are shared,
+[00:57:44] and it does seem generally effective.
+[00:57:46] And so I'll talk about my interpretation
+[00:57:49] of the whole program, let's call it.
+[00:57:52] So the goal hopefully is very clear.
+[00:57:54] And I think this picture is the goal, the picture being, well,
+[00:57:58] if we increase the size of our model,
+[00:58:00] in this case, just width, our optimal learning rate normally
+[00:58:03] shifts.
+[00:58:04] But ideally, we want the optimal learning rate
+[00:58:06] to be the same, no matter what.
+[00:58:08] That is the game that we would like to play.
+[00:58:10] And the knobs that I'm willing to tune to do this is I'm
+[00:58:12] willing to mess with the initializations
+[00:58:14] at a per-layer basis.
+[00:58:16] I'm willing to mess with the learning
+[00:58:17] rates on a per-parameter basis as well.
+[00:58:21] And then I'm sometimes willing to scale up or down things
+[00:58:23] like residual connections based on the size of my model.
+[00:58:27] So that's the game that I'd like to play.
+[00:58:30] And how well does it work in practice?
+[00:58:31] There's been several papers that have studied these fairly
+[00:58:34] extensively.
+[00:58:37] Cerebras which is really a chip company, also
+[00:58:40] has a language model training arm
+[00:58:42] run by Hestnes of the scaling law paper fame.
+[00:58:46] And I feel like they do very interesting things because they
+[00:58:50] now are writing lots of papers about muP scaling of language
+[00:58:54] models, and they have Cerebras GPT from a couple of years ago,
+[00:58:58] where they were training the 0.1 to 13b models using the usual
+[00:59:03] Chinchilla recipe, but also including a muP variant,
+[00:59:08] which they use to try to tune the hyperparameters more
+[00:59:10] effectively.
+[00:59:13] And I think one of the nice things about this
+[00:59:15] is they find that if they use the muP parameterization,
+[00:59:19] then their scaling law fits are generally more stable.
+[00:59:22] Their projected muP trends are almost right on the money
+[00:59:26] for their actual models.
+[00:59:28] Whereas, I think their non-muP models
+[00:59:30] fluctuated much more wildly in terms of the loss predictions
+[00:59:35] that they had.
+[00:59:35] And so their claim was, OK.
+[00:59:36] MuP is maybe a really good idea.
+[00:59:39] So this is validated at scale.
+[00:59:40] You saw MiniCPM on others.
+[00:59:42] Many people have trained models with muP variants.
+[00:59:46] So I could also talk a lot about training or examples
+[00:59:50] of models trained with muP.
+[00:59:52] But I think maybe the more interesting thing for me
+[00:59:54] to do right now is actually to talk
+[00:59:56] about the conceptual foundations and the math for muP.
+[01:00:02] And if you're interested in this,
+[01:00:03] and you want to read a somewhat accessible paper,
+[01:00:05] I would recommend this one.
+[01:00:07] This is the paper that I think, for me, was the clearest.
+[01:00:11] There are several papers.
+[01:00:12] Greg Yang, who started this research program,
+[01:00:15] has a series of papers I'll call tensor programs.
+[01:00:18] I find them somewhat inscrutable.
+[01:00:20] Jeremy Bernstein, who was also working on the muon stuff,
+[01:00:23] has written this nice-- not recap paper, like a review
+[01:00:28] paper, putting it into a different framework, which
+[01:00:30] I think is very accessible.
+[01:00:31] And there are several others by physicists
+[01:00:33] that are also interesting in terms of explaining what muP is.
+[01:00:36] The Cerebras people actually do a bit of that as well.
+[01:00:40] But anyway, returning to this paper, the core idea of muP
+[01:00:44] is based off of two kind of assertions.
+[01:00:47] And this is a very physicist way of thinking about this.
+[01:00:49] So if I make my network big-- let's
+[01:00:51] say I'm only changing the width for now.
+[01:00:53] I'm making the width of my network big.
+[01:00:56] I'm going to assert two invariants that should
+[01:00:58] hold as I do the scaling limit.
+[01:01:00] First of all, the activations at initialization--
+[01:01:04] so if I initialize my model, and I put in some random data,
+[01:01:06] the activations should remain the same size roughly
+[01:01:10] as a function of the network.
+[01:01:11] So if they blow up with the network size,
+[01:01:14] or they shrink to 0 with the network size,
+[01:01:16] I have chosen a wrong parameterization.
+[01:01:18] And that makes sense.
+[01:01:19] My activation should be roughly the same scale, regardless
+[01:01:22] of the size of my network.
+[01:01:24] Now, after one gradient step, the change in my activation
+[01:01:28] should be O of 1.
+[01:01:30] So this is what people call feature learning.
+[01:01:32] So feature learning means if I take a gradient step, things
+[01:01:35] in my network change a significant amount
+[01:01:37] and that this amount should be a fixed function
+[01:01:40] of the width of the network.
+[01:01:41] In case some of you are theorists,
+[01:01:44] you might be familiar with neural tangent kernels.
+[01:01:47] Neural tangent kernels would have a very different behavior.
+[01:01:49] Those would be the kinds of things
+[01:01:51] where the change in activations actually
+[01:01:53] vanish as a function of the network width.
+[01:01:55] And you don't want that, because you do want the network
+[01:01:57] to change and learn features and do things even
+[01:02:00] in the limit of your big neural networks.
+[01:02:03] So these two are the invariants.
+[01:02:04] They make sense.
+[01:02:05] They're basically saying, activations and the change
+[01:02:08] in the activations should remain roughly similar
+[01:02:11] as a function of the width of the network.
+[01:02:12] And then note that I'm going to sometimes
+[01:02:15] go back and forth between individual activations, which
+[01:02:17] is this.
+[01:02:18] And then the norm, which--
+[01:02:20] if each activation is roughly O of 1,
+[01:02:22] the norm of the whole vector of activation
+[01:02:25] should be square root of the number
+[01:02:27] of hidden units in that layer.
+[01:02:29] OK, so that's the main thing.
+[01:02:32] Now, the thing about muP is it's interesting
+[01:02:34] because it starts with this very simple and palatable set
+[01:02:39] of assumptions.
+[01:02:39] You might all agree that this is a reasonable thing to do.
+[01:02:42] And then we're going to make a number
+[01:02:44] of additional strong assumptions.
+[01:02:46] But then, in the end, we're going
+[01:02:48] to get a very simple set of scaling
+[01:02:49] rules that drop out of this.
+[01:02:52] So remember, what we want to do is
+[01:02:54] we want to make sure that the activation is
+[01:02:56] at init are roughly unit.
+[01:02:57] So what do we do?
+[01:02:58] Well, if we have a simple deep linear network,
+[01:03:01] and we initialize all of our weights
+[01:03:03] as a sigma squared scaled Gaussian,
+[01:03:07] then what is going to be the spectral norm of this matrix?
+[01:03:10] Well, you can write that down.
+[01:03:11] I'm not going to ask you to verify that,
+[01:03:13] but that's standard matrix concentration
+[01:03:15] arguments for the operator norm of a random Gaussian matrix.
+[01:03:19] And then now note that in certain regimes where
+[01:03:22] the fan-out is, I think, not much bigger than the fan-in,
+[01:03:26] you're going to get that the output of the layer
+[01:03:28] is similar to the product of the input of the layer
+[01:03:32] times the operator norm.
+[01:03:33] This is always an upper bound, but this
+[01:03:35] is approximate in certain high-dimensional regimes.
+[01:03:39] Now, if this is true, now what can we do?
+[01:03:42] Well, we can solve for sigma to try
+[01:03:44] to keep our activations the same across all the layers
+[01:03:47] and across all the width.
+[01:03:49] So imagine that at layer L minus 1,
+[01:03:52] I have square root of L minus 1 activation.
+[01:03:55] And this is, remember, consistent with this notation
+[01:03:59] that, at least for this whole vector,
+[01:04:01] I should have square root of n of L.
+[01:04:02] So this is our base case for induction.
+[01:04:05] And then our inductive case says, well,
+[01:04:08] remember that I have this operator norm at layer
+[01:04:10] L, which is this function of the fan in and the fan out.
+[01:04:13] And so this is going to be equal to this
+[01:04:16] if I pick a particular sigma.
+[01:04:18] So let's say this is the ansatz.
+[01:04:20] I'm going to assume that this is the answer,
+[01:04:22] and then we'll see what happens to the induction.
+[01:04:24] If I pick this as a hypothesis, and I plug this into the sigma,
+[01:04:27] notice that I get that the ratio of the operator norm
+[01:04:30] is this, the ratio of the fan out
+[01:04:31] over the-- sorry, square root of the fan-out over the square root
+[01:04:34] of the fan-in.
+[01:04:35] And then I plug this back in here.
+[01:04:37] And then I'm going to get that the norm of the output
+[01:04:40] is going to be equal to the square root of the number
+[01:04:42] of units in my layer plus some lower-order terms
+[01:04:45] that I'm not going to bother to keep track of.
+[01:04:47] So where this sigma came out of--
+[01:04:49] I mean, this is drawing it out of a hat.
+[01:04:52] But we can verify that if I plug this noise initialization
+[01:04:57] into my formula, then, essentially, at every layer,
+[01:05:00] the size of my activations is roughly
+[01:05:03] equal to the square root of the number of hidden
+[01:05:05] units at that layer.
+[01:05:08] There are some assumptions made here,
+[01:05:09] like this approximate equals.
+[01:05:11] But this is mostly a legitimate set of assumptions.
+[01:05:15] So condition A1 is pretty simple.
+[01:05:19] Condition A2 is a little bit hairier, to be honest.
+[01:05:23] So really, we need to deal with the updates now.
+[01:05:26] And I'm only going to consider the case of a single example
+[01:05:30] in a batch for SGD for linear neural networks, so
+[01:05:34] deep linear network.
+[01:05:36] So what is this going to look like?
+[01:05:38] Well, the change in my weights for a particular layer L--
+[01:05:42] if you think about how this is going to behave,
+[01:05:45] it's going to be a rank 1 update between my gradient for the loss
+[01:05:48] and the activations.
+[01:05:50] This is true just because of the behavior of the backwards.
+[01:05:53] The forwards is a rank 1 multiplication.
+[01:05:56] The backwards is going to be a rank 1 outer product.
+[01:06:00] So now this is the change in the weights.
+[01:06:03] And now what is the change in the activations at that layer?
+[01:06:07] Well, the change in the activations--
+[01:06:09] I just take h equals W times hl minus 1, and I expand this out.
+[01:06:14] And I expand this out into this formula.
+[01:06:16] This is going to be exactly the change
+[01:06:17] in the activation at layer L.
+[01:06:19] And it's going to have two terms, one
+[01:06:20] that is the direct term from changes in the activation at L
+[01:06:24] minus 1 and the cross term in some sense of what happens
+[01:06:27] because my weights have changed, not
+[01:06:29] just because the activations of the previous layer have changed.
+[01:06:31] So there's two terms to this update.
+[01:06:35] And so this is the change in the activation at layer L.
+[01:06:38] And now what I'm going to do is I'm
+[01:06:41] going to look through each of these three terms.
+[01:06:43] I want each of these three terms to have
+[01:06:45] the same order of magnitude, and I want that order of magnitude
+[01:06:48] to be square root of n of L. Why is that?
+[01:06:50] Remember that, if I go back two slides,
+[01:06:53] the condition that I want for A2 is that after one gradient step,
+[01:06:56] the change in activation should be O of 1 or omega of 1.
+[01:06:59] And so if I want that to be true,
+[01:07:01] then the norm of that layer should be square root of nl.
+[01:07:05] And so to do that, what I want is for each of these three terms
+[01:07:08] to have that order of magnitude.
+[01:07:10] And if that's true, and there's no cancelations,
+[01:07:13] then this is going to be the right order of magnitude.
+[01:07:16] You can see the sketchy pieces adding up.
+[01:07:18] We're assuming things like no cancelations and so on,
+[01:07:21] but this is giving us some interesting ways
+[01:07:23] of thinking about the magnitude of each of these objects.
+[01:07:26] So at this point, the right way to think about this
+[01:07:29] is not like, OK, Tatsu is sitting here
+[01:07:31] doing rigorous mathematics.
+[01:07:33] What I am doing here is I'm basically
+[01:07:35] keeping track of all the orders of magnitude of all the terms.
+[01:07:38] And I am saying that, given our assumptions,
+[01:07:41] how big should these roughly be?
+[01:07:42] It's physicists math.
+[01:07:44] No offense to physicists.
+[01:07:45] This was developed by physicists in this way.
+[01:07:50] OK, so now really-- sorry, go back one slide just
+[01:07:53] to make all this clear.
+[01:07:55] So the first term, this comes by almost assumption.
+[01:07:58] It's the inductive assumption.
+[01:07:59] We assume that delta h of l minus 1
+[01:08:02] has the right order of magnitude.
+[01:08:03] So this comes for free.
+[01:08:05] These other two terms-- these are trickier.
+[01:08:08] We have these terms that multiply
+[01:08:10] the change in my weights in operator norm times
+[01:08:13] square root of L minus 1.
+[01:08:15] And so because these two are the order of magnitude
+[01:08:17] of both of these terms, we know how big
+[01:08:20] this delta L needs to be.
+[01:08:21] We can solve for this because we know
+[01:08:23] that this left-hand side needs to be square root and L.
+[01:08:26] And then we have this term, so we solve for this operator norm.
+[01:08:29] And that's exactly this quantity.
+[01:08:31] So this is going to be the goal for the next slide.
+[01:08:34] I want to try to figure out what kinds of learning rates
+[01:08:37] are going to give me an update that's roughly scaled
+[01:08:40] as the square root of the fan-out over the square root
+[01:08:42] of the fan-in.
+[01:08:43] So that's the goal.
+[01:08:45] As I said, after I pick a learning rate,
+[01:08:47] this should roughly be true.
+[01:08:49] So how can we do that?
+[01:08:51] Well, we're going to make yet another assumption.
+[01:08:53] And this is probably the least palatable of the assumptions,
+[01:08:56] in my opinion, which is that we're
+[01:08:58] going to assume that the loss update is
+[01:09:00] going to be scaled by unit.
+[01:09:02] In other words, we're going to assume
+[01:09:04] that our model is actually making
+[01:09:06] some appreciable, nontrivial progress as a function of scale
+[01:09:09] and that that's roughly similar.
+[01:09:12] Not quite sure that's palatable to me,
+[01:09:13] but that is yet another assumption.
+[01:09:15] So we throw that down.
+[01:09:16] But now the point of this assumption
+[01:09:18] is that if this is true, the rest of the math
+[01:09:20] works out quite cleanly, because the change in the loss
+[01:09:23] is the product of my gradient plus
+[01:09:25] how much my weights changed.
+[01:09:26] This is Taylor approximation.
+[01:09:28] And then because this is rank 1, I
+[01:09:30] can rewrite this thing as a Frobenius norm
+[01:09:32] and as an operator norm.
+[01:09:34] And so this right-hand side now allows us to get what we want.
+[01:09:38] This is O of 1.
+[01:09:39] This term we want to be square root n over square root l
+[01:09:42] minus 1.
+[01:09:43] That's this term on the right here.
+[01:09:44] And then finally, I have this gradient of L term.
+[01:09:48] And this is going to be square root of NL
+[01:09:50] minus 1 over square root nl.
+[01:09:52] And then so now what eta do I need?
+[01:09:54] Well, the eta that I need is going
+[01:09:56] to be solving for this quantity, which
+[01:09:58] is the ratio of these two guys, which is nl over nl minus 1.
+[01:10:02] So we made this one assumption that the left-hand side of this
+[01:10:06] is O of 1.
+[01:10:06] And then we've solved for all the quantities,
+[01:10:08] and we've ended up with a fan-out over fan-in ratio
+[01:10:11] for a learning rate for a layer.
+[01:10:14] One side note that I'll make is that for Adam,
+[01:10:16] because of the changes in some of this, you're going to get a 1
+[01:10:20] over nl minus 1 scaling, which I'll mention here.
+[01:10:24] So I've walked through a bunch of hopefully intuitive-looking
+[01:10:29] scaling arguments for various components.
+[01:10:32] But in the end, maybe you are interested in,
+[01:10:34] what does this mean?
+[01:10:35] What does this do for me?
+[01:10:37] What this means is that we're going
+[01:10:39] to change how we set our initializations
+[01:10:42] and learning rates a little bit.
+[01:10:44] So our initialization is going to look like-- so for muP,
+[01:10:48] the blue box is what we do.
+[01:10:50] Our initialization is going to be
+[01:10:51] 1 over square root nl minus 1 times a component that
+[01:10:55] is 1 over the square root fanout over fanin.
+[01:10:58] So if this is 1, then this is equivalent
+[01:11:01] to the usual initialization.
+[01:11:02] This is the standard parameterization.
+[01:11:04] But if this ratio is not smaller than 1,
+[01:11:07] then you get basically something different.
+[01:11:09] You get something that's closer to the square root
+[01:11:11] fanout over fanin.
+[01:11:13] The learning rate normally you would
+[01:11:15] set to be a constant as a function of your model size,
+[01:11:18] but you would want to set this to the ratio of fanout
+[01:11:20] and fanin.
+[01:11:21] And maybe more interestingly, for Adam, this whole thing
+[01:11:23] is a little bit more different.
+[01:11:25] I'm not going to even touch the derivation for that, where
+[01:11:27] you drop this 1 over nl term, and you get 1
+[01:11:30] over the fanin as the layer specific learning rate.
+[01:11:34] And so basically, layers that have big fanins for Adam
+[01:11:38] get smaller learning rates.
+[01:11:39] It allows you to have these layer-adaptive learning rates
+[01:11:42] that are quite interesting.
+[01:11:44] So that was the derivation of muP.
+[01:11:49] I went through a lot of details.
+[01:11:51] I do want to maybe talk about what
+[01:11:52] the high-level point of that was.
+[01:11:54] And the high-level point of that is, muP
+[01:11:56] as an argument is very interesting.
+[01:11:59] Not only is there actual useful stuff.
+[01:12:02] The way in which you get to the algorithm
+[01:12:04] is itself interesting because it's this very different kind
+[01:12:06] of math in which you're saying, OK,
+[01:12:08] I'm going to take a scaling limit of my network.
+[01:12:11] And then I assert some invariance about my network,
+[01:12:13] and then I'm going to make additional assumptions.
+[01:12:15] And then I'm going to try to figure out
+[01:12:17] what the constraints on my hyperparameters are.
+[01:12:19] And the constraints essentially give you
+[01:12:20] certain kinds of scaling limits on your hyperparameters as well.
+[01:12:24] So this is a general principle for coming up
+[01:12:27] with different kinds of algorithms or hyperparameter
+[01:12:29] scalings, I think, which are probably
+[01:12:31] very different than what you're used to in CS or ML training.
+[01:12:35] OK, those are the muP derivation.
+[01:12:39] I want to close out on the muP part with just
+[01:12:41] a few empirical things.
+[01:12:43] There's an interesting paper by an independent researcher
+[01:12:47] on basically stress testing muP in lots of different ways.
+[01:12:52] And muP can be thought of as a procedure
+[01:12:56] for tuning hyperparameters.
+[01:12:59] And so depending on how you do things,
+[01:13:02] Adam is going to have a certain learning
+[01:13:03] rate as a function of different components of the network.
+[01:13:06] So you have an embedding parameter, attention parameters,
+[01:13:09] input/output MLPs or softmax linears.
+[01:13:11] All of those are going to have different kinds
+[01:13:13] of scalings under muP, as well as not muP scaling rules.
+[01:13:19] And the interesting thing here is that particular paper
+[01:13:24] replicated a bunch of the muP results
+[01:13:26] for language models trained at different scales.
+[01:13:29] And maybe unsurprisingly, he found almost the headline result
+[01:13:33] from MiniCPM and others, which is
+[01:13:36] that if you get the muP right, and you're only scaling with,
+[01:13:38] in this case, in a very controlled way,
+[01:13:41] you get exactly the learning rate optimality
+[01:13:44] invariance that baseline muP--
+[01:13:47] or just looking at a variant of muP that
+[01:13:50] tracks projection biases for attention, both of those
+[01:13:54] transfer very nicely.
+[01:13:55] But then you might ask, basically,
+[01:14:00] there's a lot of things in the real world
+[01:14:02] that muP does not handle.
+[01:14:04] Technically, SwiGLU does not fit into muP,
+[01:14:08] neither does initialize variations, initialization
+[01:14:11] or RMS norm.
+[01:14:13] Or if you really mess with your optimizer,
+[01:14:14] that will mess that up, too.
+[01:14:16] And so you might ask, like, which
+[01:14:17] of these things that are not allowed by the theory
+[01:14:20] really break muP?
+[01:14:21] And actually, for the most part, these mostly work with muP.
+[01:14:24] But some of the things that don't work
+[01:14:26] is if you learn the gain term in RMS norm,
+[01:14:31] this turns out to break muP.
+[01:14:33] Although, these can be removed in many cases
+[01:14:35] without necessarily hurting you, and so maybe
+[01:14:38] it's not such a bad idea.
+[01:14:39] But this does seem to break muP.
+[01:14:42] It also seems to break if you use more exotic optimizers
+[01:14:44] like Lion, which basically rely on the sign of the gradient.
+[01:14:48] And sign gradient is like a spiritually
+[01:14:51] similar to muon and other ideas.
+[01:14:53] And so there might be other interesting things
+[01:14:54] that break with muP as well.
+[01:14:58] Finally, the thing that seems most concerning
+[01:15:01] is that if you do large decoupled weight decay,
+[01:15:04] you end up with significant muP failure.
+[01:15:07] So this is maybe the one stress test that it does fail.
+[01:15:11] But to close out this final section, you might, in the end,
+[01:15:14] ask, like, is muP useful?
+[01:15:16] And if you really want to stabilize your learning rates,
+[01:15:19] it is actually pretty useful.
+[01:15:21] There's a lot of experiments of this form, where
+[01:15:24] if you increase the width, your optimal learning rate shifts
+[01:15:26] very predictably, but very greatly as a function of scale.
+[01:15:30] Whereas, with muP it doesn't.
+[01:15:31] And so it's one of the many tools in the toolkit
+[01:15:34] to try to control hyperparameter drift as a function of scale.
+[01:15:38] I think it's an interesting open area of research.
+[01:15:40] It's not really done and dusted, and this
+[01:15:43] is the one right thing to do.
+[01:15:44] But there's a lot of promise in the muP-style initialization
+[01:15:47] program.
+[01:15:47] There's also a lot of promise in just fitting scaling laws
+[01:15:50] as well.
+[01:15:52] So final thing I want to close with, scaling in the wild
+[01:15:57] is very tricky.
+[01:15:58] As I mentioned in one of my replies.
+[01:16:00] I think the initial presentation of scaling laws
+[01:16:03] makes it sound like a science.
+[01:16:05] It's like, yes, draw this line, do these procedures,
+[01:16:07] and you will know, for sure, what will happen at scale.
+[01:16:11] But I think, in reality, it's a lot more messy and a lot more
+[01:16:14] unknown than that.
+[01:16:16] There are lots of things that people
+[01:16:18] do use in practice scaling laws for,
+[01:16:20] like picking architectures, picking optimizers, picking
+[01:16:22] hyperparameters.
+[01:16:23] All of these things are things that people
+[01:16:25] do with scaling laws, but there is really an art to it
+[01:16:28] in the sense of, you don't really
+[01:16:29] if it's truly going to extrapolate forever.
+[01:16:32] You want to do reasonable things to maximize
+[01:16:35] the chances of success.
+[01:16:36] And so there's lots of solutions that people have.
+[01:16:38] You can use muP.
+[01:16:39] You can search for the optimal learning rate in all
+[01:16:42] of these other kinds of things.
+[01:16:43] And these are ways of controlling hyperparameter
+[01:16:46] drift.
+[01:16:47] But there's no silver bullet yet.
+[01:16:48] Maybe next year, there will be a module
+[01:16:50] that's like, we solved it, but not quite yet.
+[01:16:53] Great Thanks a lot.
+[01:16:55] I can take questions afterwards.

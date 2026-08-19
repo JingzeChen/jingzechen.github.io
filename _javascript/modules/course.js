@@ -97,6 +97,8 @@ export function initCourseWorkbench() {
   const transcriptContent = root.querySelector('[data-course-transcript-content]');
   const transcriptStatus = root.querySelector('[data-course-transcript-status]');
   const transcriptSearch = root.querySelector('[data-course-transcript-search]');
+  const executableNotesContent = root.querySelector('[data-course-executable-notes-content]');
+  const executableNotesStatus = root.querySelector('[data-course-executable-notes-status]');
   const videoFrame = root.querySelector('[data-course-video-frame]');
   let timeline = [];
   let activeSection = null;
@@ -105,6 +107,7 @@ export function initCourseWorkbench() {
   let transcriptSections = [];
   let slidesLoading = null;
   let transcriptLoading = null;
+  let executableNotesLoading = null;
 
   const selectTab = (name) => {
     tabs.forEach((tab) => {
@@ -117,6 +120,7 @@ export function initCourseWorkbench() {
     });
     if (name === 'slides') loadSlides();
     if (name === 'transcript') loadTranscript();
+    if (name === 'executable-notes') loadExecutableNotes();
   };
 
   const showSlide = (index) => {
@@ -158,6 +162,26 @@ export function initCourseWorkbench() {
         slideStatus.textContent = 'Rendered slides could not be loaded. Use the original PPTX download instead.';
       });
     return slidesLoading;
+  };
+
+  const loadExecutableNotes = () => {
+    if (!root.dataset.executableNotesUrl || executableNotesLoading) return executableNotesLoading;
+    executableNotesStatus.textContent = 'Loading executable lecture notes…';
+    executableNotesLoading = fetch(root.dataset.executableNotesUrl)
+      .then((response) => {
+        if (!response.ok) throw new Error(`Executable notes request failed: ${response.status}`);
+        return response.text();
+      })
+      .then((source) => {
+        const normalizedSource = source.replace(/\r\n/g, '\n');
+        const lineCount = normalizedSource.split('\n').length - (normalizedSource.endsWith('\n') ? 1 : 0);
+        executableNotesContent.textContent = normalizedSource;
+        executableNotesStatus.textContent = `${lineCount} lines · official executable lecture source`;
+      })
+      .catch(() => {
+        executableNotesStatus.textContent = 'Executable lecture notes could not be loaded. Use the download or official source link.';
+      });
+    return executableNotesLoading;
   };
 
   const updateTranscriptSearch = () => {

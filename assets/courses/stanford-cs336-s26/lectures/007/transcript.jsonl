@@ -1,0 +1,1312 @@
+{"id": 0, "start": 5.16, "end": 6.56, "text": "OK.", "source": "youtube-manual-authenticated"}
+{"id": 1, "start": 6.56, "end": 8.28, "text": "Let's get started.", "source": "youtube-manual-authenticated"}
+{"id": 2, "start": 8.28, "end": 9.84, "text": "So welcome back, everyone.", "source": "youtube-manual-authenticated"}
+{"id": 3, "start": 9.84, "end": 13.32, "text": "So today we're going to talk about parallelism.", "source": "youtube-manual-authenticated"}
+{"id": 4, "start": 13.32, "end": 15.32, "text": "And remember in the last week, we", "source": "youtube-manual-authenticated"}
+{"id": 5, "start": 15.32, "end": 20.2, "text": "introduced how to make a single GPU go fast by writing kernels.", "source": "youtube-manual-authenticated"}
+{"id": 6, "start": 20.2, "end": 23.2, "text": "And we really looked inside this GPU.", "source": "youtube-manual-authenticated"}
+{"id": 7, "start": 23.2, "end": 25.0, "text": "And this week, we're going to talk", "source": "youtube-manual-authenticated"}
+{"id": 8, "start": 25.0, "end": 27.72, "text": "about how to leverage multiple GPUs to make", "source": "youtube-manual-authenticated"}
+{"id": 9, "start": 27.72, "end": 30.888, "text": "your code go even faster.", "source": "youtube-manual-authenticated"}
+{"id": 10, "start": 30.888, "end": 32.68, "text": "So the picture you should have in your head", "source": "youtube-manual-authenticated"}
+{"id": 11, "start": 32.68, "end": 34.4, "text": "is something like this.", "source": "youtube-manual-authenticated"}
+{"id": 12, "start": 34.4, "end": 37.76, "text": "So for the last week, we focused on one of these boxes,", "source": "youtube-manual-authenticated"}
+{"id": 13, "start": 37.76, "end": 40.08, "text": "where you have your GPU.", "source": "youtube-manual-authenticated"}
+{"id": 14, "start": 40.08, "end": 44.1, "text": "Remember, you have your High Bandwidth Memory, HBM, L2 cache,", "source": "youtube-manual-authenticated"}
+{"id": 15, "start": 44.1, "end": 51.68, "text": "L1 cache, registers, and a bunch of streaming multiprocessors.", "source": "youtube-manual-authenticated"}
+{"id": 16, "start": 51.68, "end": 53.64, "text": "So now the picture gets extended,", "source": "youtube-manual-authenticated"}
+{"id": 17, "start": 53.64, "end": 56.86, "text": "because instead of having one GPU, you might have four,", "source": "youtube-manual-authenticated"}
+{"id": 18, "start": 56.86, "end": 59.26, "text": "you might have 1,000 GPUs.", "source": "youtube-manual-authenticated"}
+{"id": 19, "start": 59.26, "end": 61.12, "text": "And those are going to be connected.", "source": "youtube-manual-authenticated"}
+{"id": 20, "start": 61.12, "end": 64.08, "text": "And I'll talk later about how those GPUs are", "source": "youtube-manual-authenticated"}
+{"id": 21, "start": 64.08, "end": 66.048, "text": "going to get connected.", "source": "youtube-manual-authenticated"}
+{"id": 22, "start": 66.048, "end": 67.84, "text": "And then you're going to have to figure out", "source": "youtube-manual-authenticated"}
+{"id": 23, "start": 67.84, "end": 72.84, "text": "how to leverage all of this compute to train models.", "source": "youtube-manual-authenticated"}
+{"id": 24, "start": 72.84, "end": 76.88, "text": "So in both cases, meaning both in the single GPU case", "source": "youtube-manual-authenticated"}
+{"id": 25, "start": 76.88, "end": 80.28, "text": "and in the multi-GPU case, as we'll talk about today,", "source": "youtube-manual-authenticated"}
+{"id": 26, "start": 80.28, "end": 83.26, "text": "the situation is kind of similar if you zoom out,", "source": "youtube-manual-authenticated"}
+{"id": 27, "start": 83.26, "end": 87.66, "text": "which is that the compute, the arithmetic logic units,", "source": "youtube-manual-authenticated"}
+{"id": 28, "start": 87.66, "end": 91.08, "text": "the tensor core, and so on, is far away from your data.", "source": "youtube-manual-authenticated"}
+{"id": 29, "start": 91.08, "end": 93.4, "text": "And far away for a single GPU means all the way", "source": "youtube-manual-authenticated"}
+{"id": 30, "start": 93.4, "end": 95.76, "text": "over here in HBM.", "source": "youtube-manual-authenticated"}
+{"id": 31, "start": 95.76, "end": 99.92, "text": "And now if you have multi GPUs, the thing that you need here", "source": "youtube-manual-authenticated"}
+{"id": 32, "start": 99.92, "end": 102.08, "text": "might be all the way on a different GPU,", "source": "youtube-manual-authenticated"}
+{"id": 33, "start": 102.08, "end": 105.2, "text": "and you're going to have to shuffle that over somehow.", "source": "youtube-manual-authenticated"}
+{"id": 34, "start": 105.2, "end": 106.88, "text": "But the same principles are going", "source": "youtube-manual-authenticated"}
+{"id": 35, "start": 106.88, "end": 109.52, "text": "to be the same, because the game is", "source": "youtube-manual-authenticated"}
+{"id": 36, "start": 109.52, "end": 114.32, "text": "to orchestrate the computation to try to avoid data transfer", "source": "youtube-manual-authenticated"}
+{"id": 37, "start": 114.32, "end": 115.28, "text": "bottlenecks.", "source": "youtube-manual-authenticated"}
+{"id": 38, "start": 115.28, "end": 117.88, "text": "It's very easy to use a ton of GPUs,", "source": "youtube-manual-authenticated"}
+{"id": 39, "start": 117.88, "end": 121.35, "text": "but it's hard to use them effectively.", "source": "youtube-manual-authenticated"}
+{"id": 40, "start": 121.35, "end": 124.09, "text": "So taking a little bit of liberty,", "source": "youtube-manual-authenticated"}
+{"id": 41, "start": 124.09, "end": 126.71, "text": "we can think about the generalized hierarchy", "source": "youtube-manual-authenticated"}
+{"id": 42, "start": 126.71, "end": 133.75, "text": "where at the local level next to the SMs", "source": "youtube-manual-authenticated"}
+{"id": 43, "start": 133.75, "end": 138.19, "text": "a single node single GPU where you have an L1 cache", "source": "youtube-manual-authenticated"}
+{"id": 44, "start": 138.19, "end": 138.97, "text": "shared memory.", "source": "youtube-manual-authenticated"}
+{"id": 45, "start": 138.97, "end": 140.47, "text": "This was the fastest.", "source": "youtube-manual-authenticated"}
+{"id": 46, "start": 140.47, "end": 145.91, "text": "And then you had HBM, which we lamented was so slow.", "source": "youtube-manual-authenticated"}
+{"id": 47, "start": 145.91, "end": 150.59, "text": "But in this lecture, HBM is going to be considered fast.", "source": "youtube-manual-authenticated"}
+{"id": 48, "start": 150.59, "end": 153.87, "text": "Now we're going to think about the single node multi-GPU", "source": "youtube-manual-authenticated"}
+{"id": 49, "start": 153.87, "end": 156.39, "text": "setting where the GPUs are going to be connected", "source": "youtube-manual-authenticated"}
+{"id": 50, "start": 156.39, "end": 158.95, "text": "via NVLink and NVSwitch.", "source": "youtube-manual-authenticated"}
+{"id": 51, "start": 158.95, "end": 162.37, "text": "And then finally, the multi-node and multi-GPU,", "source": "youtube-manual-authenticated"}
+{"id": 52, "start": 162.37, "end": 164.23, "text": "where we have to resort to InfiniBand", "source": "youtube-manual-authenticated"}
+{"id": 53, "start": 164.23, "end": 169.37, "text": "and ethernet depending on what network you have.", "source": "youtube-manual-authenticated"}
+{"id": 54, "start": 169.37, "end": 174.79, "text": "So last week, we talked about various tricks", "source": "youtube-manual-authenticated"}
+{"id": 55, "start": 174.79, "end": 180.27, "text": "for in reducing memory accesses, fusion and tiling.", "source": "youtube-manual-authenticated"}
+{"id": 56, "start": 180.27, "end": 183.83, "text": "Read into shared memory, do as much as you can,", "source": "youtube-manual-authenticated"}
+{"id": 57, "start": 183.83, "end": 185.99, "text": "and then write it back out.", "source": "youtube-manual-authenticated"}
+{"id": 58, "start": 185.99, "end": 187.59, "text": "And this week, we're going to talk", "source": "youtube-manual-authenticated"}
+{"id": 59, "start": 187.59, "end": 190.83, "text": "about how you can reduce the amount of communication", "source": "youtube-manual-authenticated"}
+{"id": 60, "start": 190.83, "end": 197.47, "text": "across GPUs by replicating and sharding appropriately.", "source": "youtube-manual-authenticated"}
+{"id": 61, "start": 197.47, "end": 201.23, "text": "So why do you do multi-GPUs?", "source": "youtube-manual-authenticated"}
+{"id": 62, "start": 201.23, "end": 203.91, "text": "The obvious answer is, well, you want to scale.", "source": "youtube-manual-authenticated"}
+{"id": 63, "start": 203.91, "end": 208.67, "text": "But to put a finer point on it, there's really two reasons.", "source": "youtube-manual-authenticated"}
+{"id": 64, "start": 208.67, "end": 212.99, "text": "One is that your parameters or activations or gradients", "source": "youtube-manual-authenticated"}
+{"id": 65, "start": 212.99, "end": 217.89, "text": "and optimizer state don't fit on the HBM memory of a single GPU.", "source": "youtube-manual-authenticated"}
+{"id": 66, "start": 217.89, "end": 220.67, "text": "So B21 has 192 gigabytes.", "source": "youtube-manual-authenticated"}
+{"id": 67, "start": 220.67, "end": 222.93, "text": "If you're training a 1 trillion parameter model,", "source": "youtube-manual-authenticated"}
+{"id": 68, "start": 222.93, "end": 226.07, "text": "that's not going to fit on a single GPU.", "source": "youtube-manual-authenticated"}
+{"id": 69, "start": 226.07, "end": 229.07, "text": "And the other reason is that even if your model could", "source": "youtube-manual-authenticated"}
+{"id": 70, "start": 229.07, "end": 231.15, "text": "fit on a single GPU, you might want", "source": "youtube-manual-authenticated"}
+{"id": 71, "start": 231.15, "end": 234.63, "text": "to leverage more GPUs by splitting everything up", "source": "youtube-manual-authenticated"}
+{"id": 72, "start": 234.63, "end": 236.51, "text": "to train faster.", "source": "youtube-manual-authenticated"}
+{"id": 73, "start": 236.51, "end": 238.99, "text": "So sometimes there will be some decisions", "source": "youtube-manual-authenticated"}
+{"id": 74, "start": 238.99, "end": 242.93, "text": "to be made because you could fit everything on GPUs,", "source": "youtube-manual-authenticated"}
+{"id": 75, "start": 242.93, "end": 246.19, "text": "but you have fewer cores.", "source": "youtube-manual-authenticated"}
+{"id": 76, "start": 246.19, "end": 248.23, "text": "But if you spread it out, then you're", "source": "youtube-manual-authenticated"}
+{"id": 77, "start": 248.23, "end": 251.55, "text": "going to have to pay the communication bandwidth.", "source": "youtube-manual-authenticated"}
+{"id": 78, "start": 251.55, "end": 253.11, "text": "So that's some calculation you're", "source": "youtube-manual-authenticated"}
+{"id": 79, "start": 253.11, "end": 258.47, "text": "going to have to do to figure out how to parallelize.", "source": "youtube-manual-authenticated"}
+{"id": 80, "start": 258.47, "end": 264.49, "text": "So just one note here is that so far this lecture is Python.", "source": "youtube-manual-authenticated"}
+{"id": 81, "start": 264.49, "end": 267.35, "text": "You execute it and you can just show everything.", "source": "youtube-manual-authenticated"}
+{"id": 82, "start": 267.35, "end": 270.55, "text": "Now, in this lecture, if you run this directly,", "source": "youtube-manual-authenticated"}
+{"id": 83, "start": 270.55, "end": 273.63, "text": "it uses multiprocessing.", "source": "youtube-manual-authenticated"}
+{"id": 84, "start": 273.63, "end": 276.07, "text": "But when I trace through it, I'm putting in some", "source": "youtube-manual-authenticated"}
+{"id": 85, "start": 276.07, "end": 278.647, "text": "of special single process mode.", "source": "youtube-manual-authenticated"}
+{"id": 86, "start": 278.647, "end": 280.23, "text": "So if you want to see the standard out", "source": "youtube-manual-authenticated"}
+{"id": 87, "start": 280.23, "end": 285.07, "text": "for this lecture run in the multiprocessing setup,", "source": "youtube-manual-authenticated"}
+{"id": 88, "start": 285.07, "end": 286.05, "text": "you can click here.", "source": "youtube-manual-authenticated"}
+{"id": 89, "start": 286.05, "end": 288.75, "text": "And I'll show this as we go through the lecture.", "source": "youtube-manual-authenticated"}
+{"id": 90, "start": 288.75, "end": 291.09, "text": "But just remember as we step through this lecture,", "source": "youtube-manual-authenticated"}
+{"id": 91, "start": 291.09, "end": 293.15, "text": "we're not actually doing multiprocessing,", "source": "youtube-manual-authenticated"}
+{"id": 92, "start": 293.15, "end": 296.99, "text": "because we're just stepping through single lines of code.", "source": "youtube-manual-authenticated"}
+{"id": 93, "start": 296.99, "end": 301.91, "text": "So this lecture is going to include two parts.", "source": "youtube-manual-authenticated"}
+{"id": 94, "start": 301.91, "end": 304.43, "text": "One is we're going to learn about the building", "source": "youtube-manual-authenticated"}
+{"id": 95, "start": 304.43, "end": 308.51, "text": "blocks of distributed communication and computation,", "source": "youtube-manual-authenticated"}
+{"id": 96, "start": 308.51, "end": 310.93, "text": "starting with the programming model.", "source": "youtube-manual-authenticated"}
+{"id": 97, "start": 310.93, "end": 313.43, "text": "Talk a little bit about the hardware.", "source": "youtube-manual-authenticated"}
+{"id": 98, "start": 313.43, "end": 316.07, "text": "Start to implement things in Torch,", "source": "youtube-manual-authenticated"}
+{"id": 99, "start": 316.07, "end": 320.79, "text": "which you're going to do on your assignment two.", "source": "youtube-manual-authenticated"}
+{"id": 100, "start": 320.79, "end": 322.75, "text": "And then the second part is we're going", "source": "youtube-manual-authenticated"}
+{"id": 101, "start": 322.75, "end": 325.47, "text": "to look at actual training.", "source": "youtube-manual-authenticated"}
+{"id": 102, "start": 325.47, "end": 328.43, "text": "We're going to look at three types of parallelism.", "source": "youtube-manual-authenticated"}
+{"id": 103, "start": 328.43, "end": 330.19, "text": "Data parallelism, tensor parallelism,", "source": "youtube-manual-authenticated"}
+{"id": 104, "start": 330.19, "end": 331.47, "text": "pipeline parallelism.", "source": "youtube-manual-authenticated"}
+{"id": 105, "start": 331.47, "end": 334.53, "text": "Each is going to cut up our model in different ways.", "source": "youtube-manual-authenticated"}
+{"id": 106, "start": 334.53, "end": 338.23, "text": "We're going to do this for MLPs rather than", "source": "youtube-manual-authenticated"}
+{"id": 107, "start": 338.23, "end": 339.49, "text": "the full transformer.", "source": "youtube-manual-authenticated"}
+{"id": 108, "start": 339.49, "end": 342.87, "text": "But it's really the core computation", "source": "youtube-manual-authenticated"}
+{"id": 109, "start": 342.87, "end": 345.63, "text": "is going to be shown here.", "source": "youtube-manual-authenticated"}
+{"id": 110, "start": 345.63, "end": 350.39, "text": "So let's dive in.", "source": "youtube-manual-authenticated"}
+{"id": 111, "start": 350.39, "end": 353.54, "text": "So the first thing to talk about is these things", "source": "youtube-manual-authenticated"}
+{"id": 112, "start": 353.54, "end": 356.38, "text": "called collective operations.", "source": "youtube-manual-authenticated"}
+{"id": 113, "start": 356.38, "end": 359.62, "text": "So collective operations are these primitives from", "source": "youtube-manual-authenticated"}
+{"id": 114, "start": 359.62, "end": 363.2, "text": "distributed programming that go back to the '80s.", "source": "youtube-manual-authenticated"}
+{"id": 115, "start": 363.2, "end": 367.46, "text": "So the idea of parallel programming is very old.", "source": "youtube-manual-authenticated"}
+{"id": 116, "start": 367.46, "end": 370.82, "text": "It wasn't invented for LLM training.", "source": "youtube-manual-authenticated"}
+{"id": 117, "start": 370.82, "end": 374.18, "text": "And it's still the case that these primitives", "source": "youtube-manual-authenticated"}
+{"id": 118, "start": 374.18, "end": 378.14, "text": "are the ones that we use today.", "source": "youtube-manual-authenticated"}
+{"id": 119, "start": 378.14, "end": 380.14, "text": "And here, collective just means that you're", "source": "youtube-manual-authenticated"}
+{"id": 120, "start": 380.14, "end": 382.26, "text": "specifying a general communication", "source": "youtube-manual-authenticated"}
+{"id": 121, "start": 382.26, "end": 385.56, "text": "pattern or a template across multiple devices,", "source": "youtube-manual-authenticated"}
+{"id": 122, "start": 385.56, "end": 388.66, "text": "rather than managing point to point how", "source": "youtube-manual-authenticated"}
+{"id": 123, "start": 388.66, "end": 392.02, "text": "this GPU is going to communicate with another GPU.", "source": "youtube-manual-authenticated"}
+{"id": 124, "start": 392.02, "end": 394.36, "text": "And this is going to be much easier,", "source": "youtube-manual-authenticated"}
+{"id": 125, "start": 394.36, "end": 396.72, "text": "and the system can do a lot more work for you.", "source": "youtube-manual-authenticated"}
+{"id": 126, "start": 396.72, "end": 400.74, "text": "So this is a very tried and trued interface", "source": "youtube-manual-authenticated"}
+{"id": 127, "start": 400.74, "end": 404.14, "text": "for doing parallel programming.", "source": "youtube-manual-authenticated"}
+{"id": 128, "start": 404.14, "end": 407.58, "text": "So the general setup is as follows.", "source": "youtube-manual-authenticated"}
+{"id": 129, "start": 407.58, "end": 409.54, "text": "The terminology here is a little bit--", "source": "youtube-manual-authenticated"}
+{"id": 130, "start": 409.54, "end": 411.86, "text": "I find it a little bit strange, but this is standard", "source": "youtube-manual-authenticated"}
+{"id": 131, "start": 411.86, "end": 415.1, "text": "in parallel programming.", "source": "youtube-manual-authenticated"}
+{"id": 132, "start": 415.1, "end": 418.74, "text": "The idea is that you have a bunch of ranks", "source": "youtube-manual-authenticated"}
+{"id": 133, "start": 418.74, "end": 422.02, "text": "where rank corresponds to a particular device, in our case", "source": "youtube-manual-authenticated"}
+{"id": 134, "start": 422.02, "end": 422.64, "text": "a GPU.", "source": "youtube-manual-authenticated"}
+{"id": 135, "start": 422.64, "end": 423.98, "text": "It could be a TPU.", "source": "youtube-manual-authenticated"}
+{"id": 136, "start": 423.98, "end": 426.78, "text": "But the point is that you have, let's say, four ranks here.", "source": "youtube-manual-authenticated"}
+{"id": 137, "start": 426.78, "end": 429.96, "text": "The world size corresponds to the number of devices,", "source": "youtube-manual-authenticated"}
+{"id": 138, "start": 429.96, "end": 433.06, "text": "so the world size here is four.", "source": "youtube-manual-authenticated"}
+{"id": 139, "start": 433.06, "end": 437.62, "text": "So there is a few operations we're going to go through.", "source": "youtube-manual-authenticated"}
+{"id": 140, "start": 437.62, "end": 439.94, "text": "Broadcast, scatter, gather, reduce,", "source": "youtube-manual-authenticated"}
+{"id": 141, "start": 439.94, "end": 443.94, "text": "all gather, reduce scatter, all reduce, and all to all.", "source": "youtube-manual-authenticated"}
+{"id": 142, "start": 443.94, "end": 445.82, "text": "And each of these operations is going", "source": "youtube-manual-authenticated"}
+{"id": 143, "start": 445.82, "end": 449.78, "text": "to specify how this set of ranks or devices", "source": "youtube-manual-authenticated"}
+{"id": 144, "start": 449.78, "end": 453.02, "text": "is going to transfer some amount of data", "source": "youtube-manual-authenticated"}
+{"id": 145, "start": 453.02, "end": 457.22, "text": "slash compute with it to some other set of devices.", "source": "youtube-manual-authenticated"}
+{"id": 146, "start": 457.22, "end": 460.66, "text": "So the first three, broadcast, scatter, gather, reduce,", "source": "youtube-manual-authenticated"}
+{"id": 147, "start": 460.66, "end": 464.38, "text": "are really just warm ups, I would say.", "source": "youtube-manual-authenticated"}
+{"id": 148, "start": 464.38, "end": 471.54, "text": "They allow you to get a sense of how these collective operations", "source": "youtube-manual-authenticated"}
+{"id": 149, "start": 471.54, "end": 473.02, "text": "work, but they're not really going", "source": "youtube-manual-authenticated"}
+{"id": 150, "start": 473.02, "end": 476.1, "text": "to be the ones that are driving most of training.", "source": "youtube-manual-authenticated"}
+{"id": 151, "start": 476.1, "end": 477.7, "text": "All gather, reduce scatter, and all", "source": "youtube-manual-authenticated"}
+{"id": 152, "start": 477.7, "end": 479.62, "text": "reduce are the ones that are going", "source": "youtube-manual-authenticated"}
+{"id": 153, "start": 479.62, "end": 484.18, "text": "to show up again and again for distributed training of language", "source": "youtube-manual-authenticated"}
+{"id": 154, "start": 484.18, "end": 485.08, "text": "models.", "source": "youtube-manual-authenticated"}
+{"id": 155, "start": 485.08, "end": 486.46, "text": "And finally, all to all I'll just", "source": "youtube-manual-authenticated"}
+{"id": 156, "start": 486.46, "end": 491.28, "text": "mention here, which is important for MOEs,", "source": "youtube-manual-authenticated"}
+{"id": 157, "start": 491.28, "end": 493.7, "text": "but we're not going to actually spend too much time", "source": "youtube-manual-authenticated"}
+{"id": 158, "start": 493.7, "end": 496.06, "text": "on this this lecture.", "source": "youtube-manual-authenticated"}
+{"id": 159, "start": 496.06, "end": 501.78, "text": "OK, so let's dive in with the simplest operation, which", "source": "youtube-manual-authenticated"}
+{"id": 160, "start": 501.78, "end": 503.34, "text": "is broadcast.", "source": "youtube-manual-authenticated"}
+{"id": 161, "start": 503.34, "end": 506.92, "text": "So in broadcasting, you have a rank 0.", "source": "youtube-manual-authenticated"}
+{"id": 162, "start": 506.92, "end": 510.66, "text": "It could be any rank, but let's just say for sake of picking", "source": "youtube-manual-authenticated"}
+{"id": 163, "start": 510.66, "end": 516.38, "text": "one, rank 0, has some tensor 0123.", "source": "youtube-manual-authenticated"}
+{"id": 164, "start": 516.38, "end": 519.179, "text": "And it broadcasts it to all the ranks.", "source": "youtube-manual-authenticated"}
+{"id": 165, "start": 519.179, "end": 524.42, "text": "So at the end of this operation, we have that each of the ranks", "source": "youtube-manual-authenticated"}
+{"id": 166, "start": 524.42, "end": 528.1, "text": "has the same tensor on it.", "source": "youtube-manual-authenticated"}
+{"id": 167, "start": 528.1, "end": 531.58, "text": "That should be pretty straightforward.", "source": "youtube-manual-authenticated"}
+{"id": 168, "start": 531.58, "end": 534.3, "text": "And this, again, doesn't really show up", "source": "youtube-manual-authenticated"}
+{"id": 169, "start": 534.3, "end": 537.1, "text": "in the core path of training.", "source": "youtube-manual-authenticated"}
+{"id": 170, "start": 537.1, "end": 541.2, "text": "Generally, broadcasts are used for initialization,", "source": "youtube-manual-authenticated"}
+{"id": 171, "start": 541.2, "end": 544.54, "text": "where let's say you initialize a load initial checkpoint", "source": "youtube-manual-authenticated"}
+{"id": 172, "start": 544.54, "end": 547.14, "text": "and then you broadcast it to all the ranks.", "source": "youtube-manual-authenticated"}
+{"id": 173, "start": 547.14, "end": 550.26, "text": "So something that's done like once.", "source": "youtube-manual-authenticated"}
+{"id": 174, "start": 550.26, "end": 555.38, "text": "So the second operation is a scatter.", "source": "youtube-manual-authenticated"}
+{"id": 175, "start": 555.38, "end": 563.34, "text": "And a scatter basically says, I have a tensor at rank 0", "source": "youtube-manual-authenticated"}
+{"id": 176, "start": 563.34, "end": 567.26, "text": "who is split up into the world size.", "source": "youtube-manual-authenticated"}
+{"id": 177, "start": 567.26, "end": 569.9, "text": "And I'm going to basically scatter", "source": "youtube-manual-authenticated"}
+{"id": 178, "start": 569.9, "end": 572.86, "text": "my tensor onto the other ranks.", "source": "youtube-manual-authenticated"}
+{"id": 179, "start": 572.86, "end": 576.78, "text": "So rank 0 gets 0, the zeroth component.", "source": "youtube-manual-authenticated"}
+{"id": 180, "start": 576.78, "end": 581.74, "text": "Rank 1 gets this, rank 2 gets this, and rank 3 gets that.", "source": "youtube-manual-authenticated"}
+{"id": 181, "start": 581.74, "end": 585.74, "text": "So again, this is not directly used,", "source": "youtube-manual-authenticated"}
+{"id": 182, "start": 585.74, "end": 588.61, "text": "but scatter is an important stepping stone", "source": "youtube-manual-authenticated"}
+{"id": 183, "start": 588.61, "end": 590.19, "text": "to understand reduced scatter.", "source": "youtube-manual-authenticated"}
+{"id": 184, "start": 590.19, "end": 594.69, "text": "So, as the name implies, scatter just takes a big tensor", "source": "youtube-manual-authenticated"}
+{"id": 185, "start": 594.69, "end": 599.61, "text": "at one place and spreads it out onto multiple places.", "source": "youtube-manual-authenticated"}
+{"id": 186, "start": 599.61, "end": 601.81, "text": "And you can see how this might be helpful,", "source": "youtube-manual-authenticated"}
+{"id": 187, "start": 601.81, "end": 605.93, "text": "because you want all the GPUs you're", "source": "youtube-manual-authenticated"}
+{"id": 188, "start": 605.93, "end": 609.41, "text": "scattering to do some local computation", "source": "youtube-manual-authenticated"}
+{"id": 189, "start": 609.41, "end": 610.79, "text": "on the different parts.", "source": "youtube-manual-authenticated"}
+{"id": 190, "start": 613.69, "end": 617.17, "text": "So the inverse of scatter is scatter.", "source": "youtube-manual-authenticated"}
+{"id": 191, "start": 617.17, "end": 620.01, "text": "So this should be very predictable.", "source": "youtube-manual-authenticated"}
+{"id": 192, "start": 620.01, "end": 624.17, "text": "The input is you have a bunch of pieces, each of which", "source": "youtube-manual-authenticated"}
+{"id": 193, "start": 624.17, "end": 626.69, "text": "reside on a particular rank.", "source": "youtube-manual-authenticated"}
+{"id": 194, "start": 626.69, "end": 629.77, "text": "And then when you do a gather, that's", "source": "youtube-manual-authenticated"}
+{"id": 195, "start": 629.77, "end": 632.81, "text": "with respect to a particular rank, rank 0,", "source": "youtube-manual-authenticated"}
+{"id": 196, "start": 632.81, "end": 635.43, "text": "it's going to just concatenate all the pieces together.", "source": "youtube-manual-authenticated"}
+{"id": 197, "start": 638.17, "end": 640.51, "text": "Again, gather isn't directly used,", "source": "youtube-manual-authenticated"}
+{"id": 198, "start": 640.51, "end": 645.53, "text": "but it's going to be a stepping stone to understand all gather.", "source": "youtube-manual-authenticated"}
+{"id": 199, "start": 645.53, "end": 647.47, "text": "So next is reduce.", "source": "youtube-manual-authenticated"}
+{"id": 200, "start": 647.47, "end": 650.97, "text": "So those of you who do functional programming are", "source": "youtube-manual-authenticated"}
+{"id": 201, "start": 650.97, "end": 652.77, "text": "probably familiar with what reduce is.", "source": "youtube-manual-authenticated"}
+{"id": 202, "start": 652.77, "end": 654.93, "text": "It's exactly the same.", "source": "youtube-manual-authenticated"}
+{"id": 203, "start": 654.93, "end": 658.45, "text": "The idea is that you start in the same starting point", "source": "youtube-manual-authenticated"}
+{"id": 204, "start": 658.45, "end": 662.33, "text": "as a gather.", "source": "youtube-manual-authenticated"}
+{"id": 205, "start": 662.33, "end": 667.49, "text": "And where the tensor is split up across multiple-- well,", "source": "youtube-manual-authenticated"}
+{"id": 206, "start": 667.49, "end": 670.93, "text": "you have some piece of data on each of the different ranks.", "source": "youtube-manual-authenticated"}
+{"id": 207, "start": 670.93, "end": 673.25, "text": "And then you're going to apply your reduction", "source": "youtube-manual-authenticated"}
+{"id": 208, "start": 673.25, "end": 680.01, "text": "operation to all of these and get that in, put that on rank 0.", "source": "youtube-manual-authenticated"}
+{"id": 209, "start": 680.01, "end": 683.25, "text": "So in this case, if you do a reduction with sum,", "source": "youtube-manual-authenticated"}
+{"id": 210, "start": 683.25, "end": 686.81, "text": "then you add these all up, you get six.", "source": "youtube-manual-authenticated"}
+{"id": 211, "start": 686.81, "end": 689.53, "text": "So you can think about gather as a reduction", "source": "youtube-manual-authenticated"}
+{"id": 212, "start": 689.53, "end": 694.39, "text": "where the operation is concatenation, if you will.", "source": "youtube-manual-authenticated"}
+{"id": 213, "start": 697.17, "end": 699.85, "text": "And of course, reduce is important to understanding", "source": "youtube-manual-authenticated"}
+{"id": 214, "start": 699.85, "end": 701.65, "text": "all reduce.", "source": "youtube-manual-authenticated"}
+{"id": 215, "start": 701.65, "end": 703.81, "text": "So let me pause there.", "source": "youtube-manual-authenticated"}
+{"id": 216, "start": 703.81, "end": 706.29, "text": "Those were just the warm ups. Just in case people", "source": "youtube-manual-authenticated"}
+{"id": 217, "start": 706.29, "end": 710.85, "text": "have any questions about what a collective operation is,", "source": "youtube-manual-authenticated"}
+{"id": 218, "start": 710.85, "end": 714.51, "text": "broadcast, scatter, gather, reduce.", "source": "youtube-manual-authenticated"}
+{"id": 219, "start": 719.85, "end": 721.45, "text": "Yeah?", "source": "youtube-manual-authenticated"}
+{"id": 220, "start": 721.45, "end": 726.25, "text": "[INAUDIBLE] NumPy, where is it?", "source": "youtube-manual-authenticated"}
+{"id": 221, "start": 726.25, "end": 728.29, "text": "So the question is, is this related", "source": "youtube-manual-authenticated"}
+{"id": 222, "start": 728.29, "end": 732.41, "text": "to broadcasting and NumPy?", "source": "youtube-manual-authenticated"}
+{"id": 223, "start": 732.41, "end": 737.09, "text": "I mean, I think it's conceptually the same idea,", "source": "youtube-manual-authenticated"}
+{"id": 224, "start": 737.09, "end": 739.65, "text": "where you have one thing that goes to many things.", "source": "youtube-manual-authenticated"}
+{"id": 225, "start": 739.65, "end": 741.19, "text": "Like in NumPy, if you have a scalar,", "source": "youtube-manual-authenticated"}
+{"id": 226, "start": 741.19, "end": 742.77, "text": "get broadcast to a tensor.", "source": "youtube-manual-authenticated"}
+{"id": 227, "start": 742.77, "end": 747.67, "text": "But the instantiation, this is for collective communication.", "source": "youtube-manual-authenticated"}
+{"id": 228, "start": 747.67, "end": 749.03, "text": "So it's a bit different.", "source": "youtube-manual-authenticated"}
+{"id": 229, "start": 752.65, "end": 755.95, "text": "So let's move on to something more interesting.", "source": "youtube-manual-authenticated"}
+{"id": 230, "start": 755.95, "end": 761.09, "text": "So all gather is what you do to-- basically,", "source": "youtube-manual-authenticated"}
+{"id": 231, "start": 761.09, "end": 765.16, "text": "you perform gather to all ranks, not just rank 0.", "source": "youtube-manual-authenticated"}
+{"id": 232, "start": 765.16, "end": 767.04, "text": "So remember what gather does.", "source": "youtube-manual-authenticated"}
+{"id": 233, "start": 767.04, "end": 771.28, "text": "It basically takes all the different pieces", "source": "youtube-manual-authenticated"}
+{"id": 234, "start": 771.28, "end": 775.48, "text": "and it just puts it on one rank, rank 0.", "source": "youtube-manual-authenticated"}
+{"id": 235, "start": 775.48, "end": 780.32, "text": "And now all gather just does it for every single rank.", "source": "youtube-manual-authenticated"}
+{"id": 236, "start": 780.32, "end": 781.9, "text": "That's what the all is for.", "source": "youtube-manual-authenticated"}
+{"id": 237, "start": 781.9, "end": 786.04, "text": "All means do it for all the output to all the ranks,", "source": "youtube-manual-authenticated"}
+{"id": 238, "start": 786.04, "end": 788.54, "text": "and gather is what you're doing to all the ranks.", "source": "youtube-manual-authenticated"}
+{"id": 239, "start": 792.56, "end": 796.16, "text": "So this is going to come up a bunch.", "source": "youtube-manual-authenticated"}
+{"id": 240, "start": 796.16, "end": 798.44, "text": "It's not important that you understand this statement", "source": "youtube-manual-authenticated"}
+{"id": 241, "start": 798.44, "end": 803.16, "text": "precisely, but later we'll see that each rank holds", "source": "youtube-manual-authenticated"}
+{"id": 242, "start": 803.16, "end": 805.04, "text": "part of the parameters.", "source": "youtube-manual-authenticated"}
+{"id": 243, "start": 805.04, "end": 807.72, "text": "And then what you need to do is all", "source": "youtube-manual-authenticated"}
+{"id": 244, "start": 807.72, "end": 810.16, "text": "gather the parameters to get the full parameters", "source": "youtube-manual-authenticated"}
+{"id": 245, "start": 810.16, "end": 812.16, "text": "for the full forward pass.", "source": "youtube-manual-authenticated"}
+{"id": 246, "start": 812.16, "end": 814.38, "text": "So in general, as we're doing training,", "source": "youtube-manual-authenticated"}
+{"id": 247, "start": 814.38, "end": 818.16, "text": "we're going to see a lot of this gather to do something", "source": "youtube-manual-authenticated"}
+{"id": 248, "start": 818.16, "end": 823.04, "text": "and then scatter and then gather and scatter again.", "source": "youtube-manual-authenticated"}
+{"id": 249, "start": 823.04, "end": 829.72, "text": "So reduce scatter is performing reduce on each dimension", "source": "youtube-manual-authenticated"}
+{"id": 250, "start": 829.72, "end": 832.8, "text": "and then scattering the results.", "source": "youtube-manual-authenticated"}
+{"id": 251, "start": 832.8, "end": 842.32, "text": "So let's say you have four devices and each of them", "source": "youtube-manual-authenticated"}
+{"id": 252, "start": 842.32, "end": 845.4, "text": "has some vector.", "source": "youtube-manual-authenticated"}
+{"id": 253, "start": 845.4, "end": 852.26, "text": "And so when we did a reduce before, we just had 0123,", "source": "youtube-manual-authenticated"}
+{"id": 254, "start": 852.26, "end": 854.52, "text": "and that got reduced to 6.", "source": "youtube-manual-authenticated"}
+{"id": 255, "start": 854.52, "end": 857.72, "text": "But now reduce scatter says that for each component", "source": "youtube-manual-authenticated"}
+{"id": 256, "start": 857.72, "end": 860.72, "text": "of this tensor, I'm going to do a reduction,", "source": "youtube-manual-authenticated"}
+{"id": 257, "start": 860.72, "end": 864.62, "text": "and then I'm going to put it on a different rank.", "source": "youtube-manual-authenticated"}
+{"id": 258, "start": 867.84, "end": 873.625, "text": "So the first dimension, I'm going to add these up, I get 6.", "source": "youtube-manual-authenticated"}
+{"id": 259, "start": 873.625, "end": 876.0, "text": "Now, for the second dimension, I'm going to add these up.", "source": "youtube-manual-authenticated"}
+{"id": 260, "start": 876.0, "end": 877.0, "text": "I get 10.", "source": "youtube-manual-authenticated"}
+{"id": 261, "start": 877.0, "end": 879.012, "text": "For third dimension, I'm going to process these.", "source": "youtube-manual-authenticated"}
+{"id": 262, "start": 879.012, "end": 881.22, "text": "For the fourth dimension, I'm going to process those.", "source": "youtube-manual-authenticated"}
+{"id": 263, "start": 887.74, "end": 892.44, "text": "So where this is going to show up, just to foreshadow things,", "source": "youtube-manual-authenticated"}
+{"id": 264, "start": 892.44, "end": 897.44, "text": "after the backward pass, when you sum what you're going to do", "source": "youtube-manual-authenticated"}
+{"id": 265, "start": 897.44, "end": 902.64, "text": "is each GPU will be dealing with different data.", "source": "youtube-manual-authenticated"}
+{"id": 266, "start": 902.64, "end": 907.76, "text": "And what you're doing is you need to sum all of the gradients", "source": "youtube-manual-authenticated"}
+{"id": 267, "start": 907.76, "end": 910.16, "text": "from the different shards.", "source": "youtube-manual-authenticated"}
+{"id": 268, "start": 910.16, "end": 914.82, "text": "And then you're going to redistribute this storage.", "source": "youtube-manual-authenticated"}
+{"id": 269, "start": 918.36, "end": 921.08, "text": "And then finally, all reduce.", "source": "youtube-manual-authenticated"}
+{"id": 270, "start": 921.08, "end": 925.28, "text": "If you understand all reduce gather and all gather,", "source": "youtube-manual-authenticated"}
+{"id": 271, "start": 925.28, "end": 928.74, "text": "it's basically you do one and then you do the other.", "source": "youtube-manual-authenticated"}
+{"id": 272, "start": 928.74, "end": 935.28, "text": "So what this does is reduce scatter, the same input as we", "source": "youtube-manual-authenticated"}
+{"id": 273, "start": 935.28, "end": 937.64, "text": "had before.", "source": "youtube-manual-authenticated"}
+{"id": 274, "start": 937.64, "end": 941.52, "text": "And remember, in reduce scatter, we", "source": "youtube-manual-authenticated"}
+{"id": 275, "start": 941.52, "end": 946.12, "text": "had 6, 10, 14, and 18 sit on different ranks.", "source": "youtube-manual-authenticated"}
+{"id": 276, "start": 946.12, "end": 949.28, "text": "And the all gather part of all reduce just", "source": "youtube-manual-authenticated"}
+{"id": 277, "start": 949.28, "end": 952.04, "text": "puts them all on the same--", "source": "youtube-manual-authenticated"}
+{"id": 278, "start": 952.04, "end": 953.7, "text": "everything on the same node.", "source": "youtube-manual-authenticated"}
+{"id": 279, "start": 956.5, "end": 959.62, "text": "So all reduce is in some sense the easiest to understand.", "source": "youtube-manual-authenticated"}
+{"id": 280, "start": 959.62, "end": 961.46, "text": "You have a bunch of tensors.", "source": "youtube-manual-authenticated"}
+{"id": 281, "start": 961.46, "end": 963.68, "text": "You reduce, in this case, some.", "source": "youtube-manual-authenticated"}
+{"id": 282, "start": 963.68, "end": 965.94, "text": "And then you replicate them on all the nodes.", "source": "youtube-manual-authenticated"}
+{"id": 283, "start": 969.4, "end": 972.52, "text": "So we're going to see this one actually first", "source": "youtube-manual-authenticated"}
+{"id": 284, "start": 972.52, "end": 976.24, "text": "when we do a data parallel where we sum the gradients", "source": "youtube-manual-authenticated"}
+{"id": 285, "start": 976.24, "end": 980.56, "text": "and then we replicate the full parameters.", "source": "youtube-manual-authenticated"}
+{"id": 286, "start": 980.56, "end": 982.66, "text": "So that's where we're actually going to start.", "source": "youtube-manual-authenticated"}
+{"id": 287, "start": 982.66, "end": 985.04, "text": "So maybe just focus your attention on all reduce.", "source": "youtube-manual-authenticated"}
+{"id": 288, "start": 985.04, "end": 990.8, "text": "Later, we're going to see how to get to fancier things like 0", "source": "youtube-manual-authenticated"}
+{"id": 289, "start": 990.8, "end": 992.28, "text": "or FSDP.", "source": "youtube-manual-authenticated"}
+{"id": 290, "start": 992.28, "end": 996.44, "text": "We need to break the all reduce into reduce scatter and all", "source": "youtube-manual-authenticated"}
+{"id": 291, "start": 996.44, "end": 999.19, "text": "gather, because then you can intervene", "source": "youtube-manual-authenticated"}
+{"id": 292, "start": 999.19, "end": 1001.41, "text": "and you can manage things a bit more.", "source": "youtube-manual-authenticated"}
+{"id": 293, "start": 1001.41, "end": 1005.53, "text": "But for the basic version, all reduce is fine.", "source": "youtube-manual-authenticated"}
+{"id": 294, "start": 1008.39, "end": 1011.71, "text": "Finally, all to all.", "source": "youtube-manual-authenticated"}
+{"id": 295, "start": 1011.71, "end": 1014.37, "text": "This one is, in some ways, the most general.", "source": "youtube-manual-authenticated"}
+{"id": 296, "start": 1014.37, "end": 1020.19, "text": "You basically specify how each rank sends a particular message", "source": "youtube-manual-authenticated"}
+{"id": 297, "start": 1020.19, "end": 1023.23, "text": "to another rank.", "source": "youtube-manual-authenticated"}
+{"id": 298, "start": 1023.23, "end": 1026.71, "text": "And so here's a simple example where you", "source": "youtube-manual-authenticated"}
+{"id": 299, "start": 1026.71, "end": 1029.31, "text": "have the same input as before.", "source": "youtube-manual-authenticated"}
+{"id": 300, "start": 1029.31, "end": 1031.55, "text": "And what this is saying is that I", "source": "youtube-manual-authenticated"}
+{"id": 301, "start": 1031.55, "end": 1037.79, "text": "want to send 0 to this element to rank 0,", "source": "youtube-manual-authenticated"}
+{"id": 302, "start": 1037.79, "end": 1039.55, "text": "meaning keep it myself.", "source": "youtube-manual-authenticated"}
+{"id": 303, "start": 1039.55, "end": 1042.829, "text": "I'm going to send one to rank 1, two", "source": "youtube-manual-authenticated"}
+{"id": 304, "start": 1042.829, "end": 1045.829, "text": "to rank 2, and three to rank 3.", "source": "youtube-manual-authenticated"}
+{"id": 305, "start": 1045.829, "end": 1051.15, "text": "And then if I'm rank 1, I want to send four to rank 0, five", "source": "youtube-manual-authenticated"}
+{"id": 306, "start": 1051.15, "end": 1056.11, "text": "to rank 1, six to rank 2, and seven to rank 3.", "source": "youtube-manual-authenticated"}
+{"id": 307, "start": 1056.11, "end": 1059.23, "text": "So basically, the position here is", "source": "youtube-manual-authenticated"}
+{"id": 308, "start": 1059.23, "end": 1062.23, "text": "going to denote which rank is going", "source": "youtube-manual-authenticated"}
+{"id": 309, "start": 1062.23, "end": 1064.67, "text": "to be the ultimate destination.", "source": "youtube-manual-authenticated"}
+{"id": 310, "start": 1064.67, "end": 1069.23, "text": "And so if you look at the output, what happens", "source": "youtube-manual-authenticated"}
+{"id": 311, "start": 1069.23, "end": 1074.95, "text": "is that the first rank is going to receive everyone", "source": "youtube-manual-authenticated"}
+{"id": 312, "start": 1074.95, "end": 1080.39, "text": "who sent everything in column 0, because all these ranks are", "source": "youtube-manual-authenticated"}
+{"id": 313, "start": 1080.39, "end": 1083.51, "text": "sending these things to rank 0.", "source": "youtube-manual-authenticated"}
+{"id": 314, "start": 1083.51, "end": 1088.67, "text": "Similarly, for rank 1, all of the ranks", "source": "youtube-manual-authenticated"}
+{"id": 315, "start": 1088.67, "end": 1092.37, "text": "are sending this column to rank 1, and so on and so forth.", "source": "youtube-manual-authenticated"}
+{"id": 316, "start": 1096.87, "end": 1102.71, "text": "So this is going to be useful when for training MOEs.", "source": "youtube-manual-authenticated"}
+{"id": 317, "start": 1102.71, "end": 1106.35, "text": "And the intuition here is that each rank", "source": "youtube-manual-authenticated"}
+{"id": 318, "start": 1106.35, "end": 1109.99, "text": "has both a split of the data and also a subset of experts.", "source": "youtube-manual-authenticated"}
+{"id": 319, "start": 1109.99, "end": 1114.07, "text": "And basically, and the key idea of the MOE", "source": "youtube-manual-authenticated"}
+{"id": 320, "start": 1114.07, "end": 1116.17, "text": "is that it's dynamic routing.", "source": "youtube-manual-authenticated"}
+{"id": 321, "start": 1116.17, "end": 1118.39, "text": "You have to look at your data to figure out", "source": "youtube-manual-authenticated"}
+{"id": 322, "start": 1118.39, "end": 1124.63, "text": "which experts you need to route those activations to.", "source": "youtube-manual-authenticated"}
+{"id": 323, "start": 1124.63, "end": 1129.95, "text": "So it ends up being a all to all communication.", "source": "youtube-manual-authenticated"}
+{"id": 324, "start": 1129.95, "end": 1136.19, "text": "So if everything were balanced, meaning that every rank sent", "source": "youtube-manual-authenticated"}
+{"id": 325, "start": 1136.19, "end": 1140.805, "text": "the same number of bytes to every other rank,", "source": "youtube-manual-authenticated"}
+{"id": 326, "start": 1140.805, "end": 1142.43, "text": "then all to all, you can think about it", "source": "youtube-manual-authenticated"}
+{"id": 327, "start": 1142.43, "end": 1143.942, "text": "as essentially a transpose.", "source": "youtube-manual-authenticated"}
+{"id": 328, "start": 1143.942, "end": 1146.15, "text": "If you think about this as a matrix, all you're doing", "source": "youtube-manual-authenticated"}
+{"id": 329, "start": 1146.15, "end": 1148.95, "text": "is transposing that matrix.", "source": "youtube-manual-authenticated"}
+{"id": 330, "start": 1148.95, "end": 1153.71, "text": "But in general, all to all also handles unbalanced splits.", "source": "youtube-manual-authenticated"}
+{"id": 331, "start": 1153.71, "end": 1156.03, "text": "And I'm not showing this here, but you", "source": "youtube-manual-authenticated"}
+{"id": 332, "start": 1156.03, "end": 1159.39, "text": "can configure it to send any number of bytes", "source": "youtube-manual-authenticated"}
+{"id": 333, "start": 1159.39, "end": 1163.23, "text": "to any other rank.", "source": "youtube-manual-authenticated"}
+{"id": 334, "start": 1163.23, "end": 1164.99, "text": "But in general, you want the splits", "source": "youtube-manual-authenticated"}
+{"id": 335, "start": 1164.99, "end": 1167.29, "text": "to be as balanced as possible.", "source": "youtube-manual-authenticated"}
+{"id": 336, "start": 1167.29, "end": 1169.55, "text": "So remember [INAUDIBLE] MOE lecture", "source": "youtube-manual-authenticated"}
+{"id": 337, "start": 1169.55, "end": 1172.98, "text": "where we had load balancing to make sure that things were as", "source": "youtube-manual-authenticated"}
+{"id": 338, "start": 1172.98, "end": 1174.34, "text": "balanced as possible.", "source": "youtube-manual-authenticated"}
+{"id": 339, "start": 1174.34, "end": 1178.82, "text": "So morally, the ideal goal is to have all", "source": "youtube-manual-authenticated"}
+{"id": 340, "start": 1178.82, "end": 1180.28, "text": "to all look kind of like this.", "source": "youtube-manual-authenticated"}
+{"id": 341, "start": 1184.32, "end": 1188.7, "text": "So just to summarize, maybe a few helpful tips to remember", "source": "youtube-manual-authenticated"}
+{"id": 342, "start": 1188.7, "end": 1192.7, "text": "the terminology, because I just went through quite", "source": "youtube-manual-authenticated"}
+{"id": 343, "start": 1192.7, "end": 1196.66, "text": "a few different operations.", "source": "youtube-manual-authenticated"}
+{"id": 344, "start": 1196.66, "end": 1200.04, "text": "So reduce is, well, it's reduced.", "source": "youtube-manual-authenticated"}
+{"id": 345, "start": 1200.04, "end": 1203.66, "text": "It performs on some of associative commutative", "source": "youtube-manual-authenticated"}
+{"id": 346, "start": 1203.66, "end": 1204.4, "text": "operation.", "source": "youtube-manual-authenticated"}
+{"id": 347, "start": 1204.4, "end": 1207.58, "text": "Could be some, could be max, could be min.", "source": "youtube-manual-authenticated"}
+{"id": 348, "start": 1207.58, "end": 1209.66, "text": "Scatter is the inverse gather.", "source": "youtube-manual-authenticated"}
+{"id": 349, "start": 1209.66, "end": 1212.78, "text": "Scatter distributes, gather centralizes.", "source": "youtube-manual-authenticated"}
+{"id": 350, "start": 1212.78, "end": 1217.12, "text": "And all just means that the destination is all devices.", "source": "youtube-manual-authenticated"}
+{"id": 351, "start": 1217.12, "end": 1223.44, "text": "So that explains all reduce and all gather.", "source": "youtube-manual-authenticated"}
+{"id": 352, "start": 1223.44, "end": 1226.3, "text": "Let me pause there to take any questions", "source": "youtube-manual-authenticated"}
+{"id": 353, "start": 1226.3, "end": 1228.32, "text": "about collective communications.", "source": "youtube-manual-authenticated"}
+{"id": 354, "start": 1231.78, "end": 1232.42, "text": "Yeah?", "source": "youtube-manual-authenticated"}
+{"id": 355, "start": 1232.42, "end": 1237.98, "text": "For operations such as gathering where we basically [INAUDIBLE]", "source": "youtube-manual-authenticated"}
+{"id": 356, "start": 1237.98, "end": 1242.3, "text": "to rank 0, does that rank 0 [INAUDIBLE]?", "source": "youtube-manual-authenticated"}
+{"id": 357, "start": 1242.3, "end": 1247.68, "text": "Is it a particular GPU every time or can that rank 0 change?", "source": "youtube-manual-authenticated"}
+{"id": 358, "start": 1247.68, "end": 1248.18, "text": "Yeah.", "source": "youtube-manual-authenticated"}
+{"id": 359, "start": 1248.18, "end": 1252.54, "text": "So the question is when you do a gather or a reduce,", "source": "youtube-manual-authenticated"}
+{"id": 360, "start": 1252.54, "end": 1260.58, "text": "the target where you write the output, right now I said rank 0.", "source": "youtube-manual-authenticated"}
+{"id": 361, "start": 1260.58, "end": 1262.66, "text": "You'll see later in the code, you basically", "source": "youtube-manual-authenticated"}
+{"id": 362, "start": 1262.66, "end": 1270.18, "text": "specify the GPU ID or the rank and it goes there.", "source": "youtube-manual-authenticated"}
+{"id": 363, "start": 1270.18, "end": 1273.22, "text": "So it doesn't have to be determined way in advance,", "source": "youtube-manual-authenticated"}
+{"id": 364, "start": 1273.22, "end": 1275.94, "text": "but it has to be determined basically", "source": "youtube-manual-authenticated"}
+{"id": 365, "start": 1275.94, "end": 1278.24, "text": "when you execute the call.", "source": "youtube-manual-authenticated"}
+{"id": 366, "start": 1283.34, "end": 1284.76, "text": "Cool.", "source": "youtube-manual-authenticated"}
+{"id": 367, "start": 1284.76, "end": 1287.06, "text": "Anything else?", "source": "youtube-manual-authenticated"}
+{"id": 368, "start": 1287.06, "end": 1287.98, "text": "Yeah.", "source": "youtube-manual-authenticated"}
+{"id": 369, "start": 1287.98, "end": 1290.58, "text": "These are just conceptual building blocks, right?", "source": "youtube-manual-authenticated"}
+{"id": 370, "start": 1290.58, "end": 1294.94, "text": "They're not actually [INAUDIBLE].", "source": "youtube-manual-authenticated"}
+{"id": 371, "start": 1294.94, "end": 1300.06, "text": "Are these the actual [INAUDIBLE]?", "source": "youtube-manual-authenticated"}
+{"id": 372, "start": 1300.06, "end": 1302.82, "text": "Yeah, so the question is, are these just conceptual building", "source": "youtube-manual-authenticated"}
+{"id": 373, "start": 1302.82, "end": 1304.04, "text": "blocks or are they code?", "source": "youtube-manual-authenticated"}
+{"id": 374, "start": 1304.04, "end": 1306.74, "text": "So I'm showing these right now as just conceptual building", "source": "youtube-manual-authenticated"}
+{"id": 375, "start": 1306.74, "end": 1308.74, "text": "blocks, but we'll very quickly see how", "source": "youtube-manual-authenticated"}
+{"id": 376, "start": 1308.74, "end": 1310.32, "text": "these are implemented in code.", "source": "youtube-manual-authenticated"}
+{"id": 377, "start": 1313.46, "end": 1316.1, "text": "So before getting into the code, I", "source": "youtube-manual-authenticated"}
+{"id": 378, "start": 1316.1, "end": 1318.94, "text": "want to talk a bit about the hardware,", "source": "youtube-manual-authenticated"}
+{"id": 379, "start": 1318.94, "end": 1321.14, "text": "in particular how GPUs are connected,", "source": "youtube-manual-authenticated"}
+{"id": 380, "start": 1321.14, "end": 1324.94, "text": "because we already what's inside a GPU.", "source": "youtube-manual-authenticated"}
+{"id": 381, "start": 1324.94, "end": 1330.1, "text": "So let's talk about networking in general.", "source": "youtube-manual-authenticated"}
+{"id": 382, "start": 1330.1, "end": 1332.36, "text": "So this is a very classic picture.", "source": "youtube-manual-authenticated"}
+{"id": 383, "start": 1332.36, "end": 1337.34, "text": "You can tell from this very old looking image", "source": "youtube-manual-authenticated"}
+{"id": 384, "start": 1337.34, "end": 1342.58, "text": "that this is how computers, I mean, generally work.", "source": "youtube-manual-authenticated"}
+{"id": 385, "start": 1342.58, "end": 1346.84, "text": "So you have this server and then you have a bunch of CPUs.", "source": "youtube-manual-authenticated"}
+{"id": 386, "start": 1346.84, "end": 1351.66, "text": "There's a PCIe bus, which you connect things like your--", "source": "youtube-manual-authenticated"}
+{"id": 387, "start": 1351.66, "end": 1355.7, "text": "or used to connect things like your mouse and keyboard.", "source": "youtube-manual-authenticated"}
+{"id": 388, "start": 1355.7, "end": 1359.18, "text": "And then you have a bunch of GPUs sitting off of them", "source": "youtube-manual-authenticated"}
+{"id": 389, "start": 1359.18, "end": 1360.82, "text": "and you have some RAM.", "source": "youtube-manual-authenticated"}
+{"id": 390, "start": 1360.82, "end": 1363.06, "text": "And then this computer is connected", "source": "youtube-manual-authenticated"}
+{"id": 391, "start": 1363.06, "end": 1367.02, "text": "to ethernet to another computer, and so on and so forth.", "source": "youtube-manual-authenticated"}
+{"id": 392, "start": 1367.02, "end": 1370.44, "text": "So this is a particular setup.", "source": "youtube-manual-authenticated"}
+{"id": 393, "start": 1370.44, "end": 1372.94, "text": "It's a particular topology.", "source": "youtube-manual-authenticated"}
+{"id": 394, "start": 1372.94, "end": 1380.06, "text": "And GPUs on the same node, you use PCIe to communicate and GPUs", "source": "youtube-manual-authenticated"}
+{"id": 395, "start": 1380.06, "end": 1384.34, "text": "on different nodes, you have to go all the way through ethernet.", "source": "youtube-manual-authenticated"}
+{"id": 396, "start": 1384.34, "end": 1387.62, "text": "So this is like if you bought your gaming GPU", "source": "youtube-manual-authenticated"}
+{"id": 397, "start": 1387.62, "end": 1390.24, "text": "and you had hooked it up with your friend and was like,", "source": "youtube-manual-authenticated"}
+{"id": 398, "start": 1390.24, "end": 1392.5, "text": "I'm going to train some big model.", "source": "youtube-manual-authenticated"}
+{"id": 399, "start": 1392.5, "end": 1394.16, "text": "That's what you would have to do.", "source": "youtube-manual-authenticated"}
+{"id": 400, "start": 1394.16, "end": 1397.54, "text": "But if you're really serious about training,", "source": "youtube-manual-authenticated"}
+{"id": 401, "start": 1397.54, "end": 1401.6, "text": "then things look more like this.", "source": "youtube-manual-authenticated"}
+{"id": 402, "start": 1401.6, "end": 1405.18, "text": "This is the picture I showed in the very beginning", "source": "youtube-manual-authenticated"}
+{"id": 403, "start": 1405.18, "end": 1407.21, "text": "where you have the GPU and there's", "source": "youtube-manual-authenticated"}
+{"id": 404, "start": 1407.21, "end": 1411.33, "text": "something called NVLink and NVSwitch and InfiniBand.", "source": "youtube-manual-authenticated"}
+{"id": 405, "start": 1411.33, "end": 1415.93, "text": "So the typical setup is this.", "source": "youtube-manual-authenticated"}
+{"id": 406, "start": 1415.93, "end": 1418.03, "text": "And these numbers, eight is typical,", "source": "youtube-manual-authenticated"}
+{"id": 407, "start": 1418.03, "end": 1420.93, "text": "but this 256 is kind of made up.", "source": "youtube-manual-authenticated"}
+{"id": 408, "start": 1420.93, "end": 1424.85, "text": "So typically, you have eight GPUs per node.", "source": "youtube-manual-authenticated"}
+{"id": 409, "start": 1424.85, "end": 1432.33, "text": "And these are connected via NVIDIA's NVLink to a switch.", "source": "youtube-manual-authenticated"}
+{"id": 410, "start": 1432.33, "end": 1436.85, "text": "And just for calibration, if you use NVLink 5,", "source": "youtube-manual-authenticated"}
+{"id": 411, "start": 1436.85, "end": 1440.33, "text": "then you're getting 1.8 terabytes", "source": "youtube-manual-authenticated"}
+{"id": 412, "start": 1440.33, "end": 1443.25, "text": "per second of total bandwidth.", "source": "youtube-manual-authenticated"}
+{"id": 413, "start": 1443.25, "end": 1448.79, "text": "And remember, HBM for B200 was 8 terabytes per second.", "source": "youtube-manual-authenticated"}
+{"id": 414, "start": 1448.79, "end": 1453.97, "text": "So it's about 4x slower.", "source": "youtube-manual-authenticated"}
+{"id": 415, "start": 1453.97, "end": 1455.97, "text": "So I mean, this is still pretty fast", "source": "youtube-manual-authenticated"}
+{"id": 416, "start": 1455.97, "end": 1459.65, "text": "if you think about going between devices, but obviously,", "source": "youtube-manual-authenticated"}
+{"id": 417, "start": 1459.65, "end": 1462.59, "text": "not as fast as high bandwidth memory,", "source": "youtube-manual-authenticated"}
+{"id": 418, "start": 1462.59, "end": 1468.45, "text": "which is much slower than shared memory or L1 cache.", "source": "youtube-manual-authenticated"}
+{"id": 419, "start": 1468.45, "end": 1473.29, "text": "So basically, NVLink connects to the switch,", "source": "youtube-manual-authenticated"}
+{"id": 420, "start": 1473.29, "end": 1476.73, "text": "which means that from a programming perspective,", "source": "youtube-manual-authenticated"}
+{"id": 421, "start": 1476.73, "end": 1480.83, "text": "you can think about GPUs as connected to any other GPU.", "source": "youtube-manual-authenticated"}
+{"id": 422, "start": 1480.83, "end": 1484.25, "text": "You go GPU to any other GPU, and the hardware", "source": "youtube-manual-authenticated"}
+{"id": 423, "start": 1484.25, "end": 1487.55, "text": "takes care of transmitting that to the switch,", "source": "youtube-manual-authenticated"}
+{"id": 424, "start": 1487.55, "end": 1491.53, "text": "and the switch routes it.", "source": "youtube-manual-authenticated"}
+{"id": 425, "start": 1491.53, "end": 1496.05, "text": "So typically, what you will also have is that at some point,", "source": "youtube-manual-authenticated"}
+{"id": 426, "start": 1496.05, "end": 1502.33, "text": "you can't have NVSwitch and NVLink.", "source": "youtube-manual-authenticated"}
+{"id": 427, "start": 1502.33, "end": 1506.01, "text": "Because as your number of GPUs grows,", "source": "youtube-manual-authenticated"}
+{"id": 428, "start": 1506.01, "end": 1511.65, "text": "then you're going to have to put these nodes into pods, which", "source": "youtube-manual-authenticated"}
+{"id": 429, "start": 1511.65, "end": 1514.49, "text": "are connected by InfiniBand.", "source": "youtube-manual-authenticated"}
+{"id": 430, "start": 1514.49, "end": 1518.53, "text": "And the way InfiniBand works is that now there's", "source": "youtube-manual-authenticated"}
+{"id": 431, "start": 1518.53, "end": 1524.01, "text": "a bit more the-- so now the GPU doesn't connect directly", "source": "youtube-manual-authenticated"}
+{"id": 432, "start": 1524.01, "end": 1525.39, "text": "to another GPU.", "source": "youtube-manual-authenticated"}
+{"id": 433, "start": 1525.39, "end": 1530.89, "text": "It has to go through PCIe and goes through this kind", "source": "youtube-manual-authenticated"}
+{"id": 434, "start": 1530.89, "end": 1532.75, "text": "of special InfiniBand cable.", "source": "youtube-manual-authenticated"}
+{"id": 435, "start": 1532.75, "end": 1539.37, "text": "And you see that the speeds are much, much lower.", "source": "youtube-manual-authenticated"}
+{"id": 436, "start": 1539.37, "end": 1542.09, "text": "And then finally, if you run out of InfiniBand", "source": "youtube-manual-authenticated"}
+{"id": 437, "start": 1542.09, "end": 1545.77, "text": "and you have these huge pods, then", "source": "youtube-manual-authenticated"}
+{"id": 438, "start": 1545.77, "end": 1549.69, "text": "you need to connect them via ethernet.", "source": "youtube-manual-authenticated"}
+{"id": 439, "start": 1549.69, "end": 1555.05, "text": "And in ethernet, you have to go through PCIe", "source": "youtube-manual-authenticated"}
+{"id": 440, "start": 1555.05, "end": 1558.69, "text": "and that actually goes through the CPU, which as we'll see,", "source": "youtube-manual-authenticated"}
+{"id": 441, "start": 1558.69, "end": 1562.81, "text": "is even slower.", "source": "youtube-manual-authenticated"}
+{"id": 442, "start": 1562.81, "end": 1566.59, "text": "So it's kind of analogous to the kind of memory situation.", "source": "youtube-manual-authenticated"}
+{"id": 443, "start": 1566.59, "end": 1571.07, "text": "The more nodes you have, then the slower it's going to be.", "source": "youtube-manual-authenticated"}
+{"id": 444, "start": 1571.07, "end": 1578.85, "text": "You can't have an NVSwitch handling 100,000 GPUs.", "source": "youtube-manual-authenticated"}
+{"id": 445, "start": 1578.85, "end": 1583.45, "text": "So one note is that I alluded to this bypassing", "source": "youtube-manual-authenticated"}
+{"id": 446, "start": 1583.45, "end": 1589.05, "text": "the CPU, which is going to be an important thing from a hardware", "source": "youtube-manual-authenticated"}
+{"id": 447, "start": 1589.05, "end": 1591.73, "text": "perspective.", "source": "youtube-manual-authenticated"}
+{"id": 448, "start": 1591.73, "end": 1595.33, "text": "So if you have traditional ethernet, what happens", "source": "youtube-manual-authenticated"}
+{"id": 449, "start": 1595.33, "end": 1600.95, "text": "is that the GPU has to talk to the CPU to get its data copied.", "source": "youtube-manual-authenticated"}
+{"id": 450, "start": 1600.95, "end": 1605.37, "text": "So it basically has to copy the data to this.", "source": "youtube-manual-authenticated"}
+{"id": 451, "start": 1605.37, "end": 1607.91, "text": "The CPU has a kernel socket buffer.", "source": "youtube-manual-authenticated"}
+{"id": 452, "start": 1607.91, "end": 1610.75, "text": "Here kernel means not the GPU kernel,", "source": "youtube-manual-authenticated"}
+{"id": 453, "start": 1610.75, "end": 1614.25, "text": "but the CPU, traditional notion of a kernel.", "source": "youtube-manual-authenticated"}
+{"id": 454, "start": 1614.25, "end": 1617.43, "text": "And then it has to build some network packets,", "source": "youtube-manual-authenticated"}
+{"id": 455, "start": 1617.43, "end": 1620.45, "text": "copy to the network interface, and then ship it over.", "source": "youtube-manual-authenticated"}
+{"id": 456, "start": 1620.45, "end": 1625.01, "text": "So this generally introduces a lot of latency.", "source": "youtube-manual-authenticated"}
+{"id": 457, "start": 1625.01, "end": 1628.01, "text": "And so there's this technology called Remote Direct Memory", "source": "youtube-manual-authenticated"}
+{"id": 458, "start": 1628.01, "end": 1633.57, "text": "Access, RDMA, which allows a GPU to directly write or read", "source": "youtube-manual-authenticated"}
+{"id": 459, "start": 1633.57, "end": 1639.45, "text": "from another GPU's memory without using the CPU at all.", "source": "youtube-manual-authenticated"}
+{"id": 460, "start": 1639.45, "end": 1643.72, "text": "So obviously, if you're in NVLink land and NVSwitch land,", "source": "youtube-manual-authenticated"}
+{"id": 461, "start": 1643.72, "end": 1646.0, "text": "then you have RDMA.", "source": "youtube-manual-authenticated"}
+{"id": 462, "start": 1646.0, "end": 1648.84, "text": "InfiniBand also supports RDMA.", "source": "youtube-manual-authenticated"}
+{"id": 463, "start": 1648.84, "end": 1650.76, "text": "So if you're connected via InfiniBand,", "source": "youtube-manual-authenticated"}
+{"id": 464, "start": 1650.76, "end": 1654.44, "text": "then you can directly have GPUs connect to each other", "source": "youtube-manual-authenticated"}
+{"id": 465, "start": 1654.44, "end": 1657.88, "text": "without involving the CPU.", "source": "youtube-manual-authenticated"}
+{"id": 466, "start": 1657.88, "end": 1662.36, "text": "But standard ethernet does not.", "source": "youtube-manual-authenticated"}
+{"id": 467, "start": 1662.36, "end": 1665.96, "text": "There's two notable advancements I will mention.", "source": "youtube-manual-authenticated"}
+{"id": 468, "start": 1668.96, "end": 1671.28, "text": "So NVIDIA has been really pushing", "source": "youtube-manual-authenticated"}
+{"id": 469, "start": 1671.28, "end": 1674.94, "text": "the limits on what you can do with larger and larger pods.", "source": "youtube-manual-authenticated"}
+{"id": 470, "start": 1674.94, "end": 1679.88, "text": "So they have four of basically the B200's and the B300's.", "source": "youtube-manual-authenticated"}
+{"id": 471, "start": 1679.88, "end": 1682.36, "text": "They have something called NVL72,", "source": "youtube-manual-authenticated"}
+{"id": 472, "start": 1682.36, "end": 1686.96, "text": "which means that they have these trays of eight GPUs", "source": "youtube-manual-authenticated"}
+{"id": 473, "start": 1686.96, "end": 1688.34, "text": "but have nine of them.", "source": "youtube-manual-authenticated"}
+{"id": 474, "start": 1688.34, "end": 1690.02, "text": "And so basically, at the end of the day,", "source": "youtube-manual-authenticated"}
+{"id": 475, "start": 1690.02, "end": 1693.72, "text": "you have 72 GPUs that are all kind of NV switched", "source": "youtube-manual-authenticated"}
+{"id": 476, "start": 1693.72, "end": 1695.22, "text": "into one NVLink domain.", "source": "youtube-manual-authenticated"}
+{"id": 477, "start": 1695.22, "end": 1702.08, "text": "And if you remember, the NV link speeds are very fast.", "source": "youtube-manual-authenticated"}
+{"id": 478, "start": 1702.08, "end": 1706.32, "text": "So normally, if you're mortal, you", "source": "youtube-manual-authenticated"}
+{"id": 479, "start": 1706.32, "end": 1709.32, "text": "think, well OK, I have eight GPUs that", "source": "youtube-manual-authenticated"}
+{"id": 480, "start": 1709.32, "end": 1711.06, "text": "are interlinked really fast.", "source": "youtube-manual-authenticated"}
+{"id": 481, "start": 1711.06, "end": 1715.182, "text": "And then outside of that, then things get slowed down a lot.", "source": "youtube-manual-authenticated"}
+{"id": 482, "start": 1715.182, "end": 1716.64, "text": "But if you have a lot of money, you", "source": "youtube-manual-authenticated"}
+{"id": 483, "start": 1716.64, "end": 1719.04, "text": "can buy this really fancy hardware", "source": "youtube-manual-authenticated"}
+{"id": 484, "start": 1719.04, "end": 1726.182, "text": "and you can get really fast interconnects up to 72 GPUs.", "source": "youtube-manual-authenticated"}
+{"id": 485, "start": 1726.182, "end": 1727.64, "text": "And the other thing I'll mention is", "source": "youtube-manual-authenticated"}
+{"id": 486, "start": 1727.64, "end": 1731.68, "text": "that I said standard ethernet doesn't support RDMA,", "source": "youtube-manual-authenticated"}
+{"id": 487, "start": 1731.68, "end": 1735.1, "text": "but there has been progress on the ethernet front as well.", "source": "youtube-manual-authenticated"}
+{"id": 488, "start": 1735.1, "end": 1739.24, "text": "So there's something called RoCE, RDMA", "source": "youtube-manual-authenticated"}
+{"id": 489, "start": 1739.24, "end": 1742.84, "text": "over converged ethernet, where the ethernet actually", "source": "youtube-manual-authenticated"}
+{"id": 490, "start": 1742.84, "end": 1745.84, "text": "bypasses the CPU.", "source": "youtube-manual-authenticated"}
+{"id": 491, "start": 1745.84, "end": 1750.66, "text": "And this is sort of their answer to InfiniBand.", "source": "youtube-manual-authenticated"}
+{"id": 492, "start": 1750.66, "end": 1753.6, "text": "So InfiniBand generally is very expensive,", "source": "youtube-manual-authenticated"}
+{"id": 493, "start": 1753.6, "end": 1757.04, "text": "as is a lot of NVIDIA products.", "source": "youtube-manual-authenticated"}
+{"id": 494, "start": 1757.04, "end": 1761.88, "text": "But you can get pretty good performance", "source": "youtube-manual-authenticated"}
+{"id": 495, "start": 1761.88, "end": 1769.68, "text": "by using RDMA over converged ethernet.", "source": "youtube-manual-authenticated"}
+{"id": 496, "start": 1769.68, "end": 1775.02, "text": "And Meta had some paper showing that they were exploring this.", "source": "youtube-manual-authenticated"}
+{"id": 497, "start": 1775.02, "end": 1778.48, "text": "So [INAUDIBLE] may or may not have been trained", "source": "youtube-manual-authenticated"}
+{"id": 498, "start": 1778.48, "end": 1780.78, "text": "over converged ethernet.", "source": "youtube-manual-authenticated"}
+{"id": 499, "start": 1783.38, "end": 1787.54, "text": "So that's just a brief overview of what the hardware looks like.", "source": "youtube-manual-authenticated"}
+{"id": 500, "start": 1787.54, "end": 1788.62, "text": "You have GPUs.", "source": "youtube-manual-authenticated"}
+{"id": 501, "start": 1788.62, "end": 1793.8, "text": "They're connected via NVLink to NVSwitch over some domain,", "source": "youtube-manual-authenticated"}
+{"id": 502, "start": 1793.8, "end": 1795.44, "text": "maybe 8, maybe 72.", "source": "youtube-manual-authenticated"}
+{"id": 503, "start": 1795.44, "end": 1798.92, "text": "And then it's InfiniBand from there.", "source": "youtube-manual-authenticated"}
+{"id": 504, "start": 1798.92, "end": 1803.12, "text": "And now let's talk about how do you program this.", "source": "youtube-manual-authenticated"}
+{"id": 505, "start": 1803.12, "end": 1805.84, "text": "So at the very lowest level, there's something called", "source": "youtube-manual-authenticated"}
+{"id": 506, "start": 1805.84, "end": 1809.0, "text": "the NVIDIA Collective Communications Library,", "source": "youtube-manual-authenticated"}
+{"id": 507, "start": 1809.0, "end": 1812.56, "text": "NCCL or \"nickel,\" which translates the collective", "source": "youtube-manual-authenticated"}
+{"id": 508, "start": 1812.56, "end": 1817.03, "text": "operations, the all reduce, reduce broadcasts,", "source": "youtube-manual-authenticated"}
+{"id": 509, "start": 1817.03, "end": 1820.47, "text": "into the actual low level packets that are sent between", "source": "youtube-manual-authenticated"}
+{"id": 510, "start": 1820.47, "end": 1822.23, "text": "GPUs.", "source": "youtube-manual-authenticated"}
+{"id": 511, "start": 1822.23, "end": 1827.65, "text": "So what a NCCL does is when you use NCCL,", "source": "youtube-manual-authenticated"}
+{"id": 512, "start": 1827.65, "end": 1831.07, "text": "it's basically like saying, I want to all reduce.", "source": "youtube-manual-authenticated"}
+{"id": 513, "start": 1831.07, "end": 1833.91, "text": "And then NCCL goes and figures out what", "source": "youtube-manual-authenticated"}
+{"id": 514, "start": 1833.91, "end": 1836.67, "text": "is the topology of the hardware, figures out", "source": "youtube-manual-authenticated"}
+{"id": 515, "start": 1836.67, "end": 1839.47, "text": "the path between different GPUs, and then", "source": "youtube-manual-authenticated"}
+{"id": 516, "start": 1839.47, "end": 1842.43, "text": "it actually launches the GPU kernels to send and receive", "source": "youtube-manual-authenticated"}
+{"id": 517, "start": 1842.43, "end": 1843.483, "text": "data.", "source": "youtube-manual-authenticated"}
+{"id": 518, "start": 1843.483, "end": 1845.15, "text": "Because at the end of the day, remember,", "source": "youtube-manual-authenticated"}
+{"id": 519, "start": 1845.15, "end": 1847.91, "text": "everything that runs on a GPU is a kernel.", "source": "youtube-manual-authenticated"}
+{"id": 520, "start": 1847.91, "end": 1850.87, "text": "So there are communication kernels as well", "source": "youtube-manual-authenticated"}
+{"id": 521, "start": 1850.87, "end": 1856.07, "text": "that actually do communication with other GPUs.", "source": "youtube-manual-authenticated"}
+{"id": 522, "start": 1856.07, "end": 1859.61, "text": "So we're not going to look too much more into NCCL,", "source": "youtube-manual-authenticated"}
+{"id": 523, "start": 1859.61, "end": 1861.89, "text": "but just know that it exists.", "source": "youtube-manual-authenticated"}
+{"id": 524, "start": 1864.71, "end": 1867.33, "text": "And then we're going to actually go to PyTorch.", "source": "youtube-manual-authenticated"}
+{"id": 525, "start": 1867.33, "end": 1873.23, "text": "So maybe before that, any questions about hardware?", "source": "youtube-manual-authenticated"}
+{"id": 526, "start": 1873.23, "end": 1874.19, "text": "Yeah.", "source": "youtube-manual-authenticated"}
+{"id": 527, "start": 1874.19, "end": 1878.71, "text": "Can you describe-- there's a rack and a tray.", "source": "youtube-manual-authenticated"}
+{"id": 528, "start": 1881.83, "end": 1885.23, "text": "Can I describe physically a rack and a tray, like what a rack is", "source": "youtube-manual-authenticated"}
+{"id": 529, "start": 1885.23, "end": 1888.11, "text": "and what a tray is?", "source": "youtube-manual-authenticated"}
+{"id": 530, "start": 1888.11, "end": 1892.91, "text": "So for the NV72, so I'm not a hardware expert,", "source": "youtube-manual-authenticated"}
+{"id": 531, "start": 1892.91, "end": 1897.99, "text": "but a rack, I mean, is literally, I mean,", "source": "youtube-manual-authenticated"}
+{"id": 532, "start": 1897.99, "end": 1901.45, "text": "you've seen data centers, literally a rack.", "source": "youtube-manual-authenticated"}
+{"id": 533, "start": 1901.45, "end": 1905.23, "text": "And each tray is something that has--", "source": "youtube-manual-authenticated"}
+{"id": 534, "start": 1905.23, "end": 1908.25, "text": "so the G stands for a [? great. ?]", "source": "youtube-manual-authenticated"}
+{"id": 535, "start": 1908.25, "end": 1910.43, "text": "So there's two CPUs.", "source": "youtube-manual-authenticated"}
+{"id": 536, "start": 1910.43, "end": 1913.09, "text": "And each CPU is connected to four GPUs.", "source": "youtube-manual-authenticated"}
+{"id": 537, "start": 1913.09, "end": 1917.49, "text": "So each tray has eight GPUs on it.", "source": "youtube-manual-authenticated"}
+{"id": 538, "start": 1917.49, "end": 1920.11, "text": "And they're stacked and everything", "source": "youtube-manual-authenticated"}
+{"id": 539, "start": 1920.11, "end": 1923.09, "text": "is connected to this NVSwitch.", "source": "youtube-manual-authenticated"}
+{"id": 540, "start": 1927.07, "end": 1927.91, "text": "Yeah.", "source": "youtube-manual-authenticated"}
+{"id": 541, "start": 1927.91, "end": 1930.062, "text": "[INAUDIBLE]", "source": "youtube-manual-authenticated"}
+{"id": 542, "start": 1935.337, "end": 1937.67, "text": "Yeah, so the question is, what is the difference between", "source": "youtube-manual-authenticated"}
+{"id": 543, "start": 1937.67, "end": 1939.0, "text": "[INAUDIBLE].", "source": "youtube-manual-authenticated"}
+{"id": 544, "start": 1939.0, "end": 1941.91, "text": "[INAUDIBLE]", "source": "youtube-manual-authenticated"}
+{"id": 545, "start": 1941.91, "end": 1942.41, "text": "Yeah.", "source": "youtube-manual-authenticated"}
+{"id": 546, "start": 1942.41, "end": 1947.61, "text": "So RDMA, you can think about it as more of a desiderata.", "source": "youtube-manual-authenticated"}
+{"id": 547, "start": 1947.61, "end": 1950.63, "text": "RDMA means that one GPU can read and write", "source": "youtube-manual-authenticated"}
+{"id": 548, "start": 1950.63, "end": 1952.71, "text": "from another GPU's memory.", "source": "youtube-manual-authenticated"}
+{"id": 549, "start": 1952.71, "end": 1955.79, "text": "And there's multiple ways to do RDMA.", "source": "youtube-manual-authenticated"}
+{"id": 550, "start": 1955.79, "end": 1959.35, "text": "One is to use NVLink and NVSwitch", "source": "youtube-manual-authenticated"}
+{"id": 551, "start": 1959.35, "end": 1962.05, "text": "and another way is to use InfiniBand.", "source": "youtube-manual-authenticated"}
+{"id": 552, "start": 1964.91, "end": 1968.71, "text": "So InfiniBand and NVSwitch and NVLink", "source": "youtube-manual-authenticated"}
+{"id": 553, "start": 1968.71, "end": 1975.55, "text": "are more the hardware, what pieces, what cables and switches", "source": "youtube-manual-authenticated"}
+{"id": 554, "start": 1975.55, "end": 1976.63, "text": "are there.", "source": "youtube-manual-authenticated"}
+{"id": 555, "start": 1976.63, "end": 1982.59, "text": "And RDMA is more operation, what happens", "source": "youtube-manual-authenticated"}
+{"id": 556, "start": 1982.59, "end": 1984.03, "text": "when you're communicating.", "source": "youtube-manual-authenticated"}
+{"id": 557, "start": 1984.03, "end": 1986.342, "text": "[INAUDIBLE]", "source": "youtube-manual-authenticated"}
+{"id": 558, "start": 1995.21, "end": 1995.71, "text": "Yeah.", "source": "youtube-manual-authenticated"}
+{"id": 559, "start": 1995.71, "end": 1998.83, "text": "For example, this [? advancement ?] RDMA", "source": "youtube-manual-authenticated"}
+{"id": 560, "start": 1998.83, "end": 2001.85, "text": "over converged ethernet is another way to do RDMA.", "source": "youtube-manual-authenticated"}
+{"id": 561, "start": 2001.85, "end": 2003.47, "text": "[INAUDIBLE]", "source": "youtube-manual-authenticated"}
+{"id": 562, "start": 2012.61, "end": 2013.35, "text": "Yeah?", "source": "youtube-manual-authenticated"}
+{"id": 563, "start": 2013.35, "end": 2019.47, "text": "Is NCCL optimized for multi-node clusters?", "source": "youtube-manual-authenticated"}
+{"id": 564, "start": 2019.47, "end": 2023.35, "text": "Because obviously, it seems intuitive [INAUDIBLE].", "source": "youtube-manual-authenticated"}
+{"id": 565, "start": 2023.35, "end": 2030.95, "text": "But for RDMA based processes, would NCCL be optimal for that?", "source": "youtube-manual-authenticated"}
+{"id": 566, "start": 2030.95, "end": 2033.51, "text": "So the question is, is NCCL optimized", "source": "youtube-manual-authenticated"}
+{"id": 567, "start": 2033.51, "end": 2036.77, "text": "for multi-node clusters?", "source": "youtube-manual-authenticated"}
+{"id": 568, "start": 2039.71, "end": 2045.75, "text": "So I don't know the details of how they have or have not", "source": "youtube-manual-authenticated"}
+{"id": 569, "start": 2045.75, "end": 2046.77, "text": "optimized it.", "source": "youtube-manual-authenticated"}
+{"id": 570, "start": 2046.77, "end": 2052.38, "text": "All I can say is that NVIDIA has been basically optimizing", "source": "youtube-manual-authenticated"}
+{"id": 571, "start": 2052.38, "end": 2056.179, "text": "their entire stack for inference and training", "source": "youtube-manual-authenticated"}
+{"id": 572, "start": 2056.179, "end": 2059.5, "text": "of these large models, because their main customers are", "source": "youtube-manual-authenticated"}
+{"id": 573, "start": 2059.5, "end": 2063.36, "text": "the major providers of language models.", "source": "youtube-manual-authenticated"}
+{"id": 574, "start": 2063.36, "end": 2067.3, "text": "So I would be surprised if they haven't thought of optimizing", "source": "youtube-manual-authenticated"}
+{"id": 575, "start": 2067.3, "end": 2069.08, "text": "for those type of workloads.", "source": "youtube-manual-authenticated"}
+{"id": 576, "start": 2071.94, "end": 2072.82, "text": "Yeah?", "source": "youtube-manual-authenticated"}
+{"id": 577, "start": 2072.82, "end": 2075.06, "text": "[INAUDIBLE]", "source": "youtube-manual-authenticated"}
+{"id": 578, "start": 2084.26, "end": 2087.76, "text": "So the question is, what happens if you have nine GPUs?", "source": "youtube-manual-authenticated"}
+{"id": 579, "start": 2087.76, "end": 2091.76, "text": "How do you distribute the workload across those?", "source": "youtube-manual-authenticated"}
+{"id": 580, "start": 2095.98, "end": 2097.74, "text": "I guess it kind of depends on how", "source": "youtube-manual-authenticated"}
+{"id": 581, "start": 2097.74, "end": 2100.74, "text": "the nine lands in your setup.", "source": "youtube-manual-authenticated"}
+{"id": 582, "start": 2100.74, "end": 2103.18, "text": "For example, a lot of times you'll have--", "source": "youtube-manual-authenticated"}
+{"id": 583, "start": 2103.18, "end": 2106.98, "text": "let's say you have eight GPUs per node.", "source": "youtube-manual-authenticated"}
+{"id": 584, "start": 2106.98, "end": 2109.34, "text": "So then the ninth one would be on a different node.", "source": "youtube-manual-authenticated"}
+{"id": 585, "start": 2109.34, "end": 2114.48, "text": "And if you don't have NVLink connecting them,", "source": "youtube-manual-authenticated"}
+{"id": 586, "start": 2114.48, "end": 2116.98, "text": "then that's going to be really bad, because that's", "source": "youtube-manual-authenticated"}
+{"id": 587, "start": 2116.98, "end": 2118.9, "text": "going to be one node which is not providing", "source": "youtube-manual-authenticated"}
+{"id": 588, "start": 2118.9, "end": 2123.86, "text": "that much compute and also very expensive to communicate with.", "source": "youtube-manual-authenticated"}
+{"id": 589, "start": 2123.86, "end": 2127.3, "text": "But if you, let's say, had everything", "source": "youtube-manual-authenticated"}
+{"id": 590, "start": 2127.3, "end": 2129.86, "text": "were connected by NVSwitch, then it", "source": "youtube-manual-authenticated"}
+{"id": 591, "start": 2129.86, "end": 2133.98, "text": "would be much more reasonable.", "source": "youtube-manual-authenticated"}
+{"id": 592, "start": 2133.98, "end": 2136.34, "text": "One more question and I'm going to move on.", "source": "youtube-manual-authenticated"}
+{"id": 593, "start": 2139.06, "end": 2143.02, "text": "So how is this different from TPUs?", "source": "youtube-manual-authenticated"}
+{"id": 594, "start": 2143.02, "end": 2147.42, "text": "So [INAUDIBLE] described TPUs a bit more.", "source": "youtube-manual-authenticated"}
+{"id": 595, "start": 2147.42, "end": 2153.22, "text": "So I mean, let's see.", "source": "youtube-manual-authenticated"}
+{"id": 596, "start": 2153.22, "end": 2156.94, "text": "What can I say quickly about this?", "source": "youtube-manual-authenticated"}
+{"id": 597, "start": 2156.94, "end": 2163.18, "text": "So TPUs are generally much simpler objects.", "source": "youtube-manual-authenticated"}
+{"id": 598, "start": 2163.18, "end": 2167.46, "text": "I'm not too familiar with the details of what", "source": "youtube-manual-authenticated"}
+{"id": 599, "start": 2167.46, "end": 2169.44, "text": "each of these components corresponds to,", "source": "youtube-manual-authenticated"}
+{"id": 600, "start": 2169.44, "end": 2171.32, "text": "but maybe we can talk about it offline.", "source": "youtube-manual-authenticated"}
+{"id": 601, "start": 2173.9, "end": 2176.46, "text": "So let's actually get down to some code", "source": "youtube-manual-authenticated"}
+{"id": 602, "start": 2176.46, "end": 2180.32, "text": "to take advantage of this hardware.", "source": "youtube-manual-authenticated"}
+{"id": 603, "start": 2180.32, "end": 2183.5, "text": "So PyTorch conveniently has a torch", "source": "youtube-manual-authenticated"}
+{"id": 604, "start": 2183.5, "end": 2185.74, "text": "distributed library that provides", "source": "youtube-manual-authenticated"}
+{"id": 605, "start": 2185.74, "end": 2189.54, "text": "a clean interface into these collective operations.", "source": "youtube-manual-authenticated"}
+{"id": 606, "start": 2189.54, "end": 2194.14, "text": "So you don't have to explicitly think about NCCL.", "source": "youtube-manual-authenticated"}
+{"id": 607, "start": 2194.14, "end": 2198.1, "text": "And in fact, this library also supports different backends", "source": "youtube-manual-authenticated"}
+{"id": 608, "start": 2198.1, "end": 2199.66, "text": "for different hardware.", "source": "youtube-manual-authenticated"}
+{"id": 609, "start": 2199.66, "end": 2203.18, "text": "So if you are on GPUs, then you would use the NCCL backend.", "source": "youtube-manual-authenticated"}
+{"id": 610, "start": 2203.18, "end": 2205.26, "text": "And if you were on CPUs, then there's", "source": "youtube-manual-authenticated"}
+{"id": 611, "start": 2205.26, "end": 2208.72, "text": "something called gloo which still allows you to--", "source": "youtube-manual-authenticated"}
+{"id": 612, "start": 2208.72, "end": 2211.3, "text": "like I said, parallel processing has been around", "source": "youtube-manual-authenticated"}
+{"id": 613, "start": 2211.3, "end": 2214.9, "text": "for a long time before GPUs.", "source": "youtube-manual-authenticated"}
+{"id": 614, "start": 2214.9, "end": 2221.38, "text": "And you can do these collect operations on CPUs as well.", "source": "youtube-manual-authenticated"}
+{"id": 615, "start": 2221.38, "end": 2224.14, "text": "This library also supports higher level models", "source": "youtube-manual-authenticated"}
+{"id": 616, "start": 2224.14, "end": 2228.05, "text": "and algorithms such as SFTP, but we're not", "source": "youtube-manual-authenticated"}
+{"id": 617, "start": 2228.05, "end": 2230.77, "text": "going to use those in the course because we're building things", "source": "youtube-manual-authenticated"}
+{"id": 618, "start": 2230.77, "end": 2232.77, "text": "from scratch.", "source": "youtube-manual-authenticated"}
+{"id": 619, "start": 2232.77, "end": 2233.31, "text": "All right.", "source": "youtube-manual-authenticated"}
+{"id": 620, "start": 2233.31, "end": 2236.77, "text": "So let's walk through some basic examples", "source": "youtube-manual-authenticated"}
+{"id": 621, "start": 2236.77, "end": 2239.57, "text": "of collective operations.", "source": "youtube-manual-authenticated"}
+{"id": 622, "start": 2239.57, "end": 2242.21, "text": "So there's this function called spawn,", "source": "youtube-manual-authenticated"}
+{"id": 623, "start": 2242.21, "end": 2245.13, "text": "which takes another function I'm going to call,", "source": "youtube-manual-authenticated"}
+{"id": 624, "start": 2245.13, "end": 2250.21, "text": "and it says I'm going to run this replicated four times where", "source": "youtube-manual-authenticated"}
+{"id": 625, "start": 2250.21, "end": 2252.09, "text": "four is the world size.", "source": "youtube-manual-authenticated"}
+{"id": 626, "start": 2252.09, "end": 2254.77, "text": "So let's see what this does.", "source": "youtube-manual-authenticated"}
+{"id": 627, "start": 2254.77, "end": 2258.97, "text": "This is actually a wrapper I wrote just", "source": "youtube-manual-authenticated"}
+{"id": 628, "start": 2258.97, "end": 2263.13, "text": "to hack around the fact that I can't do multiprocessing", "source": "youtube-manual-authenticated"}
+{"id": 629, "start": 2263.13, "end": 2264.77, "text": "in this lecture.", "source": "youtube-manual-authenticated"}
+{"id": 630, "start": 2264.77, "end": 2267.37, "text": "So normally what you would do is you", "source": "youtube-manual-authenticated"}
+{"id": 631, "start": 2267.37, "end": 2273.37, "text": "call Torch's multiprocessing.spawn", "source": "youtube-manual-authenticated"}
+{"id": 632, "start": 2273.37, "end": 2276.01, "text": "and you call the function.", "source": "youtube-manual-authenticated"}
+{"id": 633, "start": 2276.01, "end": 2280.71, "text": "But I'm going to do this branch which disables distributed.", "source": "youtube-manual-authenticated"}
+{"id": 634, "start": 2280.71, "end": 2282.65, "text": "So let's just go through that.", "source": "youtube-manual-authenticated"}
+{"id": 635, "start": 2282.65, "end": 2286.93, "text": "So now I'm in this function that it's", "source": "youtube-manual-authenticated"}
+{"id": 636, "start": 2286.93, "end": 2291.85, "text": "supposed to be running asynchronously for each process.", "source": "youtube-manual-authenticated"}
+{"id": 637, "start": 2291.85, "end": 2295.01, "text": "So remember, world size is the number of processes", "source": "youtube-manual-authenticated"}
+{"id": 638, "start": 2295.01, "end": 2300.21, "text": "and the rank is either 0 or 1 or 2 all the way up to world", "source": "youtube-manual-authenticated"}
+{"id": 639, "start": 2300.21, "end": 2301.69, "text": "size minus 1.", "source": "youtube-manual-authenticated"}
+{"id": 640, "start": 2301.69, "end": 2303.45, "text": "And so there are world size number", "source": "youtube-manual-authenticated"}
+{"id": 641, "start": 2303.45, "end": 2305.41, "text": "of these functions that are each running", "source": "youtube-manual-authenticated"}
+{"id": 642, "start": 2305.41, "end": 2308.17, "text": "on a process at the same time.", "source": "youtube-manual-authenticated"}
+{"id": 643, "start": 2308.17, "end": 2311.11, "text": "So I'm on rank 0 right now.", "source": "youtube-manual-authenticated"}
+{"id": 644, "start": 2311.11, "end": 2313.09, "text": "So what do I do?", "source": "youtube-manual-authenticated"}
+{"id": 645, "start": 2313.09, "end": 2315.01, "text": "There's a setup.", "source": "youtube-manual-authenticated"}
+{"id": 646, "start": 2315.01, "end": 2321.45, "text": "You basically configure the master address and port.", "source": "youtube-manual-authenticated"}
+{"id": 647, "start": 2321.45, "end": 2325.115, "text": "Notice that this is not actually how the GPUs are", "source": "youtube-manual-authenticated"}
+{"id": 648, "start": 2325.115, "end": 2325.99, "text": "going to communicate.", "source": "youtube-manual-authenticated"}
+{"id": 649, "start": 2325.99, "end": 2329.75, "text": "This is more for general metadata and coordination.", "source": "youtube-manual-authenticated"}
+{"id": 650, "start": 2329.75, "end": 2331.63, "text": "The actual data goes through NCCL.", "source": "youtube-manual-authenticated"}
+{"id": 651, "start": 2331.63, "end": 2334.97, "text": "Otherwise, it would be very, very slow.", "source": "youtube-manual-authenticated"}
+{"id": 652, "start": 2334.97, "end": 2337.53, "text": "And if you have Cuda available, then you", "source": "youtube-manual-authenticated"}
+{"id": 653, "start": 2337.53, "end": 2339.61, "text": "can use the NCCL backend.", "source": "youtube-manual-authenticated"}
+{"id": 654, "start": 2339.61, "end": 2344.25, "text": "I'm on my laptop, so I'm going to use the gloo backend.", "source": "youtube-manual-authenticated"}
+{"id": 655, "start": 2344.25, "end": 2348.69, "text": "OK, so now I'm here.", "source": "youtube-manual-authenticated"}
+{"id": 656, "start": 2348.69, "end": 2353.05, "text": "Pretend I have four of these processes running.", "source": "youtube-manual-authenticated"}
+{"id": 657, "start": 2353.05, "end": 2359.05, "text": "So there's this barrier function, which is useful as--", "source": "youtube-manual-authenticated"}
+{"id": 658, "start": 2359.05, "end": 2360.51, "text": "it's a synchronization barrier.", "source": "youtube-manual-authenticated"}
+{"id": 659, "start": 2360.51, "end": 2364.41, "text": "So basically, if I see this, then it", "source": "youtube-manual-authenticated"}
+{"id": 660, "start": 2364.41, "end": 2367.45, "text": "waits for all the processes to get to this point.", "source": "youtube-manual-authenticated"}
+{"id": 661, "start": 2370.41, "end": 2373.57, "text": "So basically, you can think about all the processes", "source": "youtube-manual-authenticated"}
+{"id": 662, "start": 2373.57, "end": 2375.687, "text": "are running asynchronously.", "source": "youtube-manual-authenticated"}
+{"id": 663, "start": 2375.687, "end": 2376.77, "text": "So I don't really control.", "source": "youtube-manual-authenticated"}
+{"id": 664, "start": 2376.77, "end": 2379.07, "text": "One could completely finish before the other.", "source": "youtube-manual-authenticated"}
+{"id": 665, "start": 2379.07, "end": 2382.33, "text": "They might finish interleaved in any way.", "source": "youtube-manual-authenticated"}
+{"id": 666, "start": 2382.33, "end": 2385.13, "text": "So if I want to make sure that there's", "source": "youtube-manual-authenticated"}
+{"id": 667, "start": 2385.13, "end": 2388.89, "text": "some code that is executed before other code,", "source": "youtube-manual-authenticated"}
+{"id": 668, "start": 2388.89, "end": 2392.49, "text": "I put these synchronization barriers in.", "source": "youtube-manual-authenticated"}
+{"id": 669, "start": 2392.49, "end": 2394.85, "text": "So now the downside of putting more barriers in", "source": "youtube-manual-authenticated"}
+{"id": 670, "start": 2394.85, "end": 2398.49, "text": "is that, well, you end up kind of waiting potentially", "source": "youtube-manual-authenticated"}
+{"id": 671, "start": 2398.49, "end": 2401.79, "text": "unnecessarily.", "source": "youtube-manual-authenticated"}
+{"id": 672, "start": 2401.79, "end": 2404.61, "text": "So let's try an all reduce.", "source": "youtube-manual-authenticated"}
+{"id": 673, "start": 2404.61, "end": 2411.09, "text": "So I'm going to create this tensor, 0, 1, 2, 3.", "source": "youtube-manual-authenticated"}
+{"id": 674, "start": 2411.09, "end": 2413.795, "text": "And I have my rank.", "source": "youtube-manual-authenticated"}
+{"id": 675, "start": 2413.795, "end": 2415.17, "text": "Just to make it more interesting,", "source": "youtube-manual-authenticated"}
+{"id": 676, "start": 2415.17, "end": 2420.53, "text": "each rank is going to have a different tensor.", "source": "youtube-manual-authenticated"}
+{"id": 677, "start": 2420.53, "end": 2423.71, "text": "I'm going to print out what I have before the all reduce.", "source": "youtube-manual-authenticated"}
+{"id": 678, "start": 2423.71, "end": 2427.41, "text": "So now I'm going to skip over here and see", "source": "youtube-manual-authenticated"}
+{"id": 679, "start": 2427.41, "end": 2430.49, "text": "what gets printed out.", "source": "youtube-manual-authenticated"}
+{"id": 680, "start": 2430.49, "end": 2436.05, "text": "So rank 0 before all reduce has 0, 1, 2, 3.", "source": "youtube-manual-authenticated"}
+{"id": 681, "start": 2436.05, "end": 2438.31, "text": "Rank 1 has 1, 2, 3, 4, and so on.", "source": "youtube-manual-authenticated"}
+{"id": 682, "start": 2438.31, "end": 2440.77, "text": "It's the same example as I showed before.", "source": "youtube-manual-authenticated"}
+{"id": 683, "start": 2440.77, "end": 2444.13, "text": "Notice that the print statements are coming in whatever order", "source": "youtube-manual-authenticated"}
+{"id": 684, "start": 2444.13, "end": 2447.25, "text": "the hardware feels like it, because it's running async.", "source": "youtube-manual-authenticated"}
+{"id": 685, "start": 2447.25, "end": 2448.63, "text": "But all the data is there.", "source": "youtube-manual-authenticated"}
+{"id": 686, "start": 2451.17, "end": 2457.41, "text": "So now if I do all reduce, and this you pass in--", "source": "youtube-manual-authenticated"}
+{"id": 687, "start": 2457.41, "end": 2458.63, "text": "this is a PyTorch function.", "source": "youtube-manual-authenticated"}
+{"id": 688, "start": 2458.63, "end": 2461.6, "text": "It passes in this tensor.", "source": "youtube-manual-authenticated"}
+{"id": 689, "start": 2461.6, "end": 2464.92, "text": "You pass in the reduction operation, which is a sum.", "source": "youtube-manual-authenticated"}
+{"id": 690, "start": 2464.92, "end": 2468.48, "text": "And I'm going to say don't do async.", "source": "youtube-manual-authenticated"}
+{"id": 691, "start": 2468.48, "end": 2472.52, "text": "And what this does is it calls, in this case, it would be gloo,", "source": "youtube-manual-authenticated"}
+{"id": 692, "start": 2472.52, "end": 2475.56, "text": "but it could be NCCL, in which case, it", "source": "youtube-manual-authenticated"}
+{"id": 693, "start": 2475.56, "end": 2478.02, "text": "would spin up the Cuda kernels.", "source": "youtube-manual-authenticated"}
+{"id": 694, "start": 2478.02, "end": 2479.38, "text": "It would do the communication.", "source": "youtube-manual-authenticated"}
+{"id": 695, "start": 2479.38, "end": 2481.88, "text": "It takes care of everything for you.", "source": "youtube-manual-authenticated"}
+{"id": 696, "start": 2481.88, "end": 2486.0, "text": "And then it basically writes in place to the data.", "source": "youtube-manual-authenticated"}
+{"id": 697, "start": 2486.0, "end": 2491.38, "text": "So after the all reduce, I have the all reduce operation,", "source": "youtube-manual-authenticated"}
+{"id": 698, "start": 2491.38, "end": 2494.36, "text": "remember, which is the sum of each of these columns", "source": "youtube-manual-authenticated"}
+{"id": 699, "start": 2494.36, "end": 2496.5, "text": "but replicated across all the ranks.", "source": "youtube-manual-authenticated"}
+{"id": 700, "start": 2500.92, "end": 2504.8, "text": "So that's all reduce.", "source": "youtube-manual-authenticated"}
+{"id": 701, "start": 2504.8, "end": 2508.92, "text": "And if you wanted to be fancier and do async,", "source": "youtube-manual-authenticated"}
+{"id": 702, "start": 2508.92, "end": 2511.16, "text": "then you could say async equals true.", "source": "youtube-manual-authenticated"}
+{"id": 703, "start": 2511.16, "end": 2513.42, "text": "But then it would screw up all these print statements.", "source": "youtube-manual-authenticated"}
+{"id": 704, "start": 2513.42, "end": 2516.56, "text": "So I'm trying to put more barriers than I would normally", "source": "youtube-manual-authenticated"}
+{"id": 705, "start": 2516.56, "end": 2519.0, "text": "would.", "source": "youtube-manual-authenticated"}
+{"id": 706, "start": 2519.0, "end": 2521.04, "text": "Yeah, question?", "source": "youtube-manual-authenticated"}
+{"id": 707, "start": 2521.04, "end": 2523.952, "text": "[INAUDIBLE]", "source": "youtube-manual-authenticated"}
+{"id": 708, "start": 2528.56, "end": 2531.6, "text": "So the question is the rank the GPU.", "source": "youtube-manual-authenticated"}
+{"id": 709, "start": 2531.6, "end": 2535.18, "text": "For this class, the rank is the GPU.", "source": "youtube-manual-authenticated"}
+{"id": 710, "start": 2539.34, "end": 2542.84, "text": "So let's try another example here.", "source": "youtube-manual-authenticated"}
+{"id": 711, "start": 2542.84, "end": 2546.16, "text": "So I'm going to do a reduce scatter.", "source": "youtube-manual-authenticated"}
+{"id": 712, "start": 2546.16, "end": 2550.92, "text": "So here, I'm going to create an input, which", "source": "youtube-manual-authenticated"}
+{"id": 713, "start": 2550.92, "end": 2556.08, "text": "is 0 through the world size.", "source": "youtube-manual-authenticated"}
+{"id": 714, "start": 2556.08, "end": 2564.4, "text": "And I'm going to have the output.", "source": "youtube-manual-authenticated"}
+{"id": 715, "start": 2564.4, "end": 2566.44, "text": "I'm going to allocate the output.", "source": "youtube-manual-authenticated"}
+{"id": 716, "start": 2566.44, "end": 2569.88, "text": "And so what does this look like before I do the reduce scatter?", "source": "youtube-manual-authenticated"}
+{"id": 717, "start": 2569.88, "end": 2579.4, "text": "It looks like, let's see, this, where it's the same input", "source": "youtube-manual-authenticated"}
+{"id": 718, "start": 2579.4, "end": 2581.38, "text": "and the output happens to be zeros,", "source": "youtube-manual-authenticated"}
+{"id": 719, "start": 2581.38, "end": 2584.64, "text": "but it could be just anything.", "source": "youtube-manual-authenticated"}
+{"id": 720, "start": 2584.64, "end": 2588.68, "text": "And then I do the reduce scatter tensor.", "source": "youtube-manual-authenticated"}
+{"id": 721, "start": 2588.68, "end": 2590.08, "text": "Here instead of writing in place,", "source": "youtube-manual-authenticated"}
+{"id": 722, "start": 2590.08, "end": 2593.2, "text": "I have an output tensor and an input tensor.", "source": "youtube-manual-authenticated"}
+{"id": 723, "start": 2593.2, "end": 2596.52, "text": "I say I want to do the sum and then", "source": "youtube-manual-authenticated"}
+{"id": 724, "start": 2596.52, "end": 2601.7, "text": "afterwards, I get basically the input is not touched,", "source": "youtube-manual-authenticated"}
+{"id": 725, "start": 2601.7, "end": 2605.64, "text": "but the output I get the reduction", "source": "youtube-manual-authenticated"}
+{"id": 726, "start": 2605.64, "end": 2608.9, "text": "of each component written into the respective ranks.", "source": "youtube-manual-authenticated"}
+{"id": 727, "start": 2616.88, "end": 2621.04, "text": "So yeah, question?", "source": "youtube-manual-authenticated"}
+{"id": 728, "start": 2621.04, "end": 2623.83, "text": "[INAUDIBLE]", "source": "youtube-manual-authenticated"}
+{"id": 729, "start": 2631.04, "end": 2632.8, "text": "So the question is, how does it work", "source": "youtube-manual-authenticated"}
+{"id": 730, "start": 2632.8, "end": 2635.7, "text": "to do the all reduces asynchronous?", "source": "youtube-manual-authenticated"}
+{"id": 731, "start": 2635.7, "end": 2641.34, "text": "So what this means is that this is like a monolithic operation.", "source": "youtube-manual-authenticated"}
+{"id": 732, "start": 2641.34, "end": 2643.32, "text": "You say go do the all reduce.", "source": "youtube-manual-authenticated"}
+{"id": 733, "start": 2643.32, "end": 2646.02, "text": "And it's spinning up Cuda kernels.", "source": "youtube-manual-authenticated"}
+{"id": 734, "start": 2646.02, "end": 2649.4, "text": "It's going to do the communication.", "source": "youtube-manual-authenticated"}
+{"id": 735, "start": 2649.4, "end": 2653.84, "text": "And remember, Cuda is already kind of async with respect", "source": "youtube-manual-authenticated"}
+{"id": 736, "start": 2653.84, "end": 2656.4, "text": "to the processes, and now we have", "source": "youtube-manual-authenticated"}
+{"id": 737, "start": 2656.4, "end": 2658.36, "text": "all the processes being async.", "source": "youtube-manual-authenticated"}
+{"id": 738, "start": 2658.36, "end": 2664.8, "text": "And the point is that this code just would return.", "source": "youtube-manual-authenticated"}
+{"id": 739, "start": 2664.8, "end": 2669.44, "text": "And then you could do other things.", "source": "youtube-manual-authenticated"}
+{"id": 740, "start": 2669.44, "end": 2672.44, "text": "So a typical thing, which I'm not", "source": "youtube-manual-authenticated"}
+{"id": 741, "start": 2672.44, "end": 2676.44, "text": "going to talk about this class, is overlapping computation", "source": "youtube-manual-authenticated"}
+{"id": 742, "start": 2676.44, "end": 2678.36, "text": "and communication.", "source": "youtube-manual-authenticated"}
+{"id": 743, "start": 2678.36, "end": 2683.06, "text": "So for example, you can do this operation,", "source": "youtube-manual-authenticated"}
+{"id": 744, "start": 2683.06, "end": 2685.56, "text": "and then you can go ahead and load some other data", "source": "youtube-manual-authenticated"}
+{"id": 745, "start": 2685.56, "end": 2690.28, "text": "for the next step, which is independent of this operation.", "source": "youtube-manual-authenticated"}
+{"id": 746, "start": 2690.28, "end": 2696.13, "text": "And then when you want to make sure that you actually are done,", "source": "youtube-manual-authenticated"}
+{"id": 747, "start": 2696.13, "end": 2698.61, "text": "then you can call a weight or a barrier.", "source": "youtube-manual-authenticated"}
+{"id": 748, "start": 2703.99, "end": 2708.25, "text": "So let's do the final one, which is all gather.", "source": "youtube-manual-authenticated"}
+{"id": 749, "start": 2708.25, "end": 2710.87, "text": "So by now, I think you get the idea.", "source": "youtube-manual-authenticated"}
+{"id": 750, "start": 2710.87, "end": 2713.43, "text": "Here I'm going to set as the input", "source": "youtube-manual-authenticated"}
+{"id": 751, "start": 2713.43, "end": 2717.23, "text": "the output of the reduce scatter.", "source": "youtube-manual-authenticated"}
+{"id": 752, "start": 2717.23, "end": 2720.11, "text": "I'm going to allocate an output.", "source": "youtube-manual-authenticated"}
+{"id": 753, "start": 2720.11, "end": 2724.05, "text": "So before the all gather, it looks like this.", "source": "youtube-manual-authenticated"}
+{"id": 754, "start": 2724.05, "end": 2728.63, "text": "I have my results from the reduce scatter here.", "source": "youtube-manual-authenticated"}
+{"id": 755, "start": 2728.63, "end": 2732.25, "text": "The output is just allocated.", "source": "youtube-manual-authenticated"}
+{"id": 756, "start": 2732.25, "end": 2737.79, "text": "It happens to have some values in it, but don't worry about it.", "source": "youtube-manual-authenticated"}
+{"id": 757, "start": 2737.79, "end": 2744.63, "text": "And then after I do the all gather into tensor,", "source": "youtube-manual-authenticated"}
+{"id": 758, "start": 2744.63, "end": 2755.19, "text": "and then I will have all the different inputs gathered", "source": "youtube-manual-authenticated"}
+{"id": 759, "start": 2755.19, "end": 2759.11, "text": "onto all the different ranks.", "source": "youtube-manual-authenticated"}
+{"id": 760, "start": 2759.11, "end": 2762.91, "text": "And you can see here that, indeed,", "source": "youtube-manual-authenticated"}
+{"id": 761, "start": 2762.91, "end": 2765.19, "text": "proof via example that all reduce", "source": "youtube-manual-authenticated"}
+{"id": 762, "start": 2765.19, "end": 2767.97, "text": "is equal to reduce scatter plus all gather.", "source": "youtube-manual-authenticated"}
+{"id": 763, "start": 2773.27, "end": 2780.55, "text": "And then just to wrap things up, just as I started by setup, then", "source": "youtube-manual-authenticated"}
+{"id": 764, "start": 2780.55, "end": 2787.21, "text": "I clean up, which it's good practice to clean up.", "source": "youtube-manual-authenticated"}
+{"id": 765, "start": 2789.99, "end": 2798.07, "text": "So that was your first example of a Torch distributed program.", "source": "youtube-manual-authenticated"}
+{"id": 766, "start": 2798.07, "end": 2804.19, "text": "So let's do some benchmarking.", "source": "youtube-manual-authenticated"}
+{"id": 767, "start": 2804.19, "end": 2809.83, "text": "This will be quick, since I want to actually move on to part two.", "source": "youtube-manual-authenticated"}
+{"id": 768, "start": 2809.83, "end": 2812.91, "text": "So how fast does communication happen?", "source": "youtube-manual-authenticated"}
+{"id": 769, "start": 2812.91, "end": 2815.51, "text": "So let's do an all reduce.", "source": "youtube-manual-authenticated"}
+{"id": 770, "start": 2815.51, "end": 2824.55, "text": "So here, I'm going to all reduce with 100 million elements.", "source": "youtube-manual-authenticated"}
+{"id": 771, "start": 2824.55, "end": 2825.09, "text": "Oops.", "source": "youtube-manual-authenticated"}
+{"id": 772, "start": 2829.91, "end": 2831.13, "text": "Sorry, I messed this up.", "source": "youtube-manual-authenticated"}
+{"id": 773, "start": 2834.75, "end": 2837.11, "text": "So all reduce.", "source": "youtube-manual-authenticated"}
+{"id": 774, "start": 2837.11, "end": 2841.15, "text": "So I'm going to create this tensor", "source": "youtube-manual-authenticated"}
+{"id": 775, "start": 2841.15, "end": 2843.79, "text": "with this number of elements.", "source": "youtube-manual-authenticated"}
+{"id": 776, "start": 2843.79, "end": 2846.35, "text": "And remember, just like before when we do benchmarking,", "source": "youtube-manual-authenticated"}
+{"id": 777, "start": 2846.35, "end": 2848.83, "text": "we warm up first.", "source": "youtube-manual-authenticated"}
+{"id": 778, "start": 2848.83, "end": 2852.83, "text": "And here, I'm going to call the Cuda synchronize and also", "source": "youtube-manual-authenticated"}
+{"id": 779, "start": 2852.83, "end": 2856.75, "text": "the barrier, just to make sure that because there's", "source": "youtube-manual-authenticated"}
+{"id": 780, "start": 2856.75, "end": 2859.19, "text": "two forms of asynchrony here, the Cuda kernels", "source": "youtube-manual-authenticated"}
+{"id": 781, "start": 2859.19, "end": 2860.408, "text": "and the different processes.", "source": "youtube-manual-authenticated"}
+{"id": 782, "start": 2860.408, "end": 2861.95, "text": "And just want to make sure everything", "source": "youtube-manual-authenticated"}
+{"id": 783, "start": 2861.95, "end": 2869.43, "text": "is kind of not running and is done before I start the time.", "source": "youtube-manual-authenticated"}
+{"id": 784, "start": 2869.43, "end": 2873.14, "text": "And I'm going to do the all reduce.", "source": "youtube-manual-authenticated"}
+{"id": 785, "start": 2873.14, "end": 2879.62, "text": "And then wait again with the synchronize in the barrier", "source": "youtube-manual-authenticated"}
+{"id": 786, "start": 2879.62, "end": 2881.54, "text": "and stop the time.", "source": "youtube-manual-authenticated"}
+{"id": 787, "start": 2881.54, "end": 2888.94, "text": "So remember, this is running for every single rank.", "source": "youtube-manual-authenticated"}
+{"id": 788, "start": 2888.94, "end": 2894.2, "text": "So if I look at the output, here for rank 0, 2, 1, 3,", "source": "youtube-manual-authenticated"}
+{"id": 789, "start": 2894.2, "end": 2896.46, "text": "I have a different time potentially,", "source": "youtube-manual-authenticated"}
+{"id": 790, "start": 2896.46, "end": 2899.1, "text": "because they're all different processes.", "source": "youtube-manual-authenticated"}
+{"id": 791, "start": 2899.1, "end": 2903.398, "text": "Each of them is going to report a certain measurement.", "source": "youtube-manual-authenticated"}
+{"id": 792, "start": 2903.398, "end": 2904.94, "text": "And if you want to report one number,", "source": "youtube-manual-authenticated"}
+{"id": 793, "start": 2904.94, "end": 2907.24, "text": "you can take the average, for example.", "source": "youtube-manual-authenticated"}
+{"id": 794, "start": 2910.3, "end": 2915.24, "text": "So now one thing that is useful to do,", "source": "youtube-manual-authenticated"}
+{"id": 795, "start": 2915.24, "end": 2918.06, "text": "which is analogous to when we were computing MFU,", "source": "youtube-manual-authenticated"}
+{"id": 796, "start": 2918.06, "end": 2921.9, "text": "is to measure the effective bandwidth.", "source": "youtube-manual-authenticated"}
+{"id": 797, "start": 2921.9, "end": 2927.82, "text": "And the idea here is that, well, this took 1.6 milliseconds.", "source": "youtube-manual-authenticated"}
+{"id": 798, "start": 2927.82, "end": 2932.7, "text": "How much-- is that good or bad?", "source": "youtube-manual-authenticated"}
+{"id": 799, "start": 2932.7, "end": 2935.58, "text": "So to compute the effective bandwidth, what", "source": "youtube-manual-authenticated"}
+{"id": 800, "start": 2935.58, "end": 2938.22, "text": "we're going to do is to compute essentially", "source": "youtube-manual-authenticated"}
+{"id": 801, "start": 2938.22, "end": 2942.34, "text": "how many bytes were sent and should be", "source": "youtube-manual-authenticated"}
+{"id": 802, "start": 2942.34, "end": 2945.9, "text": "sent during this computation.", "source": "youtube-manual-authenticated"}
+{"id": 803, "start": 2945.9, "end": 2948.2, "text": "And then if you divide by the total time,", "source": "youtube-manual-authenticated"}
+{"id": 804, "start": 2948.2, "end": 2950.46, "text": "then you get the effective bandwidth.", "source": "youtube-manual-authenticated"}
+{"id": 805, "start": 2950.46, "end": 2954.58, "text": "So the size of what I'm sending around", "source": "youtube-manual-authenticated"}
+{"id": 806, "start": 2954.58, "end": 2958.72, "text": "is the size of each element times the number of elements.", "source": "youtube-manual-authenticated"}
+{"id": 807, "start": 2958.72, "end": 2964.58, "text": "So that's basically the number of bytes of this data tensor.", "source": "youtube-manual-authenticated"}
+{"id": 808, "start": 2964.58, "end": 2966.52, "text": "How many bytes get actually sent?", "source": "youtube-manual-authenticated"}
+{"id": 809, "start": 2966.52, "end": 2969.62, "text": "So this needs some unpacking.", "source": "youtube-manual-authenticated"}
+{"id": 810, "start": 2969.62, "end": 2974.9, "text": "So for all reduce, if you think about,", "source": "youtube-manual-authenticated"}
+{"id": 811, "start": 2974.9, "end": 2979.46, "text": "let's just say for simplicity, you do a rank 0 plus rank 1", "source": "youtube-manual-authenticated"}
+{"id": 812, "start": 2979.46, "end": 2981.82, "text": "plus rank 2 plus rank 3.", "source": "youtube-manual-authenticated"}
+{"id": 813, "start": 2981.82, "end": 2985.42, "text": "You need to iterate this world size minus 1 steps,", "source": "youtube-manual-authenticated"}
+{"id": 814, "start": 2985.42, "end": 2989.82, "text": "because there's a world size minus 1 addition operations.", "source": "youtube-manual-authenticated"}
+{"id": 815, "start": 2989.82, "end": 2991.66, "text": "So that's this factor.", "source": "youtube-manual-authenticated"}
+{"id": 816, "start": 2991.66, "end": 2995.78, "text": "There's a 2, because you need to both send and reduce.", "source": "youtube-manual-authenticated"}
+{"id": 817, "start": 2995.78, "end": 2999.78, "text": "And then you multiply by the size of the payload.", "source": "youtube-manual-authenticated"}
+{"id": 818, "start": 2999.78, "end": 3003.02, "text": "So that's the total number of sent bytes.", "source": "youtube-manual-authenticated"}
+{"id": 819, "start": 3003.02, "end": 3011.78, "text": "And the total duration is the wall clock time that it took.", "source": "youtube-manual-authenticated"}
+{"id": 820, "start": 3011.78, "end": 3015.94, "text": "And then you multiply by the world size,", "source": "youtube-manual-authenticated"}
+{"id": 821, "start": 3015.94, "end": 3021.34, "text": "because it's the total amount that all the ranks have waited.", "source": "youtube-manual-authenticated"}
+{"id": 822, "start": 3021.34, "end": 3026.62, "text": "And the bandwidth is the bytes sent", "source": "youtube-manual-authenticated"}
+{"id": 823, "start": 3026.62, "end": 3030.34, "text": "divided by the total duration.", "source": "youtube-manual-authenticated"}
+{"id": 824, "start": 3030.34, "end": 3033.46, "text": "So in this case, you get something", "source": "youtube-manual-authenticated"}
+{"id": 825, "start": 3033.46, "end": 3037.52, "text": "like about 400 gigabytes per second.", "source": "youtube-manual-authenticated"}
+{"id": 826, "start": 3040.62, "end": 3045.02, "text": "So a few notes here.", "source": "youtube-manual-authenticated"}
+{"id": 827, "start": 3045.02, "end": 3047.72, "text": "One is that the effective bandwidth,", "source": "youtube-manual-authenticated"}
+{"id": 828, "start": 3047.72, "end": 3050.7, "text": "if you look at this expression, size times 2 times", "source": "youtube-manual-authenticated"}
+{"id": 829, "start": 3050.7, "end": 3053.8, "text": "world size minus 1 divided by world size times duration.", "source": "youtube-manual-authenticated"}
+{"id": 830, "start": 3053.8, "end": 3057.1, "text": "So as world size increases, this world size", "source": "youtube-manual-authenticated"}
+{"id": 831, "start": 3057.1, "end": 3060.32, "text": "minus 1 divided by world size essentially converges to 1.", "source": "youtube-manual-authenticated"}
+{"id": 832, "start": 3060.32, "end": 3063.3, "text": "So you're effectively left with 2 times the size", "source": "youtube-manual-authenticated"}
+{"id": 833, "start": 3063.3, "end": 3065.74, "text": "bytes over the duration.", "source": "youtube-manual-authenticated"}
+{"id": 834, "start": 3065.74, "end": 3068.92, "text": "So this is essentially the bandwidth.", "source": "youtube-manual-authenticated"}
+{"id": 835, "start": 3068.92, "end": 3072.457, "text": "Notice that this is independent of the world size,", "source": "youtube-manual-authenticated"}
+{"id": 836, "start": 3072.457, "end": 3073.04, "text": "which is good.", "source": "youtube-manual-authenticated"}
+{"id": 837, "start": 3073.04, "end": 3076.94, "text": "So if you grow the number of GPUs you have,", "source": "youtube-manual-authenticated"}
+{"id": 838, "start": 3076.94, "end": 3079.14, "text": "the bandwidth doesn't change.", "source": "youtube-manual-authenticated"}
+{"id": 839, "start": 3079.14, "end": 3081.94, "text": "It is also independent of the topology, which", "source": "youtube-manual-authenticated"}
+{"id": 840, "start": 3081.94, "end": 3086.26, "text": "is something that kind of NCCL figures out whether you're", "source": "youtube-manual-authenticated"}
+{"id": 841, "start": 3086.26, "end": 3090.5, "text": "going to pass the messages in a kind of a ring or a tree", "source": "youtube-manual-authenticated"}
+{"id": 842, "start": 3090.5, "end": 3091.36, "text": "topology.", "source": "youtube-manual-authenticated"}
+{"id": 843, "start": 3094.06, "end": 3097.3, "text": "So yeah.", "source": "youtube-manual-authenticated"}
+{"id": 844, "start": 3097.3, "end": 3100.58, "text": "So that is all reduce.", "source": "youtube-manual-authenticated"}
+{"id": 845, "start": 3100.58, "end": 3106.13, "text": "And for reduce scatter, this is very similar.", "source": "youtube-manual-authenticated"}
+{"id": 846, "start": 3106.13, "end": 3108.93, "text": "So I'm going to create the inputs and the outputs,", "source": "youtube-manual-authenticated"}
+{"id": 847, "start": 3108.93, "end": 3114.17, "text": "warm up, perform the operation, and time it.", "source": "youtube-manual-authenticated"}
+{"id": 848, "start": 3114.17, "end": 3122.69, "text": "So notice that the reduce scatter has these timings.", "source": "youtube-manual-authenticated"}
+{"id": 849, "start": 3122.69, "end": 3128.09, "text": "And you can also measure the effective bandwidth here,", "source": "youtube-manual-authenticated"}
+{"id": 850, "start": 3128.09, "end": 3133.33, "text": "the number of bytes that were in the input.", "source": "youtube-manual-authenticated"}
+{"id": 851, "start": 3133.33, "end": 3136.49, "text": "You have the number of bytes that were sent.", "source": "youtube-manual-authenticated"}
+{"id": 852, "start": 3136.49, "end": 3140.85, "text": "Here there is no 2x here.", "source": "youtube-manual-authenticated"}
+{"id": 853, "start": 3140.85, "end": 3143.05, "text": "And then the total duration, you divide by that,", "source": "youtube-manual-authenticated"}
+{"id": 854, "start": 3143.05, "end": 3144.15, "text": "you get the bandwidth.", "source": "youtube-manual-authenticated"}
+{"id": 855, "start": 3144.15, "end": 3148.45, "text": "So here, the bandwidth is--", "source": "youtube-manual-authenticated"}
+{"id": 856, "start": 3148.45, "end": 3149.93, "text": "it should be very similar.", "source": "youtube-manual-authenticated"}
+{"id": 857, "start": 3149.93, "end": 3152.09, "text": "I guess sometimes there's some stochasticity,", "source": "youtube-manual-authenticated"}
+{"id": 858, "start": 3152.09, "end": 3156.93, "text": "but it's in the kind of 400s.", "source": "youtube-manual-authenticated"}
+{"id": 859, "start": 3156.93, "end": 3160.09, "text": "So a few notes here.", "source": "youtube-manual-authenticated"}
+{"id": 860, "start": 3160.09, "end": 3164.53, "text": "All reduce is, remember, as we stated, reduce", "source": "youtube-manual-authenticated"}
+{"id": 861, "start": 3164.53, "end": 3167.17, "text": "scatter plus an all gather.", "source": "youtube-manual-authenticated"}
+{"id": 862, "start": 3167.17, "end": 3174.17, "text": "And so all reduce, naturally, is moving twice the amount of data,", "source": "youtube-manual-authenticated"}
+{"id": 863, "start": 3174.17, "end": 3178.89, "text": "because reduce scatter has some cost, all gather has some cost,", "source": "youtube-manual-authenticated"}
+{"id": 864, "start": 3178.89, "end": 3182.97, "text": "and all reduce is doing twice as much work.", "source": "youtube-manual-authenticated"}
+{"id": 865, "start": 3182.97, "end": 3186.81, "text": "And it takes twice the amount of time.", "source": "youtube-manual-authenticated"}
+{"id": 866, "start": 3186.81, "end": 3191.79, "text": "But the two cancel out, so you get the same kind of bandwidth.", "source": "youtube-manual-authenticated"}
+{"id": 867, "start": 3200.15, "end": 3202.69, "text": "So that is the end of part one.", "source": "youtube-manual-authenticated"}
+{"id": 868, "start": 3202.69, "end": 3206.55, "text": "Maybe any questions before I move to part two?", "source": "youtube-manual-authenticated"}
+{"id": 869, "start": 3210.31, "end": 3210.81, "text": "Yeah.", "source": "youtube-manual-authenticated"}
+{"id": 870, "start": 3210.81, "end": 3214.821, "text": "Why did you do that synchronized for [INAUDIBLE]?", "source": "youtube-manual-authenticated"}
+{"id": 871, "start": 3220.455, "end": 3223.17, "text": "So why do we have to do the synchronized for the Cuda", "source": "youtube-manual-authenticated"}
+{"id": 872, "start": 3223.17, "end": 3224.05, "text": "kernel?", "source": "youtube-manual-authenticated"}
+{"id": 873, "start": 3224.05, "end": 3229.45, "text": "So at the end of the day, we are still doing Cuda operations.", "source": "youtube-manual-authenticated"}
+{"id": 874, "start": 3229.45, "end": 3233.97, "text": "We have just multiple processes, each with a GPU,", "source": "youtube-manual-authenticated"}
+{"id": 875, "start": 3233.97, "end": 3237.61, "text": "doing some Cuda operations.", "source": "youtube-manual-authenticated"}
+{"id": 876, "start": 3237.61, "end": 3241.15, "text": "So if you're doing a Cuda operation, remember, by default,", "source": "youtube-manual-authenticated"}
+{"id": 877, "start": 3241.15, "end": 3242.73, "text": "it's async.", "source": "youtube-manual-authenticated"}
+{"id": 878, "start": 3242.73, "end": 3245.41, "text": "So when you reach the next line in Python,", "source": "youtube-manual-authenticated"}
+{"id": 879, "start": 3245.41, "end": 3247.69, "text": "that Cuda operation might not be done.", "source": "youtube-manual-authenticated"}
+{"id": 880, "start": 3247.69, "end": 3251.25, "text": "So we need to wait always to make sure it's", "source": "youtube-manual-authenticated"}
+{"id": 881, "start": 3251.25, "end": 3253.65, "text": "done by synchronizing.", "source": "youtube-manual-authenticated"}
+{"id": 882, "start": 3253.65, "end": 3254.85, "text": "[INAUDIBLE]", "source": "youtube-manual-authenticated"}
+{"id": 883, "start": 3258.21, "end": 3265.1, "text": "So do you have to do barrier first and then synchronize?", "source": "youtube-manual-authenticated"}
+{"id": 884, "start": 3265.1, "end": 3267.09, "text": "I'm not sure.", "source": "youtube-manual-authenticated"}
+{"id": 885, "start": 3267.09, "end": 3267.97, "text": "Yeah.", "source": "youtube-manual-authenticated"}
+{"id": 886, "start": 3267.97, "end": 3270.21, "text": "[INAUDIBLE]", "source": "youtube-manual-authenticated"}
+{"id": 887, "start": 3278.57, "end": 3279.07, "text": "Yeah.", "source": "youtube-manual-authenticated"}
+{"id": 888, "start": 3279.07, "end": 3282.2, "text": "I think one problem is if you barrier first", "source": "youtube-manual-authenticated"}
+{"id": 889, "start": 3282.2, "end": 3286.88, "text": "and then the Cuda might not be done running,", "source": "youtube-manual-authenticated"}
+{"id": 890, "start": 3286.88, "end": 3289.44, "text": "and you just immediately go to the barrier.", "source": "youtube-manual-authenticated"}
+{"id": 891, "start": 3289.44, "end": 3294.24, "text": "And then you are still each independently synchronizing", "source": "youtube-manual-authenticated"}
+{"id": 892, "start": 3294.24, "end": 3297.56, "text": "the different Cuda kernels, which means that you're not", "source": "youtube-manual-authenticated"}
+{"id": 893, "start": 3297.56, "end": 3300.58, "text": "really synchronized.", "source": "youtube-manual-authenticated"}
+{"id": 894, "start": 3300.58, "end": 3302.82, "text": "If all those operations just return,", "source": "youtube-manual-authenticated"}
+{"id": 895, "start": 3302.82, "end": 3307.08, "text": "the barrier doesn't really do anything.", "source": "youtube-manual-authenticated"}
+{"id": 896, "start": 3307.08, "end": 3308.56, "text": "OK, let me move on.", "source": "youtube-manual-authenticated"}
+{"id": 897, "start": 3308.56, "end": 3310.88, "text": "So now let's actually start thinking", "source": "youtube-manual-authenticated"}
+{"id": 898, "start": 3310.88, "end": 3312.96, "text": "about how you train models.", "source": "youtube-manual-authenticated"}
+{"id": 899, "start": 3312.96, "end": 3315.28, "text": "So we're just going to walk through a very bare bones", "source": "youtube-manual-authenticated"}
+{"id": 900, "start": 3315.28, "end": 3319.92, "text": "implementation of training MLPs, multilayer MLPs.", "source": "youtube-manual-authenticated"}
+{"id": 901, "start": 3319.92, "end": 3321.14, "text": "I guess that's redundant.", "source": "youtube-manual-authenticated"}
+{"id": 902, "start": 3321.14, "end": 3324.88, "text": "It's multilayer perceptrons already.", "source": "youtube-manual-authenticated"}
+{"id": 903, "start": 3324.88, "end": 3327.68, "text": "And remember that MLPs are the ones that", "source": "youtube-manual-authenticated"}
+{"id": 904, "start": 3327.68, "end": 3329.9, "text": "are the actual compute bottleneck in the transformer.", "source": "youtube-manual-authenticated"}
+{"id": 905, "start": 3329.9, "end": 3332.48, "text": "So this is actually pretty representative of what", "source": "youtube-manual-authenticated"}
+{"id": 906, "start": 3332.48, "end": 3333.76, "text": "you'll see.", "source": "youtube-manual-authenticated"}
+{"id": 907, "start": 3333.76, "end": 3337.92, "text": "So data parallelism, tensor parallelism,", "source": "youtube-manual-authenticated"}
+{"id": 908, "start": 3337.92, "end": 3339.64, "text": "and pipeline parallelism.", "source": "youtube-manual-authenticated"}
+{"id": 909, "start": 3339.64, "end": 3344.36, "text": "And the picture I want you to have in your head", "source": "youtube-manual-authenticated"}
+{"id": 910, "start": 3344.36, "end": 3345.78, "text": "is this picture.", "source": "youtube-manual-authenticated"}
+{"id": 911, "start": 3345.78, "end": 3349.26, "text": "So this is a little bit of a schematic,", "source": "youtube-manual-authenticated"}
+{"id": 912, "start": 3349.26, "end": 3351.42, "text": "so don't think too deeply about this,", "source": "youtube-manual-authenticated"}
+{"id": 913, "start": 3351.42, "end": 3355.64, "text": "but it's more of a way to conceptualize how you're cutting", "source": "youtube-manual-authenticated"}
+{"id": 914, "start": 3355.64, "end": 3358.08, "text": "your data and parameters.", "source": "youtube-manual-authenticated"}
+{"id": 915, "start": 3358.08, "end": 3361.56, "text": "So data parallelism says, I'm going", "source": "youtube-manual-authenticated"}
+{"id": 916, "start": 3361.56, "end": 3364.76, "text": "to split the data into pieces.", "source": "youtube-manual-authenticated"}
+{"id": 917, "start": 3364.76, "end": 3368.52, "text": "And then each of the GPUs is going", "source": "youtube-manual-authenticated"}
+{"id": 918, "start": 3368.52, "end": 3370.7, "text": "to be responsible for part of the data,", "source": "youtube-manual-authenticated"}
+{"id": 919, "start": 3370.7, "end": 3374.2, "text": "and I'm going to just do normal--", "source": "youtube-manual-authenticated"}
+{"id": 920, "start": 3374.2, "end": 3376.36, "text": "I'm going to keep track of all the parameters", "source": "youtube-manual-authenticated"}
+{"id": 921, "start": 3376.36, "end": 3380.64, "text": "and do normal model training.", "source": "youtube-manual-authenticated"}
+{"id": 922, "start": 3380.64, "end": 3382.28, "text": "And then I need to synchronize.", "source": "youtube-manual-authenticated"}
+{"id": 923, "start": 3382.28, "end": 3384.9, "text": "So let me explain how this works.", "source": "youtube-manual-authenticated"}
+{"id": 924, "start": 3384.9, "end": 3387.3, "text": "So I'm going to generate some sample data.", "source": "youtube-manual-authenticated"}
+{"id": 925, "start": 3387.3, "end": 3389.74, "text": "So there's a batch size of 128.", "source": "youtube-manual-authenticated"}
+{"id": 926, "start": 3389.74, "end": 3392.48, "text": "Number of dimensions, 1,024.", "source": "youtube-manual-authenticated"}
+{"id": 927, "start": 3392.48, "end": 3398.4, "text": "So this is a batch size by num dim matrix, data matrix.", "source": "youtube-manual-authenticated"}
+{"id": 928, "start": 3398.4, "end": 3404.48, "text": "And let's jump into this data parallelism.", "source": "youtube-manual-authenticated"}
+{"id": 929, "start": 3404.48, "end": 3408.6, "text": "So the way that it's going to work", "source": "youtube-manual-authenticated"}
+{"id": 930, "start": 3408.6, "end": 3411.16, "text": "is that you have this data matrix.", "source": "youtube-manual-authenticated"}
+{"id": 931, "start": 3411.16, "end": 3420.68, "text": "And I'm going to break up the rows into world size pieces.", "source": "youtube-manual-authenticated"}
+{"id": 932, "start": 3420.68, "end": 3422.24, "text": "And in this case, four.", "source": "youtube-manual-authenticated"}
+{"id": 933, "start": 3422.24, "end": 3426.76, "text": "And each rank is going to get a piece.", "source": "youtube-manual-authenticated"}
+{"id": 934, "start": 3426.76, "end": 3429.38, "text": "So the number of dimensions, the batch size.", "source": "youtube-manual-authenticated"}
+{"id": 935, "start": 3432.12, "end": 3438.6, "text": "So I'm going to call the local batch size, basically the batch", "source": "youtube-manual-authenticated"}
+{"id": 936, "start": 3438.6, "end": 3440.36, "text": "size divided by the world size, which", "source": "youtube-manual-authenticated"}
+{"id": 937, "start": 3440.36, "end": 3449.24, "text": "is every row that GPU sees, it's going to have 32 data points.", "source": "youtube-manual-authenticated"}
+{"id": 938, "start": 3449.24, "end": 3450.64, "text": "And this is just indexing.", "source": "youtube-manual-authenticated"}
+{"id": 939, "start": 3450.64, "end": 3457.84, "text": "Start index data start to end gets you the slice of that data.", "source": "youtube-manual-authenticated"}
+{"id": 940, "start": 3457.84, "end": 3462.72, "text": "And I'm going to just put it on that rank.", "source": "youtube-manual-authenticated"}
+{"id": 941, "start": 3462.72, "end": 3466.72, "text": "So at this point, each GPU has now", "source": "youtube-manual-authenticated"}
+{"id": 942, "start": 3466.72, "end": 3469.84, "text": "a distinct data tensor, which is the part", "source": "youtube-manual-authenticated"}
+{"id": 943, "start": 3469.84, "end": 3472.92, "text": "that they're responsible for.", "source": "youtube-manual-authenticated"}
+{"id": 944, "start": 3472.92, "end": 3475.2, "text": "Now, in practice, each rank should probably", "source": "youtube-manual-authenticated"}
+{"id": 945, "start": 3475.2, "end": 3478.7, "text": "load its own data rather than have this bottleneck,", "source": "youtube-manual-authenticated"}
+{"id": 946, "start": 3478.7, "end": 3481.42, "text": "but this is just for illustrative purposes.", "source": "youtube-manual-authenticated"}
+{"id": 947, "start": 3484.6, "end": 3488.48, "text": "So let's instantiate the MLP.", "source": "youtube-manual-authenticated"}
+{"id": 948, "start": 3488.48, "end": 3495.96, "text": "So here, I assume we have layers.", "source": "youtube-manual-authenticated"}
+{"id": 949, "start": 3495.96, "end": 3499.56, "text": "And num layers.", "source": "youtube-manual-authenticated"}
+{"id": 950, "start": 3499.56, "end": 3503.2, "text": "And for each of the layers, I'm going to have just a num", "source": "youtube-manual-authenticated"}
+{"id": 951, "start": 3503.2, "end": 3507.76, "text": "dim by num dim matrix.", "source": "youtube-manual-authenticated"}
+{"id": 952, "start": 3507.76, "end": 3512.36, "text": "So I'm just going to initialize a random set of parameters.", "source": "youtube-manual-authenticated"}
+{"id": 953, "start": 3512.36, "end": 3516.91, "text": "And then I'm going to feed that into optimizer.", "source": "youtube-manual-authenticated"}
+{"id": 954, "start": 3516.91, "end": 3519.59, "text": "So here's the training loop.", "source": "youtube-manual-authenticated"}
+{"id": 955, "start": 3519.59, "end": 3522.27, "text": "So in the forward pass, I take the data.", "source": "youtube-manual-authenticated"}
+{"id": 956, "start": 3522.27, "end": 3525.81, "text": "So remember, data is not all the data.", "source": "youtube-manual-authenticated"}
+{"id": 957, "start": 3525.81, "end": 3530.99, "text": "It's just if I'm rank 2, then I only get B2 part of the data.", "source": "youtube-manual-authenticated"}
+{"id": 958, "start": 3530.99, "end": 3534.55, "text": "I'm going to just go through the number of layers", "source": "youtube-manual-authenticated"}
+{"id": 959, "start": 3534.55, "end": 3537.43, "text": "and do a forward pass.", "source": "youtube-manual-authenticated"}
+{"id": 960, "start": 3537.43, "end": 3540.47, "text": "And then I'm going to do a backward pass.", "source": "youtube-manual-authenticated"}
+{"id": 961, "start": 3540.47, "end": 3543.59, "text": "And then normally, this would be it.", "source": "youtube-manual-authenticated"}
+{"id": 962, "start": 3543.59, "end": 3549.39, "text": "But now, remember, every rank has different data.", "source": "youtube-manual-authenticated"}
+{"id": 963, "start": 3549.39, "end": 3555.31, "text": "Therefore, the gradients are going to be different as well.", "source": "youtube-manual-authenticated"}
+{"id": 964, "start": 3555.31, "end": 3559.443, "text": "So this is the key step that makes data parallelism work.", "source": "youtube-manual-authenticated"}
+{"id": 965, "start": 3559.443, "end": 3561.11, "text": "We're going to synchronize the gradients", "source": "youtube-manual-authenticated"}
+{"id": 966, "start": 3561.11, "end": 3562.068, "text": "across all the workers.", "source": "youtube-manual-authenticated"}
+{"id": 967, "start": 3562.068, "end": 3564.277, "text": "This is the only difference between standard training", "source": "youtube-manual-authenticated"}
+{"id": 968, "start": 3564.277, "end": 3565.07, "text": "and DDP.", "source": "youtube-manual-authenticated"}
+{"id": 969, "start": 3565.07, "end": 3567.17, "text": "It's actually pretty nice and elegant.", "source": "youtube-manual-authenticated"}
+{"id": 970, "start": 3567.17, "end": 3569.47, "text": "So basically, for all the parameters,", "source": "youtube-manual-authenticated"}
+{"id": 971, "start": 3569.47, "end": 3574.63, "text": "I'm going to do an all reduce of parem.grad.", "source": "youtube-manual-authenticated"}
+{"id": 972, "start": 3577.19, "end": 3580.11, "text": "And I'm going to average.", "source": "youtube-manual-authenticated"}
+{"id": 973, "start": 3580.11, "end": 3587.61, "text": "And then after this all reduce is done, then now at this point,", "source": "youtube-manual-authenticated"}
+{"id": 974, "start": 3587.61, "end": 3593.03, "text": "each of the ranks has the exact same gradients.", "source": "youtube-manual-authenticated"}
+{"id": 975, "start": 3593.03, "end": 3599.35, "text": "And then I'm just going to update the parameters.", "source": "youtube-manual-authenticated"}
+{"id": 976, "start": 3599.35, "end": 3603.99, "text": "So it's kind of really elegant, I find,", "source": "youtube-manual-authenticated"}
+{"id": 977, "start": 3603.99, "end": 3607.59, "text": "because it's basically standard training where you apply it", "source": "youtube-manual-authenticated"}
+{"id": 978, "start": 3607.59, "end": 3611.39, "text": "to your local batch, but you just insert this", "source": "youtube-manual-authenticated"}
+{"id": 979, "start": 3611.39, "end": 3612.85, "text": "after the backward pass.", "source": "youtube-manual-authenticated"}
+{"id": 980, "start": 3612.85, "end": 3616.37, "text": "Let's just average all the gradients via this all reduce.", "source": "youtube-manual-authenticated"}
+{"id": 981, "start": 3616.37, "end": 3622.37, "text": "It's a one line code change, and then the parameters get updated.", "source": "youtube-manual-authenticated"}
+{"id": 982, "start": 3622.37, "end": 3627.55, "text": "So as you're training, each rank is basically", "source": "youtube-manual-authenticated"}
+{"id": 983, "start": 3627.55, "end": 3632.13, "text": "performing parameter updates as if it had all the data on it,", "source": "youtube-manual-authenticated"}
+{"id": 984, "start": 3632.13, "end": 3636.11, "text": "but it's only actually processing a part of the data.", "source": "youtube-manual-authenticated"}
+{"id": 985, "start": 3636.11, "end": 3643.75, "text": "So that's basically DDP or the first type of data parallel.", "source": "youtube-manual-authenticated"}
+{"id": 986, "start": 3643.75, "end": 3647.11, "text": "Any questions about this?", "source": "youtube-manual-authenticated"}
+{"id": 987, "start": 3647.11, "end": 3648.483, "text": "Yeah.", "source": "youtube-manual-authenticated"}
+{"id": 988, "start": 3648.483, "end": 3652.003, "text": "[INAUDIBLE]", "source": "youtube-manual-authenticated"}
+{"id": 989, "start": 3652.003, "end": 3653.67, "text": "So the question is, can you only do this", "source": "youtube-manual-authenticated"}
+{"id": 990, "start": 3653.67, "end": 3657.45, "text": "with batch size greater than 1?", "source": "youtube-manual-authenticated"}
+{"id": 991, "start": 3657.45, "end": 3657.95, "text": "Yes.", "source": "youtube-manual-authenticated"}
+{"id": 992, "start": 3657.95, "end": 3662.31, "text": "So your batch size has to be at least world size for this", "source": "youtube-manual-authenticated"}
+{"id": 993, "start": 3662.31, "end": 3663.89, "text": "to really make sense.", "source": "youtube-manual-authenticated"}
+{"id": 994, "start": 3663.89, "end": 3668.67, "text": "And usually, it should probably be quite a bit larger.", "source": "youtube-manual-authenticated"}
+{"id": 995, "start": 3668.67, "end": 3669.61, "text": "Yeah?", "source": "youtube-manual-authenticated"}
+{"id": 996, "start": 3669.61, "end": 3672.85, "text": "[INAUDIBLE]", "source": "youtube-manual-authenticated"}
+{"id": 997, "start": 3672.85, "end": 3673.35, "text": "Yeah.", "source": "youtube-manual-authenticated"}
+{"id": 998, "start": 3673.35, "end": 3676.43, "text": "So the question is, should the batch size", "source": "youtube-manual-authenticated"}
+{"id": 999, "start": 3676.43, "end": 3677.85, "text": "be a multiple of world size?", "source": "youtube-manual-authenticated"}
+{"id": 1000, "start": 3677.85, "end": 3680.51, "text": "And that also would be nice.", "source": "youtube-manual-authenticated"}
+{"id": 1001, "start": 3680.51, "end": 3682.07, "text": "Yes.", "source": "youtube-manual-authenticated"}
+{"id": 1002, "start": 3682.07, "end": 3683.83, "text": "I mean, if it's not, then you can pad it", "source": "youtube-manual-authenticated"}
+{"id": 1003, "start": 3683.83, "end": 3685.69, "text": "with zeros or something.", "source": "youtube-manual-authenticated"}
+{"id": 1004, "start": 3685.69, "end": 3691.59, "text": "So there's ways, but it's just easier for everyone if it is.", "source": "youtube-manual-authenticated"}
+{"id": 1005, "start": 3691.59, "end": 3692.71, "text": "[INAUDIBLE]?", "source": "youtube-manual-authenticated"}
+{"id": 1006, "start": 3699.87, "end": 3704.71, "text": "What would it look like for a transform-based [INAUDIBLE]?", "source": "youtube-manual-authenticated"}
+{"id": 1007, "start": 3704.71, "end": 3706.67, "text": "Yeah, so the question is, what would this look", "source": "youtube-manual-authenticated"}
+{"id": 1008, "start": 3706.67, "end": 3707.89, "text": "like for a transformer?", "source": "youtube-manual-authenticated"}
+{"id": 1009, "start": 3707.89, "end": 3710.99, "text": "It would actually be basically the same.", "source": "youtube-manual-authenticated"}
+{"id": 1010, "start": 3710.99, "end": 3713.91, "text": "The DDP has the nice thing that is very modular.", "source": "youtube-manual-authenticated"}
+{"id": 1011, "start": 3713.91, "end": 3715.91, "text": "You do the forward pass.", "source": "youtube-manual-authenticated"}
+{"id": 1012, "start": 3715.91, "end": 3719.25, "text": "I mean, DDP just averages the parameters here.", "source": "youtube-manual-authenticated"}
+{"id": 1013, "start": 3719.25, "end": 3721.81, "text": "It doesn't care what your forward pass looks like.", "source": "youtube-manual-authenticated"}
+{"id": 1014, "start": 3724.47, "end": 3728.13, "text": "OK, let me move on.", "source": "youtube-manual-authenticated"}
+{"id": 1015, "start": 3728.13, "end": 3731.47, "text": "So that's DDP.", "source": "youtube-manual-authenticated"}
+{"id": 1016, "start": 3731.47, "end": 3738.51, "text": "So just to summarize, the losses are different across the ranks.", "source": "youtube-manual-authenticated"}
+{"id": 1017, "start": 3738.51, "end": 3742.87, "text": "The gradients are also initially different.", "source": "youtube-manual-authenticated"}
+{"id": 1018, "start": 3742.87, "end": 3746.15, "text": "But they are all reduced to be the same across the ranks.", "source": "youtube-manual-authenticated"}
+{"id": 1019, "start": 3746.15, "end": 3747.83, "text": "And therefore, the parameters all", "source": "youtube-manual-authenticated"}
+{"id": 1020, "start": 3747.83, "end": 3752.5, "text": "remain the same across ranks.", "source": "youtube-manual-authenticated"}
+{"id": 1021, "start": 3752.5, "end": 3754.66, "text": "So next lecture, [? Tatsu ?] is going", "source": "youtube-manual-authenticated"}
+{"id": 1022, "start": 3754.66, "end": 3759.58, "text": "to talk about fancier data parallelism, FSDP and 0.", "source": "youtube-manual-authenticated"}
+{"id": 1023, "start": 3759.58, "end": 3762.94, "text": "And the idea there is, as I've alluded to,", "source": "youtube-manual-authenticated"}
+{"id": 1024, "start": 3762.94, "end": 3764.56, "text": "here we use all reduce.", "source": "youtube-manual-authenticated"}
+{"id": 1025, "start": 3764.56, "end": 3767.1, "text": "It's a very simple monolithic operation,", "source": "youtube-manual-authenticated"}
+{"id": 1026, "start": 3767.1, "end": 3770.14, "text": "but it does require holding all the models, parameters", "source": "youtube-manual-authenticated"}
+{"id": 1027, "start": 3770.14, "end": 3771.38, "text": "in memory.", "source": "youtube-manual-authenticated"}
+{"id": 1028, "start": 3771.38, "end": 3774.14, "text": "But what if the model parameters don't fit in memory?", "source": "youtube-manual-authenticated"}
+{"id": 1029, "start": 3774.14, "end": 3776.0, "text": "Then you're going to have to be more clever,", "source": "youtube-manual-authenticated"}
+{"id": 1030, "start": 3776.0, "end": 3779.14, "text": "and that's the topic for the next class.", "source": "youtube-manual-authenticated"}
+{"id": 1031, "start": 3779.14, "end": 3783.98, "text": "So let me talk about tensor parallelism.", "source": "youtube-manual-authenticated"}
+{"id": 1032, "start": 3783.98, "end": 3787.7, "text": "So here, the idea is we're going to cut this way", "source": "youtube-manual-authenticated"}
+{"id": 1033, "start": 3787.7, "end": 3789.2, "text": "and we're not going to cut the data.", "source": "youtube-manual-authenticated"}
+{"id": 1034, "start": 3789.2, "end": 3796.14, "text": "We're going to cut essentially each layer.", "source": "youtube-manual-authenticated"}
+{"id": 1035, "start": 3796.14, "end": 3802.66, "text": "And so each rank is going to get part of each layer.", "source": "youtube-manual-authenticated"}
+{"id": 1036, "start": 3802.66, "end": 3806.26, "text": "And generally, this means that we're", "source": "youtube-manual-authenticated"}
+{"id": 1037, "start": 3806.26, "end": 3809.08, "text": "going to have to transfer a lot more data.", "source": "youtube-manual-authenticated"}
+{"id": 1038, "start": 3809.08, "end": 3810.84, "text": "We'll discuss this a bit later.", "source": "youtube-manual-authenticated"}
+{"id": 1039, "start": 3813.82, "end": 3817.74, "text": "So what does tensor parallel look like?", "source": "youtube-manual-authenticated"}
+{"id": 1040, "start": 3817.74, "end": 3822.84, "text": "So we're just going to assume we have this data.", "source": "youtube-manual-authenticated"}
+{"id": 1041, "start": 3822.84, "end": 3827.98, "text": "Every rank has all the data just for simplicity.", "source": "youtube-manual-authenticated"}
+{"id": 1042, "start": 3827.98, "end": 3834.3, "text": "And here, remember, the data is batch size times num dim.", "source": "youtube-manual-authenticated"}
+{"id": 1043, "start": 3834.3, "end": 3836.14, "text": "And I'm going to define a local num dim", "source": "youtube-manual-authenticated"}
+{"id": 1044, "start": 3836.14, "end": 3840.66, "text": "dim to be-- for this rank, I only", "source": "youtube-manual-authenticated"}
+{"id": 1045, "start": 3840.66, "end": 3847.14, "text": "am responsible for a subset of the dimensions.", "source": "youtube-manual-authenticated"}
+{"id": 1046, "start": 3847.14, "end": 3855.18, "text": "So the picture here is that each model still has all the layers", "source": "youtube-manual-authenticated"}
+{"id": 1047, "start": 3855.18, "end": 3858.5, "text": "here for all the layers, but the parameters now", "source": "youtube-manual-authenticated"}
+{"id": 1048, "start": 3858.5, "end": 3864.2, "text": "are num dim times local num dim.", "source": "youtube-manual-authenticated"}
+{"id": 1049, "start": 3864.2, "end": 3866.46, "text": "So if this were one of the parameter", "source": "youtube-manual-authenticated"}
+{"id": 1050, "start": 3866.46, "end": 3875.02, "text": "matrices for one layer, I would be splitting down the columns.", "source": "youtube-manual-authenticated"}
+{"id": 1051, "start": 3875.02, "end": 3878.94, "text": "So this is also known as column tensor parallel.", "source": "youtube-manual-authenticated"}
+{"id": 1052, "start": 3878.94, "end": 3880.9, "text": "You can also do it by rows, but we're not going", "source": "youtube-manual-authenticated"}
+{"id": 1053, "start": 3880.9, "end": 3883.86, "text": "to talk about that right now.", "source": "youtube-manual-authenticated"}
+{"id": 1054, "start": 3883.86, "end": 3888.3, "text": "So now what does the forward pass look like?", "source": "youtube-manual-authenticated"}
+{"id": 1055, "start": 3888.3, "end": 3890.34, "text": "So I'll go through all the layers", "source": "youtube-manual-authenticated"}
+{"id": 1056, "start": 3890.34, "end": 3893.34, "text": "and I'm going to compute activations.", "source": "youtube-manual-authenticated"}
+{"id": 1057, "start": 3893.34, "end": 3900.7, "text": "So I start with x the data.", "source": "youtube-manual-authenticated"}
+{"id": 1058, "start": 3900.7, "end": 3907.58, "text": "And I'm going to access the parameters at layer.", "source": "youtube-manual-authenticated"}
+{"id": 1059, "start": 3907.58, "end": 3911.04, "text": "And notice that this is only a slice of the parameters.", "source": "youtube-manual-authenticated"}
+{"id": 1060, "start": 3911.04, "end": 3916.58, "text": "So if I'm on rank 1, I only get this part of the matrix.", "source": "youtube-manual-authenticated"}
+{"id": 1061, "start": 3916.58, "end": 3918.2, "text": "But I can still proceed.", "source": "youtube-manual-authenticated"}
+{"id": 1062, "start": 3918.2, "end": 3920.78, "text": "I can apply this non-linearity, because this", "source": "youtube-manual-authenticated"}
+{"id": 1063, "start": 3920.78, "end": 3923.7, "text": "is element wise anyway.", "source": "youtube-manual-authenticated"}
+{"id": 1064, "start": 3923.7, "end": 3927.77, "text": "But now what I'm going to do is I'm going", "source": "youtube-manual-authenticated"}
+{"id": 1065, "start": 3927.77, "end": 3932.29, "text": "to communicate activations.", "source": "youtube-manual-authenticated"}
+{"id": 1066, "start": 3932.29, "end": 3935.25, "text": "So if I have a data matrix, rank 1", "source": "youtube-manual-authenticated"}
+{"id": 1067, "start": 3935.25, "end": 3938.57, "text": "has activations for part of the activations", "source": "youtube-manual-authenticated"}
+{"id": 1068, "start": 3938.57, "end": 3941.21, "text": "for this part of the matrix.", "source": "youtube-manual-authenticated"}
+{"id": 1069, "start": 3941.21, "end": 3943.93, "text": "Rank 1 has part of the activations for this matrix", "source": "youtube-manual-authenticated"}
+{"id": 1070, "start": 3943.93, "end": 3945.29, "text": "and so on and so forth.", "source": "youtube-manual-authenticated"}
+{"id": 1071, "start": 3945.29, "end": 3949.33, "text": "And I need to basically put all the activations", "source": "youtube-manual-authenticated"}
+{"id": 1072, "start": 3949.33, "end": 3952.65, "text": "on all the ranks.", "source": "youtube-manual-authenticated"}
+{"id": 1073, "start": 3952.65, "end": 3954.47, "text": "But we know how to do that.", "source": "youtube-manual-authenticated"}
+{"id": 1074, "start": 3954.47, "end": 3958.99, "text": "We introduced all gather as a collective primitive.", "source": "youtube-manual-authenticated"}
+{"id": 1075, "start": 3958.99, "end": 3965.05, "text": "So this is all the activations.", "source": "youtube-manual-authenticated"}
+{"id": 1076, "start": 3965.05, "end": 3970.97, "text": "So this is the batch size times local num dim, which is", "source": "youtube-manual-authenticated"}
+{"id": 1077, "start": 3970.97, "end": 3975.29, "text": "the shape of the activations.", "source": "youtube-manual-authenticated"}
+{"id": 1078, "start": 3975.29, "end": 3980.89, "text": "And then I'm doing an all gather.", "source": "youtube-manual-authenticated"}
+{"id": 1079, "start": 3980.89, "end": 3983.93, "text": "Sorry, so this is the allocating memory for the activations.", "source": "youtube-manual-authenticated"}
+{"id": 1080, "start": 3983.93, "end": 3987.87, "text": "So x is the actual part of the activation.", "source": "youtube-manual-authenticated"}
+{"id": 1081, "start": 3987.87, "end": 3991.05, "text": "So this is batch size times local num dim.", "source": "youtube-manual-authenticated"}
+{"id": 1082, "start": 3991.05, "end": 3997.53, "text": "And all gather says each rank has x and each rank", "source": "youtube-manual-authenticated"}
+{"id": 1083, "start": 3997.53, "end": 4001.81, "text": "is going to allocate activations,", "source": "youtube-manual-authenticated"}
+{"id": 1084, "start": 4001.81, "end": 4004.41, "text": "which is a list, one for each world size.", "source": "youtube-manual-authenticated"}
+{"id": 1085, "start": 4004.41, "end": 4006.61, "text": "And then after the all gather, x is", "source": "youtube-manual-authenticated"}
+{"id": 1086, "start": 4006.61, "end": 4010.93, "text": "going to be copied into each of the respective location", "source": "youtube-manual-authenticated"}
+{"id": 1087, "start": 4010.93, "end": 4014.15, "text": "activations.", "source": "youtube-manual-authenticated"}
+{"id": 1088, "start": 4014.15, "end": 4017.31, "text": "So then once I gather all the activations,", "source": "youtube-manual-authenticated"}
+{"id": 1089, "start": 4017.31, "end": 4020.89, "text": "I concatenate them to form the full dimensional x, which", "source": "youtube-manual-authenticated"}
+{"id": 1090, "start": 4020.89, "end": 4022.59, "text": "is batch size times num dim.", "source": "youtube-manual-authenticated"}
+{"id": 1091, "start": 4028.53, "end": 4034.31, "text": "Any questions about column tensor parallel?", "source": "youtube-manual-authenticated"}
+{"id": 1092, "start": 4038.13, "end": 4041.53, "text": "So this is done for every layer.", "source": "youtube-manual-authenticated"}
+{"id": 1093, "start": 4041.53, "end": 4046.45, "text": "We now notice one difference between data parallel", "source": "youtube-manual-authenticated"}
+{"id": 1094, "start": 4046.45, "end": 4049.45, "text": "is now we have to muck around with the model.", "source": "youtube-manual-authenticated"}
+{"id": 1095, "start": 4049.45, "end": 4052.23, "text": "Data parallel is very elegant, because it's splitting by data.", "source": "youtube-manual-authenticated"}
+{"id": 1096, "start": 4052.23, "end": 4055.49, "text": "The model is treated as a module.", "source": "youtube-manual-authenticated"}
+{"id": 1097, "start": 4055.49, "end": 4058.89, "text": "But now we have to muck around with the model.", "source": "youtube-manual-authenticated"}
+{"id": 1098, "start": 4058.89, "end": 4062.29, "text": "And this is strongly leveraging the fact", "source": "youtube-manual-authenticated"}
+{"id": 1099, "start": 4062.29, "end": 4065.73, "text": "that if you want to do a matrix multiplication,", "source": "youtube-manual-authenticated"}
+{"id": 1100, "start": 4065.73, "end": 4070.05, "text": "you can split it up into a set of smaller matrix", "source": "youtube-manual-authenticated"}
+{"id": 1101, "start": 4070.05, "end": 4071.15, "text": "multiplications.", "source": "youtube-manual-authenticated"}
+{"id": 1102, "start": 4071.15, "end": 4072.77, "text": "We can do those on different ranks,", "source": "youtube-manual-authenticated"}
+{"id": 1103, "start": 4072.77, "end": 4075.31, "text": "and then we can gather the results.", "source": "youtube-manual-authenticated"}
+{"id": 1104, "start": 4078.29, "end": 4080.05, "text": "When it comes to the back propagation,", "source": "youtube-manual-authenticated"}
+{"id": 1105, "start": 4080.05, "end": 4088.01, "text": "[INAUDIBLE] gradients are still [INAUDIBLE].", "source": "youtube-manual-authenticated"}
+{"id": 1106, "start": 4088.01, "end": 4088.65, "text": "Yeah.", "source": "youtube-manual-authenticated"}
+{"id": 1107, "start": 4088.65, "end": 4092.85, "text": "So now the question is, what happens in backprop?", "source": "youtube-manual-authenticated"}
+{"id": 1108, "start": 4092.85, "end": 4096.49, "text": "Now, in the backprop, you have your activations", "source": "youtube-manual-authenticated"}
+{"id": 1109, "start": 4096.49, "end": 4102.87, "text": "and you have to reduce scatter to all the different gradients.", "source": "youtube-manual-authenticated"}
+{"id": 1110, "start": 4102.87, "end": 4105.67, "text": "So in some ways, all gather and reduce scatter", "source": "youtube-manual-authenticated"}
+{"id": 1111, "start": 4105.67, "end": 4108.29, "text": "have this kind of duality, where in forward, you're", "source": "youtube-manual-authenticated"}
+{"id": 1112, "start": 4108.29, "end": 4113.49, "text": "all gathering, in the backward, you're reduce scattering.", "source": "youtube-manual-authenticated"}
+{"id": 1113, "start": 4113.49, "end": 4114.43, "text": "Yeah?", "source": "youtube-manual-authenticated"}
+{"id": 1114, "start": 4114.43, "end": 4116.85, "text": "[INAUDIBLE]", "source": "youtube-manual-authenticated"}
+{"id": 1115, "start": 4116.85, "end": 4119.95, "text": "So the question is, is that done automatically by autograd?", "source": "youtube-manual-authenticated"}
+{"id": 1116, "start": 4119.95, "end": 4122.01, "text": "So none of this--", "source": "youtube-manual-authenticated"}
+{"id": 1117, "start": 4122.01, "end": 4123.49, "text": "well, OK.", "source": "youtube-manual-authenticated"}
+{"id": 1118, "start": 4123.49, "end": 4126.689, "text": "So if you just call .backward, it's not going to do it,", "source": "youtube-manual-authenticated"}
+{"id": 1119, "start": 4126.689, "end": 4129.63, "text": "because there's no parallelism in that.", "source": "youtube-manual-authenticated"}
+{"id": 1120, "start": 4129.63, "end": 4133.13, "text": "But PyTorch has all these things that", "source": "youtube-manual-authenticated"}
+{"id": 1121, "start": 4133.13, "end": 4134.99, "text": "are done automatically for you.", "source": "youtube-manual-authenticated"}
+{"id": 1122, "start": 4138.49, "end": 4145.85, "text": "[INAUDIBLE] To what extent do I need to change", "source": "youtube-manual-authenticated"}
+{"id": 1123, "start": 4145.85, "end": 4149.29, "text": "my code and [INAUDIBLE]?", "source": "youtube-manual-authenticated"}
+{"id": 1124, "start": 4149.29, "end": 4154.729, "text": "So what is done for you and versus automatically?", "source": "youtube-manual-authenticated"}
+{"id": 1125, "start": 4154.729, "end": 4158.88, "text": "Here we're managing things fairly explicitly,", "source": "youtube-manual-authenticated"}
+{"id": 1126, "start": 4158.88, "end": 4161.74, "text": "which means I'm not doing the backward pass,", "source": "youtube-manual-authenticated"}
+{"id": 1127, "start": 4161.74, "end": 4165.2, "text": "but you would have to manage and call the reduce scatter", "source": "youtube-manual-authenticated"}
+{"id": 1128, "start": 4165.2, "end": 4165.939, "text": "yourself.", "source": "youtube-manual-authenticated"}
+{"id": 1129, "start": 4170.439, "end": 4173.997, "text": "And that's by design, because this is 336,", "source": "youtube-manual-authenticated"}
+{"id": 1130, "start": 4173.997, "end": 4175.58, "text": "building language models from scratch.", "source": "youtube-manual-authenticated"}
+{"id": 1131, "start": 4175.58, "end": 4178.84, "text": "In practice, you probably wouldn't have to do that.", "source": "youtube-manual-authenticated"}
+{"id": 1132, "start": 4178.84, "end": 4182.359, "text": "OK, so let's do pipeline parallelism quickly.", "source": "youtube-manual-authenticated"}
+{"id": 1133, "start": 4182.359, "end": 4184.92, "text": "So the idea behind pipeline parallelism", "source": "youtube-manual-authenticated"}
+{"id": 1134, "start": 4184.92, "end": 4187.76, "text": "is we're going to split the network this way.", "source": "youtube-manual-authenticated"}
+{"id": 1135, "start": 4187.76, "end": 4192.8, "text": "So each rank is going to get a subset of the layers now.", "source": "youtube-manual-authenticated"}
+{"id": 1136, "start": 4192.8, "end": 4196.36, "text": "Within each layer, it's going to get all the dimensions,", "source": "youtube-manual-authenticated"}
+{"id": 1137, "start": 4196.36, "end": 4199.2, "text": "and it's also going to get all the--", "source": "youtube-manual-authenticated"}
+{"id": 1138, "start": 4199.2, "end": 4204.08, "text": "well, one of the ranks is going to get all the data.", "source": "youtube-manual-authenticated"}
+{"id": 1139, "start": 4204.08, "end": 4208.64, "text": "Every rank is going to see all the data in some form.", "source": "youtube-manual-authenticated"}
+{"id": 1140, "start": 4208.64, "end": 4214.18, "text": "So this is the way it's going to work.", "source": "youtube-manual-authenticated"}
+{"id": 1141, "start": 4214.18, "end": 4220.1, "text": "So we have all the data, which is, again,", "source": "youtube-manual-authenticated"}
+{"id": 1142, "start": 4220.1, "end": 4223.32, "text": "the batch size times num dim.", "source": "youtube-manual-authenticated"}
+{"id": 1143, "start": 4223.32, "end": 4226.36, "text": "And I'm going to split up the layers.", "source": "youtube-manual-authenticated"}
+{"id": 1144, "start": 4226.36, "end": 4229.04, "text": "So local num layers is going to be the number of layers", "source": "youtube-manual-authenticated"}
+{"id": 1145, "start": 4229.04, "end": 4232.92, "text": "that a particular rank is going to handle.", "source": "youtube-manual-authenticated"}
+{"id": 1146, "start": 4232.92, "end": 4237.52, "text": "And so now I'm going to have local params, which", "source": "youtube-manual-authenticated"}
+{"id": 1147, "start": 4237.52, "end": 4240.92, "text": "is basically only-- there's local number of layers", "source": "youtube-manual-authenticated"}
+{"id": 1148, "start": 4240.92, "end": 4242.32, "text": "number of them.", "source": "youtube-manual-authenticated"}
+{"id": 1149, "start": 4242.32, "end": 4248.04, "text": "But within each layer, I'm going to do the num dim by num dim.", "source": "youtube-manual-authenticated"}
+{"id": 1150, "start": 4248.04, "end": 4253.76, "text": "So one thing, maybe [INAUDIBLE] will talk more", "source": "youtube-manual-authenticated"}
+{"id": 1151, "start": 4253.76, "end": 4259.52, "text": "about this on Wednesday, is this idea of micro-batches.", "source": "youtube-manual-authenticated"}
+{"id": 1152, "start": 4259.52, "end": 4262.68, "text": "So maybe I'll just present this and explain", "source": "youtube-manual-authenticated"}
+{"id": 1153, "start": 4262.68, "end": 4264.96, "text": "why I'm doing things this way.", "source": "youtube-manual-authenticated"}
+{"id": 1154, "start": 4264.96, "end": 4267.78, "text": "So in addition to splitting up the layers,", "source": "youtube-manual-authenticated"}
+{"id": 1155, "start": 4267.78, "end": 4270.28, "text": "I'm also going to split up the batch", "source": "youtube-manual-authenticated"}
+{"id": 1156, "start": 4270.28, "end": 4274.4, "text": "into a bunch of micro-batches.", "source": "youtube-manual-authenticated"}
+{"id": 1157, "start": 4274.4, "end": 4280.64, "text": "So if I'm rank 0, then I get the data,", "source": "youtube-manual-authenticated"}
+{"id": 1158, "start": 4280.64, "end": 4284.68, "text": "and I'm going to chunk it up into a number of micro-batches.", "source": "youtube-manual-authenticated"}
+{"id": 1159, "start": 4284.68, "end": 4292.24, "text": "And for each micro-batch, what I'm going to do", "source": "youtube-manual-authenticated"}
+{"id": 1160, "start": 4292.24, "end": 4299.44, "text": "is receive it from the previous rank,", "source": "youtube-manual-authenticated"}
+{"id": 1161, "start": 4299.44, "end": 4303.84, "text": "and then do the feed forward pass only on the layers that", "source": "youtube-manual-authenticated"}
+{"id": 1162, "start": 4303.84, "end": 4305.48, "text": "are assigned to this rank.", "source": "youtube-manual-authenticated"}
+{"id": 1163, "start": 4305.48, "end": 4311.76, "text": "And then I'm going to send to the next rank.", "source": "youtube-manual-authenticated"}
+{"id": 1164, "start": 4311.76, "end": 4315.24, "text": "So here I'm actually using these receive and send,", "source": "youtube-manual-authenticated"}
+{"id": 1165, "start": 4315.24, "end": 4317.24, "text": "which are pointwise operations.", "source": "youtube-manual-authenticated"}
+{"id": 1166, "start": 4317.24, "end": 4322.22, "text": "So I didn't cover those before, but they're fairly explanatory.", "source": "youtube-manual-authenticated"}
+{"id": 1167, "start": 4322.22, "end": 4326.2, "text": "This basically says I'm rank and I'm going", "source": "youtube-manual-authenticated"}
+{"id": 1168, "start": 4326.2, "end": 4329.28, "text": "to send this tensor over to--", "source": "youtube-manual-authenticated"}
+{"id": 1169, "start": 4329.28, "end": 4334.23, "text": "sorry, I'm going to receive this tensor from rank minus 1.", "source": "youtube-manual-authenticated"}
+{"id": 1170, "start": 4334.23, "end": 4337.77, "text": "And this says I'm going to send tensor x to rank plus 1.", "source": "youtube-manual-authenticated"}
+{"id": 1171, "start": 4348.75, "end": 4355.71, "text": "So basically, the reason why I'm talking about micro-batches is--", "source": "youtube-manual-authenticated"}
+{"id": 1172, "start": 4355.71, "end": 4358.51, "text": "and [? Tatsu ?] will talk more about this on Wednesday--", "source": "youtube-manual-authenticated"}
+{"id": 1173, "start": 4358.51, "end": 4361.99, "text": "is that in pipeline parallelism, so you have", "source": "youtube-manual-authenticated"}
+{"id": 1174, "start": 4361.99, "end": 4366.03, "text": "one rank that gets the data.", "source": "youtube-manual-authenticated"}
+{"id": 1175, "start": 4366.03, "end": 4368.67, "text": "It processes some of the layers, and then", "source": "youtube-manual-authenticated"}
+{"id": 1176, "start": 4368.67, "end": 4373.93, "text": "it sends it to the next GPU, and it process some of the layers.", "source": "youtube-manual-authenticated"}
+{"id": 1177, "start": 4373.93, "end": 4376.71, "text": "And it then sends it to the next GPU.", "source": "youtube-manual-authenticated"}
+{"id": 1178, "start": 4376.71, "end": 4380.77, "text": "So this is a very natural way of dividing a deep network.", "source": "youtube-manual-authenticated"}
+{"id": 1179, "start": 4380.77, "end": 4383.07, "text": "But the problem is that you get these", "source": "youtube-manual-authenticated"}
+{"id": 1180, "start": 4383.07, "end": 4389.43, "text": "what are called pipeline bubbles, where while you're not", "source": "youtube-manual-authenticated"}
+{"id": 1181, "start": 4389.43, "end": 4393.19, "text": "processing, you're kind of waiting around for other tensors", "source": "youtube-manual-authenticated"}
+{"id": 1182, "start": 4393.19, "end": 4394.63, "text": "to process.", "source": "youtube-manual-authenticated"}
+{"id": 1183, "start": 4394.63, "end": 4398.31, "text": "And this ends up being quite inefficient.", "source": "youtube-manual-authenticated"}
+{"id": 1184, "start": 4398.31, "end": 4402.71, "text": "So the idea behind micro-batches is that you break it up", "source": "youtube-manual-authenticated"}
+{"id": 1185, "start": 4402.71, "end": 4405.43, "text": "into smaller batches, so you can process it quickly,", "source": "youtube-manual-authenticated"}
+{"id": 1186, "start": 4405.43, "end": 4406.85, "text": "send it on to the next one.", "source": "youtube-manual-authenticated"}
+{"id": 1187, "start": 4406.85, "end": 4412.47, "text": "So this can reduce the number of pipeline bubbles.", "source": "youtube-manual-authenticated"}
+{"id": 1188, "start": 4412.47, "end": 4414.39, "text": "So the other thing I will mention", "source": "youtube-manual-authenticated"}
+{"id": 1189, "start": 4414.39, "end": 4417.63, "text": "that is not handled in this very kind of naive version", "source": "youtube-manual-authenticated"}
+{"id": 1190, "start": 4417.63, "end": 4421.41, "text": "is the idea of overlapping communication and computation,", "source": "youtube-manual-authenticated"}
+{"id": 1191, "start": 4421.41, "end": 4425.21, "text": "which is actually very important to pipeline parallelism.", "source": "youtube-manual-authenticated"}
+{"id": 1192, "start": 4425.21, "end": 4427.39, "text": "This basically gives you the right structure.", "source": "youtube-manual-authenticated"}
+{"id": 1193, "start": 4427.39, "end": 4433.55, "text": "If you put an I before these, then it becomes kind of async.", "source": "youtube-manual-authenticated"}
+{"id": 1194, "start": 4433.55, "end": 4438.51, "text": "You have to add more things to manage the code.", "source": "youtube-manual-authenticated"}
+{"id": 1195, "start": 4438.51, "end": 4442.75, "text": "And the idea here is that you want to be--", "source": "youtube-manual-authenticated"}
+{"id": 1196, "start": 4442.75, "end": 4447.51, "text": "while you're computing here, you can be", "source": "youtube-manual-authenticated"}
+{"id": 1197, "start": 4447.51, "end": 4451.27, "text": "receiving data or sending data.", "source": "youtube-manual-authenticated"}
+{"id": 1198, "start": 4451.27, "end": 4454.49, "text": "So computation and communication should overlap.", "source": "youtube-manual-authenticated"}
+{"id": 1199, "start": 4454.49, "end": 4459.21, "text": "So that reduces the amount of time you actually spend waiting.", "source": "youtube-manual-authenticated"}
+{"id": 1200, "start": 4463.19, "end": 4470.11, "text": "So a few things that are kind of missing here, which we'll", "source": "youtube-manual-authenticated"}
+{"id": 1201, "start": 4470.11, "end": 4472.11, "text": "hopefully fill in next time.", "source": "youtube-manual-authenticated"}
+{"id": 1202, "start": 4472.11, "end": 4476.19, "text": "So the communication versus computation overlap,", "source": "youtube-manual-authenticated"}
+{"id": 1203, "start": 4476.19, "end": 4481.95, "text": "which is especially crucial in pipeline parallelism.", "source": "youtube-manual-authenticated"}
+{"id": 1204, "start": 4481.95, "end": 4484.37, "text": "I didn't mention in data parallelism,", "source": "youtube-manual-authenticated"}
+{"id": 1205, "start": 4484.37, "end": 4488.81, "text": "this also happens, because I just did a forward pass", "source": "youtube-manual-authenticated"}
+{"id": 1206, "start": 4488.81, "end": 4491.65, "text": "and then at the end, I'm just doing all these all reduces.", "source": "youtube-manual-authenticated"}
+{"id": 1207, "start": 4491.65, "end": 4495.11, "text": "But if you're clever, then on the backward pass,", "source": "youtube-manual-authenticated"}
+{"id": 1208, "start": 4495.11, "end": 4497.09, "text": "as soon as the gradients are done,", "source": "youtube-manual-authenticated"}
+{"id": 1209, "start": 4497.09, "end": 4498.775, "text": "you can start sending that.", "source": "youtube-manual-authenticated"}
+{"id": 1210, "start": 4498.775, "end": 4500.15, "text": "And that's something that will be", "source": "youtube-manual-authenticated"}
+{"id": 1211, "start": 4500.15, "end": 4502.51, "text": "explored in the assignment two.", "source": "youtube-manual-authenticated"}
+{"id": 1212, "start": 4502.51, "end": 4506.91, "text": "And this, again, allows you to just overlap communication", "source": "youtube-manual-authenticated"}
+{"id": 1213, "start": 4506.91, "end": 4510.63, "text": "and computation more.", "source": "youtube-manual-authenticated"}
+{"id": 1214, "start": 4510.63, "end": 4514.41, "text": "We had some questions about what about general models.", "source": "youtube-manual-authenticated"}
+{"id": 1215, "start": 4514.41, "end": 4519.27, "text": "Again, I think this MLP gives you", "source": "youtube-manual-authenticated"}
+{"id": 1216, "start": 4519.27, "end": 4524.31, "text": "essentially most of what you need", "source": "youtube-manual-authenticated"}
+{"id": 1217, "start": 4524.31, "end": 4527.75, "text": "for understanding the basics.", "source": "youtube-manual-authenticated"}
+{"id": 1218, "start": 4527.75, "end": 4530.97, "text": "Some of the larger models just require a lot more bookkeeping,", "source": "youtube-manual-authenticated"}
+{"id": 1219, "start": 4530.97, "end": 4536.75, "text": "so it's harder to see the core algorithms.", "source": "youtube-manual-authenticated"}
+{"id": 1220, "start": 4536.75, "end": 4538.39, "text": "There are other types of parallelism", "source": "youtube-manual-authenticated"}
+{"id": 1221, "start": 4538.39, "end": 4539.95, "text": "that we haven't covered.", "source": "youtube-manual-authenticated"}
+{"id": 1222, "start": 4539.95, "end": 4543.23, "text": "So sequence parallelism takes a whole sequence", "source": "youtube-manual-authenticated"}
+{"id": 1223, "start": 4543.23, "end": 4544.99, "text": "and chops it up into pieces.", "source": "youtube-manual-authenticated"}
+{"id": 1224, "start": 4544.99, "end": 4547.11, "text": "And that allows you to parallelize the attention", "source": "youtube-manual-authenticated"}
+{"id": 1225, "start": 4547.11, "end": 4552.67, "text": "computation, expert parallelism, which allows you to parallelize", "source": "youtube-manual-authenticated"}
+{"id": 1226, "start": 4552.67, "end": 4554.25, "text": "the experts for MOEs.", "source": "youtube-manual-authenticated"}
+{"id": 1227, "start": 4554.25, "end": 4557.59, "text": "And this is where the all to all that I mentioned comes in.", "source": "youtube-manual-authenticated"}
+{"id": 1228, "start": 4557.59, "end": 4562.35, "text": "And then also different combinations", "source": "youtube-manual-authenticated"}
+{"id": 1229, "start": 4562.35, "end": 4566.07, "text": "of different parallelization techniques, which also", "source": "youtube-manual-authenticated"}
+{"id": 1230, "start": 4566.07, "end": 4570.14, "text": "will show up in the assignment.", "source": "youtube-manual-authenticated"}
+{"id": 1231, "start": 4570.14, "end": 4574.46, "text": "So one thing to note is that which", "source": "youtube-manual-authenticated"}
+{"id": 1232, "start": 4574.46, "end": 4577.58, "text": "parallelism technique you choose is", "source": "youtube-manual-authenticated"}
+{"id": 1233, "start": 4577.58, "end": 4581.5, "text": "going to be strongly dependent on the hardware.", "source": "youtube-manual-authenticated"}
+{"id": 1234, "start": 4581.5, "end": 4583.66, "text": "For example, tensor parallelism.", "source": "youtube-manual-authenticated"}
+{"id": 1235, "start": 4583.66, "end": 4587.46, "text": "There's a lot of communication, because for every layer,", "source": "youtube-manual-authenticated"}
+{"id": 1236, "start": 4587.46, "end": 4590.22, "text": "you need to send all these activations, which", "source": "youtube-manual-authenticated"}
+{"id": 1237, "start": 4590.22, "end": 4591.86, "text": "are fairly big.", "source": "youtube-manual-authenticated"}
+{"id": 1238, "start": 4591.86, "end": 4596.22, "text": "So generally, tensor parallelism happens within a node on NVLink", "source": "youtube-manual-authenticated"}
+{"id": 1239, "start": 4596.22, "end": 4600.74, "text": "or where you have high bandwidth.", "source": "youtube-manual-authenticated"}
+{"id": 1240, "start": 4600.74, "end": 4602.74, "text": "Whereas you wouldn't do tensor parallelism", "source": "youtube-manual-authenticated"}
+{"id": 1241, "start": 4602.74, "end": 4606.82, "text": "past an NVLink domain.", "source": "youtube-manual-authenticated"}
+{"id": 1242, "start": 4606.82, "end": 4610.8, "text": "Whereas a pipeline parallelism, you'll see people using it.", "source": "youtube-manual-authenticated"}
+{"id": 1243, "start": 4610.8, "end": 4618.3, "text": "And generally, this can tolerate much slower interconnects.", "source": "youtube-manual-authenticated"}
+{"id": 1244, "start": 4618.3, "end": 4622.02, "text": "So some of the decentralized training work", "source": "youtube-manual-authenticated"}
+{"id": 1245, "start": 4622.02, "end": 4625.58, "text": "uses pipeline parallel, because your nodes are--", "source": "youtube-manual-authenticated"}
+{"id": 1246, "start": 4625.58, "end": 4629.34, "text": "GPUs are halfway across the world.", "source": "youtube-manual-authenticated"}
+{"id": 1247, "start": 4629.34, "end": 4634.22, "text": "But you wouldn't want to do tensor parallel in that setting.", "source": "youtube-manual-authenticated"}
+{"id": 1248, "start": 4634.22, "end": 4638.22, "text": "So sometimes when you look at these combinations,", "source": "youtube-manual-authenticated"}
+{"id": 1249, "start": 4638.22, "end": 4641.1, "text": "it will be tensor parallel within a node", "source": "youtube-manual-authenticated"}
+{"id": 1250, "start": 4641.1, "end": 4648.88, "text": "and then pipe data parallel or FSDP", "source": "youtube-manual-authenticated"}
+{"id": 1251, "start": 4648.88, "end": 4655.42, "text": "and then pipeline parallelism if you need it.", "source": "youtube-manual-authenticated"}
+{"id": 1252, "start": 4655.42, "end": 4659.46, "text": "There's other effects, such as if you do data parallel,", "source": "youtube-manual-authenticated"}
+{"id": 1253, "start": 4659.46, "end": 4662.6, "text": "you might be able to do data parallel quite a bit.", "source": "youtube-manual-authenticated"}
+{"id": 1254, "start": 4662.6, "end": 4665.06, "text": "But then you start hitting to something", "source": "youtube-manual-authenticated"}
+{"id": 1255, "start": 4665.06, "end": 4667.34, "text": "called the critical batch size, where", "source": "youtube-manual-authenticated"}
+{"id": 1256, "start": 4667.34, "end": 4669.96, "text": "if you start increasing the batch size too much,", "source": "youtube-manual-authenticated"}
+{"id": 1257, "start": 4669.96, "end": 4672.1, "text": "it doesn't actually help you, in which case", "source": "youtube-manual-authenticated"}
+{"id": 1258, "start": 4672.1, "end": 4673.74, "text": "you're kind of wasting your compute", "source": "youtube-manual-authenticated"}
+{"id": 1259, "start": 4673.74, "end": 4676.16, "text": "and then you're better off using tensor parallel.", "source": "youtube-manual-authenticated"}
+{"id": 1260, "start": 4676.16, "end": 4678.02, "text": "So there's a bunch of these considerations,", "source": "youtube-manual-authenticated"}
+{"id": 1261, "start": 4678.02, "end": 4683.34, "text": "which we'll talk more about as we go through the class.", "source": "youtube-manual-authenticated"}
+{"id": 1262, "start": 4683.34, "end": 4684.7, "text": "So final note.", "source": "youtube-manual-authenticated"}
+{"id": 1263, "start": 4684.7, "end": 4688.06, "text": "So TPUs came up a little bit.", "source": "youtube-manual-authenticated"}
+{"id": 1264, "start": 4688.06, "end": 4694.7, "text": "One thing to note is that on purpose, we are using PyTorch", "source": "youtube-manual-authenticated"}
+{"id": 1265, "start": 4694.7, "end": 4697.22, "text": "and not just using PyTorch, but really using", "source": "youtube-manual-authenticated"}
+{"id": 1266, "start": 4697.22, "end": 4701.78, "text": "the collective operations in a very primitive way,", "source": "youtube-manual-authenticated"}
+{"id": 1267, "start": 4701.78, "end": 4705.66, "text": "so you can see mechanically what's happening.", "source": "youtube-manual-authenticated"}
+{"id": 1268, "start": 4705.66, "end": 4709.7, "text": "Another approach, especially if you're in [INAUDIBLE] TPU land,", "source": "youtube-manual-authenticated"}
+{"id": 1269, "start": 4709.7, "end": 4714.54, "text": "is that you can simply define the model and the starting", "source": "youtube-manual-authenticated"}
+{"id": 1270, "start": 4714.54, "end": 4715.74, "text": "strategy.", "source": "youtube-manual-authenticated"}
+{"id": 1271, "start": 4715.74, "end": 4718.38, "text": "And the compiler actually handles a lot", "source": "youtube-manual-authenticated"}
+{"id": 1272, "start": 4718.38, "end": 4724.06, "text": "of the decision of how to--", "source": "youtube-manual-authenticated"}
+{"id": 1273, "start": 4724.06, "end": 4727.42, "text": "basically, what kind of communication operations", "source": "youtube-manual-authenticated"}
+{"id": 1274, "start": 4727.42, "end": 4728.4, "text": "you need.", "source": "youtube-manual-authenticated"}
+{"id": 1275, "start": 4728.4, "end": 4731.18, "text": "You basically say, well, this piece of data", "source": "youtube-manual-authenticated"}
+{"id": 1276, "start": 4731.18, "end": 4733.76, "text": "needs to be here and here and here.", "source": "youtube-manual-authenticated"}
+{"id": 1277, "start": 4733.76, "end": 4738.94, "text": "And then the compiler does some magic to figure out what.", "source": "youtube-manual-authenticated"}
+{"id": 1278, "start": 4738.94, "end": 4740.12, "text": "So that's appealing.", "source": "youtube-manual-authenticated"}
+{"id": 1279, "start": 4740.12, "end": 4744.46, "text": "But obviously, it would take a lot of the joy", "source": "youtube-manual-authenticated"}
+{"id": 1280, "start": 4744.46, "end": 4749.02, "text": "out of actually building things from scratch.", "source": "youtube-manual-authenticated"}
+{"id": 1281, "start": 4749.02, "end": 4754.66, "text": "Just to summarize, so there's many ways to parallelize.", "source": "youtube-manual-authenticated"}
+{"id": 1282, "start": 4754.66, "end": 4759.86, "text": "You can cut by data, cut by tensor or expert,", "source": "youtube-manual-authenticated"}
+{"id": 1283, "start": 4759.86, "end": 4763.7, "text": "cut by pipeline or sequence.", "source": "youtube-manual-authenticated"}
+{"id": 1284, "start": 4763.7, "end": 4766.46, "text": "We looked at data parallelism.", "source": "youtube-manual-authenticated"}
+{"id": 1285, "start": 4766.46, "end": 4768.18, "text": "We only did DDP.", "source": "youtube-manual-authenticated"}
+{"id": 1286, "start": 4768.18, "end": 4772.14, "text": "Next time we'll do FSDP and 0.", "source": "youtube-manual-authenticated"}
+{"id": 1287, "start": 4772.14, "end": 4774.46, "text": "Tensor parallelism, as I mentioned,", "source": "youtube-manual-authenticated"}
+{"id": 1288, "start": 4774.46, "end": 4776.82, "text": "requires very fast interconnects.", "source": "youtube-manual-authenticated"}
+{"id": 1289, "start": 4776.82, "end": 4778.98, "text": "Pipeline less so.", "source": "youtube-manual-authenticated"}
+{"id": 1290, "start": 4778.98, "end": 4782.14, "text": "But you need to really work hard to reduce these pipeline", "source": "youtube-manual-authenticated"}
+{"id": 1291, "start": 4782.14, "end": 4784.3, "text": "bubbles.", "source": "youtube-manual-authenticated"}
+{"id": 1292, "start": 4784.3, "end": 4787.06, "text": "And then maybe at a high level, we", "source": "youtube-manual-authenticated"}
+{"id": 1293, "start": 4787.06, "end": 4790.9, "text": "see this pattern come up a lot.", "source": "youtube-manual-authenticated"}
+{"id": 1294, "start": 4790.9, "end": 4796.485, "text": "So you can either recompute or store in memory", "source": "youtube-manual-authenticated"}
+{"id": 1295, "start": 4796.485, "end": 4797.86, "text": "when we were talking about things", "source": "youtube-manual-authenticated"}
+{"id": 1296, "start": 4797.86, "end": 4804.37, "text": "like activation checkpointing or when we're working with GPUs.", "source": "youtube-manual-authenticated"}
+{"id": 1297, "start": 4804.37, "end": 4807.41, "text": "Or in this case, you can think about an extension of this", "source": "youtube-manual-authenticated"}
+{"id": 1298, "start": 4807.41, "end": 4812.13, "text": "as that you can store on a different GPU.", "source": "youtube-manual-authenticated"}
+{"id": 1299, "start": 4812.13, "end": 4815.29, "text": "From that perspective, you look at the data parallel.", "source": "youtube-manual-authenticated"}
+{"id": 1300, "start": 4815.29, "end": 4817.81, "text": "You're doing redundant work in some sense,", "source": "youtube-manual-authenticated"}
+{"id": 1301, "start": 4817.81, "end": 4823.01, "text": "because every rank is actually updating its parameters", "source": "youtube-manual-authenticated"}
+{"id": 1302, "start": 4823.01, "end": 4825.13, "text": "and keeping track of all the parameters.", "source": "youtube-manual-authenticated"}
+{"id": 1303, "start": 4825.13, "end": 4826.89, "text": "But the reason you're doing that is", "source": "youtube-manual-authenticated"}
+{"id": 1304, "start": 4826.89, "end": 4833.09, "text": "that you don't have to move the optimizer state across.", "source": "youtube-manual-authenticated"}
+{"id": 1305, "start": 4833.09, "end": 4837.23, "text": "So one thing is that hardware is getting faster.", "source": "youtube-manual-authenticated"}
+{"id": 1306, "start": 4837.23, "end": 4840.91, "text": "But in some sense, we'll always want bigger models.", "source": "youtube-manual-authenticated"}
+{"id": 1307, "start": 4840.91, "end": 4844.25, "text": "So this idea of having a hierarchical structure", "source": "youtube-manual-authenticated"}
+{"id": 1308, "start": 4844.25, "end": 4847.21, "text": "will always be there.", "source": "youtube-manual-authenticated"}
+{"id": 1309, "start": 4847.21, "end": 4849.91, "text": "So that's it for today.", "source": "youtube-manual-authenticated"}
+{"id": 1310, "start": 4849.91, "end": 4854.37, "text": "So next Wednesday, [? Tatsu ?] will do more of a deep dive", "source": "youtube-manual-authenticated"}
+{"id": 1311, "start": 4854.37, "end": 4857.68, "text": "on more parallelism techniques.", "source": "youtube-manual-authenticated"}

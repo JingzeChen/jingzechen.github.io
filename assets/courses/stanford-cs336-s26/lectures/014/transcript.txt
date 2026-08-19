@@ -1,0 +1,1448 @@
+[00:00:05] OK, let's get started.
+[00:00:08] So today is the second day on data.
+[00:00:13] Last time we talked about how data doesn't really
+[00:00:16] just fall from the sky.
+[00:00:18] You actually have to think about where it comes from.
+[00:00:21] So in general, the internet consists of live services.
+[00:00:27] That data on those services have to be either dumped or crawled.
+[00:00:31] And then there's an additional step where
+[00:00:33] you have to process the data.
+[00:00:35] And we also talked about various societal considerations,
+[00:00:42] terms of service, copyright.
+[00:00:44] You have to either get a license or appeal to fair use.
+[00:00:46] So there's a lot of complexity that goes into data.
+[00:00:50] So today we're going to look more at the data pipeline
+[00:00:54] from transforming the data, filtering the data,
+[00:00:57] deduplication, and mixing.
+[00:01:01] And then we're going to top it off
+[00:01:02] by talking a bit about post-training data,
+[00:01:07] in particular, how folks are using synthetic data these days.
+[00:01:12] So the first part is going to be mostly about pre-training.
+[00:01:15] That's what you should have in mind.
+[00:01:18] So we talked a little bit about data transformation already,
+[00:01:21] but just as a reminder.
+[00:01:24] So raw data doesn't come as text, even as
+[00:01:28] if you've scraped something.
+[00:01:30] If you ever look inside Common Crawl, it's not text.
+[00:01:34] It's either HTML.
+[00:01:36] Sometimes it could be PDFs or directories
+[00:01:39] in the case of GitHub.
+[00:01:42] So most of the attention on transforming data
+[00:01:47] is dealing with HTML because most of the web is in HTML.
+[00:01:51] And for this processing, a lot of this is fairly heuristic.
+[00:01:57] There's removing of boilerplate, like navigation and ads,
+[00:02:02] and extracting content, which is the main part of the page.
+[00:02:06] And there's some subtleties around what constitutes content.
+[00:02:11] Usually, you get rid of the footers and headers, and maybe
+[00:02:16] menus, and those things, and you try to extract the content.
+[00:02:20] But you could imagine in cases where
+[00:02:23] some of the navigation elements might
+[00:02:26] be helpful to learn what web pages look like.
+[00:02:28] So what is content and what is not content is not always clear.
+[00:02:33] And then what do you do about images and tables that
+[00:02:36] are in web pages?
+[00:02:40] So inherently, this is a lossy process
+[00:02:42] because you need to linearize HTML, which at least is
+[00:02:46] either hierarchical or visual, if you
+[00:02:48] think about the rendered output, and to a sequence of tokens.
+[00:02:52] And particular tables are a bit tricky to deal with.
+[00:02:56] Simple tables, you can render using markdown.
+[00:03:00] But if you have nested tables, then that
+[00:03:03] becomes quite challenging.
+[00:03:05] You have to give up at some point
+[00:03:08] or approximate at some point.
+[00:03:11] So, typically, HTML to text processing is rule-based.
+[00:03:16] And the reason for this is that rule-based processors
+[00:03:21] are very fast.
+[00:03:24] And also, you're not trying to do too much here.
+[00:03:30] You don't need too much intelligence.
+[00:03:31] So rule-based generally works.
+[00:03:34] Now, I think there could be a case
+[00:03:36] for model-based interventions at this point.
+[00:03:40] They have to be very fast, and they
+[00:03:41] have to do something more intelligent.
+[00:03:46] But if you ever look at data, you'll
+[00:03:48] notice there are imperfections in the data
+[00:03:50] just because any rule-based processing have some failure
+[00:03:56] rate.
+[00:03:57] As we showed last time, the accuracy
+[00:04:00] does matter, depending on which tool you choose.
+[00:04:06] If you use Resiliparse or Trafilatura, then--
+[00:04:08] I guess Resiliparse on these extended dclm evals
+[00:04:15] works better than the others.
+[00:04:20] I'll talk also briefly about PDFs.
+[00:04:22] So there's Hugging Face work, which released
+[00:04:26] a data set called FinePDFs.
+[00:04:28] So PDF files, if you ever opened them up, not in a PDF reader,
+[00:04:34] looks like this, and this needs to get rendered.
+[00:04:40] So PDFs can be found on just web pages on the internet.
+[00:04:45] And Common Crawl does have some PDFs.
+[00:04:51] Generally, Common Crawl focuses on text,
+[00:04:53] but sometimes, if you're just given a URL,
+[00:04:56] you might not even know before you fetch it whether it's a PDF
+[00:04:58] or not, if it doesn't have the extension.
+[00:05:04] If you read this blog post, there's
+[00:05:05] a lot of details, which I'll spare you of.
+[00:05:09] For example, one thing is that many of the PDFs
+[00:05:12] that are in Common Crawl are truncated because PDFs are big,
+[00:05:16] so then that demands that recrawling is necessary.
+[00:05:20] And then there's a question-- once you have the PDF file,
+[00:05:22] how do you actually convert it to text?
+[00:05:25] And, some PDFs might be just scans as well.
+[00:05:28] So they're essentially images.
+[00:05:30] So there's a bunch of tools that this paper tried out,
+[00:05:36] but mostly this involves running OCR using a VLM.
+[00:05:42] And this obviously can be much more expensive than what
+[00:05:45] we were doing before with text.
+[00:05:47] Fortunately or unfortunately, the PDFs
+[00:05:51] are a very small fraction of the whole internet.
+[00:05:54] But they are very valuable because generally,
+[00:05:58] if you bother to make a PDF, that means you probably
+[00:06:01] have something interesting to say as opposed to a web page.
+[00:06:05] So the quality of an average PDF is generally higher
+[00:06:10] than for HTML file.
+[00:06:15] There's a lot of cleanup and filtering.
+[00:06:17] And PDFs, more so even than web pages,
+[00:06:21] a lot of layout information is missing,
+[00:06:24] because in HTML you have various tags like h1 and p
+[00:06:29] that gives you some semantic information.
+[00:06:31] PDFs are, by design, all about layout.
+[00:06:34] So you don't necessarily preserve the semantic structure.
+[00:06:42] So there's a bunch of transformation that happens.
+[00:06:45] At this point, you have text, but you're not done.
+[00:06:53] You're far from done.
+[00:06:54] So the next step is filtering.
+[00:06:57] So I'm going to talk somewhat abstractly about what filtering
+[00:07:01] is.
+[00:07:02] Here's the building block.
+[00:07:05] So suppose you have some target data that you want to get.
+[00:07:10] This is usually a small amount of high-quality data and lots
+[00:07:13] of raw data.
+[00:07:15] This is the fresh shipment of the tokens
+[00:07:20] that you transformed from the previous step.
+[00:07:24] And the goal is to find a subset of this raw data that
+[00:07:29] is similar to target.
+[00:07:31] So this is the general skeleton for filtering,
+[00:07:33] and almost all kinds of filtering
+[00:07:36] falls into this schema.
+[00:07:39] So filtering, there's many reasons
+[00:07:41] you might want to filter.
+[00:07:43] If you're training an English language
+[00:07:45] model or a German language model,
+[00:07:48] you might want to identify the language and filter things that
+[00:07:51] don't match that language.
+[00:07:53] The main reason for filtering is quality filtering.
+[00:07:57] You want to find things that are high quality as opposed
+[00:07:59] to low quality.
+[00:08:00] You don't want just spam.
+[00:08:02] You want encyclopedic information.
+[00:08:07] And then another application is toxicity filtering.
+[00:08:11] Of course, the internet has plenty of nasty content,
+[00:08:14] and maybe you don't want to train your language
+[00:08:16] model on that.
+[00:08:19] So, for a filtering algorithm, you want some generalization
+[00:08:24] from the target data, because you already
+[00:08:27] have the target data.
+[00:08:28] You don't want to only get the target data,
+[00:08:31] but you also want it to be extremely fast
+[00:08:35] because you have to run it on the whole internet.
+[00:08:38] So this could be 100 trillion tokens worth of data.
+[00:08:44] So generally, filtering is you end up
+[00:08:47] with a very small fraction, a single-digit fraction
+[00:08:49] of your entire data.
+[00:08:54] OK.
+[00:08:55] So remember the general framework
+[00:08:56] given the target, and raw, you're trying to find a subset.
+[00:09:02] So the general scheme is that you estimate some model based
+[00:09:07] on R and T and derive a scoring function,
+[00:09:10] and then you keep the examples in R based on their score.
+[00:09:14] So typically, there are two types of classifiers.
+[00:09:18] One are generative models.
+[00:09:20] So this is basically you have your target data.
+[00:09:25] You can just estimate a model of that data.
+[00:09:31] And remember, this has to be cheap,
+[00:09:33] so probably you're not training a big language model.
+[00:09:36] Generally, KenLM basically says I'm going to train a 5-gram
+[00:09:40] model.
+[00:09:42] A more common thing, which I think
+[00:09:44] we're mostly seeing these days, is just training a classifier.
+[00:09:48] And the classifier says, I'm going
+[00:09:51] to predict a positive label, for example,
+[00:09:55] that are in T, my target, and negative labels
+[00:09:59] for things that are in raw but not in T.
+[00:10:03] So basically, it looks like T are your positive examples,
+[00:10:09] some random subset of R are your negative examples.
+[00:10:12] Maybe you balance it, and then you train a classifier.
+[00:10:16] And the tool that people generally use
+[00:10:18] is fastText because it's fast.
+[00:10:21] And generally, it's just a linear classifier--
+[00:10:24] a bag of words.
+[00:10:26] And then once you have this model now
+[00:10:28] for every new document, you can score it,
+[00:10:31] and you set some appropriate threshold,
+[00:10:33] depending on your quality bar, and you keep the examples.
+[00:10:38] Sometimes stochastically, sometimes not.
+[00:10:42] So this is very much a model-based filtering approach.
+[00:10:47] Remember from the last lecture, there
+[00:10:49] are many data sets from generally a few years ago
+[00:10:53] that did not use model-based filtering because they wanted
+[00:10:57] to not bias things too much.
+[00:11:00] These days, I think basically everyone
+[00:11:02] does some amount of model-based filtering
+[00:11:05] because unless you are compute-plentiful, in which case
+[00:11:11] you probably don't need to do as much filtering-- you can just
+[00:11:14] train on everything.
+[00:11:15] Most people are compute-poor.
+[00:11:19] You have to be very smart about how you're filtering;
+[00:11:21] otherwise, you're just wasting flops on low-quality content.
+[00:11:27] OK, so let me talk through some instantiations of filtering.
+[00:11:32] So remember, I mentioned language identification.
+[00:11:36] So the goal is just to find-- given a piece of text,
+[00:11:39] detect whether it's of a particular language.
+[00:11:43] So Meta has trained this set of fastText language identification
+[00:11:47] models, which often you can just use off the shelf.
+[00:11:50] So it supports 176 different languages.
+[00:11:53] It's been trained on a bunch of multilingual sites.
+[00:11:56] So Wikipedia, remember, has a lot of languages.
+[00:11:59] There's also translation sites and sites
+[00:12:02] for different languages.
+[00:12:03] So a language ID is generally a fairly easy problem
+[00:12:09] compared to many other tasks that we're dealing
+[00:12:12] with-- so a simple classifier.
+[00:12:14] If you look at a few words, you can tell
+[00:12:16] that it's Spanish or Japanese.
+[00:12:19] Now, there are subtleties because of code-switching
+[00:12:23] and text, and there's some dialects.
+[00:12:25] So I wouldn't say it absolutely solved problem,
+[00:12:29] but this is not really the bottleneck
+[00:12:31] for training a good language model.
+[00:12:35] And then you can just-- so once you have your classifier,
+[00:12:38] you just choose some threshold.
+[00:12:40] This is generally fairly heuristic.
+[00:12:43] So another thing you can do with filtering is that,
+[00:12:47] suppose you're looking for data of a certain type.
+[00:12:50] So let's say you want to get really good at math,
+[00:12:53] so you want to go and find a bunch of math data.
+[00:12:55] So OpenMathText is this paper from 2023,
+[00:13:01] where the goal is to create a large corpus of math text.
+[00:13:05] This pipeline consists of a few steps.
+[00:13:09] So it's not training a single classifier.
+[00:13:11] So first, you use some rules to filter.
+[00:13:13] Does it contain latex commands?
+[00:13:16] They also use KenLM.
+[00:13:18] So this is a generative approach.
+[00:13:20] And trained it on the ProofPile, which
+[00:13:22] is a known data set of math, and keep it
+[00:13:26] if the perplexity is below some threshold.
+[00:13:30] And then you also train a fastText classifier
+[00:13:33] to predict whether it's mathematical writing or not.
+[00:13:38] And there's two different thresholds
+[00:13:41] if it has latex in it, then it's a higher bar--
+[00:13:44] sorry-- it's a lower bar, but if it doesn't have latex in it,
+[00:13:48] it's a higher bar.
+[00:13:51] And then, as a result, they got 15 billion tokens,
+[00:13:55] which they use to train models.
+[00:13:58] And there's a paper that showed that this more targeted, curated
+[00:14:01] data collection results in models
+[00:14:03] that are better at math than models that were trained
+[00:14:07] on 20 times as much data, which were not filtered in this way.
+[00:14:13] So the quality filtering again, think about it as a tool.
+[00:14:17] You can define quality however you want.
+[00:14:20] There's no universal notion of quality.
+[00:14:22] If you want to define quality to be math,
+[00:14:24] then you can go and get math, and you get better at it.
+[00:14:27] So GPT-3, I think I mentioned this last time,
+[00:14:30] but just to put it in this framework.
+[00:14:32] So positive examples are Wikipedia, WebText.
+[00:14:36] So these are pages that link out from high-star Reddit posts,
+[00:14:43] and some books.
+[00:14:44] And negatives are generally sampled from the web.
+[00:14:47] They train a linear classifier and keep documents
+[00:14:50] if the linear classifier is scored highly enough.
+[00:14:54] There's the first LLaMA paper.
+[00:14:56] The positives were pages referenced by Wikipedia, not
+[00:15:00] Wikipedia articles themselves.
+[00:15:03] And it's this same idea.
+[00:15:06] So phi-1 from Microsoft is interestingly also
+[00:15:16] falls into this framework.
+[00:15:17] So they started with-- the raw data is not already
+[00:15:24] a Python subset of the stack.
+[00:15:25] Remember this is all code.
+[00:15:28] And they define a prompt, which determines educational value.
+[00:15:38] And then they use GPT-4 to classify a subset of R,
+[00:15:44] 100k subset of R with this prompt,
+[00:15:50] and the ones that are positive are kept and called the target.
+[00:15:55] So the target here is actually the output
+[00:15:58] of an expensive classifier.
+[00:16:02] And then you train a cheaper classifier,
+[00:16:04] in their case, a Random Forest, but you could have probably
+[00:16:06] used fastText as well.
+[00:16:11] And then you select data that is classified positive
+[00:16:15] by this classifier.
+[00:16:17] And they also showed that using this data set,
+[00:16:20] you do much better than if you're just using the raw data.
+[00:16:26] So this performance goes up in fewer steps to a higher value.
+[00:16:33] So toxicity works the same way.
+[00:16:37] There's this Dataset--
+[00:16:38] Jigsaw Toxic Comments, where it came from this project
+[00:16:43] where the goal is to help people have better discussions online.
+[00:16:46] So here the data is the Wikipedia talk pages, which can,
+[00:16:51] I guess, for controversial sites get quite heated.
+[00:16:55] And this has been annotated with whether there are
+[00:16:58] any toxic comments on there.
+[00:17:01] And you can similarly define positive and negative examples,
+[00:17:04] and you can train a classifier on that.
+[00:17:08] So now I think you have the tools, or some examples
+[00:17:14] and inspiration.
+[00:17:15] You can identify a particular type of data that you want.
+[00:17:21] You build a classifier for it, and then you
+[00:17:23] can go filter Common Crawl for that.
+[00:17:26] I want to talk about one subtlety here,
+[00:17:30] which is that-- no, the notion of what you want for data
+[00:17:36] actually depends on what model you want to train.
+[00:17:38] So in particular, it depends on the number
+[00:17:40] of tokens you're training on.
+[00:17:42] And so there's no optimal threshold.
+[00:17:44] So before, when I looked at the classifier,
+[00:17:47] it gives you a score.
+[00:17:49] You can't say 0.9 and say that's the best because it
+[00:17:52] depends on what you want to do.
+[00:17:54] Intuitively, if you are going to train
+[00:17:56] for a longer period of time, then you
+[00:17:59] can tolerate lower quality data.
+[00:18:02] If you're training for shorter, then you
+[00:18:07] want higher quality data, in general.
+[00:18:10] And of course, if you could wave a magic wand,
+[00:18:16] if you're training for longer, you want more high-quality data,
+[00:18:18] but that's not an option that you're given.
+[00:18:21] The data pool is what it is.
+[00:18:24] So here's a preliminary experiment
+[00:18:30] that Michael Ryan did.
+[00:18:32] So basically, this plot shows for a 157-million parameter
+[00:18:36] model.
+[00:18:37] We're taking a very small pool.
+[00:18:40] So 100 works, which is a tiny fraction of Common Crawl.
+[00:18:46] And we're training and training for more over time.
+[00:18:54] So let's take a look at the blue curve.
+[00:18:56] So the blue curve is dclm.
+[00:18:58] And so the loss starts here.
+[00:19:01] And then it comes down.
+[00:19:03] And each of these lines is when you epoch over the data.
+[00:19:08] So this is one epoch, and then the next blue
+[00:19:10] is the second epoch, and so on and so forth.
+[00:19:12] So there's not that much data.
+[00:19:14] So eventually, you have to repeat your data.
+[00:19:16] And the loss continues going down
+[00:19:20] because the second time you look at the data,
+[00:19:22] you're still learning things.
+[00:19:24] And at some point, you start to overfit.
+[00:19:29] Whereas if you look at Resiliparse,
+[00:19:30] this is basically no filtering.
+[00:19:33] So here, it's much worse in the beginning.
+[00:19:37] But as you continue and continue, at some point,
+[00:19:40] you also epoch.
+[00:19:42] It starts to go down slower.
+[00:19:45] So you see this trend where high-quality data
+[00:19:49] is better in this regime, where you're not epoching.
+[00:19:53] But once you get to lots and lots of tokens,
+[00:19:57] high-quality data is no longer that great.
+[00:20:00] And of course, with high-quality data,
+[00:20:04] you wouldn't want to go into this regime
+[00:20:06] because you're overfitting-- you probably stop here.
+[00:20:08] But even at this point, this is worse
+[00:20:10] than if you had trained for longer using low-quality data.
+[00:20:15] Yeah.
+[00:20:16] Just a question about computing the metrics.
+[00:20:20] This is actually not totally about the graph.
+[00:20:22] Each of those dots corresponds with one training run, right?
+[00:20:26] Yes.
+[00:20:27] Do you ever need to do the confidence interval when you're
+[00:20:30] doing these retraining experiments,
+[00:20:32] or is it enough just to do it one time?
+[00:20:35] So the question is, each of these points
+[00:20:37] is a single training run, should you do it multiple times
+[00:20:42] and get confidence intervals?
+[00:20:45] Ideally, that would be a good practice.
+[00:20:48] Often, you'll see in these papers
+[00:20:49] that these are scarce because each training
+[00:20:54] run is fairly expensive.
+[00:20:59] But in reality, when we have done these experiments,
+[00:21:02] it's generally tends to be stable,
+[00:21:05] I would say, at least for pre-training.
+[00:21:08] Yeah.
+[00:21:10] So you mentioned training for longer and high-quality data,
+[00:21:14] is that not a combination that we're considering?
+[00:21:17] But if we are training longer on this high-quality data,
+[00:21:24] would it have diminishing returns
+[00:21:26] compared to training for longer with the high-quality data?
+[00:21:30] Yeah.
+[00:21:30] So the question is, if you were able to get higher quality data
+[00:21:33] and you trained for longer, would it
+[00:21:35] still have diminishing returns?
+[00:21:38] Every data set is going to have diminishing returns eventually.
+[00:21:42] That's finite.
+[00:21:44] But it would probably be here.
+[00:21:46] It would just be down here and just keep on going down.
+[00:21:53] OK.
+[00:21:54] Great.
+[00:21:55] Let's move on.
+[00:21:56] So summary, filtering is pretty critical for building
+[00:22:00] a good model, especially when you're compute-constrained
+[00:22:02] like most of us.
+[00:22:05] Technically, if you have infinite compute,
+[00:22:07] you don't need to filter.
+[00:22:09] And you can train on everything, and it'll be a giant model.
+[00:22:12] But realistically, everyone has to filter.
+[00:22:17] So the recipe here is figure out what good data looks like.
+[00:22:22] And then you can train a classifier,
+[00:22:25] and that will extrapolate to the rest of your model.
+[00:22:29] And what good data looks like?
+[00:22:31] You can either find it by saying,
+[00:22:33] aha, there's this data set out there that I really like
+[00:22:35] and I just want more of it.
+[00:22:37] Or you can craft a prompt to a language
+[00:22:40] model and then use that to construct,
+[00:22:43] to do a preliminary filter of a large pool,
+[00:22:46] and then use that good quality data to train a smaller
+[00:22:50] classifier and extrapolate to everyone else.
+[00:22:55] OK.
+[00:22:56] Next, I'm going to talk about deduplication.
+[00:22:58] So at this point, we have filtered our data set.
+[00:23:02] So we only have what we deem to be high-quality data.
+[00:23:07] But often, data still has duplicates in it.
+[00:23:14] And there's two types of duplicates.
+[00:23:18] There's exact duplicates.
+[00:23:20] So this happens when, for example,
+[00:23:23] if you look at these mirror sites,
+[00:23:26] the whole point of a mirror is that it's a duplicate.
+[00:23:29] And sometimes the web crawler isn't smart enough
+[00:23:32] to know that this mirror is exactly this mirror,
+[00:23:34] so it just crawls many sites, and you'll
+[00:23:38] get this exact same content.
+[00:23:41] Also, when you fork a repo, that is also a duplicate,
+[00:23:48] even if you make changes.
+[00:23:49] Probably you're making changes to a few files,
+[00:23:52] so 99% of that repo might be the same.
+[00:23:56] So duplicate is abundant.
+[00:23:59] And yeah, sometimes there's actually
+[00:24:03] near duplicates which are not mirrors or derivative,
+[00:24:06] but they just happen to be the same text differing
+[00:24:09] by a few tokens.
+[00:24:11] Usually, probably this came from--
+[00:24:13] it could be copying or came from a different common source.
+[00:24:18] So here are some examples of near duplicates.
+[00:24:22] So terms of service and licenses.
+[00:24:25] So I guess the MIT license probably
+[00:24:28] shows up on a lot of places.
+[00:24:33] And so in many cases, it is a exact copy,
+[00:24:40] but only of that license, unless someone made a typo
+[00:24:42] when they copied it.
+[00:24:44] But the rest of the page that the license might be part of
+[00:24:48] might be different.
+[00:24:49] And we talked about how a lot of websites
+[00:24:52] have the same headers and footers.
+[00:24:55] Those are also duplicates.
+[00:24:58] There's also cases where, for whatever reason,
+[00:25:02] this is from LM1B, so the 1 billion per benchmark.
+[00:25:06] There's these articles where you just
+[00:25:09] have typographic differences.
+[00:25:11] There's one version with a comma and one version without a comma.
+[00:25:15] I don't really know why, but that happens.
+[00:25:18] And sometimes you see these templates
+[00:25:20] where this is some probably low-quality content, where
+[00:25:26] it essentially looks like an ad or some sort,
+[00:25:28] and someone just templatized and replaced Canada with USA.
+[00:25:35] So if you train on this data, but you are just
+[00:25:39] training on different variations of this with different entities,
+[00:25:42] this is going to be wasting your GPUs.
+[00:25:46] There's a more extreme cases.
+[00:25:48] So this is why it's good to look at your data.
+[00:25:50] So this audit of the C4 data set found this product description
+[00:25:55] 61,000 times in the data set.
+[00:25:58] And if you trace back-- this is really bizarre.
+[00:26:00] I don't know why.
+[00:26:02] This is some description of this gas mask.
+[00:26:06] And this just showed up in this data set in Common Crawl 61,000
+[00:26:11] times.
+[00:26:13] So yeah, the web is weird.
+[00:26:17] So why deduplicate?
+[00:26:19] So the first idea is clear because you
+[00:26:23] want to train more efficiently.
+[00:26:24] Deduplication reduces your data set size
+[00:26:26] without really losing information because you're just
+[00:26:30] removing duplicates.
+[00:26:32] And it also has this benefit of avoiding memorization,
+[00:26:36] which this paper talks about.
+[00:26:39] For example, if you have some copyrighted content that's
+[00:26:42] duplicated a lot, then if you train on it,
+[00:26:45] then you'll memorize it, and also privacy concerns.
+[00:26:49] But mostly, I think, it's just to make sure
+[00:26:55] that you're not wasting flops.
+[00:26:58] Related to deduplication is also decontamination,
+[00:27:01] which is arguably even more important, too.
+[00:27:04] And it's the same deal, is that you
+[00:27:07] want to make sure that your test set is not in your training set.
+[00:27:15] So how do we dedupe?
+[00:27:17] So here's the design space to think about.
+[00:27:20] So first of all, what are the items that you're deduping?
+[00:27:24] Do you do at the sentence level, the paragraph level,
+[00:27:26] or the document level?
+[00:27:28] How do you determine a match?
+[00:27:30] Is it an exact match?
+[00:27:32] Is it existence of a common subitem?
+[00:27:34] Is it the fraction of common subitems for near deduplication?
+[00:27:39] And then once you find a duplicate between two pages,
+[00:27:43] what do you do?
+[00:27:44] Do you remove all the instances, or do you remove all but one?
+[00:27:50] And the key algorithmic challenge
+[00:27:54] is that deduplication is fundamentally
+[00:27:57] about comparing items to other items.
+[00:28:00] And normally, if you're doing filtering,
+[00:28:04] this is about an individual item.
+[00:28:06] Is this item good or not?
+[00:28:07] And this can be parallelized.
+[00:28:10] It's linear time, which is good.
+[00:28:13] And even in linear time, we're trying
+[00:28:15] to make it fast by having rule-based or very small models.
+[00:28:18] But your duplication, clearly, you
+[00:28:20] can't do the n-squared thing where you compare everything
+[00:28:22] to everything.
+[00:28:23] You need linear-time algorithms to scale, especially
+[00:28:27] at this web scale.
+[00:28:29] So typically, the deduplication literature
+[00:28:34] uses hash functions to get around this.
+[00:28:37] So we'll develop some of these ideas.
+[00:28:40] These are quite nice ideas from--
+[00:28:43] thanks to the algorithms community.
+[00:28:47] So I think everyone knows what a hash function is.
+[00:28:50] It takes some value like a string,
+[00:28:52] and maps it into something like a string or an integer.
+[00:28:56] And the hash value is much smaller than item.
+[00:28:59] Hash collisions are when two distinct items
+[00:29:02] map to the same age.
+[00:29:05] So when you look at hash functions,
+[00:29:08] there are really fancy hash functions which
+[00:29:11] are cryptographic in nature.
+[00:29:13] These are collision-resistant using cryptography and Bitcoin
+[00:29:19] and things like that.
+[00:29:21] And then there's these faster ones,
+[00:29:24] which are used for hash tables, where hash collisions aren't
+[00:29:27] the end of the world.
+[00:29:28] And so we'll be using these.
+[00:29:31] So take a string and map it to some values.
+[00:29:34] That's what hash functions do.
+[00:29:38] OK.
+[00:29:39] So exact duplication is conceptually very simple.
+[00:29:43] You take a string, you see if there's an exact match,
+[00:29:48] and you remove all but one.
+[00:29:51] So here you have a bunch of elements, and you hash them,
+[00:29:57] and you dedupe.
+[00:30:00] And exact duplication is very nice.
+[00:30:04] It's very clear what's happening.
+[00:30:07] But this isn't really good enough for the messy web data
+[00:30:10] because often you have these near duplicates.
+[00:30:14] And one note is that there's many ways to have written this.
+[00:30:19] This is written in a bit of a MapReduce style
+[00:30:24] way, which makes it more easily parallelizable and scale.
+[00:30:31] So, C4, this paper from the T5 paper, which processed Common
+[00:30:39] Crawl, did exact deduplication.
+[00:30:42] The items they operate on were three-sentence spans,
+[00:30:46] and you do an exact match, and they remove all but one.
+[00:30:53] So if you're paying attention, you
+[00:30:56] realize that there's something a bit
+[00:30:59] strange about this because you're looking
+[00:31:02] at three-sentence spans.
+[00:31:04] And if you find two documents with three-sentence spans
+[00:31:06] and you remove all but one, that means
+[00:31:10] you're just going to rip out three sentences
+[00:31:12] from that documents, which is a little bit strange,
+[00:31:16] because it breaks the coherence.
+[00:31:17] But this is what they did.
+[00:31:22] So that's exact deduplication.
+[00:31:27] So how do we do near deduplication?
+[00:31:31] So first of all, we have to define what
+[00:31:33] approximate match means here.
+[00:31:36] So to do that, we're going to define this called Jaccard
+[00:31:41] similarity, which is a fairly standard notion.
+[00:31:44] And Jaccard of two sets is basically
+[00:31:48] the size of the intersection over the size of the union.
+[00:31:51] So given these two sets--
+[00:31:52] 1, 2, 3, 4, and 1, 2, 3, 5, when you compute Jaccard,
+[00:31:57] you take the intersection.
+[00:31:59] That's 1, 2, 3.
+[00:32:00] You take the union, that's 1, 2, 3, 4, 5,
+[00:32:03] and you divide, and Jaccard is 0.6.
+[00:32:08] So Jaccard is a number between 0 and 1.
+[00:32:11] 0 means that they're disjoint, 1 means that they're identical.
+[00:32:16] So a fairly natural notion.
+[00:32:19] And we're going to say that two documents are
+[00:32:23] near duplicates if their Jaccard similarity is
+[00:32:25] above some threshold, let's say 0.99.
+[00:32:29] So now the question is, how do you find near duplicates
+[00:32:32] in linear time?
+[00:32:34] So fortunately, this is a solved algorithms question.
+[00:32:38] And the answer is to use MinHash.
+[00:32:46] Well, OK.
+[00:32:46] So the first step is to use MinHash.
+[00:32:48] That's not the final answer.
+[00:32:50] So MinHash is a random hash function,
+[00:32:55] so that the probability of a hash collision
+[00:32:57] is exactly the Jaccard of A and B.
+[00:33:01] So this is a very nice property because hashing
+[00:33:07] is good for making things linear time.
+[00:33:10] Jaccard is the metric that we want,
+[00:33:13] and we're connecting these two right now in expectation.
+[00:33:18] So what's interesting is normally,
+[00:33:20] you want hash functions to define hash functions
+[00:33:23] so that everything is hashing--
+[00:33:27] distinct elements are hashing to different things.
+[00:33:29] You don't want collisions.
+[00:33:30] But here you actually want collisions--
+[00:33:33] not arbitrary collisions, but you
+[00:33:34] want to control the collisions in a certain way
+[00:33:37] to align with the similarity.
+[00:33:39] So similar things you want to collide
+[00:33:41] more than disparate things.
+[00:33:46] So the MinHash is essentially, actually, let's see.
+[00:33:54] Maybe I will-- so here's the MinHash.
+[00:33:59] It's fairly simple.
+[00:34:00] You take a set, and you hash every element in that set,
+[00:34:03] and you take the minimum element.
+[00:34:06] So if you're seeing this for the first time,
+[00:34:11] it may seem a little bit strange.
+[00:34:12] Why are you taking the min?
+[00:34:14] You can take the max, too.
+[00:34:15] It doesn't really matter.
+[00:34:16] It's just a way to break ties.
+[00:34:19] So here's the picture that you should have in your mind.
+[00:34:23] So if you have A, remember A contains 1, 2, 3,
+[00:34:30] 4, and B contains 1, 2, 3, 5.
+[00:34:32] So this is a characteristic matrix representation
+[00:34:35] of these two sets.
+[00:34:38] And so what the random hash function is doing
+[00:34:43] is that it induces a permutation over the items.
+[00:34:48] So it might be 4, 3, 1, 5, 2, or something else.
+[00:34:53] And then you look at which item is first,
+[00:34:56] according to this permutation in A, and which item is first in B.
+[00:35:01] So each item has the same probability of being first.
+[00:35:07] So if the random hash function puts 1 first, then first in A
+[00:35:18] will be equal to first in B. And if it's 2 first,
+[00:35:24] then it's the same.
+[00:35:25] If it's 3 first, it's also the same.
+[00:35:28] But if the random permutation puts 4 first,
+[00:35:31] then the first element in A is going
+[00:35:33] to be different from the first element in B, and same with 5.
+[00:35:39] So look at this representation.
+[00:35:42] Basically, the random hash function
+[00:35:44] says elect one of these rows to be first.
+[00:35:47] And then when the min is just telling me--
+[00:35:55] the min equal of A equal to min of B
+[00:35:58] is basically telling me whether that row is the same.
+[00:36:08] OK.
+[00:36:09] So that is, I guess, the proof of why this property holds,
+[00:36:16] which is that you have a hash function in expectation
+[00:36:20] over your random choice of hash functions,
+[00:36:24] that the probability of collision
+[00:36:26] is the similarity metric you want.
+[00:36:30] OK.
+[00:36:30] So let's just check this in code.
+[00:36:33] So I'm going to generate 100 different hash functions.
+[00:36:39] Each hash function is given by a seed.
+[00:36:41] And I just check whether the MinHash
+[00:36:44] is equal to MinHash, and the estimated Jaccard.
+[00:36:48] So I'm going to just look at the number of the fraction
+[00:36:51] of matches, and you get 0.6.
+[00:36:56] And the key thing with the MinHash
+[00:36:59] is that I don't have to do the n-squared thing.
+[00:37:05] I can compute the MinHash of A and the MinHash of B and MinHash
+[00:37:11] of a different set, and I just look for collisions.
+[00:37:16] Any questions so far about MinHash?
+[00:37:29] So now we can hash our items, but we're not
+[00:37:33] done yet because a collision doesn't tell us
+[00:37:37] the Jaccard is above some threshold, which
+[00:37:40] is what we want.
+[00:37:41] We want to find A and B such that Jaccard
+[00:37:43] is greater than 0.99.
+[00:37:45] All we've done is said, OK, well,
+[00:37:47] if we've got a collision, the probability of that collision
+[00:37:51] of two things colliding is the Jaccard.
+[00:37:53] But that's not really that useful by itself.
+[00:37:56] It's stochastic, and I can't really
+[00:37:58] get anything reliable here.
+[00:38:01] So the next idea is this thing called
+[00:38:06] locality-sensitive hashing, which essentially
+[00:38:09] solves this problem.
+[00:38:11] So this is a very classic idea in theoretical computer science,
+[00:38:14] and it's quite nice.
+[00:38:18] The idea here is that we have A and B colliding with probability
+[00:38:24] equal to the Jaccard.
+[00:38:25] So it is true that more similar items will collide more often,
+[00:38:31] but it's very stochastic.
+[00:38:33] The variance is quite large here.
+[00:38:36] So our goal is to have A and B collide
+[00:38:40] if the Jaccard is greater than some threshold.
+[00:38:43] So we, in some sense, have to sharpen these probabilities
+[00:38:48] somehow.
+[00:38:49] The probability can't just be literally equal to the Jaccard.
+[00:38:53] So the solution is to use more hash functions.
+[00:38:58] And these hash functions are going to be independent.
+[00:39:01] So this part gets a bit technical,
+[00:39:06] but we'll walk through it.
+[00:39:08] So you break the n hash functions
+[00:39:11] into b bands of r hash functions.
+[00:39:14] So if you have 12 hash functions, you have three bands,
+[00:39:19] each band has 4 hash functions.
+[00:39:22] So there's a band here, h1 through h4.
+[00:39:26] Here's a second band, h5 through h8.
+[00:39:29] Third band, h9 through h12.
+[00:39:34] And then so what we're going to try to do--
+[00:39:37] so each hash function gives us either a collision
+[00:39:41] or not collision.
+[00:39:44] And so every hash function, a probability of colliding.
+[00:39:49] So the key here is that we want to say, compute the probability
+[00:39:55] that A and B collide.
+[00:39:58] We say that A and B collide if for some band
+[00:40:02] all of its hash functions return the same value.
+[00:40:06] So if h5 and h6 and h7 and h8 all return the same value--
+[00:40:18] sorry-- if h5 of A equals h5 of B and h6 of A equals h6 of B
+[00:40:28] and so on, that means this band is triggered,
+[00:40:32] and then I would say they're colliding.
+[00:40:33] Or if this band, if all of these agree,
+[00:40:39] then I say it's collision, or these two.
+[00:40:42] But you don't have to have all the hash functions return
+[00:40:47] the same value.
+[00:40:49] So there's this and-or structure here
+[00:40:53] that is doing the lifting here.
+[00:40:57] And we'll see why this works.
+[00:41:04] So now let's say you have a particular Jaccard of A and B,
+[00:41:10] what is the probability that A and B collide
+[00:41:13] according to this definition?
+[00:41:16] So we can calculate this.
+[00:41:19] So let's say that this Jaccard similarity is 0.8.
+[00:41:27] And we have five bands, and each band has 10 hash functions.
+[00:41:35] So then we can say, what is the probability of a fixed band
+[00:41:39] matching?
+[00:41:40] So that's 0.8 to the r.
+[00:41:45] Because each band has r hash functions,
+[00:41:50] so the probability that they all have to match is 0.8 to the r.
+[00:41:55] So the probability of a fixed band matching
+[00:41:58] is generally quite low.
+[00:42:00] It's exponential in r.
+[00:42:04] And then now the probability of collision
+[00:42:08] is the probability that some band matches.
+[00:42:11] And that's going to be the probability of 1
+[00:42:14] minus the probability of--
+[00:42:15] so this is the probability of a band not matching.
+[00:42:20] And if you raise it to the b-- there's
+[00:42:23] b bands-- there's a probability that all of them don't match.
+[00:42:27] And then 1 minus, that is the probability that some match.
+[00:42:32] So the probability of collision is 0.4.
+[00:42:35] And you're expected to be higher because you're
+[00:42:37] given B tries to get a match.
+[00:42:46] So if you plot this, this is what it looks like.
+[00:42:53] So you have on the x-axis the similarity here.
+[00:43:00] And we were looking at 0.8.
+[00:43:04] And you look at the probability of a collision here.
+[00:43:09] So we would expect that if the similarity is 0, then
+[00:43:11] it should be 0.
+[00:43:12] If it's 1, it's 1.
+[00:43:14] But notice that this is an interesting S-shaped, which
+[00:43:18] is nice because this is what we wanted to sharpen.
+[00:43:22] We wanted to basically say, if the similarity is
+[00:43:25] below some threshold, then we want the probability to match
+[00:43:28] to be as low as possible.
+[00:43:30] And if the similarity is above some threshold,
+[00:43:32] we want it to be as high as possible.
+[00:43:34] So we're trying to get this to be like a phase transition.
+[00:43:40] And if you plot this function as a function of similarity,
+[00:43:45] that's what you get.
+[00:43:57] OK.
+[00:44:01] So let's just look at some examples.
+[00:44:03] So concretely, we have similarly 0.7 to 0.98.
+[00:44:13] And we're going to look at how b equals 10, r equals 10.
+[00:44:19] So we look at the collision probability,
+[00:44:23] according to our definition.
+[00:44:25] And we see that this gives us a range of 0.25 to 1.
+[00:44:35] So if you were to set a threshold, this is not so bad.
+[00:44:40] We can set it here.
+[00:44:42] And these with some probability will--
+[00:44:48] they're still false positives because, even if these
+[00:44:51] are below a threshold, let's say 0.9, they might still collide.
+[00:44:56] But we can filter them out if we want.
+[00:44:59] But the ones above are mostly kept.
+[00:45:04] So what happens when you move--
+[00:45:08] so increasing r.
+[00:45:10] So remember, r is the number of hash functions within a bucket.
+[00:45:14] So when you increase r, the threshold
+[00:45:19] sharpens and moves the curve to the right.
+[00:45:22] Everything becomes harder to match
+[00:45:24] because you have more hash functions inside a bucket that
+[00:45:27] sharpens that exponent.
+[00:45:29] So the probability you see are sharper here,
+[00:45:32] and now everything moves to the right.
+[00:45:36] And now it's fairly unlikely that if something
+[00:45:39] has a low Jaccard, you're going to match it.
+[00:45:43] So before it was 0.25, and now it's 0.008.
+[00:45:49] So we're sharpening the probabilities.
+[00:45:52] And then increasing b has the effect
+[00:45:55] of moving the curve to the left.
+[00:45:58] It makes it easier to match. b is the number of bands.
+[00:46:00] And some band has to match.
+[00:46:02] If you have more bands, then there's
+[00:46:03] more chances of matching.
+[00:46:06] So if you look at this, then before and after.
+[00:46:10] So now we're making-- before this, 0.9 was only 0.72,
+[00:46:14] and now it's 0.92.
+[00:46:16] And of course, this also increases, but not by that much.
+[00:46:24] And you can drive these phase transitions
+[00:46:27] to be as sharp as you want by increasing b and r.
+[00:46:31] But of course, if you can increase b and r too much,
+[00:46:33] then it can be more expensive.
+[00:46:39] So let's look at a more real-world setting.
+[00:46:43] So in this paper on deduplication,
+[00:46:47] they had b, 20 bands, and r is 450.
+[00:46:53] So it give you an idea of the magnitude of these numbers.
+[00:46:59] And in general, the phase transition happens
+[00:47:04] at a threshold, which is 1/b b raised to the power of 1/r.
+[00:47:10] So if you want to filter based on Jaccard greater than 0.9,
+[00:47:18] then you basically have to set b and r such that this is 0.9.
+[00:47:23] And then by changing b and r, you
+[00:47:25] can make that phase transition sharper.
+[00:47:29] So remember the probability of the fixed band matches is 1/b.
+[00:47:34] If you are at this threshold, then the probability
+[00:47:38] that A and B collide is approximately--
+[00:47:46] it's a constant.
+[00:47:47] So the probability of collision is 0.64.
+[00:47:51] And this makes sense.
+[00:47:53] So basically, if you have a phase transition,
+[00:47:55] the center of that phase transition is 0.64.
+[00:47:59] And everything below it should go to 0, as b and r increases,
+[00:48:03] and everything above, it should go to 1 as b and r increases.
+[00:48:10] Any questions about LSH?
+[00:48:15] So this method is called MinHash LSH because LSH really
+[00:48:21] works for any hash functions.
+[00:48:23] For deduplication language model processing,
+[00:48:25] we're using the MinHash, which approximates Jaccard.
+[00:48:30] And so that basically is the one you should use here.
+[00:48:40] Questions about dedupe?
+[00:48:55] So one note about dedupe is that there's often, as we'll see,
+[00:49:02] data sets that are coming in.
+[00:49:04] And sometimes the deduplication will happen within a data set.
+[00:49:08] But you actually have to do deduplication
+[00:49:10] across your entire data set because often data sets can
+[00:49:14] be redundant.
+[00:49:15] So sometimes that's not done, but it should be.
+[00:49:21] Let's go on to the next topic, which is data mixing.
+[00:49:27] So far, we've transformed our data from really raw HTML
+[00:49:32] or PDFs into text.
+[00:49:34] We filtered for high-quality.
+[00:49:36] We deduped, so we have a smaller set of high-quality documents.
+[00:49:43] And this generally happens for a given data source.
+[00:49:50] But language models are trained on multiple data sources.
+[00:49:53] So in Marin, currently, this website
+[00:50:00] tracks the different data sources
+[00:50:03] that the next model will be trained on.
+[00:50:06] And you can see that there's a bunch of things.
+[00:50:10] There's Nemotron, there's FinePDFs, which we talked about.
+[00:50:15] There's some institutional books, and some code,
+[00:50:24] and all these things.
+[00:50:25] So you have all these different sources.
+[00:50:29] And the question is, how do you combine these?
+[00:50:35] So if you look at an older paper, The Pile,
+[00:50:39] this is the set of sources that they had at that time.
+[00:50:45] And they essentially assign a particular weight
+[00:50:51] to each component.
+[00:50:53] So basically, you have a distribution over sources.
+[00:50:58] So where does that weight come from?
+[00:51:03] So just cut and dry.
+[00:51:07] Let's say you have three sources.
+[00:51:08] You want to find a data mixture, and a data mixture
+[00:51:11] is just a distribution over your sources
+[00:51:16] So if you're just thinking about this problem
+[00:51:18] from first principles--
+[00:51:21] well, not from first principles, but just from what you might do.
+[00:51:26] Vibes, which is, I guess, the opposite of first principle,
+[00:51:28] is you just manually set it based
+[00:51:32] on some intuition, which is more often than you might think,
+[00:51:37] what people do.
+[00:51:38] So I think this is definitely fairly vibes-based.
+[00:51:44] And even more recent papers, you just look at--
+[00:51:50] maybe you use some method and then you just tweak things.
+[00:51:54] You can also do uniform sampling, which
+[00:51:57] is you just put a uniform distribution over your sources,
+[00:52:02] and you sample every chunk.
+[00:52:06] You just sample a source.
+[00:52:09] You can also do proportional mixing,
+[00:52:12] which is that you sample proportional
+[00:52:14] to the number of tokens in a source.
+[00:52:16] So if you have a data set with more tokens,
+[00:52:20] then you put a higher weight.
+[00:52:22] So this is also generally a rational thing to do.
+[00:52:25] But you might worry that if you have a huge, low-quality data
+[00:52:29] set, that's going to eat up a lot of your token.
+[00:52:31] So it doesn't seem quite optimal either.
+[00:52:35] So intuitively, you should upweight your higher quality
+[00:52:40] sources.
+[00:52:42] But there's two things that are important to keep in mind.
+[00:52:47] One is that you do want to ensure some diversity.
+[00:52:51] So often, sources are incomparable for literature,
+[00:52:55] code, and papers.
+[00:52:57] You can't really say that this paper
+[00:53:01] is higher quality than this code because they're just
+[00:53:03] incomparable objects, maybe.
+[00:53:05] And if you want your language model to do well,
+[00:53:08] you don't want to just put all your mass on papers.
+[00:53:14] The second thing, which I will talk a bit more about,
+[00:53:17] is each source is actually finite.
+[00:53:22] So if you put too much weight on a small source,
+[00:53:24] then you essentially run out of that source,
+[00:53:29] and you need to just epoch over it,
+[00:53:32] meaning that you keep on training literally
+[00:53:34] the same tokens.
+[00:53:36] And this is going to be bad for reasons we'll see.
+[00:53:39] OK.
+[00:53:40] So let's try to unpack this a little bit more concretely,
+[00:53:44] this last point.
+[00:53:45] So imagine you just have two sources--
+[00:53:48] a low-quality source, you have 10 trillion tokens,
+[00:53:51] and you have a high-quality source
+[00:53:52] that has 10 billion tokens.
+[00:53:54] Generally, high-quality sources are smaller.
+[00:53:58] So if you just do a naive data mixture.
+[00:54:02] Let's just do uniform.
+[00:54:03] So half on high, half on low.
+[00:54:06] And I'm going to train for 1 trillion tokens.
+[00:54:11] So when I say train for 1 trillion,
+[00:54:13] that doesn't mean unique tokens.
+[00:54:14] It just means train for that many steps divided
+[00:54:19] by batch size, essentially, or times batch size.
+[00:54:23] So then let's look at this, which
+[00:54:27] is the number of times a particular element
+[00:54:32] in the low-quality data set was trained on.
+[00:54:34] So that's the number of epochs a particular data
+[00:54:38] point was trained on.
+[00:54:39] So a p low times the trained tokens
+[00:54:43] is the number of times I want to request tokens
+[00:54:49] from this low-quality source, and divided by the total number
+[00:54:54] of low-quality sources.
+[00:54:55] So this is less than 1.
+[00:54:57] So basically, that means 5% of the tokens
+[00:55:02] in this low-quality data set, I'm
+[00:55:03] going to touch and train on once.
+[00:55:08] And then if you look at high quality,
+[00:55:12] you'll see that the number of epochs
+[00:55:14] is 50, because I only have 10 billion tokens here.
+[00:55:22] And if I'm half-half, that means 500 billion tokens--
+[00:55:27] I need to train up 500 billion tokens of high-quality data.
+[00:55:31] But I don't have 500 billion tokens of data,
+[00:55:33] so I have to repeat each data point 50 times.
+[00:55:37] So this is actually really important.
+[00:55:39] And some big model runs have messed this up.
+[00:55:45] You can't just naively look at the data sets
+[00:55:49] and define a distribution and then
+[00:55:50] you sample, because if you just look at the quality,
+[00:55:54] if you look at the data, you're missing
+[00:55:58] how many data points are there.
+[00:56:00] Does this make sense?
+[00:56:01] Maybe pause for questions.
+[00:56:03] This is an important point.
+[00:56:15] Yeah.
+[00:56:15] Yeah.
+[00:56:16] I guess, for the high-quality data, [INAUDIBLE]
+[00:56:23] as [INAUDIBLE] low quality.
+[00:56:29] Why do you need 50 epochs in the first place?
+[00:56:32] Doesn't it achieve comparable performance
+[00:56:35] a level that is way fewer?
+[00:56:37] Yeah.
+[00:56:38] So the question is, why do you need 50 epochs?
+[00:56:40] And I guess the point is that you don't need 50 epochs.
+[00:56:44] Worst case, it's wasting compute.
+[00:56:46] Sorry, best case is wasting compute, and worst case,
+[00:56:49] you're overfitting.
+[00:56:53] The reason it's 50 is that if you just go in
+[00:56:55] and you define this data mixture,
+[00:56:57] then you're going to end up doing
+[00:56:58] 50 epochs without realizing it, unless you're
+[00:57:01] paying close attention.
+[00:57:03] So this is basically--
+[00:57:05] the lesson is look at how many epochs you're actually
+[00:57:07] doing on your data.
+[00:57:10] Yeah.
+[00:57:11] How do the mixtures get expressed during training?
+[00:57:14] When you switch every step, you train steps of 10, saying,
+[00:57:18] oh, I want to do 10, Python code, 10 essays,
+[00:57:20] because I feel like-- is there also any intuition between what
+[00:57:24] decisions are made there?
+[00:57:26] Yeah.
+[00:57:26] Good question.
+[00:57:27] So the question is, when you train,
+[00:57:29] how do the mixtures get realized?
+[00:57:32] And so, in general, you just sample.
+[00:57:40] So you want to fill a batch.
+[00:57:42] So you can sample essentially for each element which mixture
+[00:57:50] component it comes from.
+[00:57:52] And you fill up a batch with sequences
+[00:57:56] from that mixture component.
+[00:57:57] Usually, every sequence comes from one mixture component.
+[00:58:00] You're not sampling per token.
+[00:58:04] So each batch should be mixed.
+[00:58:06] So I guess the mixture assumptions
+[00:58:07] are at the batch level, and then you train for that.
+[00:58:10] It's not like, oh, it's one step is-- the code in one step is--
+[00:58:14] Yeah.
+[00:58:14] In general, you want to reduce variance.
+[00:58:17] You want to train for multiple--
+[00:58:20] batch should have some mixture.
+[00:58:26] OK.
+[00:58:26] So this problem has been noticed quite a long time ago.
+[00:58:34] And so in this paper, they introduced the UniMax.
+[00:58:36] And in that case, they were training in multilingual models.
+[00:58:42] And it was very clear that some languages
+[00:58:45] were very low-resource, so you had to do something about this.
+[00:58:51] So, in this paper, they noticed that before some works
+[00:58:56] would essentially take the proportional mixing
+[00:59:01] and raise it to some power to flatten it out the distribution.
+[00:59:08] But the idea in this paper is that let's be
+[00:59:12] a bit more explicit about that.
+[00:59:15] Let's sample the sources uniformly,
+[00:59:17] but with a hard cap on the number of epochs.
+[00:59:20] So this is the key idea.
+[00:59:21] Here, you say I'm only going to take 20 epochs
+[00:59:25] over a particular data source.
+[00:59:29] So if you've done that, then too bad.
+[00:59:32] You don't get any more tokens.
+[00:59:34] You move on to the next thing.
+[00:59:36] So this is like a safety net in some sense.
+[00:59:41] So in particular, if you look at the number, the probability
+[00:59:44] assigned to a source times the number of training tokens,
+[00:59:47] that should be less than or equal to the cap.
+[00:59:51] And there's a simple procedure for actually determining
+[00:59:55] the mixture subject to this constraint.
+[01:00:00] So let's switch gears a little bit and talk
+[01:00:04] about how we define the mixture in the first place,
+[01:00:08] because if you have 50 sources, there's
+[01:00:11] 50 numbers you have to fill.
+[01:00:13] And we notice that proportional mixing isn't really enough.
+[01:00:17] Maybe you can try to estimate some quality metric,
+[01:00:20] and then you can sample proportional to that,
+[01:00:24] but that is also heuristic.
+[01:00:26] So the most principled methods and most
+[01:00:31] easiest to understand what's happening
+[01:00:33] is these regression-based mixing methods, or RegMix, Olmix,
+[01:00:37] and other papers like this.
+[01:00:40] And the idea here is relatively simple.
+[01:00:46] So first, let's say you're trying
+[01:00:48] to train a large-scale model.
+[01:00:50] So you go to a small scale, let's say
+[01:00:55] 300 million parameters, and you try different data mixtures.
+[01:01:02] So let's say you have three components.
+[01:01:04] You try different mixtures.
+[01:01:06] And then you train these small models.
+[01:01:08] You train a swarm of small models.
+[01:01:10] Each model gives you a loss on some target metric.
+[01:01:15] It could be some downstream values.
+[01:01:16] It could be perplexity, whatever you want.
+[01:01:19] So then you use these data points to basically fit
+[01:01:24] a regression where the regression model maps
+[01:01:27] these inputs, which is the data mixture weights, to the loss.
+[01:01:34] So now you have basically a very cheap model that tells you,
+[01:01:39] if I were to train on this mixture, what loss do I get?
+[01:01:44] Then you can essentially optimize that data mixture--
+[01:01:52] sorry-- optimize that function for the optimal data mixture.
+[01:01:58] And then that is the data mixture
+[01:01:59] you use to train the large-scale model.
+[01:02:03] So that's the simple procedure.
+[01:02:07] And you notice some similarities with scaling laws,
+[01:02:11] where you're trying to do some cheap computations to figure out
+[01:02:14] some answers, and then scale up.
+[01:02:17] OK.
+[01:02:17] So there's a few design decisions here.
+[01:02:23] One is, what are the mixtures that you're trying out here?
+[01:02:27] You need a distribution over distributions here.
+[01:02:30] So often, people use some Dirichlet distribution.
+[01:02:35] You also have to define the regression method.
+[01:02:38] People have tried linear models or boosted decision trees.
+[01:02:42] You have to figure out the target here.
+[01:02:46] Often this is based on downstream evals.
+[01:02:49] But you have to be very careful not to overfit because we're
+[01:02:53] doing pre-training.
+[01:02:55] Supposedly, pre-training is supposed
+[01:02:58] to be training this general-purpose model,
+[01:03:00] and we're not trying to fit some downstream evals.
+[01:03:03] And if you're not careful, for example,
+[01:03:05] if you have a bunch of code evals, then, well, guess what?
+[01:03:08] You're going to upweight all the code data.
+[01:03:10] That's not rocket science.
+[01:03:12] And if you then go and you say, I want to generate some poetry,
+[01:03:16] you might realize that you've overfit.
+[01:03:19] So you have to be very careful about that.
+[01:03:21] So proportional mixing and uniform mixing
+[01:03:23] don't have this problem because you're not looking.
+[01:03:25] There's no downstream evals.
+[01:03:27] And the final thing is, how much of a difference
+[01:03:31] between small and large scale is there?
+[01:03:35] And this is a cost and accuracy trade-off.
+[01:03:37] Of course, if you train really, really small models,
+[01:03:40] this might not be representative.
+[01:03:42] But if you train large models to do this,
+[01:03:45] well, there's no point in doing any of this.
+[01:03:47] You just train.
+[01:03:48] You're basically doing hyperparameter tuning
+[01:03:50] at the largest scale, which is too expensive.
+[01:03:54] So this Olmix paper actually has this nice table,
+[01:03:58] which shows you for a number of different methods
+[01:04:02] that all fall into this framework.
+[01:04:07] The size of the proxy models.
+[01:04:09] They're generally fairly tens of millions of parameters.
+[01:04:16] How many mixtures do you sample?
+[01:04:21] m here being the number of parameters in your mixture--
+[01:04:24] sorry-- the number of domains rather.
+[01:04:28] And you can use Dirichlet.
+[01:04:29] You can use exponential.
+[01:04:33] And then the regression model, you
+[01:04:35] can fit a log-linear model, which tends to work pretty well.
+[01:04:43] And then you can use different ways
+[01:04:45] to solve this optimization problem.
+[01:04:50] So there's two leaps of faith here
+[01:04:53] that you just have to be very careful of is
+[01:04:56] that the regression model was trained
+[01:04:59] on a bunch of these small proxy runs,
+[01:05:03] and you're optimizing this.
+[01:05:05] So the hope is that the minimizer, your optimal data
+[01:05:10] mixture, that regression model is still accurate.
+[01:05:15] And this is a little bit of-- you
+[01:05:18] have to be very careful because if you, let's say,
+[01:05:21] sample a random mixture, you'll probably be fine because
+[01:05:26] of classic generalization.
+[01:05:28] You sample a mixture, and you fit a function,
+[01:05:32] it should be able to predict in distribution.
+[01:05:34] But when you're optimizing, you're
+[01:05:36] essentially trying to go to potentially the extremes
+[01:05:39] where you might not have as much coverage.
+[01:05:41] So that's one thing to be careful of.
+[01:05:43] And the other thing is that optimal data mixtures,
+[01:05:50] you just hope that they transfer from small scale to large scale.
+[01:05:55] And this, in general, it seems like at least at the scales
+[01:05:59] that open community works with, it
+[01:06:02] tends to be true or not plainly false.
+[01:06:06] But clearly, there are scale-dependent effects.
+[01:06:09] If you just think about the previous slide
+[01:06:12] when we were talking about filtering,
+[01:06:14] if you're training for many more tokens,
+[01:06:16] then probably low-quality data is OK.
+[01:06:18] So clearly, the optimum is not the same,
+[01:06:20] but you just hope for the best here.
+[01:06:24] OK.
+[01:06:24] So hold on.
+[01:06:25] There's one scale-dependent effect
+[01:06:27] that we already talked about that we
+[01:06:30] need to address here, which is that, imagine,
+[01:06:35] so we have a lot of low-quality data, 10 trillion tokens,
+[01:06:39] 10 billion tokens of high-quality data.
+[01:06:41] And if we train a small model on low token counts,
+[01:06:47] do you remember?
+[01:06:49] What happens is that you might-- this is a made-up example,
+[01:06:55] but you might put a lot of mass on your high-quality data,
+[01:07:01] because low token counts, you're not epoching.
+[01:07:04] So it's like, oh, wow, Wikipedia is so great.
+[01:07:07] Let's just train on Wikipedia.
+[01:07:09] But if you then go and train this large model
+[01:07:14] on this mixture, then you're going
+[01:07:17] to end up epoching a lot on this high-quality data,
+[01:07:19] and you'll overfit.
+[01:07:20] And that's definitely bad.
+[01:07:25] So one way to fix this, which is done in this Olmix paper
+[01:07:32] is you can just cap the number of epochs.
+[01:07:37] So that is one solution.
+[01:07:39] There's another solution here, which goes
+[01:07:43] by probably multiple names.
+[01:07:44] But one name for it is simulated epoching.
+[01:07:47] And the principle here is that make your small scale
+[01:07:51] look like your large scale.
+[01:07:53] This is a general theme for the course.
+[01:07:55] We saw it when we talked about muP.
+[01:07:58] You parameterize your model so that your hyperparameters
+[01:08:02] transfer.
+[01:08:03] And so the same principle applies here.
+[01:08:06] And the problem with doing this naive scaling
+[01:08:10] is that you can't be not epoching out small scale then
+[01:08:17] epoching at large scales, because then those
+[01:08:19] are qualitatively different operations on your data set.
+[01:08:25] So the way you would handle this is you downstream your sources
+[01:08:31] proportionally.
+[01:08:33] So if you have your small runs, over 10 billion tokens,
+[01:08:39] and your big run with one trillion tokens,
+[01:08:43] then you have a 1 in 100 downsampling.
+[01:08:48] And then you basically use the downsample mixture.
+[01:08:55] And so the idea is that if you have the downsampled data, then
+[01:09:02] this solution is not going to look good because you're not
+[01:09:06] training on all--
+[01:09:08] you don't get to just train on Wikipedia.
+[01:09:10] You're going to train on some minuscule fraction of Wikipedia,
+[01:09:13] and you'll realize, oh, actually,
+[01:09:15] I'm going to be epoching a lot.
+[01:09:17] And that's going to have a really bad loss, which
+[01:09:20] means that in the optimization, you're
+[01:09:22] going to look for more balanced approaches.
+[01:09:25] So you're simulating the data scarcity
+[01:09:28] that you would get in your high regime at low scale.
+[01:09:37] So to summarize this section, the problem
+[01:09:40] is how do you weight different sources?
+[01:09:43] Wikipedia, you have your Common Crawl.
+[01:09:45] You have your code.
+[01:09:47] You have some math data that you scraped from somewhere.
+[01:09:51] How do you balance them?
+[01:09:53] Regression-based mixing is a nice framework,
+[01:09:56] I think, to think about things.
+[01:09:58] You estimate your function form that maps your mixture weights
+[01:10:03] to a loss at small scale, optimize,
+[01:10:06] and then you generalize to large scale.
+[01:10:10] And you just have to be very careful with this
+[01:10:14] because of epoching and overfitting issues.
+[01:10:18] And you have to either use cap epoching or simulate epoching.
+[01:10:23] So one lesson here is that if you're
+[01:10:26] trying to optimize anything, you have
+[01:10:28] to be very careful because you are in danger
+[01:10:31] of optimizing the wrong thing.
+[01:10:36] Any questions about data mixing before we move on?
+[01:10:44] When you're done sampling, is there
+[01:10:45] something too small that you can't really generalize as well?
+[01:10:53] So the question is, if you're downsampling, is there a risk?
+[01:10:57] Maybe you get too small of a data set.
+[01:11:00] Yeah, absolutely.
+[01:11:02] So I think you might get into a case
+[01:11:08] where you just have so few tokens.
+[01:11:11] I think then what will happen is that your optimum will just
+[01:11:15] put a very small mass on that.
+[01:11:18] And when you scale up, maybe you get the right set of tokens.
+[01:11:20] So in principle, it should work out.
+[01:11:23] But there might be rounding errors where you end up,
+[01:11:26] instead of training once on this data set,
+[01:11:29] you train like zero times by accident.
+[01:11:32] But you can work around these by just--
+[01:11:36] then you always train once on this data.
+[01:11:44] OK.
+[01:11:45] Yeah.
+[01:11:46] In data mixing, I guess these sources just happen
+[01:11:50] to align with different topics.
+[01:11:52] But do you ever take a diverse data set
+[01:11:56] and try to do data mixing within that?
+[01:11:59] Yeah.
+[01:11:59] So the question is, what do you apply data mixing to?
+[01:12:04] Different domains or even within a data set?
+[01:12:07] Actually, I forgot to mention that,
+[01:12:09] so I'm glad you brought it up.
+[01:12:11] So in Nemotron paper, they actually
+[01:12:15] install the [INAUDIBLE] stuff as well.
+[01:12:17] You basically think about-- let's say
+[01:12:19] I give you just Common Crawl.
+[01:12:22] You can actually break this up, so you can group by domain.
+[01:12:25] So the IT folks have this web organizer,
+[01:12:29] so you can group into topics.
+[01:12:31] But you can also quality filter.
+[01:12:34] So then you have this two-dimensional grid
+[01:12:37] where you have domains, and you have quality.
+[01:12:39] And each of these cells is something
+[01:12:43] that you would data mix.
+[01:12:45] So that's one automatic way to determine the domains.
+[01:12:50] And then on top of that, you add extra sources
+[01:12:53] that people hand you.
+[01:12:57] So I'm going to quickly go through post-training data here.
+[01:13:04] So up until now, this is basically pre-training or maybe
+[01:13:09] mid-training data.
+[01:13:10] It's generally fairly task agnostic,
+[01:13:13] except for the RegMix stuff where you're
+[01:13:15] trying to minimize the loss.
+[01:13:17] But the data itself is still relatively task agnostic,
+[01:13:22] and you're trying to develop basic skills.
+[01:13:25] So when you look at post-training, a lot of the data
+[01:13:28] becomes very task-dependent.
+[01:13:33] And I'm not going to do a comprehensive review.
+[01:13:36] I just want to point out some interesting post-training data
+[01:13:41] sets that have been recently released,
+[01:13:43] in particular, for coding, since that's of great interest
+[01:13:46] these days.
+[01:13:48] So the general recipe is you define a set of environments.
+[01:13:56] In this case, think about code, which might be GitHub repos.
+[01:14:01] You define a set of tasks or prompts,
+[01:14:05] and then you collect responses from a strong model or teacher.
+[01:14:10] So implicitly, at least in the open community,
+[01:14:14] almost all the post-training data, most of it,
+[01:14:17] is synthetically generated.
+[01:14:22] You can also replace a strong model with a human,
+[01:14:26] but that is slow and costs a lot of money.
+[01:14:29] But, if you're at the frontier--
+[01:14:34] a few years ago, you had to go and pay a lot of people a lot
+[01:14:39] of money to give you responses.
+[01:14:42] And nowadays, even at the frontier,
+[01:14:44] you can do hybrid human-AI things.
+[01:14:47] But anyway, the point is that there's some teacher out there
+[01:14:50] that's giving you responses.
+[01:14:52] OK.
+[01:14:53] So I'm just going to talk to a few works here.
+[01:14:59] So one is this works called OpenThoughts.
+[01:15:03] And this idea here is--
+[01:15:07] this came around.
+[01:15:08] It was motivated by when o1 came out,
+[01:15:11] and there was a lot of intention on reasoning, mostly
+[01:15:14] for math and science.
+[01:15:16] How do we get really good post-training data
+[01:15:19] sets for this?
+[01:15:20] And they eventually came out with 1.2 million examples
+[01:15:25] using this teacher model.
+[01:15:29] So the steps are, first of all, there are a bunch of--
+[01:15:34] so what are the environments and the tasks and questions?
+[01:15:39] There are a lot of different sources that they drew from.
+[01:15:44] There are human sources like Stack Exchange, or NuminaMath,
+[01:15:49] and then there's some synthetic sources as well.
+[01:15:52] These are just a subset of the coding ones,
+[01:15:55] but there's also more for math and chemistry.
+[01:15:57] This is a big project that involved
+[01:15:58] a lot of different contributions from many people.
+[01:16:04] So you can see that some of these are coding exercises.
+[01:16:09] Some of these are more realistic things that show up on--
+[01:16:15] I guess, CodeGolf is not realistic,
+[01:16:17] but there are some more realistic examples here.
+[01:16:22] So code review, this is probably more realistic.
+[01:16:26] And they did a fairly comprehensive analysis of,
+[01:16:30] given this data set, how do you generate responses?
+[01:16:34] They show that having a few sources
+[01:16:38] was actually good than trying to do all sources.
+[01:16:42] Sampling multiple generations is helpful, like 16.
+[01:16:46] One thing that was interesting is that having better models
+[01:16:51] aren't necessarily better teachers.
+[01:16:55] So for example, QwQ-32B, which is now a very old and small
+[01:17:01] model, was a better teacher than DeepSeek-R1,
+[01:17:04] which was at the time probably one
+[01:17:06] of the strongest open models.
+[01:17:08] They also found that basic answer filtering wasn't helpful.
+[01:17:13] And so the entire pipeline looks something
+[01:17:18] like this, where you have a bunch of these sources going in,
+[01:17:23] and then you duplicate.
+[01:17:25] You randomly sample.
+[01:17:28] I guess this downsample the questions,
+[01:17:30] and you generate multiple answers,
+[01:17:32] and that gets into the final data set.
+[01:17:34] So the 1.2 million is examples, but divided by 16
+[01:17:40] gives you the number of actual questions.
+[01:17:47] So that was for math and science and some code.
+[01:17:53] I think more recently there's been
+[01:17:55] a lot of interest in developing, in particular, agentic coding
+[01:17:59] model-- so not just a model that can just
+[01:18:02] generate some code, but actually a model that
+[01:18:04] can do software development.
+[01:18:07] So this SWE-smith paper had the idea of-- you're
+[01:18:14] given a repository, you're using a language model
+[01:18:18] to automatically generate tasks.
+[01:18:21] So they have an agent that takes a repository
+[01:18:24] and actually makes it usable for installing dependencies
+[01:18:30] and so on.
+[01:18:32] And then you generate tasks which are generally--
+[01:18:36] you modify the code in some way and maybe introduce some bugs.
+[01:18:40] And those get verified, and you get task instances.
+[01:18:44] So these are synthetic tasks, but you get 50k of them,
+[01:18:48] which is actually at the time, which was last year,
+[01:18:52] quite large.
+[01:18:54] So since then, there's been a bunch of other work, which
+[01:18:59] I'll mention.
+[01:19:03] So there's this SWE-Zero paper from NVIDIA, which had this--
+[01:19:12] actually, OK, I'll also talk about that.
+[01:19:15] So this is an interesting idea where the observation
+[01:19:19] was that, unlike math, SWE tasks have
+[01:19:23] a lot of heavy dependencies.
+[01:19:25] Most GitHub repos like don't even run.
+[01:19:28] And you have to install all these dependencies.
+[01:19:31] They're out of date, especially if you roll back
+[01:19:33] to when a PR was just a mess.
+[01:19:37] And this is just a nightmare.
+[01:19:39] And so they were thinking about, how can
+[01:19:42] we actually get a data set on all the repos?
+[01:19:49] And rather than having a repo-specific Docker image,
+[01:19:54] they noticed that the models are actually good enough
+[01:19:56] that they can solve a lot of these tasks
+[01:19:58] without execution feedback.
+[01:20:01] So if you look at some of these models,
+[01:20:05] if you were allowing execution, you get 80.
+[01:20:09] If you don't allow execution, you get almost 70,
+[01:20:14] which is not bad for not being able to execute code.
+[01:20:19] So somehow these models have some internal semantics of code.
+[01:20:25] So they were able to generate 300,000 agent trajectories.
+[01:20:30] All of these are real GitHub PRs,
+[01:20:33] so they're realistic on the SWE-smith examples.
+[01:20:38] They use the OpenHands scaffold.
+[01:20:41] There's a lot of details how to prevent agent hacking.
+[01:20:45] So normally, you hand an agent this instruction.
+[01:20:50] You explore, you test, you implement.
+[01:20:53] And SWE-Zero version was basically saying you cannot run
+[01:20:58] Python code.
+[01:20:58] You can only do set, grep, and all these basic operations.
+[01:21:05] OK.
+[01:21:06] So then they distilled from big Qwen model
+[01:21:10] and filtered because sometimes the Qwen model
+[01:21:13] will ignore these instructions and still try to execute anyway.
+[01:21:17] And then they show that with this--
+[01:21:21] oh, they also had a 13k agent trajectories that do require
+[01:21:25] execution feedback.
+[01:21:27] So they train models where they first
+[01:21:30] fine-tune on these SWE-Zero examples,
+[01:21:34] and then fine-tune again on these SWE-Zero examples.
+[01:21:37] And they were able to--
+[01:21:39] I guess the frontier is still pretty high up,
+[01:21:42] but they were able to make some progress here.
+[01:21:45] I'll quickly go through SWE-rebench,
+[01:21:48] which is essentially another attempt
+[01:21:50] to grab tons and tons of PRs.
+[01:21:57] And all of these look, get a bunch of GitHub repos,
+[01:22:01] try to install the repo.
+[01:22:03] Most of them probably failed and try harder.
+[01:22:07] And then you use a language model to give you the responses.
+[01:22:13] And these actually just came out today.
+[01:22:18] So you can take this SWE-Zero idea,
+[01:22:21] and you can now scale up to 12 million agent trajectories.
+[01:22:26] The nice benefit of SWE-Zero is that it's very lightweight.
+[01:22:32] Here, they use the SWE-rebench tasks.
+[01:22:36] So in this one, remember, they were trying
+[01:22:39] to get things to execute.
+[01:22:40] They only got 32,000 of them to execute,
+[01:22:43] and 120 of them didn't execute.
+[01:22:46] But SWE-Zero doesn't care.
+[01:22:47] You can use all of them.
+[01:22:50] This is a very small model because-- now this data set
+[01:22:53] is quite large.
+[01:22:56] And so I think, as you can see, the data sets
+[01:23:02] are getting more and more sophisticated.
+[01:23:05] You go from environment-free things like math to now coding.
+[01:23:09] And now the coding data sets are growing quite a bit.
+[01:23:13] But the general idea is that you have these prompts, which
+[01:23:19] there's trade-offs.
+[01:23:22] You can have fully synthetic.
+[01:23:24] You can have semi-synthetic, where
+[01:23:25] you have real environment and synthetic tasks,
+[01:23:28] or you can have real.
+[01:23:30] And the responses generally are coming from just capable models,
+[01:23:36] but they also need to be good teachers.
+[01:23:38] Code environments are a pain.
+[01:23:40] And there's a lot of filtering and other details which
+[01:23:42] we don't have time for.
+[01:23:44] OK.
+[01:23:45] To summarize this lecture, we talked about filtering.
+[01:23:48] So define what good looks like, and then train
+[01:23:51] a lightweight classifier.
+[01:23:52] Go over your web crawl, and you can
+[01:23:54] get a small subset that matches what you're looking for.
+[01:23:58] Deduplication is important to avoid overfitting and saving
+[01:24:03] flops.
+[01:24:04] Mixing.
+[01:24:05] Try a mixture at small scales, extrapolate to large scale.
+[01:24:10] And then we looked at some post-training data.
+[01:24:14] I will say, though, that a lot of the data work
+[01:24:17] can be very grungy.
+[01:24:19] It's very domain-specific and requires
+[01:24:22] looking at concrete examples to make these high-quality data
+[01:24:25] sets.
+[01:24:25] So this lecture is not really representative of what
+[01:24:28] data work is like, but hopefully giving you
+[01:24:31] an idea of the data landscape out there.
+[01:24:34] OK.
+[01:24:34] So that will be it for today.
+[01:24:37] [APPLAUSE]

@@ -1,0 +1,1812 @@
+[00:00:06] We will get started.
+[00:00:09] Well, temporarily leaving the land of systems
+[00:00:13] to talk about more deep learning stuff, which we're
+[00:00:16] going to have two lectures on scaling law and scaling
+[00:00:19] law adjacent phenomena.
+[00:00:20] So today is going to be the basics.
+[00:00:23] We're just going to talk about pretty basic scaling law stuff.
+[00:00:25] Some of the classic works.
+[00:00:27] How does the basic idea of scaling laws
+[00:00:29] connect to maybe things you know about from machine learning 101.
+[00:00:33] And then in two lectures, we're going
+[00:00:35] to do the more advanced version of the scaling laws
+[00:00:38] lecture, where we're going to basically go
+[00:00:39] into a bunch of modern, open model tech reports, things
+[00:00:46] like mu p and other parameter initializations,
+[00:00:48] and this year I'm going to throw in some more
+[00:00:50] stuff for optimizers.
+[00:00:51] So there will be an advanced version
+[00:00:53] of this that will try to really get to the cutting edge.
+[00:00:55] Today, we're going to start with all the really basic stuff.
+[00:00:59] And due to some scheduling constraints,
+[00:01:01] next lecture will be inference, so you're
+[00:01:03] going to go back and forth.
+[00:01:04] You're going to do scaling laws and inference and then scaling
+[00:01:07] laws again.
+[00:01:09] So scaling laws is really the following scenario in some ways,
+[00:01:14] or you run into it very quickly once you run into this scenario.
+[00:01:17] So you have your very wealthy friend,
+[00:01:20] who has given you 10,000 B200s for a month,
+[00:01:23] and he or she has asked you to build a very good open source
+[00:01:26] language model.
+[00:01:27] They would like to get something out of those B200s.
+[00:01:30] And so you've already put together your infra team.
+[00:01:32] That's your assignment to buddies.
+[00:01:36] And you have, let's say a good pre-training data set.
+[00:01:38] That's going to be the assignment after this,
+[00:01:40] but let's say you already have that.
+[00:01:42] And then you're going to go and train a big model,
+[00:01:44] but there's lots of choices in training a big model-- all
+[00:01:47] the assignments, the earlier lecture two stuff that we had
+[00:01:51] earlier, where you have questions like what architecture
+[00:01:54] should I use?
+[00:01:55] What should my hyperparameters be?
+[00:01:57] And it's very scary to run these things
+[00:01:59] on a run that is basically, potentially
+[00:02:01] millions of dollars in cost, so how
+[00:02:04] do you really take this idea of scaling up very seriously?
+[00:02:06] How do you make sure that your big run is actually successful?
+[00:02:11] So of these many choices, some of which
+[00:02:13] you're going to just copy out of the literature.
+[00:02:16] The stuff that I talked about earlier in the architecture
+[00:02:18] lecture is really about, well adopted best practices,
+[00:02:23] and you will probably just pick some of these out of a hat.
+[00:02:26] That's fine, but really, let's say you're at the frontier.
+[00:02:30] You would like to build something
+[00:02:31] that's actually better than the best available models today.
+[00:02:34] You have to start really optimizing these.
+[00:02:36] You can't just copy the choices of others
+[00:02:39] and get something that's better than the state of the art.
+[00:02:42] So how do we do that?
+[00:02:43] Well, that's going to require us to really engage
+[00:02:45] with this idea of scaling.
+[00:02:48] So scaling laws have been one very powerful tool.
+[00:02:52] You might also call it a paradigm.
+[00:02:54] Scaling laws, if you talk to some people who are really
+[00:02:57] in these big labs doing scaling work,
+[00:02:59] it's almost kind of a way of life.
+[00:03:01] They're like, we really believe in the scaling laws.
+[00:03:03] It's almost a belief, and you'll see
+[00:03:04] why scaling laws can sometimes be quite tricky objects.
+[00:03:09] But really, scaling laws are these simple, predictive rules
+[00:03:12] of how to go from small scale model performance and behavior,
+[00:03:16] and to try to extrapolate them up to large scale behavior.
+[00:03:19] And so the basic naive way to approach model training
+[00:03:24] might be to say, I have a big budget,
+[00:03:25] I'm going to do multiple training runs on these very
+[00:03:28] big runs, and I'm going to tune hyperparameters
+[00:03:30] on those big runs, but that's very wasteful.
+[00:03:33] So instead, what I would like to do
+[00:03:35] is I would like to do all of my optimization at the small scale
+[00:03:38] and have some simple rule that allows
+[00:03:40] me to extrapolate small scale behaviors to large scale
+[00:03:43] behaviors.
+[00:03:44] And if the small scale and large scale
+[00:03:46] are connected by some very simple, robust connections
+[00:03:50] like regularities of some kind, then you
+[00:03:52] would have confidence in this kind of new scaling approach
+[00:03:55] to optimizing your system.
+[00:03:57] And that's really what today is all
+[00:03:59] going to be about-- this engineering view of a scaling
+[00:04:02] law.
+[00:04:05] And to start with, I'm going to talk a little bit
+[00:04:08] about background, because scaling laws are very
+[00:04:10] interesting in that not only are they the newest paradigm, that's
+[00:04:15] how a lot of these models are designed and thought,
+[00:04:17] but also they connect very closely to very classical ideas.
+[00:04:21] So if you're a person that's a machine learning theorist,
+[00:04:26] actually, there are some things that you will really
+[00:04:28] feel at home with in some ways, so they're like empirical sample
+[00:04:31] complexities.
+[00:04:32] And then I'll talk through the history of scaling laws of one
+[00:04:36] kind and show you that this is not something that's really new.
+[00:04:38] It's something with actually quite a bit of history
+[00:04:40] and research done to it.
+[00:04:44] So I really, really had to put some math into my slides.
+[00:04:47] I really feel the need to do so, but one
+[00:04:51] of the things that is very interesting
+[00:04:53] is that for the longest time, machine learning
+[00:04:55] has thought about this question of how will my model perform,
+[00:04:59] especially from a theory perspective?
+[00:05:00] I have this model class, how good is my model going to be?
+[00:05:04] And generalization bound is the theorists answer
+[00:05:07] to this question, so you have your error,
+[00:05:09] over some finite hypothesis class,
+[00:05:11] and you say, oh, my error is going
+[00:05:12] to be at most this much worse than the model's
+[00:05:16] performance on my training set.
+[00:05:17] This is classic generalization bounds.
+[00:05:20] You can write this down for more complex classes
+[00:05:22] like smooth densities or whatever,
+[00:05:24] but importantly, not only does this
+[00:05:26] tell you some of performance, notice
+[00:05:28] that these bounds are often dependent on the sample size.
+[00:05:32] And so this is telling you, well, this
+[00:05:34] is a theoretical upper bound on my loss values
+[00:05:37] as a function of how my training set grows.
+[00:05:39] And in some ways, that's very closely related to this idea
+[00:05:42] of what happens as I scale up the amount of data that I have?
+[00:05:46] Those are closely related questions,
+[00:05:48] where you might believe me that that's true.
+[00:05:52] And if you try to figure out what is the very first scaling
+[00:05:55] law paper that exists?
+[00:05:56] It turns out you can go back quite far.
+[00:05:59] You can go back to Bell Labs and Corina Cortez and Vladimir
+[00:06:03] Vapnik and these folks that were doing very serious theory
+[00:06:07] work on machine learning, ask this question, well,
+[00:06:11] training classifiers on a really large data set
+[00:06:13] is often very expensive.
+[00:06:15] We would like to avoid doing that,
+[00:06:17] and to do so maybe we can just fit classifiers on a smaller
+[00:06:20] sample, fit a curve to how their error rates decay,
+[00:06:23] and use that as a way to estimate their performance.
+[00:06:26] That's almost literally a data scaling law back in 1993.
+[00:06:30] So this idea, at the very least, thinking
+[00:06:33] about how your model's performance
+[00:06:35] changes as a function of data set size is just a very
+[00:06:37] classical one, and there's a lot of work that
+[00:06:40] supports this kind of idea.
+[00:06:42] I just want to connect this to some of these older ideas
+[00:06:45] so you don't really think of scaling laws as this very
+[00:06:48] new, purely neural thing.
+[00:06:50] It's an idea that has a lot of roots in empirical machine
+[00:06:53] learning, and also connections to theoretical machine learning.
+[00:06:57] And if you start to look at the history of this,
+[00:07:00] there's a lot of people that have said, isn't it the case
+[00:07:03] that maybe instead of spending money on algorithm development,
+[00:07:06] maybe we should just go collect more data,
+[00:07:08] because if we plot how the performance of our systems
+[00:07:12] behave as a function of the amount of data that we have,
+[00:07:14] it turns out that they are all increasing or improving
+[00:07:18] in predictable ways?
+[00:07:19] Banko and Brill, is one of the canonical NLP references in how
+[00:07:25] the amount of data and thinking about scaling
+[00:07:28] is a really valid way of improving system performance,
+[00:07:31] so there's lots of ways of thinking about this.
+[00:07:35] And there's also work by other NLP folks
+[00:07:39] like Kolachina et al. in 2012.
+[00:07:40] This is one of the earlier works on different kinds
+[00:07:43] of functional forms for scaling laws, where once again, they're
+[00:07:45] increasing the amount of data that they're using to train.
+[00:07:48] In this case, machine translation systems or BLEU
+[00:07:50] scores.
+[00:07:51] And they're asking like, what is the right functional form
+[00:07:54] for how a model's performance behaves
+[00:07:57] as a function of increased data amount?
+[00:08:00] And they maybe surprisingly or not surprisingly,
+[00:08:03] end up with the same power laws, which is pow 3 and 4 as really
+[00:08:08] we do today.
+[00:08:08] For the rest of the lecture, you're
+[00:08:10] going to keep seeing essentially these polynomial functions, pow
+[00:08:14] 3 and pow 4 as I talk about scaling laws.
+[00:08:17] And we knew about a lot of this back in the 2010's
+[00:08:21] that these kinds of functional forms
+[00:08:23] were very predictive of model behavior as we scaled them up.
+[00:08:28] And then finally, I really like mentioning this paper because
+[00:08:32] for whatever reason, they don't get,
+[00:08:34] or Hestness et al. don't get cited
+[00:08:35] quite as much as they should.
+[00:08:37] The origins of neural scaling, I would point back
+[00:08:40] to Hestness in 2017.
+[00:08:43] Really a very forward looking work
+[00:08:45] in many ways that built these scaling
+[00:08:48] laws as a function of data set size
+[00:08:50] for a wide variety of systems, different kinds of speech
+[00:08:52] recognition systems, machine translation systems, language
+[00:08:55] models, and they showed that these things follow
+[00:08:59] these nice polynomial trends across a really large number
+[00:09:02] of domains.
+[00:09:04] And it was really ahead of its time,
+[00:09:06] because 2017 was long before some of the earlier OpenAI
+[00:09:10] scaling laws and so on in the 2020s.
+[00:09:13] And they talked about stuff that we talk about today,
+[00:09:15] like emergence, where suddenly models
+[00:09:18] might show certain kinds of capabilities
+[00:09:20] because accuracy is a much more discontinuous measure
+[00:09:23] than losses.
+[00:09:24] And really, scaling by compute, that if we have systems
+[00:09:27] that scale predictably to large training data, then
+[00:09:31] really compute is going to be really important.
+[00:09:33] And then finally, since we're scaling by compute, well,
+[00:09:36] speed and systems optimization is going to turn into accuracy.
+[00:09:39] So in some ways, a lot of the things that we see today,
+[00:09:42] like the phenomena of system scaling and so on,
+[00:09:45] we could have really known, or I could have known in 2017
+[00:09:48] had I read and thought about a lot of these scaling laws papers
+[00:09:52] back and thought about them more seriously.
+[00:09:54] So to mention that paper in every one of these scaling law
+[00:10:00] lectures I give, just to say, a lot of these phenomena
+[00:10:04] were known far before the modern era,
+[00:10:06] or the Modern Language modeling era in that it's
+[00:10:10] possible to have known the regime that we're
+[00:10:12] in even before seeing these large language models.
+[00:10:15] That's very cool to know.
+[00:10:17] Any questions about this semi-historical part?
+[00:10:20] Yeah.
+[00:10:21] [INAUDIBLE], and I'm wondering if those are just
+[00:10:25] stored empirically, or is there some way we
+[00:10:28] can justify all of this?
+[00:10:30] You're asking about these scaling laws,
+[00:10:32] and where they come from?
+[00:10:34] These are pure curve fitting exercises.
+[00:10:38] I will talk a little bit about where scaling laws can come from
+[00:10:41] and why polynomials are arguably a very natural class of scaling
+[00:10:45] laws, but there's no golden rule that these are the only ones.
+[00:10:50] I will say, though, that in some ways,
+[00:10:53] theory provides a very rich place, where the scaling law
+[00:10:56] functional forms can come from because theory
+[00:10:58] is often thinking a lot about how do error rates decay
+[00:11:01] as a function of various objects?
+[00:11:03] And they give you candidate functional forms
+[00:11:05] of various kinds.
+[00:11:05] Physicists are also very good at this
+[00:11:07] because they thinking about limits,
+[00:11:08] like how do the limits behave?
+[00:11:09] And that gives you different scaling law functional forms.
+[00:11:13] Cool.
+[00:11:19] All right, any other questions?
+[00:11:22] Good.
+[00:11:23] So now I'm going to start talking about more modern neural
+[00:11:26] language model scaling, and I'm going
+[00:11:28] to start with data scaling laws because to me, they're the most
+[00:11:31] simple and natural objects.
+[00:11:34] Talking about data scaling laws also
+[00:11:36] allows me to walk you through very step-by-step on how
+[00:11:40] we might guess what the functional form of a scaling law
+[00:11:44] might be and why the polynomial form is a natural one.
+[00:11:47] And then I'm going to start talking about hyper parameters
+[00:11:50] and architectures and all sorts of other more exotic objects
+[00:11:53] that are going to be harder to justify from intuition,
+[00:11:56] but still turn out to have very nice scaling law behaviors.
+[00:12:01] One of the things that's remarkable about this scaling
+[00:12:04] law style analysis has been that these power law relationships
+[00:12:08] seem to hold for a huge variety of different factors.
+[00:12:13] So the basic ones that we see in pre-training,
+[00:12:15] and those are going to be the ones that I'm
+[00:12:17] going to talk about today.
+[00:12:18] The usual ones that you see are compute on the x-axis.
+[00:12:22] This is log compute.
+[00:12:23] Sorry, on the x-axis, log of test loss on the y-axis,
+[00:12:26] or log of the data set on x-axis,
+[00:12:28] log of loss on the y-axis, log of parameters
+[00:12:31] on x-axis, log of loss, once again, on the y-axis.
+[00:12:34] So we can get a variety of different x-axes
+[00:12:36] that you might think of as resources in the log axis.
+[00:12:39] All of them linearize log test loss here.
+[00:12:43] You can see also much more exotic scaling laws.
+[00:12:47] You can see scaling laws that are basically
+[00:12:51] the equivalent to these in downstream benchmarks.
+[00:12:53] In those cases, you expect to see a sigmoid functional form
+[00:12:56] as a function of compute or compute-like quantities.
+[00:13:00] There's even been many works recently, more
+[00:13:02] on the forecasting side, where people are doing things
+[00:13:05] like putting dates as the x-axis.
+[00:13:07] And strangely enough, at least for these
+[00:13:09] plots-- like the upper envelope of these curves
+[00:13:12] are often linear in various forms of capabilities.
+[00:13:16] There's no reason that on this bottom side,
+[00:13:19] the more exotic scaling laws need to be true.
+[00:13:22] But it turns out to be the case that I guess language model
+[00:13:26] performance is often much more regular as a function of scale
+[00:13:29] and resources than it initially might appear.
+[00:13:34] So to begin with, I'm going to start with data scaling laws.
+[00:13:37] And data scaling laws are a very simple kind
+[00:13:40] of univariate relationship that we're going to think about.
+[00:13:43] So in this world, we're going to fix our model training
+[00:13:45] procedure.
+[00:13:46] And in general, unless I say otherwise,
+[00:13:48] the models are going to generally be
+[00:13:50] bigger than the data set size.
+[00:13:52] And I'm going to increase my data set size in a regular way,
+[00:13:55] and I'm going to see how the error reduces.
+[00:13:57] And what do we expect out of this relationship?
+[00:14:00] In general, it's going to be monotone-ish
+[00:14:02] if we tune our hyperparameters well.
+[00:14:04] Because we have more data, more data
+[00:14:06] should help us do better at our task.
+[00:14:09] The error should decrease.
+[00:14:10] And if you're doing something like classification, or even
+[00:14:13] for next token prediction, you should really
+[00:14:15] go from random guessing to some of entropy-like object
+[00:14:18] where you can't do any better than the irreducible error
+[00:14:22] of your task.
+[00:14:22] That's the noise floor.
+[00:14:23] So we're going to have some sigmoidal-like object over here.
+[00:14:27] So this is generally what we expect out of our system.
+[00:14:31] So we're going to start with an empirical observation,
+[00:14:35] and should make this on your own.
+[00:14:39] You'll make something that looks roughly
+[00:14:40] like this in parts of assignment 3,
+[00:14:44] which is if we just have a very big model,
+[00:14:46] much bigger than our data set, and we
+[00:14:49] increase the data set size, and we put that on the log axis,
+[00:14:52] and on the y-axis, we have log test loss.
+[00:14:54] Once again, you will find that the two points that you plot
+[00:14:59] will form a very clear linear trend.
+[00:15:02] I've taken this from Kaplan in 2020.
+[00:15:05] I'm going to refer repeatedly to this paper.
+[00:15:07] This one's OpenAI's "Neural Scaling Laws" paper.
+[00:15:10] They have a lot of lovely ablations
+[00:15:12] and a lot of lovely data.
+[00:15:14] Now, this relationship, where I've
+[00:15:17] plotted a line on a log-log plot,
+[00:15:19] this is a scale-free or power law relationship.
+[00:15:23] And what does that mean?
+[00:15:24] If I have a line on a log-log plot?
+[00:15:26] Many of you-- to many of you, this is probably obvious.
+[00:15:29] But just to really emphasize this,
+[00:15:30] if something is linear in a log-log plot, what
+[00:15:32] does that mean?
+[00:15:33] Well, it means that the error that I have
+[00:15:36] is decaying polynomially.
+[00:15:37] And also, it usually means that I'm very far away
+[00:15:39] from my asymptote.
+[00:15:40] Because once I approach my asymptote,
+[00:15:42] I'm going to taper off rather than have a line.
+[00:15:45] So let's go through an example just to show you
+[00:15:48] how scaling law arises very naturally on a very
+[00:15:52] simple estimation problem.
+[00:15:55] So forget language modeling for the moment.
+[00:15:57] This was a language modeling class,
+[00:15:59] but now it is a statistics class for the next one
+[00:16:01] slide or actually two slides.
+[00:16:03] No, maybe three slides.
+[00:16:06] So in this case, what I want to do
+[00:16:08] is I want to estimate the mean from a bunch of data.
+[00:16:11] And so I have an input, it's drawn from a Gaussian.
+[00:16:13] And I'm going to estimate the mean of this object.
+[00:16:14] I just write down the empirical mean.
+[00:16:16] And then, you can write down what the error is.
+[00:16:18] So what's the expected error?
+[00:16:19] Well, each of these guys is Gaussian,
+[00:16:21] and that the mu hat is Gaussian, so I can write down the error.
+[00:16:24] That's going to be sigma squared over n.
+[00:16:26] So well, if you look at this, is a scaling law.
+[00:16:31] I've written down the error, and the error, if I log that,
+[00:16:35] is a function of log n, log n being the log x-axis.
+[00:16:41] So in general, if you can come up
+[00:16:43] with anything that is essentially
+[00:16:45] 1 over n to the alpha plus some constant,
+[00:16:48] when you plot that on a log-log plot,
+[00:16:50] subtracting out the constant term,
+[00:16:52] you're going to get a scaling log.
+[00:16:53] So anything of this form, where you have polynomial decay
+[00:16:56] and errors, is going to end up giving you a scaling law.
+[00:16:59] And of course, in parametric estimation like mean estimation
+[00:17:02] or regression, you of course, expect a polynomial rate.
+[00:17:05] You don't really expect anything else.
+[00:17:09] And if you've taken your stats estimation courses,
+[00:17:12] you know that essentially all the classical
+[00:17:14] models you are expected to have a 1 over n scaling.
+[00:17:17] If you fit a regression or so on, you might get D over n
+[00:17:20] or whatever else.
+[00:17:22] And so if this is true, and this is the origins of scaling laws,
+[00:17:25] if we plot our lines, we should expect
+[00:17:28] to see roughly a slope of minus 1
+[00:17:31] because that's the exponent on the x.
+[00:17:33] Y equals minus x plus C.
+[00:17:35] If we fit our neural scaling laws,
+[00:17:37] we will find that our exponents are quite different.
+[00:17:40] These exponents-- I've taken from these two
+[00:17:43] on the left from Hestenes, I've taken the one on the right
+[00:17:46] from Kaplan.
+[00:17:47] They're about -0.1, -0.3, -0.1, roughly speaking.
+[00:17:52] And so what does that mean?
+[00:17:54] That means this is much slower than estimating a mean
+[00:17:57] or estimating a linear regression.
+[00:17:59] So this is much, much slower convergence rate, still
+[00:18:02] polynomial, but much slower.
+[00:18:04] Now this is interesting.
+[00:18:06] It's saying that we're getting these kind
+[00:18:08] of nice polynomial rates, but the exponents are not so great.
+[00:18:11] They're -0.1.
+[00:18:13] Where might you get an estimation rate like this?
+[00:18:15] Well, you would get this if your model was more nonparametric.
+[00:18:20] I promise this will be the last statistics
+[00:18:21] slide of this lecture.
+[00:18:23] Let's say that I want to estimate now,
+[00:18:25] instead of a mean, an arbitrary smooth function.
+[00:18:28] So one thing I could do is, if I'm doing a regression problem,
+[00:18:32] I have my inputs, x1 through xn.
+[00:18:34] Let's say they're in the unit box.
+[00:18:36] I have a little bit of Gaussian noise,
+[00:18:37] and I have an unknown function f that I would like to estimate.
+[00:18:41] A trivial estimator for this is I can take my space,
+[00:18:44] I can cut it up into little 2D boxes of length n
+[00:18:47] to the negative 1 to the fourth.
+[00:18:49] And then what's our estimation error?
+[00:18:51] I'll have square root n boxes.
+[00:18:53] Each box is going to get square root n samples.
+[00:18:56] And the error is going to be roughly 1
+[00:18:57] over square root of n or something.
+[00:18:59] And in general, if have a D-dimensional function
+[00:19:02] I would like to estimate in this very nonparametric, arbitrary
+[00:19:06] way, my error is going to be roughly equal to n
+[00:19:09] to the negative 1 over d.
+[00:19:11] So my scaling is going to be y equals negative 1
+[00:19:13] over D times x.
+[00:19:15] And so now these kinds more flexible functions, functions
+[00:19:18] that are more flexible than the linear class,
+[00:19:20] now have rates in their scaling laws that are not just 1,
+[00:19:24] they're 1 over D.
+[00:19:25] And so one mental model that you could have
+[00:19:28] is that the neural networks I was showing you in these slides
+[00:19:31] are behaving kind of non-parametric regressors in 10
+[00:19:35] dimensions, like a nearest neighbor or other kinds
+[00:19:37] of estimators in 10 dimensions.
+[00:19:39] That's roughly the rate at which they learn from data.
+[00:19:41] That's kind of a cool thing to be
+[00:19:43] able to know just by looking at some of these scaling laws.
+[00:19:47] Some people have argued this more strongly.
+[00:19:50] Bari et al. and some other scaling law theory folks
+[00:19:53] have argued that the scaling law exponents are actually
+[00:19:56] literally telling us that the neural network
+[00:19:59] is behaving like a non-parametric smoother,
+[00:20:01] and so on and so forth.
+[00:20:03] It's an interesting set of arguments,
+[00:20:04] and you can by that intuition to whatever extent you'd like.
+[00:20:07] I don't quite how much I truly, truly buy this argument.
+[00:20:10] There's some of the evidence that might be a little sketchy.
+[00:20:13] It relies on estimators of intrinsic dimension,
+[00:20:16] but it's an interesting thing to think about
+[00:20:18] that somehow these exponents are telling us
+[00:20:21] how fast are these neural networks really learning.
+[00:20:24] OK, so actually, I'll pause for the moment here.
+[00:20:28] That's really the end of the really basic data scaling
+[00:20:30] law of one distribution, and you sample from it,
+[00:20:33] and you learn from it.
+[00:20:34] Is that all clear, like the examples and so on?
+[00:20:38] Good.
+[00:20:38] Oh yes, question.
+[00:20:40] When you say that the model is always larger
+[00:20:42] than data set size, do you mean one-to-one number of parameters
+[00:20:46] to number of tokens [INAUDIBLE]?
+[00:20:48] Yeah, that's a good question.
+[00:20:49] So the question was something like,
+[00:20:50] What do I mean when I say the model is larger
+[00:20:51] than the data set size?
+[00:20:53] What I mean is when the model gets small relative to the data,
+[00:20:58] like you have way more data than you have model size,
+[00:21:01] you enter this irreducible error regime.
+[00:21:03] You basically fitted the data as well
+[00:21:05] as you can for your model class, and you
+[00:21:07] can't do any better no matter how much data you add.
+[00:21:10] So we want to--
+[00:21:11] when we're thinking about scaling laws,
+[00:21:13] we usually want to think about this power law regime, which
+[00:21:16] is the simpler case.
+[00:21:17] Either that or you explicitly fit the asymptote
+[00:21:19] and then you correct for it.
+[00:21:21] Those are the two things.
+[00:21:22] So when I say the model is larger than the data,
+[00:21:24] it can be basically any amount that is larger than the data,
+[00:21:27] as long as it's in this power law
+[00:21:28] regime, usually like 10 times bigger than the data, what
+[00:21:32] have you.
+[00:21:33] Cool.
+[00:21:34] Good.
+[00:21:35] OK, now we are back to other data scaling laws.
+[00:21:39] So data scaling laws by themselves
+[00:21:43] are not quite as useful as you'd like them to be.
+[00:21:46] They just tell you how fast does my model learn.
+[00:21:48] And that's kind of useful for forecasting.
+[00:21:51] It's not useful for very much else.
+[00:21:54] If you want to do engineering, you
+[00:21:55] are probably interested in other questions,
+[00:21:57] like what is my optimal data mixture?
+[00:22:00] What is the best way for me to pick my training
+[00:22:02] data for my model?
+[00:22:03] Very useful engineering question.
+[00:22:06] Should I repeat my data, or should I
+[00:22:08] just not repeat my data, save the compute for something else?
+[00:22:12] Or maybe I should repeat some high-quality stuff
+[00:22:15] and not repeat the low-quality stuff.
+[00:22:18] I could do various other things with repetition.
+[00:22:20] There's a lot of different engineering decisions
+[00:22:22] I can make with data.
+[00:22:23] So how can scaling laws help us make some of those decisions?
+[00:22:28] And I think one of the things that's interesting
+[00:22:30] is if we think a little bit about how classical
+[00:22:34] models behave.
+[00:22:36] Data scaling laws, if we think about their origins
+[00:22:38] as essentially empirical versions of generalization
+[00:22:41] bounds, they tell us, well, data set composition for many models
+[00:22:46] really affect the offset of these scaling laws,
+[00:22:48] but their slopes are actually determined by the model class.
+[00:22:51] They're not really determined by the distribution themselves.
+[00:22:54] So the slopes might remain the same,
+[00:22:56] and only the intercepts might change.
+[00:22:57] And the intercept might actually be really interestingly shaped.
+[00:23:00] So this is a case of a toy model with a linear regression
+[00:23:04] with two different things you can sample from.
+[00:23:06] If you get only one kind of data,
+[00:23:08] it's the errors are high no matter what.
+[00:23:10] You actually want a mixture of both right.
+[00:23:12] So if you write down how this intercept behaves,
+[00:23:16] you actually start to get some very interesting insights
+[00:23:19] about how having more data diversity is very helpful.
+[00:23:22] But what does this practically mean?
+[00:23:25] Well, practically speaking, what this means
+[00:23:28] is you can actually fit data scaling laws on mixtures,
+[00:23:31] and that can help you do some data--
+[00:23:34] sorry, pre-training, data optimization.
+[00:23:37] So what does this mean?
+[00:23:38] Let's say you have two data sources for simplicity.
+[00:23:41] You have news, and you have Wikipedia.
+[00:23:43] And how much news to use and how much Wikipedia to use.
+[00:23:47] How can you determine that?
+[00:23:48] Well, you can train really small models
+[00:23:51] on a really small amount of data.
+[00:23:53] And then you can basically train or you
+[00:23:54] can fit a function of how different mixture levels affect
+[00:23:58] your performance.
+[00:24:00] You can do this while you scale up your models little by little.
+[00:24:03] And you can see how the trends change.
+[00:24:05] And you can try to extrapolate that out the exact same way
+[00:24:08] as you would extrapolate out a data scaling law.
+[00:24:10] And then you can ask which one will be optimal
+[00:24:12] if I keep scaling it out to my full training run.
+[00:24:14] So this is a very simple idea of essentially fitting
+[00:24:19] a functional form at a small amount of compute,
+[00:24:22] finding the minimum, and then scaling that guy out.
+[00:24:25] So this is a data mixing loss paper.
+[00:24:29] Unfortunately, I think if you talk
+[00:24:30] to anyone who's done a lot of these data mixture work,
+[00:24:33] they will tell you reality is a lot more
+[00:24:35] noisy than this ideal world would suggest.
+[00:24:39] And really, what has, as far as I know, happened in many cases
+[00:24:42] is you end up training a bunch of small models.
+[00:24:45] You pick the best data mix from the small model,
+[00:24:48] and you just scale that guy up, no scaling law required.
+[00:24:51] And data decide if you're interested in this kind of thing
+[00:24:54] is a nice, large-scale empirical study of these kinds of data
+[00:24:59] mixture things.
+[00:25:00] And what they found was actually,
+[00:25:02] if you don't fit a scaling law, and instead you
+[00:25:04] just pick the best data mix at the small scale,
+[00:25:06] that works well.
+[00:25:08] For what it's worth, that's consistent with the argument
+[00:25:10] that the intercepts differ, but the slopes don't change.
+[00:25:13] Because if the slopes don't change,
+[00:25:15] the best mixture at small scale is also the best mixture
+[00:25:18] at large scale.
+[00:25:20] OK, another really interesting set
+[00:25:24] of questions that I'll also mention in the context of data
+[00:25:28] is repetition.
+[00:25:29] I think it's increasingly the case that compute is growing,
+[00:25:34] the amount of data that we have is not growing.
+[00:25:36] And so there's a lot of people interested
+[00:25:38] in questions of what happens when you repeat
+[00:25:40] data more and more times.
+[00:25:43] And there was a nice study a few years back called "Scaling Data-
+[00:25:46] Constrained Language Models," where they roughly show
+[00:25:48] something like up to four epochs with standard training recipes,
+[00:25:51] you just don't get hurt at all.
+[00:25:53] But if you go past that point, then actually
+[00:25:56] your realized scaling law, this dark curve
+[00:25:59] is much worse than the projected scaling law
+[00:26:02] if you had fresh data.
+[00:26:02] That's the dashed line over here.
+[00:26:04] And you can also, once again, write down a modified functional
+[00:26:07] form that's generally predictive of the behavior of this scaling
+[00:26:11] law under repetition.
+[00:26:14] And we can take this idea even more to the extreme.
+[00:26:17] This was kind of recent work with Percy
+[00:26:20] in one of our co-advise students,
+[00:26:22] where we were asking, like, OK, what
+[00:26:23] happens if you take this idea to the extreme
+[00:26:25] and you just consider infinite amounts of compute?
+[00:26:28] So you're allowed to epoch as many times as you want,
+[00:26:30] like an infinite amount of times.
+[00:26:31] What is the best thing that you can get out of this system?
+[00:26:34] Well, it turns out you can't just
+[00:26:35] keep repeating passes over the data.
+[00:26:37] You can't keep making your models bigger.
+[00:26:39] Those have diminishing returns.
+[00:26:41] And so you end up reaching for other things,
+[00:26:43] like ensembling your models to try to squeeze more and more
+[00:26:45] out of your data.
+[00:26:46] But really, I think the one thing that I'll point out
+[00:26:48] that's really interesting is your standard data
+[00:26:50] scaling laws here in the red.
+[00:26:52] It's a very nice, predictable, improvement in performance
+[00:26:55] as you increase the amount of data.
+[00:26:57] We do all sorts of interventions like regularizing and adding
+[00:27:00] ensembles.
+[00:27:01] You get improvements in performance,
+[00:27:03] but the slopes look actually surprisingly similar.
+[00:27:06] This is a lesson that you'll learn
+[00:27:08] once you start fitting your own scaling laws, that very,
+[00:27:10] very often your slopes don't change.
+[00:27:13] Often, the interventions that you do just
+[00:27:15] change the intercept of the scaling laws.
+[00:27:20] One last thing that I'll mention,
+[00:27:22] because I like this paper in the context of scaling
+[00:27:25] laws and scaling in general, is that a lot
+[00:27:28] of the phenomena we care about in data
+[00:27:30] is actually very scale-dependent.
+[00:27:32] And one example of this is data filtering.
+[00:27:35] So if you or I tomorrow decide to filter some data
+[00:27:38] for the models we're training, we would probably
+[00:27:40] filter very aggressively.
+[00:27:41] We would only keep the highest quality stuff
+[00:27:44] because both you and I don't have very much compute.
+[00:27:46] So we can't train on all the internet anyway.
+[00:27:48] We might as well filter down to the most high-quality stuff.
+[00:27:52] On the other hand, if you have a lot of compute,
+[00:27:55] then you want to train on more and more stuff
+[00:27:57] because you're going to not want to repeat
+[00:27:58] on this very high-quality data.
+[00:28:00] So as you get more and more compute,
+[00:28:02] your filter has become looser and looser,
+[00:28:04] and potentially you start training on stuff
+[00:28:06] that's lower and lower quality.
+[00:28:08] So a lot of the things that we often
+[00:28:09] think about statically, things like data
+[00:28:12] filtering or the quality of data,
+[00:28:14] are actually much more dynamic.
+[00:28:15] As you increase scale, you have to think about
+[00:28:17] where am I going to get the rest of the data.
+[00:28:19] The filters can't stay fixed as a function of the data,
+[00:28:22] and certainly the optimal filters
+[00:28:24] turn out to not be fixed at a function of scale.
+[00:28:29] OK, so that's it for data scaling laws.
+[00:28:32] This is the part that I think is most
+[00:28:33] straightforward to understand.
+[00:28:35] Even as a stats/ML-minded person,
+[00:28:38] this stuff is all very simple and straightforward to me.
+[00:28:41] You increase data, performance gets better
+[00:28:43] in a very predictable way.
+[00:28:44] I think this is uncontroversial.
+[00:28:46] The fact that it does so polynomially for such
+[00:28:48] a big model is still cool, but nothing really crazy.
+[00:28:52] So hopefully this is reasonable to all of you
+[00:28:55] that there's so much predictability when you
+[00:28:58] increase the amount of data.
+[00:29:01] Oh, yes.
+[00:29:03] So on this slide for the pre-training
+[00:29:05] under infinite compute, so that graph on the right
+[00:29:11] is linear in both the loss and data set size,
+[00:29:16] whereas the previous example I gave was log-log scale.
+[00:29:20] And I was wondering why it's linear in both.
+[00:29:22] Yeah, so this is a bad axis.
+[00:29:26] Herman and I just talked about bad axis like this.
+[00:29:29] This is actually doubling.
+[00:29:30] So it looks linear, but it's actually log scale.
+[00:29:32] [LAUGHS]
+[00:29:33] I fixed it now.
+[00:29:34] You fixed it now.
+[00:29:35] And the y-axis here, it doesn't look logged,
+[00:29:38] but the range of this is so small
+[00:29:40] that linear logs are basically the same.
+[00:29:41] If you look at the fitted functional forms here,
+[00:29:44] these are still polynomials.
+[00:29:45] So we're fitting the same functional forms,
+[00:29:47] and those are the ones that are plotted here.
+[00:29:49] This is another point.
+[00:29:50] I'll get to it at the end of the lecture.
+[00:29:53] If you only have a tiny slice of a compute range,
+[00:29:56] it's very, very difficult to tell
+[00:29:57] if something is scaling polynomially
+[00:29:59] or if something's scaling exponentially.
+[00:30:01] Because Taylor approximations are a thing.
+[00:30:03] Everything looks linear if you zoom in enough.
+[00:30:05] And so whether this is polynomial
+[00:30:08] or some other functional form, you
+[00:30:09] want to be always a little bit careful and skeptical.
+[00:30:14] Good.
+[00:30:14] OK.
+[00:30:16] All right, so that was scaling laws for data,
+[00:30:20] in many ways straightforward.
+[00:30:21] Now I want to talk about more exotic forms of scaling
+[00:30:25] and scaling laws for model engineering of various kinds.
+[00:30:29] So what we're going to do now is we're
+[00:30:31] going to try to design large language models.
+[00:30:34] Maybe you're a radical, and you believe that maybe LSTMs
+[00:30:38] are the future.
+[00:30:38] Like, why can't I use LSTM instead of a transformer?
+[00:30:41] I want to blow my B200 run on my LSTMs.
+[00:30:44] Or maybe you're a different kind of radical
+[00:30:47] and you want to train on SGD.
+[00:30:48] Like, why can't I train on SGD?
+[00:30:51] You might also wonder.
+[00:30:52] If you have a limited amount of resources,
+[00:30:54] you have different ways to spend it.
+[00:30:57] Maybe you should train models longer,
+[00:30:58] maybe you train bigger models, maybe I
+[00:31:00] should go collect more data.
+[00:31:01] There's all sorts of trade-offs always at play,
+[00:31:04] and scaling laws give us quantitative ways of making
+[00:31:07] these trade-offs, hopefully.
+[00:31:10] I'm going to start off with some simple hyperparameter
+[00:31:12] questions, things like how do I choose my architecture
+[00:31:16] or optimizer, things that I talked about
+[00:31:18] in the second lecture.
+[00:31:20] And there I gave you the perspective of maybe
+[00:31:23] you can study what other people do.
+[00:31:25] Now I'm going to try to give you a first-principal answers
+[00:31:27] to those questions with a little bit of a different set
+[00:31:30] of trade-offs.
+[00:31:30] So you have to believe in scaling laws in this lecture,
+[00:31:33] but as long as you do, you get to try things on your own
+[00:31:36] and find out.
+[00:31:37] OK, the very first question we might start with is to say,
+[00:31:41] Are transformers really better than LSTMs?
+[00:31:44] LSTMs.
+[00:31:45] They can work OK, too.
+[00:31:47] They will fit distributions.
+[00:31:48] With the advent of things like Mamba,
+[00:31:51] we know that SSMS can work.
+[00:31:53] So are they better?
+[00:31:55] The brute force way to answer this question
+[00:31:57] is to train a big LSTM GPT-3 or even bigger class of models.
+[00:32:02] The scaling law way would be to train a bunch of smaller models
+[00:32:07] and say, I'm going to train my transformer
+[00:32:08] across a different variety of compute ranges,
+[00:32:11] and I'm going to train different LSTMs with different numbers
+[00:32:14] of layers on, once again, a variety
+[00:32:16] of different compute ranges.
+[00:32:18] Now, what does this show?
+[00:32:19] This shows LSTMs have definitely different intercept, maybe even
+[00:32:24] different slope than the transformer.
+[00:32:26] And because of this, probably you don't want to pick out LSTM.
+[00:32:30] This plot would justify scaling up the transformer instead
+[00:32:34] of the LSTM.
+[00:32:35] And if you look at a lot of the architecture papers
+[00:32:37] today, like you go look at the Mamba
+[00:32:38] paper or the gated delta net papers,
+[00:32:41] they will always have a plot that
+[00:32:42] looks like this, where you have vanilla transformer, our really
+[00:32:46] cool model.
+[00:32:46] And our really cool models, usually either on top or below,
+[00:32:49] because that's what would prove that your model is doing better.
+[00:32:52] And you certainly don't want something where your slopes are
+[00:32:54] worse because that means as you scale up larger and larger,
+[00:32:57] your models will eventually do worse.
+[00:32:59] So this is one way of really reasoning
+[00:33:01] about architectures without training gigantic models.
+[00:33:08] There haven't been, I think, quite
+[00:33:10] as many recent and good architecture scaling law papers.
+[00:33:16] I think the one that is relatively recent
+[00:33:19] and that I like quite a lot is by Ek and others at Google,
+[00:33:23] back when they were publishing this kind of work,
+[00:33:25] where they did a whole bunch of scaling studies on T5-style
+[00:33:29] models, where they trained larger and larger variants of T5
+[00:33:33] models on many different architectures.
+[00:33:36] And I think one thing that's really cool,
+[00:33:37] and one of the reasons why I still bring this paper up,
+[00:33:40] is they capture exactly the architecture
+[00:33:43] changes that we implement today in our frontier models.
+[00:33:47] So things like performer, which is an efficient attention, that
+[00:33:52] doesn't scale very well.
+[00:33:53] We do not implement those.
+[00:33:55] The things that we implement are the gated linear unit.
+[00:33:58] Red line better than green line throughout the scaling trends.
+[00:34:01] Switch transformer.
+[00:34:02] I don't what happened with their biggest run,
+[00:34:04] but generally speaking, it's got good scaling trends.
+[00:34:07] And I forgot, oh, mixture of softmaxes.
+[00:34:10] Actually, we don't do this anymore,
+[00:34:11] but this is probably an effective intervention
+[00:34:13] given the scaling trends.
+[00:34:15] So you see that through this scaling trends,
+[00:34:18] even though a lot of these papers
+[00:34:21] were operating on much, much smaller compute scales
+[00:34:23] than what we operate today, they're
+[00:34:25] able to see the kinds of architecture trends
+[00:34:28] that are driving frontier model development back then.
+[00:34:31] And I think this is why a lot of people use scaling laws
+[00:34:35] as a really, almost paradigmatic way, saying, "Oh,
+[00:34:38] if it doesn't show up in the scaling law,
+[00:34:40] it's not a good intervention."
+[00:34:42] Because in some ways, a lot of the past work
+[00:34:44] has captured what we see today.
+[00:34:47] Good.
+[00:34:49] OK, going beyond architectures, we
+[00:34:52] can extend this kind of analysis to all sorts of other things
+[00:34:54] that we might want to understand.
+[00:34:57] We might ask, OK, is SGD better or worse than ADAM?
+[00:35:01] If you do the scaling law analysis, this one's
+[00:35:03] by Hestness, you'll see very clear trends.
+[00:35:05] This is once again, the really mysterious thing
+[00:35:07] of the intercepts are different, but the slopes are very similar.
+[00:35:11] If you fix the data and you fix the models,
+[00:35:13] slopes are often very, very similar.
+[00:35:15] I am very surprised by this every time I see it.
+[00:35:18] And yet, it's very true.
+[00:35:19] It's rare to get different slopes,
+[00:35:22] even with an intervention as big as SGD to ADAM.
+[00:35:24] If you were the one training with SGD or ADAM,
+[00:35:27] you would think that's a huge change.
+[00:35:29] Scaling trends remain roughly the same.
+[00:35:31] In this case, this is a language modeling
+[00:35:34] with a recurrent highway net.
+[00:35:38] Similarly, in lecture 2, I told you about aspect ratios.
+[00:35:42] How do you pick your depth-to-width trade-off?
+[00:35:45] And I told you, well, you can just
+[00:35:47] pick some random number that's somewhat roughly reasonable.
+[00:35:50] It's like four times the reasonable multiplier.
+[00:35:52] But if you're doing this kind of scaling analysis,
+[00:35:55] you could much more precisely what is happening.
+[00:35:58] So the first thing you could do is
+[00:36:00] you could look at scaling trends as a function of layers,
+[00:36:03] and you would immediately see that having extremely few layers
+[00:36:06] is very, very bad for your model.
+[00:36:07] If you have one layer, you're not going anywhere.
+[00:36:10] That's a terrible, terrible scaling trend.
+[00:36:12] Greater than 1 layer, actually, it's
+[00:36:13] surprisingly more competitive, although you
+[00:36:16] do see that at every compute level, more layers, at least
+[00:36:19] in this case is better.
+[00:36:21] And if you can do a much more fine-grained study, which
+[00:36:24] they do in Kaplan, where you try to identify what
+[00:36:28] you might call scale-invariant quantities,
+[00:36:30] like the aspect ratio.
+[00:36:32] The number of layers is not a scale-invariant quantity.
+[00:36:35] As you make your model bigger, you do want more layers.
+[00:36:38] But as you make your model bigger,
+[00:36:40] maybe the aspect ratio, the optimal one
+[00:36:42] should stay the same.
+[00:36:43] This one is scale invariant.
+[00:36:45] And so if we look at the aspect ratio,
+[00:36:47] we see that at different model sizes,
+[00:36:50] we get basically the same minima around 100d model for every
+[00:36:54] layer, or maybe a little bit less.
+[00:36:56] And it does shift a little bit right.
+[00:36:58] There is a shift towards aspect ratio
+[00:37:02] that is smaller for deeper models, but for the most part,
+[00:37:05] the minima stays roughly similar.
+[00:37:07] You can do similar kinds of analysis
+[00:37:09] for things like attention head dimension and others.
+[00:37:11] And if you look at the Kaplan paper,
+[00:37:13] they do quite a good job at doing all of this.
+[00:37:15] And this is one way that you can be confident about your scaling
+[00:37:18] strategy.
+[00:37:19] So if your scaling strategy is "I'm going to fix my aspect
+[00:37:22] ratio, and I'm going to scale up,"
+[00:37:23] you can make plots like this and convince yourself we're probably
+[00:37:27] good because our optimization shifting too much as I go
+[00:37:30] to larger and larger and larger models.
+[00:37:35] One thing that's important, and this is a huge can of worms,
+[00:37:39] and a sufficiently big can of worms
+[00:37:41] that I will talk about it on more than one slide,
+[00:37:43] I will come back, not all parameters are created equal.
+[00:37:47] And because not all parameters are created equal,
+[00:37:50] your scaling laws may look good or bad
+[00:37:52] depending on how you define what a parameter is.
+[00:37:56] So in the Kaplan paper, they made this observation that
+[00:37:59] if they drew their scaling laws for depth with the embedding
+[00:38:03] parameters, they got these very funky-looking scaling laws,
+[00:38:06] and they said, "Oh, this is no good at all, no good at all."
+[00:38:08] Because it's no good at all, they
+[00:38:10] decided that they were going to exclude
+[00:38:12] all the embedding parameters, and they were only
+[00:38:14] going to count the non-embedding parameters because you could
+[00:38:18] justify it to yourself, saying these
+[00:38:19] are the parameters that are doing computation or whatever.
+[00:38:23] We're going to see later that this
+[00:38:25] is going to have non-trivial implications on the validity
+[00:38:28] of some of the results.
+[00:38:29] But the point here is scaling laws aren't magic.
+[00:38:32] I think Percy likes to make this point,
+[00:38:34] that scaling laws and all these kinds of predictability
+[00:38:37] across scales is engineered.
+[00:38:39] They don't happen automatically.
+[00:38:40] We need to pick the right kinds of x-axes to look at.
+[00:38:44] We need to make sure that the hyperparameters for these things
+[00:38:46] are set right, and only under those conditions
+[00:38:49] does it become possible to get predictable scaling
+[00:38:51] across many orders of magnitude compute.
+[00:38:53] So this is what a lot of scaling law researchers do.
+[00:38:58] They think about what the right way
+[00:38:59] is to get very predictable scaling.
+[00:39:02] Now, related to this, I think are
+[00:39:04] very interesting recent papers on things like scaling
+[00:39:08] for mixture of experts.
+[00:39:09] Now, that mixture of experts is, you would say,
+[00:39:12] the dominant way of training large models,
+[00:39:15] it is quite important to think about what is the value
+[00:39:18] or what is a parameter in this new world
+[00:39:20] where the number of parameters and the number of parameters
+[00:39:23] are kind of decoupled.
+[00:39:24] And there's a nice, clean analysis
+[00:39:27] by some folks at Apple and MIT that
+[00:39:30] show the scaling trends as a function of both parameters
+[00:39:36] and active parameters.
+[00:39:38] And the cool thing that you see is,
+[00:39:40] as you start to train bigger and bigger models,
+[00:39:43] if you increase the amount of total parameters
+[00:39:45] on the x-axis over here, and you want to minimize your loss,
+[00:39:49] you're going to end up with more sparse and sparse models.
+[00:39:52] See how the color becomes darker and darker and darker.
+[00:39:55] Similarly, here, if you like the number of active parameters
+[00:40:00] decreases as a function of MoE sparsity.
+[00:40:03] And you get the result that I think
+[00:40:06] is somewhat intuitive here, which
+[00:40:07] is you can draw these surfaces.
+[00:40:09] For every compute amount, you can ask, OK,
+[00:40:13] would I rather spend that compute on active parameters
+[00:40:18] and how much sparsity do I want?
+[00:40:20] I can vary my sparsity without really changing the amount
+[00:40:23] of compute that I'm spending.
+[00:40:25] Now, given that you can ask, OK, what
+[00:40:27] happens if I add more of empty parameters,
+[00:40:30] same active parameters, but more total parameters?
+[00:40:32] As you move from back on the plot
+[00:40:35] to in the front of the plot, you see the losses are improving.
+[00:40:39] So in other words, this is saying
+[00:40:41] that the parameters in an MoE that are not active
+[00:40:44] are still helping you reduce your loss, which
+[00:40:46] is kind of cool.
+[00:40:47] And you can write down what the functional forms of this are.
+[00:40:49] I won't go into that part in more detail,
+[00:40:52] but the point here is to say all of these kinds of quantities
+[00:40:55] that we care about in optimizing MoE
+[00:40:57] are things that have predictable scaling and regularities.
+[00:41:04] And the two things I want to now talk about are actually really--
+[00:41:08] yeah, two things that I now want to talk about.
+[00:41:10] When you're going to train a new big model,
+[00:41:13] actually, most of the things that I talk about are fixed.
+[00:41:15] You're probably all not radical enough
+[00:41:17] that you're going to switch to a LSTM.
+[00:41:18] You're probably going to pick like, I don't know,
+[00:41:20] a DeepSeek-V4-inspired MoE or something.
+[00:41:24] And you're probably going to pick architecture choices that
+[00:41:27] are tried and tested.
+[00:41:28] You're not going to really throw everything out.
+[00:41:30] But two things that you really do
+[00:41:32] have to maybe reinvent in some sense
+[00:41:34] is the batch size and the learning rate.
+[00:41:37] If you train your deep learning models,
+[00:41:38] you know that you have to be very careful
+[00:41:41] about the combination of your batch size and learning rate.
+[00:41:44] You change one, you have to change the other.
+[00:41:46] Now, batch size, from the previous lecture,
+[00:41:49] is very tricky for another reason.
+[00:41:51] We want the batch size to be as big as possible
+[00:41:53] because a big batch size gives us opportunity
+[00:41:55] for parallelization.
+[00:41:56] Remember, data parallel requires large batch size.
+[00:42:00] So now, having said all that, what we really want to
+[00:42:03] is how large can we make our batch size
+[00:42:06] before we start to suffer?
+[00:42:07] That's the relevant systems question.
+[00:42:10] And you also want to how does that change
+[00:42:12] as a function of model size.
+[00:42:14] So given that preface, there is this very important idea
+[00:42:20] that is used in a variety of papers
+[00:42:22] and talked about very frequently,
+[00:42:23] called the critical batch size.
+[00:42:25] The critical batch size is roughly this idea that
+[00:42:28] up until a certain point, when you
+[00:42:29] start to get diminishing returns,
+[00:42:31] there is returns, perfect returns,
+[00:42:33] to increased batch size.
+[00:42:35] So I might call this the noise-limited regime.
+[00:42:38] So in the noise-limited regime, every additional element
+[00:42:41] that you throw in your batch reduces the gradient noise
+[00:42:45] in your SGD step.
+[00:42:46] And since you're variance-limited,
+[00:42:48] that reduction in variance is very, very helpful.
+[00:42:51] That gives you big returns.
+[00:42:53] So this is the regime in which you have perfect scaling.
+[00:42:55] You're doing about as well as you can,
+[00:42:57] given the amount of extra examples that you're processing.
+[00:43:01] As you get to a certain point where
+[00:43:03] you've reached the noise scale of your gradients,
+[00:43:06] you get to a point where you are no longer variance-limited.
+[00:43:09] You're now bias-limited.
+[00:43:10] What does that mean?
+[00:43:11] Well, remember, in gradient descent,
+[00:43:13] you're looking at the local structure of your objective.
+[00:43:15] You don't have a global view of where the minimum is.
+[00:43:20] So no matter how low noise I am, I'm
+[00:43:23] only going to point in this light blue direction over here.
+[00:43:25] And there's always a disagreement
+[00:43:27] between my local descent direction
+[00:43:28] and where the global optimum is.
+[00:43:31] Because of that, at a certain point,
+[00:43:33] I'm going to get diminishing returns
+[00:43:34] because now my limiting factor is no longer variance.
+[00:43:38] It is this bias term.
+[00:43:39] So now I'm bias-limited past this point over here.
+[00:43:44] And so critical batch is kind of a rule of thumb,
+[00:43:47] you might call it, or a convenient trade-off point where
+[00:43:51] you say this is the point at which we're starting
+[00:43:54] to cross over from our perfect scaling
+[00:43:56] regime to our ineffective scaling regime.
+[00:43:59] And so it gives you a good rule of thumb
+[00:44:01] of where to be setting your batch size if you want
+[00:44:03] your batch size to be as big as possible without suffering
+[00:44:06] these huge efficiency losses.
+[00:44:08] Hopefully, that idea is very clear.
+[00:44:11] Now, critical batch size is kind of a strange object.
+[00:44:16] It is derived from a variety of complicated calculations
+[00:44:21] about the local quadratic approximations to the objective.
+[00:44:25] But I will maybe give you the mechanical steps
+[00:44:28] of what is actually used to estimate this quantity.
+[00:44:32] So what you do is first, you pick a target loss.
+[00:44:36] Target loss might be some numbers that you want to hit.
+[00:44:38] So your goal is to hit this target loss
+[00:44:41] as quickly as possible.
+[00:44:42] That's my goal right now.
+[00:44:44] What I'm going to do is I'm going to sweep
+[00:44:46] over all the different batch sizes or number
+[00:44:48] of different batch sizes, and I'm
+[00:44:50] going to write down the number of steps that I needed
+[00:44:52] to reach my target loss, and the number of examples
+[00:44:55] that were needed to get to that target loss.
+[00:44:57] Of course, number one and two are
+[00:44:59] related by a batch size factor.
+[00:45:01] The number of steps times my batch size
+[00:45:03] is equal to the number of examples.
+[00:45:06] Now, through some calculations, OpenAI folks, McCandless
+[00:45:11] and others, argue that this is the rough functional form
+[00:45:16] that we should follow, that the number of steps that you need
+[00:45:19] and the number of examples that you need
+[00:45:21] are inversely related, with this estimate, which
+[00:45:24] is the minimum number of possible steps
+[00:45:26] and the minimum number of examples,
+[00:45:29] normalizing these two quantities.
+[00:45:32] And so there's a trade-off between these two.
+[00:45:34] If you want to minimize the number of examples,
+[00:45:36] you're going to have a lot of steps.
+[00:45:38] And if you want to minimize the number of steps,
+[00:45:39] you're going to need a lot of examples.
+[00:45:41] That's a very natural trade-off.
+[00:45:42] And if you increase or decrease your batch size,
+[00:45:45] you're going to have trade-offs that go one side or the other.
+[00:45:48] Now, they argue the goal now should
+[00:45:50] be to balance these two sides.
+[00:45:52] I want to make sure that my number of steps term
+[00:45:54] and the number of examples terms are roughly
+[00:45:57] balanced with each other.
+[00:45:58] And if you solve for that, you're
+[00:45:59] going to get this particular solution, which
+[00:46:02] is that the critical batch size is
+[00:46:04] the minimum number of examples that I
+[00:46:07] need divided by the minimum number of steps that I need.
+[00:46:10] And these two are estimated by fitting this to the observed
+[00:46:14] data that I have.
+[00:46:16] This is going to balance both sides of the equation.
+[00:46:18] It's going to give me a little bit more number of steps
+[00:46:21] than optimal.
+[00:46:22] It's going to require a little bit more examples than optimal,
+[00:46:25] but it balances the two sides.
+[00:46:26] And you can think of this as optimizing the convergence rate
+[00:46:33] without blowing up the number of steps that you need.
+[00:46:37] There's another added point that I won't really
+[00:46:39] belabor because this gets even more into the weeds.
+[00:46:42] You should really read the critical batch size paper
+[00:46:44] if you're interested into this, where one of their arguments
+[00:46:46] is estimating this is quite complicated.
+[00:46:49] You can do this by just looking at the ratio
+[00:46:51] of the gradient covariance in the squared norm
+[00:46:53] of your gradient.
+[00:46:56] So why is that even in the scaling lecture?
+[00:46:59] This is a thing that is not really related
+[00:47:03] to scaling so far.
+[00:47:05] The reason why this is in the scaling lecture
+[00:47:07] is because, first of all, the critical batch size
+[00:47:10] is a reasonable batch size to pick.
+[00:47:11] That's a batch size that balances convergence rate
+[00:47:14] and the size of the batch.
+[00:47:15] So if I want to pick my batch size equal to my critical batch
+[00:47:19] size, you might ask, how does this thing
+[00:47:21] scale as a function of my target loss?
+[00:47:24] Target loss can be thought of as compute.
+[00:47:27] If I want to have a model that is better and better and better,
+[00:47:31] what is the batch size that I should use?
+[00:47:34] And the reason why this isn't the scaling law lecture
+[00:47:37] is as you go down in scale in the loss, so your loss is
+[00:47:41] improving, the amount of critical batch size increases.
+[00:47:44] And it increases in this very predictable way, which
+[00:47:47] is once again, a power law.
+[00:47:49] So this is the relationship that they argue,
+[00:47:51] which is roughly inverse polynomial in batch size.
+[00:47:56] So given this, this is actually quite nice
+[00:47:59] because what this is saying is if you have
+[00:48:01] a really large-scale training run where you go all
+[00:48:03] the way to the right of this plot,
+[00:48:04] your batch sizes can be quite large.
+[00:48:07] And that makes sense.
+[00:48:08] As you get closer and closer and closer to the minimum,
+[00:48:11] the value of variance reduction increases.
+[00:48:13] Because you're trying to optimize finer and finer
+[00:48:15] and finer grained objects, the noise
+[00:48:17] matters a lot more once you're minimizing really, really
+[00:48:20] tiny differences.
+[00:48:23] So that's the batch size story.
+[00:48:26] The other side-- so the two quantities,
+[00:48:28] remember, that you're going to always have to tune
+[00:48:30] is batch size and learning rate.
+[00:48:33] The learning rate side of the story
+[00:48:35] is also a little bit complicated.
+[00:48:37] I'll go into this much more detail in the advanced scaling
+[00:48:40] lecture.
+[00:48:42] But learning rates generally shift.
+[00:48:45] I think this is a good mental picture for how
+[00:48:47] to think about learning rates in the standard world
+[00:48:49] that you start with, which is, let's say,
+[00:48:52] that you have just like a MLP.
+[00:48:53] Just a standard neural network of some kind.
+[00:48:56] I'm not going to do depth scaling.
+[00:48:57] I'm only going to do width scaling.
+[00:48:59] Now, if I'm doing width scaling, the bigger
+[00:49:01] my model, the bigger my model, the smaller
+[00:49:04] my learning rate should be.
+[00:49:05] And the reason why my learning rate should be smaller
+[00:49:08] is because I have bigger, more parameters,
+[00:49:10] I'm changing more things at once.
+[00:49:11] Maybe I should move less.
+[00:49:13] It kind of makes sense.
+[00:49:16] And in fact, there's a rule of thumb
+[00:49:19] that maybe you want to scale by 1 over the width.
+[00:49:21] That's a very commonly known rule of thumb
+[00:49:23] that you want to just decrease the learning rate regularly
+[00:49:27] as a function of your width, and that
+[00:49:29] will give you a rule of thumb to scale your learning rate.
+[00:49:32] There is another school of thought,
+[00:49:36] or another set of tricks that people do,
+[00:49:38] which is that people also rescale
+[00:49:40] the network in various ways.
+[00:49:42] They will change the initialization sizes,
+[00:49:44] and they will change the step sizes
+[00:49:47] of the optimizer for various parts of the network
+[00:49:51] in order to force the model to have the same learning rate
+[00:49:55] minimum across scales.
+[00:49:57] And this is an idea that is called mu p and others like it.
+[00:50:03] Some people have reported great success
+[00:50:05] with these kinds of approaches, others
+[00:50:07] have reported less success.
+[00:50:08] The two ways, basically, of setting a learning rate
+[00:50:12] for large-scale runs really is captured in this plot.
+[00:50:15] In one way, you can try to estimate
+[00:50:16] what these minima are and try to predict
+[00:50:18] what your minimum will be.
+[00:50:20] And the way in which the minimum changes is pretty predictable,
+[00:50:23] so this is not a crazy idea.
+[00:50:24] Or you can reparameterize your model
+[00:50:27] to try to keep the learning rate minimum the same,
+[00:50:29] and then just pick your best learning rate and go.
+[00:50:31] Those are the two philosophies to picking your learning rate.
+[00:50:35] Both of them have been applied successfully at scale.
+[00:50:38] There are large-scale training runs
+[00:50:39] that have used both approaches.
+[00:50:42] I think anecdotally it does seem more people are maybe favoring
+[00:50:47] the scaling law approach, but both are certainly
+[00:50:50] viable approaches.
+[00:50:51] I'll talk in detail about both of these next lecture.
+[00:50:56] So before I get into the last part of this lecture,
+[00:51:02] where I want to talk about not quite
+[00:51:04] pitfalls but various details of scaling law things,
+[00:51:09] one thing I want to end this section with
+[00:51:11] is the idea that upstream and downstream performance
+[00:51:14] can be quite different.
+[00:51:16] So if you look at something like log likelihood,
+[00:51:20] this is from the Yi Tay architectures paper,
+[00:51:23] you find that perplexity and negative perplexity in this case
+[00:51:28] parameters are very correlated.
+[00:51:30] The more parameters you have, the better your model,
+[00:51:32] very predictably.
+[00:51:33] This is a very beautiful linear trend.
+[00:51:36] Now you're like, OK, this is great.
+[00:51:37] Now we're going to ship our best model.
+[00:51:39] NL12.
+[00:51:40] Turns out NL12 is not your best model.
+[00:51:42] It was actually NL32XL, which was a much worse model
+[00:51:46] in perplexity.
+[00:51:47] This is a very common thing that does happen.
+[00:51:49] Upstream and downstream are often correlated.
+[00:51:52] This is probably one of the worst correlations
+[00:51:54] that I've seen from upstream to downstream.
+[00:51:55] But I think it's very, very important
+[00:51:57] to remember that scaling laws, generally speaking, are objects
+[00:52:00] that you want to apply on the perplexity side.
+[00:52:02] They're very clean, they're very regular,
+[00:52:04] they're very predictable.
+[00:52:05] But transfer from perplexity to downstream
+[00:52:07] is a lot less certain than it might initially seem.
+[00:52:10] This is a place where you want to be very cautious.
+[00:52:13] And as an anecdote, I have former students
+[00:52:17] that have gone and done post-training of various places,
+[00:52:20] and they always complain.
+[00:52:20] They're like, "Oh, those pre-training people,
+[00:52:22] they hand you this model.
+[00:52:23] They are like, the perplexity is good.
+[00:52:24] It's all your problem now."
+[00:52:26] But it's often the problems have started
+[00:52:28] at the pre-training side.
+[00:52:29] So you don't want to be one of those people.
+[00:52:31] You want to really think about transfer as well,
+[00:52:33] not just focus on perplexities.
+[00:52:37] OK, so maybe this is surprising, maybe this is not.
+[00:52:40] But the point that I want to drill in here
+[00:52:42] is that before you do your big training run,
+[00:52:45] you should have a rough idea of what you're going to see.
+[00:52:48] Not just is it going to train at all.
+[00:52:50] In fact, if you do scaling laws, you
+[00:52:52] should be able to actually predict fairly precisely
+[00:52:55] the numerical values, almost, of how good
+[00:52:58] your run is going to be.
+[00:52:59] If I choose one optimizer versus the other,
+[00:53:01] what will the gain be?
+[00:53:02] You should be able to predict that.
+[00:53:05] So the scaling law-based procedure
+[00:53:07] is to say I'm going to train a bunch of smaller models,
+[00:53:09] I'm going to establish some of a scaling law
+[00:53:12] by fitting these lines onto log-log plots.
+[00:53:14] And then if the fit is good enough,
+[00:53:16] I'm going to have some confidence that the gap will
+[00:53:18] persist, and then I'm just going to deploy that
+[00:53:20] onto my large-scale training run.
+[00:53:22] This is the naive version of a scaling law procedure,
+[00:53:25] but I think one that is reasonably
+[00:53:27] accurate for how you might think about these things in practice.
+[00:53:30] What else are you going to do?
+[00:53:31] Just deploy a run out of nowhere?
+[00:53:34] Probably not.
+[00:53:36] OK, I can pause here and take some questions
+[00:53:38] before I get into the last part of this lecture.
+[00:53:42] Yes.
+[00:53:43] For each of the data points on the scaling law,
+[00:53:46] how do you think about variance?
+[00:53:47] How many runs do you do?
+[00:53:49] And is aggregation usually like the average,
+[00:53:52] or do you take min or max depending on [INAUDIBLE]?
+[00:53:55] Yeah, I think in most cases, if not all cases that I've seen,
+[00:54:00] those are singletons.
+[00:54:01] And the reason why it's a singleton
+[00:54:03] is because when you're looking at perplexities,
+[00:54:06] perplexities are very, very clean.
+[00:54:08] These objects, if you rerun them,
+[00:54:12] they're probably like the variances
+[00:54:14] in the second decimal place or something
+[00:54:16] because the training data is very
+[00:54:18] homogeneous, you've got a lot of it, your eval sets are very big.
+[00:54:22] You've really pushed the variance very, very low
+[00:54:24] on these things.
+[00:54:26] But if you're doing something learning rate or critical batch
+[00:54:30] size scaling laws, you will see some truly horrendous stuff.
+[00:54:34] I do think people do some variance reduction,
+[00:54:36] but it's actually not that common as common
+[00:54:39] as it should be, maybe.
+[00:54:42] Yes.
+[00:54:44] Do people use just downstream metrics directly
+[00:54:48] instead of using perplexity?
+[00:54:50] Yeah, people do scaling laws directly on downstream metrics,
+[00:54:53] but that has the same problem as this.
+[00:54:55] So I think the way to think about scaling laws
+[00:54:58] is to really reliably establish at least one thing.
+[00:55:01] So the way to think about it is, let's say
+[00:55:03] I see something like this, I have
+[00:55:07] a strong belief that this transformer
+[00:55:09] line is going to continue.
+[00:55:10] This is a very regular trend.
+[00:55:12] And it might curve a little bit, but we
+[00:55:13] do think there's probably some regularity here.
+[00:55:15] But instead, imagine this was a very noisy jaggedy line
+[00:55:18] of this form.
+[00:55:20] You would not really know what is going on.
+[00:55:22] You would say, I maybe believe that it will go on,
+[00:55:24] but maybe it's a line, maybe it's a curve.
+[00:55:26] So I think the general--
+[00:55:28] if I'm trying to explain the philosophy of this stuff,
+[00:55:31] is to say, OK, let's start with the low variance measurement
+[00:55:33] and then establish scaling regularity there and then rely
+[00:55:37] on some of belief about transfer or establish transfer
+[00:55:41] or elsewhere to try to show that would transfer over
+[00:55:44] to downstream.
+[00:55:49] Yeah.
+[00:55:50] So some of these are [INAUDIBLE],
+[00:55:52] and some are just [INAUDIBLE] loss.
+[00:55:54] When do you do either?
+[00:55:56] I see, yes.
+[00:55:57] You fit to test loss when you're doing good scientific practice,
+[00:56:01] like Kaplan 2021.
+[00:56:02] But realistically, all the models, except for a very few,
+[00:56:07] like the infinite compute one and the repetition stuff,
+[00:56:11] unless you're doing some of that, you're doing one-pass SGD.
+[00:56:16] So the generalization gap for all of these models
+[00:56:18] is very, very small.
+[00:56:19] So train and val are very similar.
+[00:56:21] I've seen some pre-training code bases that don't even
+[00:56:24] have validation loss.
+[00:56:25] Because if you're doing one pass, most likely
+[00:56:28] your train and val are very, very close.
+[00:56:30] That's why a lot of these plots exchange those two,
+[00:56:32] because they're all in the one-pass regime.
+[00:56:35] Good question, though.
+[00:56:36] OK, all right, we will continue to move on to--
+[00:56:41] sorry, I moved on too far backwards here.
+[00:56:44] OK, so now I'm going to talk about one
+[00:56:48] of the most well-known uses of a scaling law.
+[00:56:52] Even though you might not personally be using this,
+[00:56:55] you've certainly used the rule of thumb at some point.
+[00:56:58] And also, I think because this set of things
+[00:57:01] will tell us something really interesting about the actual
+[00:57:04] execution of a scaling law.
+[00:57:07] OK, the motivating question is, do I
+[00:57:09] want more data or bigger models?
+[00:57:11] So the resource that you have, the resource
+[00:57:14] that you have to spend, is compute.
+[00:57:15] Someone's going to hand you metaphorically a certain amount
+[00:57:18] of FLOPs.
+[00:57:19] And you're going to take those FLOPs,
+[00:57:21] and you're going to spend them somehow
+[00:57:23] on-- if you remember Percy's very first lecture, it's
+[00:57:26] going to be data times the parameters is roughly
+[00:57:29] your FLOPs, linear in that.
+[00:57:31] So do I want more data or more models?
+[00:57:33] Well, we know that if we take a teeny tiny model
+[00:57:37] and we dump tons of data into it, that will just be wasted.
+[00:57:40] That's the dark purple line at the very top here.
+[00:57:44] I've taken a teeny tiny language model,
+[00:57:46] and I've passed a huge amount of data into it,
+[00:57:49] and this thing has been flat for a very long time.
+[00:57:51] This is a complete waste of compute.
+[00:57:53] You would have much rather trained this big yellow model
+[00:57:56] to the same amount of tokens or even earlier
+[00:57:58] on, if you're having the same amount of compute.
+[00:58:01] Now, if you could understand the interaction of how
+[00:58:06] data amount and model size come together to give you
+[00:58:11] performance, if you understood that relationship,
+[00:58:14] you could optimize this very precisely.
+[00:58:16] And so there are scaling laws that are more advanced
+[00:58:21] and relate kind of joint behaviors of objects.
+[00:58:25] So almost simultaneously, Kaplan and Rosenfeld
+[00:58:30] both proposed these functional forms,
+[00:58:33] which are roughly equivalent, describing
+[00:58:36] how the size of the model and the amount of data
+[00:58:38] relate to the error.
+[00:58:40] Rosenfeld is very simple.
+[00:58:42] It's really just the sum of two inverse terms.
+[00:58:44] These are two scaling laws that are added together.
+[00:58:47] And Kaplan is a little bit more complicated,
+[00:58:49] but it's roughly the same idea.
+[00:58:52] And if you look at, think about the limits,
+[00:58:54] this is very intuitive.
+[00:58:55] If I have an infinite amount of data, then what happens?
+[00:58:59] Then this goes to 0.
+[00:59:00] You're basically model-size limited.
+[00:59:02] You become a pure model size scaling law.
+[00:59:04] If I send my model size to infinity,
+[00:59:06] then I'm going to be bounded by data.
+[00:59:08] I'm going to have a pure data scaling law.
+[00:59:10] So it makes sense if you take the limits of both of these.
+[00:59:13] It's often a good idea if someone tells you a scaling law
+[00:59:16] to take the limits of all the variables
+[00:59:18] to understand the behavior of the system.
+[00:59:21] Now, the thing that's kind of cool
+[00:59:23] is Rosenfeld and many others that
+[00:59:26] have proposed these kinds of joint scaling laws
+[00:59:29] show that these things fit quite well, even if you extrapolate.
+[00:59:32] So what you're going to do is you're
+[00:59:33] going to fit on these green points, which is a low compute
+[00:59:36] regime and low data regime.
+[00:59:38] You never see things that have either high data or high model
+[00:59:42] sizes.
+[00:59:42] And then you can extrapolate on the basis
+[00:59:45] of these tiny runs in this corner over here
+[00:59:47] to essentially this high compute or high data, high model size
+[00:59:52] regime.
+[00:59:52] And you can very accurately predict the error
+[00:59:55] based on your predictions.
+[00:59:56] Great predictions.
+[00:59:59] And so once you have that, now what you can do is to say,
+[01:00:02] well, I have a fixed amount of FLOPs subject to my FLOPs
+[01:00:05] constraints, minimize this.
+[01:00:07] That's a simple nonlinear optimization problem.
+[01:00:10] You can do that to solve for this.
+[01:00:12] Now, both Kaplan and Rosenfeld provide equations of this form.
+[01:00:19] What do they say?
+[01:00:22] Well, if you look at Kaplan, and they solve for this equation,
+[01:00:25] they say something like this.
+[01:00:27] Well, the amount of--
+[01:00:30] they always flip this.
+[01:00:31] It confuses me.
+[01:00:32] The amount of data it should be C to the 0.73,
+[01:00:36] and the amount of model size should be C to the 0.27.
+[01:00:40] Is that reversed?
+[01:00:40] I think it's reversed, sorry.
+[01:00:41] N should be the amount of parameters
+[01:00:43] and D should be the amount of data.
+[01:00:46] And so tokens per parameters decreases with C.
+[01:00:49] So as you increase the compute amounts,
+[01:00:51] this prescription by Kaplan tells
+[01:00:53] you to train bigger and bigger and bigger models.
+[01:00:56] And so if you were around in the days of GPT-3,
+[01:00:58] it kind of shocks me to think that there
+[01:01:00] are people who were not, you would
+[01:01:03] know that there was a period where everyone was
+[01:01:05] training these gigantic models.
+[01:01:07] Like hundreds of billions of parameters
+[01:01:09] of models, trillion-parameter dense models, what have you.
+[01:01:13] And part of that was driven by this.
+[01:01:15] They saw GPT-3, they saw these Kaplan predictions,
+[01:01:17] and they said, "Wow, I'm going to do my big training runs
+[01:01:20] on these gigantic model size models."
+[01:01:25] But a few years later, in 2022, some folks at DeepMind, Hoffman
+[01:01:30] et al., came in and they said, well, actually,
+[01:01:32] these predictions are all terribly off.
+[01:01:34] You've been training these giant models, these three
+[01:01:36] stars over here, but actually, those are way too big.
+[01:01:39] What we should be training instead
+[01:01:41] is a very different trend, this line on the blue over here,
+[01:01:45] and we should be training this teal star, which
+[01:01:47] is a much better model.
+[01:01:49] So they argued that we should be training much smaller models
+[01:01:51] relative to this.
+[01:01:53] And I think, of course, many of you
+[01:01:56] or all of you probably the Chinchilla paper,
+[01:01:58] you know what the token multipliers are.
+[01:02:00] It's 20 tokens to every parameter.
+[01:02:02] But I think this is useful to go in detail
+[01:02:05] because the Chinchilla-Kaplan disagreement and all of this
+[01:02:08] tells us something important about how we should
+[01:02:11] be thinking about scaling laws.
+[01:02:12] It's not just something where you turn the crank,
+[01:02:14] and you get the answer.
+[01:02:15] It's something that's actually careful and sensitive,
+[01:02:18] and we have to respect the process.
+[01:02:22] So I'm going to walk through the Chinchilla paper.
+[01:02:24] And after I walk through the Chinchilla paper,
+[01:02:26] I'm going to talk about why the Kaplan and Chinchilla
+[01:02:28] papers disagree and what that means for you.
+[01:02:31] So the Chinchilla author suggests three different ways
+[01:02:34] of fitting scaling laws.
+[01:02:35] I really like this because it's a way of robustifying yourself
+[01:02:39] to modeling assumptions you may have made.
+[01:02:42] And each of these actually is quite a different approach
+[01:02:44] to estimating the trade-off between model size and data.
+[01:02:50] And minus method 3, which does differ a little bit,
+[01:02:54] they mostly agree.
+[01:02:55] All 1 and 2 both agree that the coefficients
+[01:02:58] for data and for model size are roughly the same.
+[01:03:01] 0.5, 0.5, 0.49, 0.51.
+[01:03:04] Method 3 does differ, 0.46 and 0.54, but we'll talk about why
+[01:03:08] later.
+[01:03:09] Kaplan et al., of course, have a very big difference
+[01:03:12] between the two, which is why they were training big models
+[01:03:14] at big, big compute sizes.
+[01:03:17] Method number 1 from Chinchilla is
+[01:03:20] what I might call the lower envelope method.
+[01:03:22] And this is the method that was also being used partially
+[01:03:26] by Kaplan to try to figure out what the right scaling was.
+[01:03:30] And so what you do is you take all of your training runs.
+[01:03:32] So each one of these colored lines is a training curve.
+[01:03:36] And what you want to do is you want
+[01:03:38] to actually take the lower envelope of these training
+[01:03:40] curves.
+[01:03:40] Because a lower envelope point on this training curve,
+[01:03:43] that means that for a particular FLOP,
+[01:03:45] this is the best loss that I ever achieved for that FLOP
+[01:03:49] on any training run.
+[01:03:50] So I can take all of the lower envelope
+[01:03:53] points at the very bottom here at the high compute regime,
+[01:03:56] and then I can plot all those points
+[01:03:57] to see how big were the models that each of these FLOP points
+[01:04:01] intersected.
+[01:04:02] Because each of these points is a training
+[01:04:03] run with a model size.
+[01:04:05] And if I scatter plot that, I will get a nice linear trend.
+[01:04:08] And that will give me one way of estimating the optimal trade-off
+[01:04:12] between FLOP to parameters.
+[01:04:14] And that gives one answer, which is for their compute budget,
+[01:04:17] they should train a 67 billion parameter model.
+[01:04:20] This is a nice and simple way, but very tricky defining things
+[01:04:23] like what is the lower envelope, and so on and so forth.
+[01:04:26] There's definitely some tricky parts.
+[01:04:29] Method 2 is IsoFLOP.
+[01:04:31] This is now very popular.
+[01:04:32] It's also very easy and very robust.
+[01:04:34] This is probably my personal favorite method.
+[01:04:37] And what you do is, for this, you
+[01:04:39] pick a bunch of different FLOPS budgets.
+[01:04:42] So I have a different range of FLOPS budgets going in factors
+[01:04:45] of 3 in this case or 1, 3, 6.
+[01:04:49] And what you do is for each FLOP budget,
+[01:04:51] you're going to essentially sweep the space.
+[01:04:53] So here I have one variable, which
+[01:04:55] is the parameter-to-data trade-off.
+[01:04:57] So for each FLOP budget, I'm going
+[01:04:58] to sweep over the parameter to data trade-off, fixing my FLOPS.
+[01:05:02] So I double my data size, I half my model size,
+[01:05:05] so on and so forth.
+[01:05:05] And that will generate a sequence of training runs
+[01:05:08] whose terminal loss is going to sweep out some of curve.
+[01:05:11] So each one of these colored sets of points
+[01:05:14] is a fixed FLOP run.
+[01:05:15] Each point is sweeping across different parameters,
+[01:05:18] and of course, it's implicitly sweeping over data as well.
+[01:05:21] Now, the nice thing now is I can take the minimum over each
+[01:05:25] of these runs, or even fit a quadratic
+[01:05:27] and take the minimum over the quadratics,
+[01:05:29] and then I can draw a line through all
+[01:05:31] of the bottoms of the quadratics,
+[01:05:32] or take the bottom of the quadratics
+[01:05:34] and plot them as a function of FLOPS to parameters.
+[01:05:38] And that will give me another prediction,
+[01:05:40] which agrees very closely.
+[01:05:41] These is $63 billion parameters for my compute budget.
+[01:05:48] Now, the final approach that we can do
+[01:05:51] is actually the maybe most natural one,
+[01:05:53] as suggested by the Rosenfeld paper as well as the Kaplan
+[01:05:56] paper, because both of them are propose
+[01:06:00] a hypothesized functional form for how model
+[01:06:04] size and data relate to loss.
+[01:06:06] So if you have such a joint functional form, what you can do
+[01:06:10] is you can take a whole bunch of training runs that you've done,
+[01:06:13] and you can fit your loss landscape, which
+[01:06:17] is your hypothesized functional form,
+[01:06:18] and you can just do curve fitting
+[01:06:20] to estimate what the coefficients are in your scaling
+[01:06:22] law.
+[01:06:22] This is the most brute-force way.
+[01:06:24] You have a hypothesized relationship
+[01:06:26] between loss, data size, and model size
+[01:06:29] train a bunch of models, do curve fitting.
+[01:06:32] Hopefully, fairly straightforward--
+[01:06:34] how you do that.
+[01:06:35] Of course, if you're doing this method, how you do
+[01:06:38] the curve fitting is very important.
+[01:06:39] Now, you're fitting these surfaces,
+[01:06:41] there's many variables, it's kind of tricky.
+[01:06:44] This thing also has some trickiness, just like method 1.
+[01:06:48] So it's not a straightforward way the same way
+[01:06:51] that maybe FLOPS is.
+[01:06:53] So now that we've gone through what Chinchilla does,
+[01:06:57] it doesn't seem materially different than what
+[01:06:59] Kaplan was doing.
+[01:07:00] It's not like Kaplan was doing one crazy thing and then
+[01:07:03] the Chinchilla authors did something way smarter and you
+[01:07:06] said, "Wow, why didn't we do that from the start?"
+[01:07:08] They both did pretty reasonable stuff.
+[01:07:11] But if we look at their scaling predictions,
+[01:07:13] they are very different.
+[01:07:14] And in hindsight, we generally tend to agree with the fact
+[01:07:18] that the Chinchilla authors had more of the correct scaling.
+[01:07:21] If you do your own Chinchilla-style analysis,
+[01:07:24] you will find probably scaling is much closer to Chinchilla.
+[01:07:28] Now, so why is there such a big difference when
+[01:07:31] they're both fitting these joint scaling laws?
+[01:07:34] OK, so this is, I think, where we
+[01:07:37] get into the messy realities of how scaling laws are made.
+[01:07:42] Scaling laws can really change depending
+[01:07:45] on the precise ways in which you're implementing the scaling
+[01:07:48] laws, the hyperparameter settings that you're using,
+[01:07:51] and even what the x-axis is.
+[01:07:54] So there's a really nice paper.
+[01:07:56] Oh, no, I covered the authors.
+[01:07:57] I can paste this in the lecture Slack later.
+[01:08:03] --called "Resolving Discrepancy to Compute-Optimal Scaling
+[01:08:05] of Language Models."
+[01:08:07] Yair is the last author.
+[01:08:08] He was a former student here.
+[01:08:10] And they show-- basically, first they
+[01:08:13] replicate the Kaplan result using
+[01:08:15] roughly the Kaplan settings.
+[01:08:17] And then they say, OK, well, let's
+[01:08:19] change how we count parameters.
+[01:08:20] That shifts the curve a little bit.
+[01:08:22] And then they say, OK, well, let's
+[01:08:23] change how learning rate warmup is done.
+[01:08:25] That shifts the curve a little bit.
+[01:08:27] And then let's tune the optimizer a little bit more.
+[01:08:29] And then they get exactly the Chinchilla result.
+[01:08:31] So their argument here is that there
+[01:08:33] is a sequence of what seems very minor decisions that in the end,
+[01:08:38] gives you this big gap between the Kaplan scaling
+[01:08:41] law and the Chinchilla scaling law.
+[01:08:43] And I'll explain what each of these steps
+[01:08:46] is, not that that's the most important single thing,
+[01:08:49] but also to emphasize to you how important the details are here.
+[01:08:53] So the very first arrow, where we go from Kaplan
+[01:08:56] to the blue line, that is how we count parameters.
+[01:09:00] So remember, in Kaplan, I said, well,
+[01:09:02] they saw this weird stuff if they
+[01:09:04] included embedding parameters.
+[01:09:05] So they excluded embedding parameters.
+[01:09:07] That's generally an OK thing to do.
+[01:09:10] But one thing they also did that really messed them up
+[01:09:13] was they also excluded the last layer parameter
+[01:09:16] counts, the softmax ones.
+[01:09:18] Because in many models, the embedding and the last layer
+[01:09:21] linear are dual to each other.
+[01:09:23] They have the same shapes.
+[01:09:24] The inside has vocab size by hidden dim.
+[01:09:28] The output matrix has hidden dim by vocab size.
+[01:09:31] And because they're the same shape,
+[01:09:32] they said, well, let's just exclude both of those.
+[01:09:34] It turns out whether you include or exclude
+[01:09:36] those has a big material impact on the shape of the scaling law.
+[01:09:41] They also found-- this is much more of an oversight,
+[01:09:44] more than a genuine difference in opinion,
+[01:09:48] that a lot of the models that were being trained in Kaplan
+[01:09:51] were very small.
+[01:09:52] And in fact, they were so small that they were not actually
+[01:09:55] converging by the time that the learning rate warm up was done.
+[01:09:58] So their learning rates were set very suboptimally.
+[01:10:00] And because of that, their models weren't fully converged.
+[01:10:04] And then finally, they found that Kaplan et al. was fixing
+[01:10:07] one big batch size, and those big batch sizes
+[01:10:10] were suboptimal for the smaller models.
+[01:10:12] And therefore, if you tune that correctly
+[01:10:14] and you use varying batch sizes, you
+[01:10:16] end up getting this thing that agrees exactly with Chinchilla.
+[01:10:20] So I think each of these might seem
+[01:10:22] like a very minor difference, but if you change up
+[01:10:26] these really minor differences, you
+[01:10:27] can get big shifts in the scaling law.
+[01:10:30] And one thing I like to emphasize
+[01:10:32] is that scaling laws are lower bounds in some sense.
+[01:10:36] They're kind of saying, if I continue this recipe
+[01:10:38] and I scale it up, then this is what I will get.
+[01:10:41] But if you're scaling up a recipe that you don't want
+[01:10:44] to scale up, your warmup is kind of crazy,
+[01:10:46] or your batch sizes are crazy, you're
+[01:10:47] going to get bad scaling laws.
+[01:10:48] So you want to be as close to the proper full run as possible.
+[01:10:54] There's another paper that does another very interesting thing
+[01:10:57] to try to study the difference between Kaplan and Chinchilla
+[01:11:00] scaling laws.
+[01:11:01] It's by Pearce and Song.
+[01:11:03] And what they do, and I think this is very clever,
+[01:11:06] is they don't train any models.
+[01:11:08] They just take the Chinchilla training
+[01:11:10] curves or the implied functional form of the Chinchilla training
+[01:11:13] curves.
+[01:11:13] They just plot them out and they say, well,
+[01:11:16] based on these implied training curves, which
+[01:11:18] are simulated purely from Chinchilla,
+[01:11:20] they generate what the implied training curves will
+[01:11:22] be for Kaplan if you ignore the embedding parameters
+[01:11:26] and you scale way down, and what happens
+[01:11:28] if you use the total parameter count instead.
+[01:11:30] And what they find is really two effects.
+[01:11:33] One is that Kaplan is operating at a much lower compute scale,
+[01:11:36] so they're very sensitive to small changes,
+[01:11:38] and actually ignoring the non-embedding parameter
+[01:11:41] is a sufficiently big change to mess up the result relative
+[01:11:44] to Chinchilla.
+[01:11:44] So their argument is slightly different from Yair and others,
+[01:11:48] which is that here, actually, it's
+[01:11:50] the size of the compute scale plus the slight non-linearity
+[01:11:53] induced by non embedding parameters that's
+[01:11:55] causing this disagreement.
+[01:11:58] So this is really starting to get into the weeds.
+[01:12:02] But I hope you appreciate the importance
+[01:12:05] of paying attention to detail.
+[01:12:06] And I think a lot of the work that goes on
+[01:12:09] in establishing, relying, scaling laws
+[01:12:11] is about figuring out what the right regime is
+[01:12:13] so that you can get reliable scaling across compute scales.
+[01:12:18] The final thing, and this is really just more of something
+[01:12:21] that I just find amusing more than anything else, which
+[01:12:24] is that Chinchilla is this paper that takes down
+[01:12:26] the Kaplan paper in a way.
+[01:12:27] It's like, oh, you guys were very wrong.
+[01:12:30] But there was this one remaining mystery,
+[01:12:32] which is that Chinchilla method three never agreed
+[01:12:35] with Chinchilla method 1 and 2.
+[01:12:36] And the numbers look small.
+[01:12:38] And the authors are very unperturbed about this,
+[01:12:41] but I think the implications are quite non-trivial.
+[01:12:43] If you look at this, methods 1 and 2 basically
+[01:12:45] say the amount of parameters and tokens should scale together.
+[01:12:48] So there should be a fixed ratio between the two.
+[01:12:51] This is where the Chinchilla factor of 20 comes from.
+[01:12:53] If you look at number 3, the exponents are different.
+[01:12:57] This means if you scale up your compute,
+[01:12:59] eventually, actually, in this case,
+[01:13:00] you're going to have way more tokens than you
+[01:13:02] are going to have parameters.
+[01:13:04] So it's going to be actually a very different scaling
+[01:13:06] conclusion asymptotically than the other ones.
+[01:13:10] And so it turns out that I was certainly not the only one who
+[01:13:15] was perturbed about this, except some folks at Epoch AI
+[01:13:18] did something about being perturbed.
+[01:13:20] They couldn't get either the raw data or the code.
+[01:13:23] So what they did was they extracted the data from plots
+[01:13:26] in the paper, and they refitted the method 3 regressions.
+[01:13:30] They extracted the data from the paper.
+[01:13:31] And given that data, they fitted that 2D surface or 3D surface
+[01:13:36] that was proposed.
+[01:13:38] And then, what they showed is actually
+[01:13:40] the original paper must have underfitted the original data.
+[01:13:44] And if they redid the curve fitting,
+[01:13:46] they could get much lower losses relative to what
+[01:13:49] the proposed scaling law in the Chinchilla paper.
+[01:13:52] And in fact, if you follow the refitted model,
+[01:13:56] you got almost exactly D over 20 is
+[01:14:00] 20 rule of thumb from the Chinchilla paper,
+[01:14:02] which is really a funny conclusion,
+[01:14:04] I think, to the Chinchilla paper, where in the end
+[01:14:06] it turns out that the authors were more right than they knew.
+[01:14:10] Actually, they had made a mistake,
+[01:14:12] and that was the only reason why method 3 disagreed
+[01:14:14] from methods 1 and 2.
+[01:14:15] So it's a nice conclusion to know that the method was
+[01:14:19] robust after all.
+[01:14:22] OK, so that's the end of the Chinchilla saga in some ways.
+[01:14:26] But I will end this section by saying you probably don't
+[01:14:30] want the Chinchilla factor.
+[01:14:31] At this point, I think this is a pretty common knowledge thing.
+[01:14:35] But if you're training a production model,
+[01:14:37] you don't really care about saving training compute
+[01:14:40] for the most part.
+[01:14:42] You can look at all sorts of external surveys
+[01:14:43] that people have done of how Frontier Labs are
+[01:14:46] spending their compute.
+[01:14:47] Most of the compute is not going into training runs.
+[01:14:49] Most of the compute is actually going into R&D and serving.
+[01:14:53] And given that, especially for serving, what you want to do
+[01:14:57] is you want small models that are capable.
+[01:14:59] You do not want big, bloated models that cost a lot to serve,
+[01:15:03] even if that minimizes training cost.
+[01:15:05] And so what you really want is something that you would call
+[01:15:09] as "overtrained."
+[01:15:10] I put that in quotes because, really, overtraining
+[01:15:12] is what we want.
+[01:15:13] That's the right amount of training.
+[01:15:14] And if you look at all the models that were released
+[01:15:17] in the early days, like GPT-3--
+[01:15:19] this was under-trained for sure, three tokens per parameter.
+[01:15:22] Chinchilla gets to the modern ratio of 20 per parameter.
+[01:15:25] And then for a while, people were at 20 per parameter.
+[01:15:27] And this is the era, I think, where
+[01:15:29] there wasn't that much serving of these models.
+[01:15:31] The models were cool, but it wasn't being served at scale.
+[01:15:34] And then as you start to move to eras where serving becomes very
+[01:15:38] real, now you're overtraining these models,
+[01:15:40] and now you've moved into MoEs, and you're
+[01:15:41] making all these trade-offs to optimize inference serving.
+[01:15:44] So I think Chinchilla is important,
+[01:15:47] not because I think the 20-to-1 ratio is the one golden ratio.
+[01:15:51] If you're doing stuff for research, it might be.
+[01:15:54] But I think the reason why it's important
+[01:15:56] is because it tells us quite a bit about how
+[01:15:58] we should be fitting scaling laws
+[01:16:00] and how to think about scaling laws.
+[01:16:02] OK, one final thing I'll end with Chinchilla-wise
+[01:16:06] and otherwise for scaling is IsoFLOP
+[01:16:08] have been one of the things that, I think,
+[01:16:10] has a research tool have endured.
+[01:16:12] IsoFLOP are very easy to execute.
+[01:16:14] You fix a FLOPS budget, and then you
+[01:16:16] sweep over all of the other degrees of freedom
+[01:16:18] to see what the surface looks like.
+[01:16:20] And this gives you, in general, fairly reliable readings
+[01:16:25] of how different parameters vary as a function
+[01:16:28] of your free parameters.
+[01:16:31] People have done this for-- or actually, one of my students
+[01:16:34] did this for diffusion models.
+[01:16:36] The MoE study I talked about was a IsoFLOP-style design.
+[01:16:40] If you're ever in a situation where you're thinking,
+[01:16:42] how am I going to decide all these trade-offs,
+[01:16:45] IsoFLOP is always a good default.
+[01:16:48] OK, so to wrap up everything for today,
+[01:16:53] there's this idea that we have this log-linear regularity
+[01:16:56] between the amount of resources we put in
+[01:16:59] and the performance we get out.
+[01:17:00] And it extends to a wide variety of things, model parameters,
+[01:17:03] compute, sparsity level of your MoE.
+[01:17:06] And that lets you do a lot of the things
+[01:17:08] that I was talking about earlier, as arbitrary choices,
+[01:17:11] but do it in a much more evidence-driven way, hopefully.
+[01:17:14] And so this allows us to have engineering at scale
+[01:17:18] without explicitly relying on doing big model training runs.
+[01:17:22] And hopefully, you remember, I think all
+[01:17:25] the different components here.
+[01:17:26] Data scaling is this very natural object,
+[01:17:28] just the exponent is a little bit strange.
+[01:17:30] Model scaling allows you to do all these cool engineering
+[01:17:32] things.
+[01:17:33] And then finally, scaling is this very cool,
+[01:17:36] robust predictor, let's call it, for how
+[01:17:38] to try to do engineering at a large scale.
+[01:17:41] And thanks.
+[01:17:42] The next lecture, I think, will be Percy on inference.
+[01:17:44] But after that, we will return to more advanced niche scaling
+[01:17:48] topics.
+[01:17:50] [APPLAUSE]

@@ -1,0 +1,1376 @@
+[00:00:06] So today, we're going to talk about evaluation.
+[00:00:09] So far in this class we've done everything we
+[00:00:13] need to train a language model.
+[00:00:16] We defined the architecture, the optimizer, the main training
+[00:00:20] loop.
+[00:00:21] We showed how to make the training fast with kernels,
+[00:00:25] parallelism.
+[00:00:27] And then we saw scaling laws.
+[00:00:29] We saw a little bit of how to make inference fast as well.
+[00:00:34] So the only missing piece now is talking about the data
+[00:00:37] that you train on.
+[00:00:39] So we're going to spend next week talking about that.
+[00:00:43] And data is going to shape the model behavior.
+[00:00:47] If you train on code, then presumably
+[00:00:50] your model is going to be good at code.
+[00:00:51] If you train only on DNA sequences,
+[00:00:53] it probably can't speak English.
+[00:00:56] But before we even get to data, we
+[00:00:59] need to talk about what behavior we want from a model,
+[00:01:02] and that's going to be the topic of evaluation.
+[00:01:05] So evaluation asks a very simple question--
+[00:01:08] given the model that we've trained, how good is it?
+[00:01:13] So what is good?
+[00:01:15] So evaluation might seem like a fairly mechanical process.
+[00:01:20] You define some prompts, you send
+[00:01:21] these prompts to your model, you get back some responses,
+[00:01:24] and then you compute the accuracy.
+[00:01:25] So why do we have a whole lecture on evaluation?
+[00:01:29] But actually, evaluation is a very deep topic,
+[00:01:32] and it's also very important because evaluation is what
+[00:01:35] shapes the development of AI.
+[00:01:37] Evaluation sets North Stars and model developers--
+[00:01:41] open, closed-- everyone looks at evaluation
+[00:01:45] as a measure of progress.
+[00:01:49] So by thinking carefully about your evaluation,
+[00:01:52] you implicitly shape the development
+[00:01:55] of what your model is going to be able to do.
+[00:01:58] So what's hard about evaluation is the following.
+[00:02:01] So often, you start it with an abstract construct of what
+[00:02:05] do I want my model to do?
+[00:02:07] Maybe I want my model to be good at conversation
+[00:02:12] or good at reasoning.
+[00:02:14] OK.
+[00:02:14] So those are abstract concepts.
+[00:02:16] And then evaluation is really the process
+[00:02:18] of turning that into a concrete metric powered by, presumably,
+[00:02:23] some concrete prompts or environments.
+[00:02:27] So this is going to be the core challenge,
+[00:02:30] and we'll see many examples of how
+[00:02:32] this process of abstract construct, concrete metric
+[00:02:36] shows up.
+[00:02:38] So let's go back to a question of what makes a model good.
+[00:02:42] Just kind of superficially.
+[00:02:44] Maybe a model is good if it does well on benchmarks.
+[00:02:47] So there's this website, Artificial Analysis,
+[00:02:50] which has become a bit of a standard for thinking about
+[00:02:55] quote unquote, "intelligence of models."
+[00:02:57] So if you go to Artificial Analysis AI,
+[00:03:00] you can see a ranking of different models from GPT-5.5,
+[00:03:04] all the way down-- well, there's many more models after this
+[00:03:07] point.
+[00:03:10] And so this is a measure.
+[00:03:13] It includes a bunch of different data sets, some of which
+[00:03:16] we'll talk about.
+[00:03:18] Or maybe a model is good if it does well on benchmark
+[00:03:21] and is also cheap to run, because cost should matter.
+[00:03:26] And this plot shows both the intelligence index
+[00:03:30] from before, but against how much money
+[00:03:34] it costs to run a particular model based on inference cost.
+[00:03:38] And you can see, of course, as you might expect,
+[00:03:42] that the two are correlated.
+[00:03:44] The more you pay to run, the higher the intelligence index,
+[00:03:48] but it's not exactly aligned.
+[00:03:53] But maybe a model is good if people just prefer it.
+[00:03:58] Later we'll also go a little bit more into depth.
+[00:04:00] So this is the take that Arena AI, formerly known
+[00:04:04] as Chatbot Arena, takes.
+[00:04:06] And you can form a ranking based on models,
+[00:04:09] based on whether people like it or not.
+[00:04:11] Or maybe a model is good if people simply
+[00:04:15] choose to use it, and therefore, pay for it.
+[00:04:18] So OpenRouter is this service that
+[00:04:22] allows one to use multiple different models
+[00:04:25] through a central endpoint.
+[00:04:29] And as a result, they collect a lot
+[00:04:30] of statistics of what models people are using.
+[00:04:34] And they publish statistics, which
+[00:04:38] is really interesting to look at,
+[00:04:39] the top bottles that are used through OpenRouter.
+[00:04:43] So now, this is not representative of all model
+[00:04:46] usage, but it gives you a sense of what people on open router
+[00:04:50] are doing.
+[00:04:51] And so this is kind of more of an economic lens.
+[00:04:54] I don't what good is, but if people are paying for it,
+[00:04:58] it must be good.
+[00:05:02] OK.
+[00:05:02] So none of those are necessarily the correct answer.
+[00:05:07] I don't know If there is a correct answer,
+[00:05:10] but I'm just trying to get you to think about different ways
+[00:05:13] of thinking about what good is.
+[00:05:16] So let's start now by looking at different ways, concrete ways,
+[00:05:21] of evaluating language models.
+[00:05:23] And there's no better place to start than going back
+[00:05:26] to the core idea of a language model, which
+[00:05:31] is that it's a distribution P of x over sequences of tokens.
+[00:05:36] And through that lens, there's a very natural way
+[00:05:39] to evaluate a distribution, which
+[00:05:41] is a perplexity, or likelihood or log loss.
+[00:05:47] Those are all kind of related concepts.
+[00:05:50] And it basically says, I have a test data set d,
+[00:05:54] and I'm going to see how much probability mass my language
+[00:05:59] model assigns to that d.
+[00:06:01] And I normalize it and divide so that the numbers
+[00:06:03] are more interpretable.
+[00:06:06] But that's basically it.
+[00:06:07] How much mass does my probability language model
+[00:06:12] assigned to a data set.
+[00:06:14] OK, so this is fairly natural.
+[00:06:16] In fact, when we were doing training,
+[00:06:19] we minimized the perplexity on the training set.
+[00:06:23] So the obvious thing to do is measure the perplexity
+[00:06:25] on the test set, and this is what people traditionally did
+[00:06:28] in language modeling research for many years throughout
+[00:06:31] the 2010s.
+[00:06:33] If you pick up a language modeling paper,
+[00:06:35] this is what they did.
+[00:06:37] And back then, standard data sets
+[00:06:40] included the Penn Treebank, WikiText-103.
+[00:06:44] There was also this One Billion Word Benchmark,
+[00:06:47] which was taken from machine translation sources.
+[00:06:53] And this is all in the classic paradigm, which is
+[00:06:57] in-distribution of evaluation.
+[00:06:59] You train on some train split of that data set,
+[00:07:02] and then you evaluate on some test split of that data set.
+[00:07:07] And people actually made a lot of progress,
+[00:07:11] which was just measured in perplexity reduction.
+[00:07:14] So for example, there's this famous paper
+[00:07:16] from 2016, which showed that you could
+[00:07:22] apply CNNs and LSTMs to this One Billion Word Benchmark
+[00:07:27] and get a huge perplexity reduction.
+[00:07:31] And bear in mind, around that time,
+[00:07:33] people were talking still about n-gram models and maybe
+[00:07:35] hybrid models.
+[00:07:38] And this was the first definitive result
+[00:07:41] that showed just pure neural is clearly the way to go.
+[00:07:46] OK, so life was very simple back then.
+[00:07:48] You train on the train split.
+[00:07:50] You test on a test split for perplexity.
+[00:07:53] So then when GPT-2 came around in 2019 from OpenAI,
+[00:07:58] they trained on the data set called
+[00:08:02] WebText, which was 40 gigabytes of text websites
+[00:08:05] that were linked from Reddit.
+[00:08:07] And the way they evaluated was actually different.
+[00:08:11] They evaluated zero-shot on standard data sets
+[00:08:16] that everyone else was evaluating on.
+[00:08:19] So this is out-of-distribution evaluation.
+[00:08:22] So this is a table from their paper, which show that as they
+[00:08:26] train different models.
+[00:08:27] So the biggest model is 1.5 billion parameters.
+[00:08:31] And they were able to show quite a bit of improvement,
+[00:08:36] especially on the small data sets.
+[00:08:39] So for example, PTB, which is a tiny data set.
+[00:08:43] They were getting 35 perplexity compared to the State
+[00:08:46] of The Art, which is 46.
+[00:08:48] Now, if you have enough in-distribution data,
+[00:08:51] you don't quite do as well as the SOTA.
+[00:08:54] But nonetheless, this is kind of impressive,
+[00:08:58] given that this model was not trained on One Billion Word's
+[00:09:02] data set at all.
+[00:09:04] I don't know.
+[00:09:05] Maybe there was some overlap, because I
+[00:09:07] don't know if they did a careful train test decontam.
+[00:09:14] And so it ushered in a new paradigm
+[00:09:20] of thinking about language models as not just
+[00:09:23] the in-distribution setting, but how
+[00:09:27] we wanted to train on a large data set
+[00:09:31] and evaluate on standard benchmarks, which nowadays I
+[00:09:35] think has been very common standard.
+[00:09:37] But back then, it was seen as a bit of a novelty.
+[00:09:47] I will also argue, since we're talking about perplexity, that
+[00:09:50] perplexity is you all need.
+[00:09:53] I wouldn't to take this too seriously,
+[00:09:55] but I think it is a mindset, I think,
+[00:09:57] that drives a lot of language modeling research.
+[00:10:01] And the basic argument goes like this.
+[00:10:04] So there's some true distribution out there--
+[00:10:06] let's call it t--
+[00:10:07] and you're training this model p.
+[00:10:10] So what is the best perplexity you could obtain?
+[00:10:14] Well, the best perplexity is the entropy
+[00:10:18] of that true distribution, and that
+[00:10:22] is realized when p equals t.
+[00:10:26] So by minimizing perplexity, you're basically
+[00:10:30] pushing down the perplexity.
+[00:10:35] And the only unique minimizer is when you actually
+[00:10:39] get the true distribution.
+[00:10:41] And when you have the true distribution, you're done.
+[00:10:45] You just model everything.
+[00:10:46] You can solve all the problems, and you
+[00:10:48] can do things like condition on the problem,
+[00:10:51] generate a solution.
+[00:10:52] You can condition on a question, generate the answer.
+[00:10:56] So by pushing down on perplexity,
+[00:10:59] we'll eventually reach AGI, is the argument.
+[00:11:04] I mean, this might sound, I don't know,
+[00:11:06] either a bit fantastical.
+[00:11:08] But in some sense, this is really,
+[00:11:11] I think, a strong driver of many people
+[00:11:13] who have been scaling and scaling language models
+[00:11:17] at a time when, maybe, the gains weren't as obvious.
+[00:11:23] Before GPT-3, I think it wasn't clear
+[00:11:24] that language models were going to have such a huge impact.
+[00:11:29] And it was really this belief that, if you drove perplexity
+[00:11:33] down, good things will happen.
+[00:11:37] So of course, Perplexity is maybe not all.
+[00:11:44] And one way to frame it is that perplexity is maybe more
+[00:11:48] than you need.
+[00:11:49] So for example, if you have a sentence like "Stanford was
+[00:11:51] founded in 1885," perplexity will say,
+[00:11:55] penalize the prediction on all tokens.
+[00:11:59] So in particular, it'll say, what is the probability of 1885,
+[00:12:04] given the rest?
+[00:12:05] And that token is probably pretty useful.
+[00:12:08] It's basically a Q&A example, phrased as sentence completion.
+[00:12:14] So it captures knowledge about the world.
+[00:12:17] But other ones-- for example, the first word of a sentence,
+[00:12:22] or even "founded"--
+[00:12:25] maybe not that interesting, I think.
+[00:12:30] And perplexity doesn't care.
+[00:12:31] It's going to charge you bits for every bit of a deviation
+[00:12:38] from the true distribution.
+[00:12:41] So there is a bit of a solution here,
+[00:12:44] which is you can always measure the conditional perplexity.
+[00:12:47] You can condition on some prompt,
+[00:12:49] and then you can measure the perplexity of the remaining
+[00:12:54] response.
+[00:12:54] So that allows you to, in general,
+[00:12:56] focus on certain tokens that you believe
+[00:12:59] to be relevant and less on others
+[00:13:03] that are sort of incidental.
+[00:13:07] OK.
+[00:13:09] And also, it's important to remember
+[00:13:12] that some benchmarks, even though they are not explicitly
+[00:13:16] a perplexity measure, are actually
+[00:13:17] just perplexity in disguise.
+[00:13:19] So, for example, if you think about closed tasks.
+[00:13:22] There's this lambada paper from, actually, a while ago,
+[00:13:26] 2016, which is basically fill in the blank.
+[00:13:30] And you have a context, you have a sentence.
+[00:13:33] "Do you honestly think I will want you to have a blank."
+[00:13:36] And the goal is to figure out that word.
+[00:13:40] And even though this is measured in terms of accuracy,
+[00:13:44] it is really a next-token prediction problem.
+[00:13:49] And here, it's not perplexity of all the words,
+[00:13:53] it's carefully chosen.
+[00:13:54] If you read this paper, it's really carefully chosen
+[00:13:57] to be words, such that you actually need
+[00:14:00] a bunch of long-contexts to resolve.
+[00:14:04] So this is actually something that the early GPT papers really
+[00:14:09] latched on to because they were interested in long-context
+[00:14:15] modeling, thinking that that was a key to unlocking
+[00:14:18] reasoning and all these things.
+[00:14:21] And really, by focusing on positions
+[00:14:25] where, to resolve that, it requires
+[00:14:29] long-distance dependencies, is a way
+[00:14:35] to sharpen the perplexity to some phenomenon
+[00:14:39] that you care about.
+[00:14:42] Here's another popular classic data
+[00:14:44] set that you see in some language modeling vowels.
+[00:14:47] HellaSwag.
+[00:14:48] So what is HellaSwag?
+[00:14:49] They went to various different data sets and sources,
+[00:14:53] and came up with-- it's multiple choice,
+[00:14:56] but it's really sentence completion.
+[00:14:58] And at some level, it's perplexity.
+[00:15:00] So here's a sentence.
+[00:15:02] "A woman is outside with a bucket and a dog.
+[00:15:03] The dog is running around.
+[00:15:05] She blank."
+[00:15:06] And then you're trying to fill in which
+[00:15:07] sentence completes it the best.
+[00:15:10] So it's not exactly perplexity, it's multiple choice.
+[00:15:13] But in some ways, it's perplexity.
+[00:15:19] So one word of warning.
+[00:15:21] If you ever decide that you're sold on perplexity
+[00:15:26] as, really, the measure and you're
+[00:15:29] going to launch a leaderboard and have people compete
+[00:15:32] against perplexity, just a word of caution
+[00:15:36] is that, what is a perplexity leaderboard look like?
+[00:15:40] So people are going to submit a language model to you,
+[00:15:43] and you have to compute a logprob.
+[00:15:47] You send them the test data, and they give you back a logprob.
+[00:15:51] Well, you look at that and say, hmm,
+[00:15:53] that might be a little bit fishy because you
+[00:15:58] need to trust that the probabilities they hand back
+[00:16:02] to you are valid and that they sum to 1.
+[00:16:06] Otherwise, I could just have implement LM,
+[00:16:08] and it always returns 1 or, I guess, logprob 0.
+[00:16:14] And I would get very good perplexity,
+[00:16:17] but clearly, that's not a valid distribution.
+[00:16:23] And so with this contract it's not
+[00:16:24] really easy to check that someone is actually
+[00:16:28] internally having a log probability,
+[00:16:30] so there's some trust.
+[00:16:31] Maybe you have to look at the code or something.
+[00:16:34] For downstream tasks, this is much more straightforward
+[00:16:39] because you can have a black box LM.
+[00:16:41] I give you a prompt, you give me a response,
+[00:16:43] and I can just use that response and calculate some accuracy.
+[00:16:46] So perplexity is fundamentally different
+[00:16:48] because it deals with distributions,
+[00:16:50] and you have to be a bit careful.
+[00:16:53] And not to mention, there's lots of problems
+[00:16:56] with autoregressive models.
+[00:16:57] But if you have VAEs or there's some models where you can't even
+[00:17:01] compute the distribution-- you can compute only a bound--
+[00:17:05] then you have to really actually trust the math as well that this
+[00:17:08] is actually a valid bound.
+[00:17:11] OK.
+[00:17:13] So The summary of perplexity is that it is actually
+[00:17:16] still used quite heavily in language model development.
+[00:17:23] It has some nice properties.
+[00:17:24] We saw that it's generally used for scaling laws
+[00:17:28] because it's also smoothly varying
+[00:17:31] with scale, which is important for getting scaling laws.
+[00:17:36] But, at the end of the day, especially if you're not
+[00:17:40] a believer, then you need some benchmarks to really capture
+[00:17:45] real world situations, to convince people
+[00:17:47] that your language model is good.
+[00:17:49] For the believers, if I show you a remarkably slow perplexity,
+[00:17:53] they'll be convinced.
+[00:17:56] OK, any questions about perplexity?
+[00:18:10] OK.
+[00:18:11] Hopefully, everyone's a believer now.
+[00:18:15] OK, so let's talk about exam benchmarks.
+[00:18:19] So exams, as all of your students know,
+[00:18:22] is a way that we use to test humans.
+[00:18:26] And so you can adopt the same mentality
+[00:18:28] to test language models.
+[00:18:31] The nice thing about exams is that you
+[00:18:32] have a very careful control over the subject,
+[00:18:36] over the difficulty.
+[00:18:38] You can design them to have unambiguous correct answers,
+[00:18:43] which makes them easy to grade.
+[00:18:45] So there's a lot of nice properties about exams.
+[00:18:48] And so, for this reason, a lot of LM benchmarking culture
+[00:18:52] was based on just this idea of exams.
+[00:18:56] So obviously, there's been a lot of benchmarks,
+[00:19:00] but I'll just highlight some of the ones
+[00:19:01] that I think have been influential
+[00:19:05] in the development of language models.
+[00:19:07] So this one is MMLU, or Massive Multitask Language Understanding
+[00:19:11] from Hendrycks et al, 2020.
+[00:19:16] And at that time, it wasn't clear
+[00:19:19] that language models were really like general purpose task
+[00:19:24] solvers.
+[00:19:24] This was around the time when GPT-3 came out.
+[00:19:29] Many people, I think, still thought of language models
+[00:19:32] as, well, language models.
+[00:19:34] You generate fluent English.
+[00:19:36] But they had this idea that, well,
+[00:19:39] let's just try to be ahead of the curve here.
+[00:19:42] We're going to go through 57 subjects,
+[00:19:46] we're going to have a team of students
+[00:19:50] scour the internet for different sources,
+[00:19:53] and really put together this very comprehensive data set.
+[00:20:00] And despite the name MMLU, which has the word Language
+[00:20:03] Understanding, it's really about testing
+[00:20:05] knowledge and reasoning and less so just
+[00:20:08] pure language understanding.
+[00:20:10] And the way they evaluated it was with GPT-3,
+[00:20:14] using few-shot prompting.
+[00:20:16] So they essentially said, I have formed this prompt.
+[00:20:22] The following are questions about high school mathematics.
+[00:20:25] Some in-context examples of question, answer, question,
+[00:20:28] answer, and then the final question, and then the model
+[00:20:32] has to predict the answer.
+[00:20:34] So this seems very mundane.
+[00:20:36] But at that time it was, I think,
+[00:20:38] pretty radical that you would construct
+[00:20:42] this fairly complicated question and with in-context examples
+[00:20:46] and everything, and expect a language
+[00:20:48] model to actually do something reasonable.
+[00:20:52] And sure enough, at the outset, the models were not great,
+[00:20:58] I would say.
+[00:21:01] Some of the small models were barely above chance.
+[00:21:05] And the larger model-- this GPT-3--
+[00:21:07] was actually well above chance, so this was kind of encouraging.
+[00:21:14] And then over the years, as we know,
+[00:21:22] this benchmark has essentially saturated.
+[00:21:26] So this is a site I don't think this has all the data in it,
+[00:21:30] but about 3.5 Turbo.
+[00:21:32] This was like--
+[00:21:35] I guess, beginning of 2024-- oh, '23 actually--
+[00:21:40] to GPT-4.
+[00:21:41] And then, now it's in the 90s.
+[00:21:48] So there's also a link you can follow up
+[00:21:52] later on, where you can actually browse some
+[00:21:54] of the predictions of these models, which is always
+[00:21:58] fun to see what models actually goof up on
+[00:22:01] and what they get right.
+[00:22:04] OK.
+[00:22:06] So around 2024, when it seemed like MMLU, there
+[00:22:11] was a lot of progress made, it was like, OK--
+[00:22:14] you're going to see this theme again--
+[00:22:15] OK, this benchmark is getting too easy.
+[00:22:19] Let's try to make it harder.
+[00:22:23] Well, first of all, they actually
+[00:22:24] noticed that there was some noisy and trivial problems,
+[00:22:26] so let's get rid of them.
+[00:22:28] Four choices might be a little bit too easy,
+[00:22:31] so let's expand that to 10.
+[00:22:34] At that point, it was much more in vogue to use chain of thought
+[00:22:39] to solve these benchmarks, whereas when GPT-3 came out,
+[00:22:43] that wasn't really a thing.
+[00:22:46] And it's clear that some of these questions
+[00:22:49] could benefit from a few reasoning steps.
+[00:22:52] So this new benchmark was harder.
+[00:22:56] So now the accuracy of the model is back at 33.
+[00:23:00] But as you can maybe see from the progress
+[00:23:04] so far it started low.
+[00:23:08] And now it's back to I guess it's like 88 almost 90, OK.
+[00:23:13] So this benchmark might be a little bit too easy as well.
+[00:23:18] OK, so there's another benchmark called
+[00:23:21] GPQA, which stands for Google-Proof QA.
+[00:23:27] And the idea here is that OK, how can we
+[00:23:32] get a really good benchmark?
+[00:23:36] And the idea is that, well, if you can solve a problem
+[00:23:38] by looking at Google.
+[00:23:40] Google has the internet and a language model
+[00:23:42] is trained on the internet.
+[00:23:43] So if you can just solve it then that's probably too easy.
+[00:23:46] So they got some now PhD level.
+[00:23:50] So I think MMLU was think about as actually--
+[00:23:56] maybe some of these were like undergrad but maybe grad level.
+[00:24:00] But now, it's more explicitly about questions that
+[00:24:03] are meant to be pretty hard.
+[00:24:06] And at this point now you say, OK,
+[00:24:09] how do I come up with really hard questions?
+[00:24:11] You actually have to go through quite a bit of human labor
+[00:24:14] to get really hard questions.
+[00:24:16] So this was 61 PhD contractors from Upwork.
+[00:24:20] Someone writes a question.
+[00:24:22] It goes through an expert validation which then provides
+[00:24:25] feedback on the questions.
+[00:24:27] And then the question writer goes and revises the question.
+[00:24:30] And another expert looks at the question.
+[00:24:32] And then you have the question.
+[00:24:36] And then you send it to some non-experts
+[00:24:38] who are given Google access.
+[00:24:41] And then you see if they can solve the question.
+[00:24:44] So there's a subset of these questions called the DIAMOND set
+[00:24:47] that you might see in people's leaderboards
+[00:24:52] where if the two experts agree and at one of the non-experts
+[00:24:56] is able to answer the question, then that's deemed a good kind
+[00:24:59] of DIAMOND question.
+[00:25:01] So this is pretty rigorous review process.
+[00:25:05] And PhD experts were only able to get 65%.
+[00:25:12] So this is I think mostly four-way multiple choice.
+[00:25:16] So this is above random.
+[00:25:18] But this is not a good grade if you're getting 65% on an exam.
+[00:25:25] And it's not experts, even if they had 30 minutes with access
+[00:25:29] to Google, they were getting a bit over chance, but not much.
+[00:25:34] And at that point GPT-4 was like 39%,
+[00:25:38] and let's see how it's doing now.
+[00:25:45] So GPQA is now again 94.
+[00:25:54] So these benchmarks have a shelf life of not too high I guess.
+[00:26:02] I will say that some of these benchmarks,
+[00:26:03] even though they saturate the larger models,
+[00:26:06] they're still useful for developing
+[00:26:07] smaller models or fitting scaling laws and so on.
+[00:26:11] So then, yeah.
+[00:26:15] How do you know that when these tests are
+[00:26:19] being used for training and actually your models
+[00:26:22] are communicating with these?
+[00:26:24] Yeah, so this is a very important question.
+[00:26:27] So how do you know that these questions aren't
+[00:26:30] just in the training set?
+[00:26:32] So the short answer is we don't know because I don't know
+[00:26:35] what's in the training set.
+[00:26:37] I'll come back to this contamination
+[00:26:39] point a little bit later and ways of addressing it.
+[00:26:43] But you should always--
+[00:26:44] I'm glad you asked this.
+[00:26:45] You should always take these numbers
+[00:26:47] with a little bit of a grain of salt, because it's only trust.
+[00:26:55] Maybe just to say one more.
+[00:26:56] I think train contamination is a little bit subtle.
+[00:27:00] Because it's probably not the case that
+[00:27:02] they literally train on the set.
+[00:27:04] But questions can be derived from other sources.
+[00:27:08] And those sources could be trained on.
+[00:27:10] So often contamination is a much more subtle process
+[00:27:15] than literally accidentally training on the test.
+[00:27:19] Was there another question?
+[00:27:21] Same question.
+[00:27:21] OK, great.
+[00:27:23] Good always good to be skeptical.
+[00:27:26] OK, so the final exam benchmark I'll talk about
+[00:27:29] is something ominously called Humanity's Last Exam.
+[00:27:34] This is from last year.
+[00:27:36] And they were saying, OK, well these models
+[00:27:38] are getting so good.
+[00:27:40] Let's just give it all we can to create
+[00:27:42] something that's really tough.
+[00:27:44] So this is multimodal, many subjects.
+[00:27:46] It's still multiple choice.
+[00:27:48] And I guess some short answer.
+[00:27:50] So this was crowdsourced.
+[00:27:53] They had some money to incentivize people who were
+[00:27:59] into money to create questions.
+[00:28:01] They also incentivize with authorship
+[00:28:03] for those who are into that.
+[00:28:06] And they went through multiple stages of reviews
+[00:28:09] filtered by frontier models.
+[00:28:11] There's a whole process.
+[00:28:13] Another answer to your question is that they also held out
+[00:28:16] a private set that was not released publicly,
+[00:28:18] so that they could make sure that this did not
+[00:28:22] enter training.
+[00:28:24] And then you just hope that the APIs
+[00:28:26] that you-- because you still have to send this to the model,
+[00:28:29] that those prompts don't end up in the training.
+[00:28:33] But let's hope that's the case.
+[00:28:37] So every data set paper looks like this.
+[00:28:42] Previous benchmarks, look the models are doing so well.
+[00:28:45] My data set, look all the models are doing really poorly.
+[00:28:48] So this is a common pattern.
+[00:28:50] And this was especially single digits.
+[00:28:52] It's pretty abysmal here.
+[00:28:56] And let's see how we're doing in 2026.
+[00:29:01] So this one is-- it still has some room.
+[00:29:06] So it's only at--
+[00:29:07] even Mythos is only at 64.7.
+[00:29:12] So this is indeed a pretty-- it seems like a pretty hard exam.
+[00:29:21] OK, so to summarize this section, as you can see,
+[00:29:26] we've trained it towards harder and harder questions
+[00:29:28] as the models improve and we saturate existing benchmarks.
+[00:29:33] It's interesting that multiple choice format still survives
+[00:29:37] because it's--
+[00:29:40] with multiple choice, I mean, you
+[00:29:41] can make it as difficult as you want.
+[00:29:44] So some people think, well, multiple choice is too easy.
+[00:29:47] Well, I mean, I can give you a very hard
+[00:29:49] multiple-choice question.
+[00:29:51] That's not really the point.
+[00:29:54] I think more the point is that multiple choice restricts
+[00:29:57] the set of questions you can ask.
+[00:29:59] But in terms of difficulty, no problem with multiple choice.
+[00:30:04] The main problem with exam-based questions
+[00:30:08] is that this does not capture real-world usage.
+[00:30:12] No one asks HLE questions to a language model
+[00:30:17] except for when you're evaluating on HLE.
+[00:30:20] Most of the time people are asking open-ended questions.
+[00:30:24] They don't even necessarily have a correct answer.
+[00:30:27] They might not be well formed, and these benchmarks
+[00:30:30] do not capture that.
+[00:30:33] OK, so question.
+[00:30:37] How is the model output compared with the ground truth answer?
+[00:30:40] So for HLE?
+[00:30:43] For accuracy, how is the model's output
+[00:30:44] compared with the ground truth answer,
+[00:30:47] to calculate the accuracy?
+[00:30:48] To calculate the accuracy for how is the ground truth
+[00:30:52] compared.
+[00:30:53] So for multiple choice, it's just like,
+[00:30:57] did you get the right answer?
+[00:30:59] So will we check the probability distribution for each option
+[00:31:02] or how is--
+[00:31:05] So the language model generates C.
+[00:31:09] And my answer is either B or C or A or D,
+[00:31:13] and I just check if they're the same or not.
+[00:31:16] So we are only generating one token?
+[00:31:19] Yes, well, OK.
+[00:31:20] So then the question is less about evaluation.
+[00:31:22] But how does the model generate an answer?
+[00:31:25] So there's a few options.
+[00:31:28] One is that you generate--
+[00:31:30] literally you sample and it generates a letter.
+[00:31:32] Or more commonly now you generate a chain of thought.
+[00:31:36] You generate the answer maybe some explanation.
+[00:31:38] But there is a way of extracting an answer which does matter.
+[00:31:44] And language model evaluations can be very sensitive to that
+[00:31:47] but I'm not going to talk about that here.
+[00:31:52] So let's talk about a very different class of benchmarks
+[00:31:57] called chat benchmarks.
+[00:32:00] So far we've talked about multiple-choice tasks.
+[00:32:04] So they're still pretty good at capturing some notion
+[00:32:07] of intelligence and difficulty.
+[00:32:10] But most people don't ask a multiple-choice exam question
+[00:32:14] to their AI assistant unless they're
+[00:32:16] trying to use their AI system to do their exam for them,
+[00:32:20] which you would never.
+[00:32:21] One does that.
+[00:32:23] OK, so here's an example semi-inspired by a real world
+[00:32:29] use case.
+[00:32:30] So I might say I want to make a beet salad with cheese.
+[00:32:34] What herbs would work well and what wouldn't work well?
+[00:32:37] OK, so this is a very open-ended question.
+[00:32:39] And then you get some response, which is, again,
+[00:32:43] an open-ended response.
+[00:32:45] And then the question is, how do you evaluate this thing?
+[00:32:49] You can't just check exact match with equality.
+[00:32:51] There's no ground truth even.
+[00:32:54] So there's a few ideas here.
+[00:32:57] We can go through them.
+[00:32:58] So one of the ideas was pioneered by this Chatbot Arena.
+[00:33:05] And the idea is, well, you ask humans, OK.
+[00:33:10] But the way they ask humans, I think is a clever idea.
+[00:33:13] So they basically had this set of this website
+[00:33:18] where any random person from the internet can go in and chat.
+[00:33:24] And then instead of a normal as assistant
+[00:33:27] in getting one response, you actually
+[00:33:29] get two responses from two different models
+[00:33:34] which are anonymized, and then they rate which one is better.
+[00:33:38] So for example, you put in this response,
+[00:33:41] you get these two, assistant A, assistant B. And then you ask,
+[00:33:46] A is better, both are good, both are bad, B is better?
+[00:33:50] So using this process, you can get
+[00:33:54] a bunch of pairwise comparison data of model A, model B, which
+[00:33:59] one is better?
+[00:34:00] And then you can use this to compute ELO rankings
+[00:34:04] based on this.
+[00:34:05] So I don't know how many of you are familiar with this
+[00:34:08] but just get everyone on the same page.
+[00:34:12] In these ELO rankings, you define your rating model
+[00:34:17] as a probability of a particular model being
+[00:34:21] another [INAUDIBLE] model as some function of the ELO
+[00:34:27] scores of model B and model A. So the larger model ELO score
+[00:34:35] of A is the higher the probability.
+[00:34:38] So it's a smooth mapping.
+[00:34:39] And then you fit this model with the parameters,
+[00:34:43] which are the ELO ratings to maximize
+[00:34:45] the probability of the pairwise comparisons, OK.
+[00:34:48] And then as a result, you basically
+[00:34:50] get a rating for each of your models.
+[00:34:56] OK, so this is what Chatbot Arena nowadays known
+[00:35:00] as Arena AI did.
+[00:35:02] And you can get this nice ranking.
+[00:35:07] I guess Claude Opus is doing pretty well here
+[00:35:11] but some other models are on the list as well.
+[00:35:15] OK.
+[00:35:16] So there's a few things that are nice about this setup.
+[00:35:20] One is that you have real-world prompts.
+[00:35:24] So the idea is that anyone can come to the site,
+[00:35:27] and the incentive for someone to come to the site
+[00:35:29] is that they get free access to a language model.
+[00:35:32] And so there's this implicit assumption
+[00:35:35] that they're actually trying to use it to do something useful.
+[00:35:39] And therefore you get a real-world prompt.
+[00:35:48] But one thing you should keep in mind is, who are these people?
+[00:35:52] Random person on the internet is--
+[00:35:54] I don't know what that distribution.
+[00:35:57] Random person on the internet who comes to La Marina.
+[00:35:59] I don't know what that distribution looks like.
+[00:36:01] I think in their paper, they have some demographics,
+[00:36:04] but demographics don't tell the whole story.
+[00:36:07] You could worry about different biases coming
+[00:36:10] from the different models.
+[00:36:13] Maybe spammers.
+[00:36:14] People are trying to game, who maybe even submitted a model
+[00:36:20] and they want their model to look good.
+[00:36:24] You just don't know.
+[00:36:25] It's a little bit of a Wild West.
+[00:36:29] There's another issue which is that the binary preference,
+[00:36:33] which is better, A or B is very nice and simple
+[00:36:36] and feeds into this rating, but does conflate style
+[00:36:41] and correctness.
+[00:36:43] So ELO ratings for chess makes a lot of sense,
+[00:36:45] because the only thing that matters is, did you win?
+[00:36:47] But which one is better is much less clear cut.
+[00:36:55] And there's questions of the human is the judge here.
+[00:37:00] The person who puts in the prompt
+[00:37:02] is answering the question.
+[00:37:04] And this is good because in some level,
+[00:37:06] because the person has some intent
+[00:37:11] and they can declare whether their intent was met.
+[00:37:15] To some extent, except for they're
+[00:37:17] presumably asking the question because they
+[00:37:19] don't know the answer.
+[00:37:20] So if I give you two answers, how
+[00:37:22] are they to judge which one is correct?
+[00:37:25] And then there's also the problem of sycophancy,
+[00:37:28] where maybe more pleasing answers
+[00:37:31] are going to be upweighted highly compared
+[00:37:35] to correct but honest answers.
+[00:37:38] So there's a lot of potential issues here.
+[00:37:43] But the nice thing about this method, which
+[00:37:45] is that you don't need to feed the same
+[00:37:48] prompts to all the models, and this is the beauty of ELO.
+[00:37:51] In chess, you don't have to play.
+[00:37:52] Everyone plays everyone else.
+[00:37:54] It can just be some sparse sample of that.
+[00:37:57] And you can still derive rankings as long
+[00:37:59] as the graph is connected.
+[00:38:02] And this is important because human is rating
+[00:38:05] and you can't expect a human to rate all the models
+[00:38:07] or even more than two models.
+[00:38:10] And the nice thing as well is that
+[00:38:12] as new prompts and new models come in,
+[00:38:14] there's a natural story for making this updating over time.
+[00:38:21] So let me talk about a different approach.
+[00:38:27] So this is AlpacaEval from 2023.
+[00:38:31] There were some instructions derived from various sources.
+[00:38:37] And the metric here is the win rate against a baseline model.
+[00:38:44] So you have a model, AlpacaEval says,
+[00:38:47] I'm going to generate it for a prompt,
+[00:38:49] generate using let's say baseline model GPT-4
+[00:38:52] preview at that time and then judge using GPT preview, which
+[00:38:58] one is better?
+[00:38:59] So immediately, this raises a question of potential bias.
+[00:39:04] But let's put that aside for now.
+[00:39:07] So this is basically an instantiation
+[00:39:09] of LLM as a judge, which is very popular these days
+[00:39:13] for evaluating language models.
+[00:39:16] And you can mitigate this bias by having
+[00:39:18] multiple judges and ensembling and so on and so forth.
+[00:39:22] So one problem with initial AlpacaEval
+[00:39:24] is that LLM judges favor long responses.
+[00:39:29] And this led to a bunch of leaderboard gaming
+[00:39:31] where a bunch of models that were fine tuned were submitted
+[00:39:35] and they got really high LLM AlpacaEval
+[00:39:39] performance just because the responses were longer.
+[00:39:41] So this got fixed in a subsequent paper where
+[00:39:46] the use a very simple regression method to de-bias the metric.
+[00:39:51] OK, but this raises a more general question here,
+[00:39:57] which is not necessarily specific to AlpacaEval which is,
+[00:40:01] how do you evaluate a metric?
+[00:40:03] So we've been talking about evaluation of models.
+[00:40:07] And if I have a metric, how you can evaluate a model.
+[00:40:09] But if I'm coming up with a metric,
+[00:40:11] how do this metric is any good?
+[00:40:14] So this is a hard problem.
+[00:40:17] And there's no answer here.
+[00:40:21] One thing you can do is more of a sanity check
+[00:40:25] is you can look at correlation with other metrics
+[00:40:27] with the idea that higher isn't necessarily better in all cases
+[00:40:34] unless you are trying to mimic this other metric.
+[00:40:36] So AlpacaEval correlation with Chatbot Arena
+[00:40:42] is 0.98 which is quite high.
+[00:40:46] So which suggests that you could--
+[00:40:51] let's say you wanted to evaluate on a Chatbot Arena,
+[00:40:57] but you're too shy to put your model
+[00:41:00] or you don't want to wait for humans or whatever,
+[00:41:02] you can use AlpacaEval to evaluate instead.
+[00:41:08] Now, this correlation, of course,
+[00:41:10] is with respect to a certain set of models.
+[00:41:14] And so this might not hold for models
+[00:41:17] that let's say are stronger than GPT-4 preview.
+[00:41:23] So at this point, this leaderboard I don't think
+[00:41:26] is really--
+[00:41:28] hasn't been maintained in over a year but this
+[00:41:31] is what it looked like at that time.
+[00:41:35] So there's another benchmark I'll talk about,
+[00:41:39] which is WildBench and this one was sourced a bunch of examples
+[00:41:46] from human-chatbot conversations.
+[00:41:49] So like Chatbot Arena, they also put up a free service
+[00:41:53] where people could chat with this bot
+[00:41:55] and they collected the queries.
+[00:42:00] And then like AlpacaEval, they used LLM as a judge
+[00:42:09] to evaluate the model.
+[00:42:14] The main innovation here is the use
+[00:42:18] of a checklist, which is generated
+[00:42:22] and specific to a particular prompt or task.
+[00:42:27] And the idea here is that if you just
+[00:42:29] ask a language model to judge whether this response is good
+[00:42:35] or not.
+[00:42:36] This is in some sense a very ill-defined task.
+[00:42:39] I don't know what depends on what you care about.
+[00:42:42] And so the idea here is that by having a checklist or some
+[00:42:45] of rubric, this greatly scopes and makes the task evaluation
+[00:42:50] task more well-defined.
+[00:42:54] So they did this, also, they showed correlation
+[00:42:57] with Chatbot Arena which admittedly
+[00:43:00] is a little bit circular because then you can ask why, well,
+[00:43:04] is Chatbot Arena really the ground truth?
+[00:43:07] But at least we're all in the same boat together.
+[00:43:11] OK, so to conclude this section, how do you
+[00:43:16] evaluate open-ended responses?
+[00:43:21] There's no clear solution here but there's some ideas.
+[00:43:25] Pairwise comparisons between a reference and a model response
+[00:43:32] is generally a good idea because especially
+[00:43:35] for very similar responses, you can
+[00:43:37] give directional information.
+[00:43:39] Well, this one's slightly better than this.
+[00:43:41] But in terms of absolute ranking like is this a 7 out of 10
+[00:43:44] or a 8 out of 10?
+[00:43:45] That tends to be a lot less high signal.
+[00:43:49] One should always be aware of biases
+[00:43:51] both in terms of humans or LLM judges.
+[00:43:56] They have different biases, but nonetheless that's
+[00:43:59] something important to pay attention to.
+[00:44:03] Perhaps the only thing you might be able to do
+[00:44:06] is you evaluate over multiple judges, humans,
+[00:44:10] and judges of all everything is saying
+[00:44:13] your model is better than--
+[00:44:15] maybe your model is better.
+[00:44:17] And finally, the evaluation problem here
+[00:44:21] of open-ended response.
+[00:44:23] I would emphasize is not really well-defined.
+[00:44:27] And so increasingly, I think it's
+[00:44:29] important to define rubrics or checklists to improve
+[00:44:35] the reliability or well-definedness
+[00:44:41] of an actual evaluation.
+[00:44:42] And this is true regardless of a human and a judge.
+[00:44:45] So anyone who's done crowdsourcing
+[00:44:47] knows that if you just ask a human to rate
+[00:44:49] something without giving some of rubric,
+[00:44:52] you're probably going to get very nonsensical results.
+[00:44:58] OK, so let's move on to the agentic world.
+[00:45:05] So you can think about what we've
+[00:45:06] been doing so far is evaluate what language models say,
+[00:45:12] and that's chat.
+[00:45:12] And now, we're going to evaluate what LLMs do, which is agents.
+[00:45:17] And so for anyone who's following AI hype,
+[00:45:24] agents are everywhere.
+[00:45:26] And these are-- definitely, I think
+[00:45:30] going to transform the way that we think about language models.
+[00:45:35] So Agent is basically a language model
+[00:45:37] plus some scaffold, which is a logic for deciding
+[00:45:41] how the language model is going to be called
+[00:45:46] and what tools it can has access to and so on and so forth.
+[00:45:52] So there's a few benchmarks I want to just point out
+[00:45:56] that are authentic.
+[00:45:58] So one is very popular.
+[00:46:02] It's just called SWE-bench.
+[00:46:06] Basically, the task is you're given
+[00:46:08] a code base and a description of a GitHub issue, submit a PR.
+[00:46:12] And the way you evaluate a PR is whether it passes the unit test.
+[00:46:19] So these tests are designed so that before you submit a PR,
+[00:46:23] certain unit tests don't pass.
+[00:46:25] And then your goal is to fix it.
+[00:46:26] So certain unit tests pass and you don't break anything else.
+[00:46:29] So here's an example of some instructions.
+[00:46:34] Here's the issue.
+[00:46:36] And then some code that is provided in the context.
+[00:46:40] And then your goal is to generate a patch.
+[00:46:43] And given a patch you are evaluated on
+[00:46:47] whether you pass or not.
+[00:46:49] So the good thing about this is that the evaluation
+[00:46:52] is very straightforward.
+[00:46:54] And let's see how we're doing on SWE-bench.
+[00:47:01] Actually, this is going to be SWE-bench Verified which
+[00:47:03] later I'll show you, tell you why this happened.
+[00:47:08] So SWE-bench in-- this was only I
+[00:47:13] guess 2024 was still around 16% and now it's up to 93.
+[00:47:23] Good job Mythos.
+[00:47:31] So this is a very canonical generic benchmark,
+[00:47:37] as a lot of the attention on agents
+[00:47:40] has been invested in coding abilities.
+[00:47:42] So SWE-bench really pioneered this way
+[00:47:46] of thinking about how to assess an agent's ability
+[00:47:49] to write and code in a realistic environment.
+[00:47:54] So here's another project called Terminal-Bench.
+[00:47:58] And here the idea is that this is going
+[00:48:02] to be more general purpose.
+[00:48:04] And we're going to basically have the environment be
+[00:48:07] a computer terminal.
+[00:48:09] And we're going to define a bunch of tasks
+[00:48:12] that can be done in a computer terminal
+[00:48:14] by typing in a bunch of commands.
+[00:48:17] And the nice thing about this environment
+[00:48:18] is a very simple and universal.
+[00:48:23] And these tasks were crowdsourced from 93 people
+[00:48:31] from across the world.
+[00:48:35] 89 of these tasks are constitute Terminal-Bench 2.0.
+[00:48:41] These tasks generally take ranging from one hour
+[00:48:47] to over a week, depending on whether you're
+[00:48:49] an expert or a junior.
+[00:48:52] And then, here's what the leaderboard
+[00:48:54] looks like as of today.
+[00:48:58] So top models are the frontier models.
+[00:49:01] One thing that's interesting is that the agent is also important
+[00:49:08] here because you can have two agents but the same model
+[00:49:13] and they have different accuracies.
+[00:49:18] So another benchmark I'll talk about is Cybersecurity.
+[00:49:23] So this is 40 Capture The Flag tasks.
+[00:49:27] And the setting here is that you have
+[00:49:30] an agent that is given an environment
+[00:49:36] and it can run various commands like look at the source code.
+[00:49:41] It can access the web server.
+[00:49:48] And the goal is to essentially hack into this server
+[00:49:50] to extract some flag, which is a unique string that
+[00:49:53] proves that you've hacked into the server.
+[00:49:56] So these are competitions, cybersecurity exercises that
+[00:50:00] are done by humans normally.
+[00:50:02] And this is an example of what the agent
+[00:50:12] scaffold looks like here.
+[00:50:14] This is a very simplistic version where basically you
+[00:50:17] have one continuous memory.
+[00:50:20] You produce some action, you get environment feedback,
+[00:50:25] and then you put the results into this buffer
+[00:50:28] and this is concatenated.
+[00:50:30] As I'll show you later, this history
+[00:50:34] obviously grows quite a bit.
+[00:50:35] And you'll need to have better ways of managing context.
+[00:50:42] So this is what the leaderboard looks like when it came out.
+[00:50:46] The best models were around 10% or so.
+[00:50:50] And over time now it's completely solved actually.
+[00:50:57] So that's CyBench.
+[00:51:00] There's another class of problems
+[00:51:01] which are MLE engineering.
+[00:51:06] So this benchmark has a bunch of Kaggle competitions
+[00:51:12] which involve processing data, training models,
+[00:51:15] and so on and so forth.
+[00:51:16] And the agent can look at the data set, read the description,
+[00:51:21] write code, train models, and you eventually submit something
+[00:51:27] and you get a grade.
+[00:51:29] So this is what the leaderboard looks like right now.
+[00:51:33] And again, you can see that it's really the same usual suspects
+[00:51:37] on the LLM side.
+[00:51:39] But there's quite a bit of variation
+[00:51:41] in terms of the different agent scaffolds.
+[00:51:46] So one thing to note about, I'll point out
+[00:51:48] about agent scaffolds is that they matter a lot.
+[00:51:53] So when I said I talk about language model evaluation,
+[00:51:59] this is a broader than language model evaluation.
+[00:52:02] And the reason is that unlike what I mentioned before
+[00:52:08] with this earliest CyBench agent scaffold, now
+[00:52:11] you have to be a lot more sophisticated to solve
+[00:52:14] really complicated tasks.
+[00:52:17] One thing that people realize is that explicit planning
+[00:52:21] is helpful.
+[00:52:22] You can't just stream of consciousness,
+[00:52:24] chain of thought this.
+[00:52:25] And then you build up this context
+[00:52:27] and the agent can easily lose track of where it is.
+[00:52:31] So instead of keep a to-do list, get it checked off.
+[00:52:36] Hierarchical delegation, agents should call other sub-agents
+[00:52:41] with some clean context.
+[00:52:42] And that agent does some stuff and returns only the result.
+[00:52:46] The master agent doesn't need to see all the gory details,
+[00:52:51] and this can help encapsulate, provide some encapsulation.
+[00:52:56] Memory, people have been experimenting around
+[00:52:59] with explicitly reading and writing files,
+[00:53:02] especially as the context grows.
+[00:53:03] You can't just store it in your context window.
+[00:53:09] And then finally, there is more context engineering in the style
+[00:53:14] of managing the process.
+[00:53:16] When should you delegate to sub-agents?
+[00:53:19] When to try this strategy versus this other strategy, what
+[00:53:23] to write persistent memory.
+[00:53:25] And these things are generally optimized
+[00:53:31] for the particular language model.
+[00:53:36] So agents are exciting because they enhance the capability
+[00:53:41] surface of language models.
+[00:53:42] Scaffolds are very important.
+[00:53:44] So really, when we talk about evaluating agents,
+[00:53:47] it's evaluating both the language model
+[00:53:50] and the agent scaffold.
+[00:53:56] Now, we're going to switch gears a little bit
+[00:53:59] and talk about this other very different style of benchmarks.
+[00:54:04] I call them pure reasoning for lack of a better term.
+[00:54:08] And the motivation is that all the tasks so far require
+[00:54:12] some linguistic and world knowledge.
+[00:54:15] And so the question is, can we just
+[00:54:17] isolate reasoning or pure fluid intelligence
+[00:54:21] from a knowledge and knowing facts?
+[00:54:24] And you could argue that this gives you
+[00:54:27] a form of more pure intelligence.
+[00:54:31] So there was this project, ARC-AGI,
+[00:54:36] which started back in 2019, where the goal was exactly this.
+[00:54:43] So the task was meant to be 100% solvable by humans,
+[00:54:49] but challenging for AIs.
+[00:54:50] And every task is a special snowflake or that's the intent.
+[00:54:55] And so memorizing a bunch of facts
+[00:54:57] or solving previous problems shouldn't really
+[00:55:01] help you that much.
+[00:55:03] So if you guys are remembering your LLM history,
+[00:55:06] 2019 was pre-LLM.
+[00:55:09] I mean this was GPT-2 era.
+[00:55:12] So this was prescient in that regard.
+[00:55:15] So here's an example of the first iteration of that problem.
+[00:55:18] You're given these pictures and you're
+[00:55:20] trying to guess what comes next.
+[00:55:23] And if you take 10 seconds, you can probably solve this problem.
+[00:55:30] So you probably guess it's to just fill in the yellow
+[00:55:34] to form the rectangle.
+[00:55:37] So then last year, there was an updated version
+[00:55:42] of this task, which was a bit more complicated.
+[00:55:46] And you can take a look at this.
+[00:55:51] So here's the trajectory.
+[00:55:55] So when ARC-AGI-1 came out--
+[00:56:01] I think this is actually 0.
+[00:56:03] So basically models didn't do anything.
+[00:56:06] So there's GPT-3-- pre-trained model didn't
+[00:56:08] move the needle at all, right.
+[00:56:11] And this was exactly as the creators had intended.
+[00:56:14] Pre-trained models just learn what
+[00:56:18] the facts are on the internet and maybe learn
+[00:56:20] linguistic patterns.
+[00:56:21] But none of that is actually helpful directly,
+[00:56:25] at least for these ARC-AGI tasks.
+[00:56:29] And then something happened in 2024.
+[00:56:33] And this is when OpenAI released their o1 and o3 models.
+[00:56:37] Then things started taking off pretty abruptly.
+[00:56:40] And now, ARC-AGI-1 is basically solved.
+[00:56:46] And even around 2025 when ARC-AGI-2 came out,
+[00:56:53] this has also-- it's not quite solved,
+[00:56:56] but it looks like it's on its way to being solved.
+[00:57:02] So it was really the reasoning capabilities that unlocked this.
+[00:57:09] And now one could wonder whether all the knowledge
+[00:57:14] of actual pre-training was necessary for this task.
+[00:57:20] And certainly, without pre-training
+[00:57:22] we wouldn't have this explosion of reasoning models.
+[00:57:24] So arguably it was still important,
+[00:57:27] but not maybe directly visible for much
+[00:57:30] of the history of ARC-AGI.
+[00:57:33] So now, just last month, ARC-AGI-3 comes out.
+[00:57:36] So you see this familiar pattern.
+[00:57:38] Our creators look at this and it's like, oh,
+[00:57:40] time for a new benchmark.
+[00:57:42] So this is now an interactive environment
+[00:57:46] where you can go online and you can play this game.
+[00:57:49] So again, no language.
+[00:57:50] You're just trying to figure out, based on patterns.
+[00:57:53] It's kind of fun.
+[00:57:55] And now the scores are extremely low.
+[00:57:58] So next year when I teach this class,
+[00:58:01] I'm sure I'll have to update this slide.
+[00:58:03] But we'll see.
+[00:58:05] So I think this ARC-AGI line is a really interesting
+[00:58:11] to think about.
+[00:58:12] The goal is to disentangle reasoning from knowledge.
+[00:58:16] This is really hard to do.
+[00:58:18] And it's not--
+[00:58:20] I think this is probably the best attempt at this.
+[00:58:22] It's not clear whether you can really fully decouple things.
+[00:58:28] And certainly, if people really cared about this benchmark,
+[00:58:32] I think people probably could--
+[00:58:34] people can benchmark I think probably anything.
+[00:58:37] So you could design questions like,
+[00:58:39] are these-- these still come from some prior
+[00:58:42] and not sure there's anything as quote unquote pure as reasoning.
+[00:58:48] This is also constrained to human reasoning.
+[00:58:50] The explicit goal is to be 100% human solvable
+[00:58:53] within some reasonable time.
+[00:58:56] So this doesn't really extend to superhuman reasoning,
+[00:59:00] for example [INAUDIBLE] winning more gold medals
+[00:59:02] or solving open math problems, which arguably are still
+[00:59:06] very useful and important.
+[00:59:08] But clearly this exposes some gaps in the current models.
+[00:59:12] So there is work to do if you think about the goal
+[00:59:15] as basically being able to solve all the tasks.
+[00:59:23] So this ARC-AGI-3 especially looks quite graphic.
+[00:59:27] So is there some multimodal content involved or encoding
+[00:59:33] or as a textual representation as well?
+[00:59:36] Yeah so the question is this looks very graphical.
+[00:59:41] And so what is the input to a language model?
+[00:59:44] So this is essentially--
+[00:59:46] I don't know what the--
+[00:59:47] I think it's 64 by 64.
+[00:59:49] So you can provide this image, or you
+[00:59:52] can provide it in Ascii Art or some of textual representation.
+[00:59:58] Either way, there is a spatial element here
+[01:00:02] that the model has to reason about, which is really not
+[01:00:06] English or natural language.
+[01:00:13] So let's talk about shift gears and talk
+[01:00:16] about another class of benchmarks
+[01:00:18] which is related to safety.
+[01:00:21] So people have been talking about safety
+[01:00:24] in language models for a while.
+[01:00:26] And if you think about other areas such as cars,
+[01:00:30] it's pretty clear what safety means here.
+[01:00:32] These ratings for safety ratings for cars,
+[01:00:37] which involve testing based on smashing cars
+[01:00:40] into a wall with an airbag and seeing
+[01:00:43] how well it does and protects the dummies in the car.
+[01:00:50] And this is with decades of lobbying and figuring out
+[01:00:53] what safety means for vehicles.
+[01:00:56] So what does it mean for AI?
+[01:00:58] So I would say that there is not a great answer here,
+[01:01:02] but I'll give you some examples of what people
+[01:01:03] have been thinking about.
+[01:01:05] So there's this benchmark called Harm-Bench.
+[01:01:09] And this is really about prompting a model with things
+[01:01:14] that are meant to be harmful and expecting the model
+[01:01:20] to essentially refuse.
+[01:01:23] So this is one type of safety.
+[01:01:25] And I think probably the dominant thing
+[01:01:29] when people think about safety is
+[01:01:31] that I want to prevent bad actors from doing things
+[01:01:34] with language models, but it turns out
+[01:01:36] that's not the only thing that matters.
+[01:01:38] So there's this other work, AIR-Bench,
+[01:01:40] which tries to think about safety holistically
+[01:01:44] by looking at all the regulatory frameworks in the EU, China,
+[01:01:50] and the US company policies and builds
+[01:01:55] a taxonomy of all the different things that could go wrong.
+[01:02:01] And then using this, constructing
+[01:02:03] a particular set of prompts and evaluating
+[01:02:08] and so on and so forth.
+[01:02:12] But one problem with safety is, jailbreaking,
+[01:02:16] which is its own sub problem, which
+[01:02:18] is that language models are generally trained
+[01:02:21] to refuse harmful instructions.
+[01:02:24] But as we know you can get around this if you're clever.
+[01:02:29] And so there's some early work that
+[01:02:31] uses automatic ways to optimize for prompts to bypass safety
+[01:02:38] using GCG, which is basically this coordinate
+[01:02:43] wise optimization algorithm.
+[01:02:45] And remarkably, optimizing on open models
+[01:02:50] allows us to transfer to models.
+[01:02:52] So I hope this doesn't these attacks don't work anymore.
+[01:02:55] But at the time, you can generate some basically
+[01:03:00] gibberish and step by step plan to destroy humanity
+[01:03:05] and OpenAI's model will comply.
+[01:03:10] Obviously, you could argue, well,
+[01:03:12] is this actually harmful plan to destroy humanity?
+[01:03:17] At least it did not-- the expected behavior is that it
+[01:03:20] should probably refuse that.
+[01:03:22] So this raises a bigger problem which is, what is safety?
+[01:03:29] And one thing that makes this tricky
+[01:03:31] is that many aspects of safety are very contextual.
+[01:03:35] So it involves politics, law, social norms.
+[01:03:40] This varies across different countries.
+[01:03:43] And then also, if you think about safety,
+[01:03:46] you have to think about what are the risks.
+[01:03:49] And the risks are actually quite varied as well
+[01:03:53] and demand probably different attention.
+[01:03:56] So hallucinations is a risk, especially
+[01:03:59] let's say a medical or legal or financial settings.
+[01:04:03] But this is also correlated with just capabilities.
+[01:04:07] If you make a model more accurate,
+[01:04:09] it's correlated with not who is seeing as much.
+[01:04:12] Sycophancy is a problem.
+[01:04:15] Abetting crimes is a problem.
+[01:04:17] But this might be counter to capabilities, inequality.
+[01:04:24] Losing critical thinking might be a risk as well that correlate
+[01:04:29] with capability.
+[01:04:30] So if you think about the societal impact of language
+[01:04:35] models on the world and think about safety
+[01:04:39] as ensuring that AI goes well for people,
+[01:04:43] this is actually a much more complex topic
+[01:04:47] than I'll have time to talk about.
+[01:04:49] And finally, there is a dual use aspect of language models.
+[01:04:53] So the cybersecurity agents can be used to hack into a system
+[01:04:57] or to do penetration testing and make systems more secure, which
+[01:05:01] makes talking about whether these are safety risks
+[01:05:05] or actually beneficial a double-edged sword.
+[01:05:10] OK, so let's move on now to talk about some broader
+[01:05:15] considerations of evaluation.
+[01:05:18] So one thing that I think is an important aspect of evaluation
+[01:05:24] is realism or ecological validity.
+[01:05:27] How well does evaluation capture real-world use?
+[01:05:30] So in particular exams are very far away from real-world use.
+[01:05:37] Chatbot Arena are from real people
+[01:05:40] but one could wonder whether this distribution is
+[01:05:44] the right distribution of people or use cases or not.
+[01:05:49] There's a few benchmarks I'll mention
+[01:05:51] that try to get at ecological validity,
+[01:05:55] and in particular at the use case level,
+[01:05:58] at least not the individual query level.
+[01:06:00] So OpenAI created benchmark called GDPVal.
+[01:06:06] They looked at all the top nine sectors
+[01:06:09] according to US GDP, 44 different occupations,
+[01:06:13] got a bunch of professionals to create tasks.
+[01:06:17] These are professionals with about 14 years of experience.
+[01:06:21] And you can see people who are nurses who work concierge,
+[01:06:26] real estate agents, film and video editors
+[01:06:29] and so on and so forth.
+[01:06:31] And they created a bunch of tasks.
+[01:06:35] Here's another example.
+[01:06:38] In the medical domain where up until this point,
+[01:06:42] a lot of medical benchmarks were based on standardized exams.
+[01:06:46] And in fact, actually for humans,
+[01:06:48] this is also what happens.
+[01:06:50] You take these standardized exams
+[01:06:52] and you graduate from med school and then you go operate on.
+[01:06:56] Well, actually, there's a longer process.
+[01:06:58] You don't operate on patients directly.
+[01:07:04] But the point is that for a language model,
+[01:07:06] you should also not just pass medical exams
+[01:07:09] and deploy them directly.
+[01:07:12] So this was a project where 121 tasks were
+[01:07:18] sourced from 29 clinicians.
+[01:07:22] And this was meant to represent the type of things
+[01:07:25] that clinicians would actually ask to a language model, which
+[01:07:28] are quite different than the multiple choice
+[01:07:31] type of exam questions.
+[01:07:34] Here's another project which gets at real data.
+[01:07:40] So if you ask, who actually has the data
+[01:07:43] on what people are doing?
+[01:07:44] Well, it's the model developers.
+[01:07:47] And so this project is interesting
+[01:07:49] because it uses language models themselves to analyze real data.
+[01:07:56] So in particular, you do to privacy.
+[01:07:58] You can't literally go and look at people's data,
+[01:08:02] but you can have language models look at the data
+[01:08:05] and analyze and summarize general patterns.
+[01:08:08] So then the language models could tell you
+[01:08:11] about what are the types of people--
+[01:08:14] what are the types of things that people use Claude for?
+[01:08:20] And sometimes realism and privacy
+[01:08:24] are at odds with each other because ideally you
+[01:08:27] would want actually a sample from the actual query stream.
+[01:08:32] And that would be very valuable to assess
+[01:08:34] how well a model is working and understand deeply
+[01:08:36] what the errors are.
+[01:08:38] But then that runs into privacy considerations.
+[01:08:44] OK, so another consideration, which
+[01:08:47] is another type of validity is just in general,
+[01:08:52] how do that the evaluations are scientifically valid?
+[01:08:56] And this was brought up fairly early, train-test overlap
+[01:09:00] or contamination.
+[01:09:02] So in a machine learning 101, you
+[01:09:04] learn don't train on your test set hopefully.
+[01:09:09] And before foundation models this
+[01:09:11] was actually pretty clear right.
+[01:09:15] So with ImageNet and SQuAD and many benchmarks
+[01:09:19] sorry, data sets, there was always a train split
+[01:09:22] and a test split and everyone played the same game.
+[01:09:24] You train on your training data, you test on your test data.
+[01:09:29] Life was simple.
+[01:09:30] And now, you have these models that
+[01:09:32] are trained on the internet.
+[01:09:34] And much more than that.
+[01:09:37] And furthermore, you don't what's in the data.
+[01:09:40] So this makes evaluation quite different I think.
+[01:09:45] So what can you do in this?
+[01:09:47] So first thing you can do is you can
+[01:09:51] try to infer whether a model has actually seen the test data.
+[01:09:57] So this is a neat idea from Tatsu's group
+[01:10:03] where you leverage the fact that the order
+[01:10:08] in which the questions in the benchmark occurs
+[01:10:12] should be random.
+[01:10:14] But if the model prefers some particular order that's
+[01:10:19] consistent with the benchmark, that is probably--
+[01:10:22] it's just trained on that benchmark.
+[01:10:27] Another route is that you can encourage people to report
+[01:10:36] actual train-test overlap.
+[01:10:38] So this has to do with norms.
+[01:10:41] I think in general, especially maybe less in machine learning,
+[01:10:45] but more in statistics you always
+[01:10:48] report confidence intervals.
+[01:10:50] You have an estimate.
+[01:10:51] And I always want to know, how reliable is that estimate?
+[01:10:54] This is just standard practice.
+[01:10:56] And so the idea of this position paper
+[01:10:59] is that you should model providers.
+[01:11:02] If you're going to claim some GPQA score,
+[01:11:06] you should always provide some justification
+[01:11:10] that you didn't train on the test set.
+[01:11:17] So another route is that where you can just give up.
+[01:11:20] It's like OK, all these evaluations there--
+[01:11:24] let's just assume that people trained on them, let's
+[01:11:26] assume the worst case.
+[01:11:29] So the thing that we have on our side
+[01:11:31] is that you can always define fresh evals.
+[01:11:34] So there's a bunch of ideas, LiveCodeBench, UncheeatableEval,
+[01:11:38] which basically scrape new web pages or archive
+[01:11:41] papers or GitHub and defines evaluations populations that
+[01:11:47] are past the cutoff date of the language models.
+[01:11:51] So this seems pretty robust and good.
+[01:11:55] But one thing to keep in mind is that time stamps
+[01:11:57] aren't always safe either, because I might
+[01:12:01] post with code for example.
+[01:12:05] I might put something on GitHub which is actually
+[01:12:08] derived from some other repo.
+[01:12:11] And so how do that's actually generally fresh?
+[01:12:17] Route 4 is to use private evaluations.
+[01:12:21] So companies' model developers do this right.
+[01:12:24] So if you're Google or OpenAI you have your internal code
+[01:12:27] base, which you assume is not on the internet,
+[01:12:29] and you obviously wouldn't train on this data,
+[01:12:35] so you can use it for evaluation.
+[01:12:37] So this generally is pretty reliable.
+[01:12:40] And if you're not a company, you can use your personal writings.
+[01:12:45] I have a bunch of rejected papers from when
+[01:12:47] I was in grad school that I never put on online,
+[01:12:50] so I can use those.
+[01:12:52] And this type of evaluation, I think,
+[01:12:57] is very favorable for perplexity evals,
+[01:13:00] because all you need in perplexity
+[01:13:02] is just you need a good data set and you
+[01:13:05] can evaluate log probabilities.
+[01:13:09] So another concern that I'll mention is data set quality.
+[01:13:17] So remember I showed the leaderboard
+[01:13:20] for SWE-Bench Verified.
+[01:13:23] This is because, well, SWE-Bench had
+[01:13:26] a bunch of problems of tasks, unit tests that
+[01:13:31] weren't quite rigorous enough and other things that got fixed.
+[01:13:37] And there are many other benchmarks that have gone
+[01:13:44] through this process like GSM8K or MMLU,
+[01:13:49] where people have gone and done a more careful audit and realize
+[01:13:55] that, wait a minute, this question actually doesn't--
+[01:13:59] something's broken around this question.
+[01:14:03] So like this one.
+[01:14:04] There's no curve given in this text
+[01:14:07] so you can't answer this question.
+[01:14:12] Does the baby have socks on?
+[01:14:14] No, there's no way to tell.
+[01:14:16] And there's also this paper that showed that there's
+[01:14:22] a lot of problems with the agentic benchmarks, which
+[01:14:24] arguably are even harder to assess because it's not just
+[01:14:27] you can look at the question and the possible answers
+[01:14:30] and you can look at it but there's a whole environment.
+[01:14:34] And there are cases where with coding you can
+[01:14:39] it's great to have test cases that either pass or not passed.
+[01:14:43] But as we all test cases can be incomplete.
+[01:14:47] So you might pass all the test cases
+[01:14:48] but still not have a working solution.
+[01:14:51] There's another case of this TorchBench benchmark
+[01:14:54] where they show that if an agent just outputs the empty response,
+[01:14:58] they can get a 38%.
+[01:15:00] So there are some trivialities with these benchmarks
+[01:15:04] that you want have to be very careful to avoid.
+[01:15:07] One thing I'll call out is that there's
+[01:15:09] this tool called Docent that uses
+[01:15:13] language models to inspect agent traces to detect problems.
+[01:15:17] So this is a qualitative response
+[01:15:20] to our very quantitative heavy way of benchmarking.
+[01:15:24] And I would always recommend that whenever
+[01:15:26] you do a benchmark, either develop a benchmark
+[01:15:29] or run a model on the benchmark that you always
+[01:15:34] look at the output and try to audit it to make sure
+[01:15:37] that you actually think you're measuring what
+[01:15:39] you think you're measuring.
+[01:15:42] OK, so maybe getting a bit more philosophical.
+[01:15:46] So what's the point of evaluation?
+[01:15:48] OK.
+[01:15:48] So I've talked a lot about different types of evaluation.
+[01:15:52] And really, there's no one evaluation to rule them all.
+[01:15:56] And I think it's-- when you're thinking about evaluation,
+[01:15:58] you have to be very clear about what the purpose is.
+[01:16:02] And I think often this is not really stated clearly.
+[01:16:05] So for example, you could be a user,
+[01:16:09] or a company that's trying to make a purchase decision.
+[01:16:11] Are you going to go with A or B for a particular use case?
+[01:16:15] Or you're just a researcher and you
+[01:16:17] have this intuitive notion of intelligence
+[01:16:20] and you want to measure it somehow.
+[01:16:22] Or you want to understand the benefits and harms for business
+[01:16:25] or policy reasons.
+[01:16:27] Or you're a developer and you want to get feedback
+[01:16:29] to improve the model.
+[01:16:31] So each of these goals will lead you
+[01:16:33] to potentially different benchmarks or some combination
+[01:16:38] of evaluation strategies.
+[01:16:41] And finally, one thing to address,
+[01:16:44] which I hinted at briefly, is that
+[01:16:45] what are we even evaluating?
+[01:16:47] So before foundation models, researchers evaluated methods
+[01:16:52] because we have these trained test splits.
+[01:16:54] And the only thing that was varying is the actual algorithm.
+[01:16:58] And today, we're mostly evaluating models and systems
+[01:17:01] where anything goes.
+[01:17:03] There are some exceptions.
+[01:17:05] So the NanoGPT speedrun is deliberately
+[01:17:08] a way to evaluate an algorithm, in particular, how well fast you
+[01:17:12] can train a model.
+[01:17:14] But most of language model evaluation
+[01:17:18] is about evaluating the actual end model, which is useful
+[01:17:22] because that is the thing that is actually going to get shipped
+[01:17:25] and people are going to use.
+[01:17:27] But I think the punchline is that you should always
+[01:17:30] be very deliberate about declaring what your goals are.
+[01:17:37] OK, so there's no one true evaluation.
+[01:17:41] Choose what you're trying to measure.
+[01:17:44] And we talked about a bunch of different benchmarks
+[01:17:49] starting with perplexity, exam based, chat, agentic, reasoning,
+[01:17:54] and safety.
+[01:17:55] They vary in terms of difficulty, realism,
+[01:18:00] how valid they are.
+[01:18:01] And there's often trade offs.
+[01:18:03] It's hard to have really real and difficult and ecologically
+[01:18:08] valid.
+[01:18:08] And no trade tests contamination.
+[01:18:10] So often you have to compromise on one of these factors,
+[01:18:13] and depending on your goals, you will
+[01:18:15] have to choose which one you're willing to compromise on.
+[01:18:19] So that is the end of this lecture.
+[01:18:22] So next week, we're going to start
+[01:18:24] talking about training data.
+[01:18:27] OK, see you next time.
+[01:18:28] [AUDIO LOGO]

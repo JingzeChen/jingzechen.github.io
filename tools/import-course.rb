@@ -3,6 +3,7 @@
 require "fileutils"
 require "json"
 require "pathname"
+require "set"
 require "uri"
 require "yaml"
 
@@ -33,6 +34,7 @@ end
 
 def imported_document(data, body)
   content = body.rstrip
+  content.gsub!(/\\\((.+?)\\\)/) { "$#{Regexp.last_match(1)}$" }
   data = data.merge("math" => true) if content.match?(/\$\$|\\\[|\\\(|\$[^$\n]+\$/)
   data = data.merge("mermaid" => true) if content.include?("```mermaid")
   content = "{% raw %}\n#{content}\n{% endraw %}" if content.match?(/\{[{%]/)
@@ -117,7 +119,7 @@ def secure_url(url)
   url.to_s.sub(/\Ahttp:/, "https:")
 end
 
-def imported_resources(resources, include_video: false)
+def imported_resources(resources, include_video: false, local_material_paths: nil)
   Array(resources).filter_map do |resource|
     next if resource["category"] == "subtitle"
     next if resource["category"] == "official-video" && !include_video
@@ -127,7 +129,7 @@ def imported_resources(resources, include_video: false)
       "title" => resource["title"] || "Course resource"
     }
     path = resource["path"].to_s.tr("\\", "/")
-    if !path.empty? && SOURCE_DIR.join(path).file?
+    if !path.empty? && SOURCE_DIR.join(path).file? && (!local_material_paths || local_material_paths.include?(path))
       item["url"] = local_asset_url("materials", path)
       item["source_url"] = secure_url(resource["url"]) if resource["url"]
     elsif resource["url"]
@@ -137,49 +139,61 @@ def imported_resources(resources, include_video: false)
   end
 end
 
-def rewrite_shared_links(markdown, course_slug)
-  markdown.gsub!(%r{\]\(<(?:\.\./)*lectures/(\d{3})-[^>]+/NOTES\.md(?:#L\d+)?>\)}) do
+def rewrite_shared_links(markdown, course_slug, material_urls = {})
+  markdown.gsub!(%r{\]\((?:\.\./|\./)*lectures/\d{3}-.+?/materials/([^)/]+)\)}) do
+    filename = Regexp.last_match(1)
+    path = "official-materials/lectures/#{filename}"
+    target = material_urls[path] || "/assets/courses/#{course_slug}/materials/#{path}"
+    "](#{target})"
+  end
+  markdown.gsub!(%r{\]\(<(?:\.\./|\./)*lectures/(\d{3})-[^>]+/NOTES\.md(?:#L\d+)?>\)}) do
     "](/courses/#{course_slug}/lectures/#{Regexp.last_match(1)}/)"
   end
   markdown.gsub!(%r{\]\(<([^>]+)>\)}, '](\1)')
   markdown.gsub!("http://", "https://")
-  markdown.gsub!(%r{\]\((?:\.\./)*readings/lecture-(\d{2})\.md(#[^)]*)?\)}) do
+  markdown.gsub!(%r{\]\((?:\.\./|\./)*readings/lecture-(\d{2})\.md(#[^)]*)?\)}) do
     "](/courses/#{course_slug}/readings/lecture-#{Regexp.last_match(1)}/#{Regexp.last_match(2)})"
   end
-  markdown.gsub!(%r{\]\((?:\.\./)*reading-inputs/lecture-(\d{2})\.md(#[^)]*)?\)}) do
+  markdown.gsub!(%r{\]\((?:\.\./|\./)*reading-inputs/lecture-(\d{2})\.md(#[^)]*)?\)}) do
     "](/assets/courses/#{course_slug}/evidence/reading-inputs/lecture-#{Regexp.last_match(1)}.md#{Regexp.last_match(2)})"
   end
-  markdown.gsub!(%r{\]\((?:\.\./)*official-lectures/lecture-(\d{2})\.md(#[^)]*)?\)}) do
+  markdown.gsub!(%r{\]\((?:\.\./|\./)*official-lectures/lecture-(\d{2})\.md(#[^)]*)?\)}) do
     "](/courses/#{course_slug}/official-lectures/lecture-#{Regexp.last_match(1)}/#{Regexp.last_match(2)})"
   end
-  markdown.gsub!(%r{\]\((?:\.\./)*lectures/(\d{3})-[^)]*/notes/sections/(\d{3})\.md\)}) do
+  markdown.gsub!(%r{\]\((?:\.\./|\./)*lectures/(\d{3})-[^)]*/notes/sections/(\d{3})\.md\)}) do
     "](/courses/#{course_slug}/lectures/#{Regexp.last_match(1)}/#section-#{format('%02d', Regexp.last_match(2).to_i)})"
   end
-  markdown.gsub!(%r{\]\((?:\.\./)*lectures/(\d{3})-.+?/NOTES\.md(#[^)]*)?\)}) do
+  markdown.gsub!(%r{\]\((?:\.\./|\./)*lectures/(\d{3})-.+?/NOTES\.md(#[^)]*)?\)}) do
     "](/courses/#{course_slug}/lectures/#{Regexp.last_match(1)}/#{Regexp.last_match(2)})"
   end
-  markdown.gsub!(%r{\]\((?:\.\./)*lectures/(\d{3})-[^)]*/(transcript\.(?:jsonl|txt|srt)|summary-input\.jsonl)\)}) do
+  markdown.gsub!(%r{\]\((?:\.\./|\./)*lectures/(\d{3})-[^)]*/(transcript\.(?:jsonl|txt|srt)|summary-input\.jsonl)\)}) do
     "](/assets/courses/#{course_slug}/lectures/#{Regexp.last_match(1)}/#{Regexp.last_match(2)})"
   end
-  markdown.gsub!(%r{\]\((?:\.\./)*LABS\.md\)}, "](/courses/#{course_slug}/labs/)")
-  markdown.gsub!(%r{\]\((?:\.\./)*PRACTICE\.md(#[^)]*)?\)}) do
+  markdown.gsub!(%r{\]\((?:\.\./|\./)*LABS\.md\)}, "](/courses/#{course_slug}/labs/)")
+  markdown.gsub!(%r{\]\((?:\.\./|\./)*PRACTICE\.md(#[^)]*)?\)}) do
     "](/courses/#{course_slug}/practice/#{Regexp.last_match(1)})"
   end
-  markdown.gsub!(%r{\]\((?:\.\./)*READINGS\.md(#[^)]*)?\)}) do
+  markdown.gsub!(%r{\]\((?:\.\./|\./)*ASSIGNMENTS\.md(#[^)]*)?\)}) do
+    "](/courses/#{course_slug}/assignments/#{Regexp.last_match(1)})"
+  end
+  markdown.gsub!(%r{\]\((?:\.\./|\./)*READINGS\.md(#[^)]*)?\)}) do
     "](/courses/#{course_slug}/readings/#{Regexp.last_match(1)})"
   end
-  markdown.gsub!(%r{\]\((?:\.\./)*MATERIALS\.md(#[^)]*)?\)}) do
+  markdown.gsub!(%r{\]\((?:\.\./|\./)*MATERIALS\.md(#[^)]*)?\)}) do
     "](/courses/#{course_slug}/materials/#{Regexp.last_match(1)})"
   end
-  markdown.gsub!(%r{\]\((?:\.\./)*REVIEW_CHECKLIST\.md\)}, "](/courses/#{course_slug}/review-checklist/)")
-  markdown.gsub!(%r{\]\((?:\.\./)*(course|source-manifest|resources-lock|materials-index)\.json\)}) do
+  markdown.gsub!(%r{\]\((?:\.\./|\./)*REVIEW_CHECKLIST\.md\)}, "](/courses/#{course_slug}/review-checklist/)")
+  markdown.gsub!(%r{\]\((?:\.\./|\./)*(course|source-manifest|resources-lock|materials-index)\.json\)}) do
     "](/assets/courses/#{course_slug}/metadata/#{Regexp.last_match(1)}.json)"
   end
-  markdown.gsub!(%r{\]\((?:\.\./)*(official-materials/[^)#]+)(#[^)]*)?\)}) do
+  markdown.gsub!(%r{\]\((?:\.\./|\./)*(official-materials/[^)#]+)(#[^)]*)?\)}) do
     path = Regexp.last_match(1)
     anchor = Regexp.last_match(2).to_s
-    "](/assets/courses/#{course_slug}/materials/#{path}#{anchor})"
+    target = material_urls[path] || "/assets/courses/#{course_slug}/materials/#{path}"
+    "](#{target}#{anchor})"
   end
+  markdown.gsub!(%r{\]\((?:\.\./|\./)*(?:README\.md|COURSE_SUMMARY\.md)\)}, "](/courses/#{course_slug}/)")
+  markdown.gsub!(%r{\]\((?:\./)?modules/?\)}, "](/courses/#{course_slug}/#course-outline-title)")
   markdown
 end
 
@@ -190,24 +204,63 @@ registry = YAML.safe_load_file(REPO_DIR.join("_data", "courses.yml"), aliases: t
 course_meta = registry.fetch(COURSE_SLUG)
 FileUtils.rm_rf(COURSE_OUTPUT_DIR)
 
+official_materials_dir = SOURCE_DIR.join("official-materials")
+local_material_paths = nil
+if official_materials_dir.directory?
+  archived_materials_dir = ASSET_OUTPUT_DIR.join("materials", "official-materials")
+  FileUtils.rm_rf(archived_materials_dir)
+  FileUtils.mkdir_p(archived_materials_dir.dirname)
+  archive_patterns = Array(course_meta["archive_material_patterns"])
+  if archive_patterns.empty?
+    FileUtils.cp_r(official_materials_dir, archived_materials_dir)
+  else
+    local_material_paths = Set.new
+    archive_patterns.each do |pattern|
+      official_materials_dir.glob(pattern).select(&:file?).each do |source|
+        relative = source.relative_path_from(SOURCE_DIR)
+        destination = ASSET_OUTPUT_DIR.join("materials", relative)
+        FileUtils.mkdir_p(destination.dirname)
+        FileUtils.cp(source, destination)
+        local_material_paths << relative.to_s.tr("\\", "/")
+      end
+    end
+  end
+end
+
+shared_material_urls = {}
+collect_material_urls = lambda do |value|
+  case value
+  when Hash
+    path = value["path"].to_s.tr("\\", "/")
+    if path.start_with?("official-materials/") && value["url"]
+      shared_material_urls[path] = if !local_material_paths || local_material_paths.include?(path)
+                                     local_asset_url("materials", path)
+                                   else
+                                     secure_url(value["url"])
+                                   end
+    end
+    value.each_value { |child| collect_material_urls.call(child) }
+  when Array
+    value.each { |child| collect_material_urls.call(child) }
+  end
+end
+collect_material_urls.call(course)
+collect_material_urls.call(source_manifest)
+
 course_resource_data_path = REPO_DIR.join("_data", "course_resources", "#{COURSE_SLUG}.yml")
 resource_groups = Array(course["resource_groups"]).map do |group|
   group.reject { |key, _value| key == "resources" }.merge(
-    "resources" => imported_resources(group["resources"], include_video: true)
+    "resources" => imported_resources(
+      group["resources"],
+      include_video: true,
+      local_material_paths: local_material_paths
+    )
   )
 end
 if resource_groups.empty?
   FileUtils.rm_f(course_resource_data_path)
 else
   write_text(course_resource_data_path, YAML.dump(resource_groups, line_width: -1))
-end
-
-official_materials_dir = SOURCE_DIR.join("official-materials")
-if official_materials_dir.directory?
-  archived_materials_dir = ASSET_OUTPUT_DIR.join("materials", "official-materials")
-  FileUtils.rm_rf(archived_materials_dir)
-  FileUtils.mkdir_p(archived_materials_dir.dirname)
-  FileUtils.cp_r(official_materials_dir, archived_materials_dir)
 end
 
 if course_meta["reuse_archived_materials"]
@@ -279,7 +332,7 @@ module_sources.each do |path|
   body.gsub!(%r{\]\(\.\./lectures/(\d{3})-.+?/NOTES\.md\)}) do
     "](/courses/#{COURSE_SLUG}/lectures/#{Regexp.last_match(1)}/)"
   end
-  rewrite_shared_links(body, COURSE_SLUG)
+  rewrite_shared_links(body, COURSE_SLUG, shared_material_urls)
   write_text(
     COURSE_OUTPUT_DIR.join("modules", "#{format('%02d', module_number)}-#{path.basename.to_s.sub(/\A\d+-/, '')}"),
     imported_document(data, body)
@@ -298,8 +351,8 @@ def lecture_directory(source_dir, lecture)
   match
 end
 
-def rewrite_links(markdown, lectures_by_number, course_slug, current_number = nil, material_urls = {})
-  rewrite_shared_links(markdown, course_slug)
+def rewrite_links(markdown, lectures_by_number, course_slug, current_number = nil, lecture_material_urls = {}, material_urls = {})
+  rewrite_shared_links(markdown, course_slug, material_urls)
   markdown.gsub!(%r{\]\((?:\./)?modules/(\d{2})-[^)]+\.md\)}) do
     "](/courses/#{course_slug}/modules/#{Regexp.last_match(1)}/)"
   end
@@ -329,7 +382,7 @@ def rewrite_links(markdown, lectures_by_number, course_slug, current_number = ni
     end
     markdown.gsub!(%r{\]\((?:\.\./)*materials/([^)]+)\)}) do
       relative_path = Regexp.last_match(1)
-      url = material_urls[relative_path] || "/assets/courses/#{course_slug}/lectures/#{number_label}/materials/#{relative_path}"
+      url = lecture_material_urls[relative_path] || "/assets/courses/#{course_slug}/lectures/#{number_label}/materials/#{relative_path}"
       "](#{url})"
     end
     markdown.gsub!(%r{\]\((?:\.\./)*notes/sections/(\d{3})\.md\)}) do
@@ -400,7 +453,13 @@ lectures.each do |lecture|
                          course_meta["cover"]
                        end
   thumbnail = media_sources.filter_map { |source| source["thumbnail"] }.first || fallback_thumbnail
-  resources = imported_resources(source_lecture["resources"] || lecture["resources"])
+  resources = imported_resources(
+    source_lecture["resources"] || lecture["resources"],
+    local_material_paths: local_material_paths
+  )
+  executable_notes = resources.find do |resource|
+    resource["category"] == "lecture-code" && resource["url"].to_s.match?(/\.py\z/i)
+  end&.dup
 
   lecture_asset_dir = ASSET_OUTPUT_DIR.join("lectures", number_label)
   FileUtils.rm_rf(lecture_asset_dir)
@@ -588,12 +647,21 @@ lectures.each do |lecture|
     "toc" => true
   }
   data["slides"] = slides if slides
+  data["executable_notes"] = executable_notes if executable_notes
 
   body = strip_document_title(notes)
-  timestamp_only_headings = body.scan(/^(?:###\s+)?\d{2}:\d{2}:\d{2}\s*[-–]\s*\d{2}:\d{2}:\d{2}.*$/)
+  timestamp_only_headings = body.scan(/^###\s+(?:\d+\s+)?\d{2}:\d{2}:\d{2}\s*[-–]\s*\d{2}:\d{2}:\d{2}.*$/)
   section_headings.each do |section_number, heading|
     anchor = "section-#{format('%02d', section_number)}"
     anchor_markup = "<div id=\"#{anchor}\" class=\"course-note-section-anchor\" aria-hidden=\"true\">&nbsp;</div>"
+    timestamp_heading = timestamp_only_headings[section_number - 1]
+    if timestamp_heading
+      replaced = body.sub!(/^#{Regexp.escape(timestamp_heading)}$/) do |matched_heading|
+        "#{anchor_markup}\n\n#{matched_heading}"
+      end
+      next if replaced
+    end
+
     heading_text = heading.sub(/\A\#{1,6}\s+/, "")
     replaced = body.sub!(/^\#{1,6}\s+#{Regexp.escape(heading_text)}$/) do |matched_heading|
       "#{anchor_markup}\n\n#{matched_heading}"
@@ -615,19 +683,13 @@ lectures.each do |lecture|
     end
     next if replaced
 
-    timestamp_heading = timestamp_only_headings[section_number - 1]
-    next unless timestamp_heading
-
-    body.sub!(/^#{Regexp.escape(timestamp_heading)}$/) do |matched_heading|
-      "#{anchor_markup}\n\n#{matched_heading}"
-    end
   end
 
   missing_anchors = sections.reject { |section| body.include?("id=\"#{section['note_anchor']}\"") }
   unless missing_anchors.empty?
     abort "Cannot place note anchors for Lecture #{number}: #{missing_anchors.map { |section| section['id'] }.join(', ')}"
   end
-  rewrite_links(body, lectures_by_number, COURSE_SLUG, number, material_urls)
+  rewrite_links(body, lectures_by_number, COURSE_SLUG, number, material_urls, shared_material_urls)
   write_text(COURSE_OUTPUT_DIR.join("lectures", "#{number_label}.md"), imported_document(data, body))
   lecture_count += 1
 end
@@ -635,7 +697,8 @@ end
 overview_path = SOURCE_DIR.join("COURSE_SUMMARY.md")
 if overview_path.file?
   overview = strip_document_title(overview_path.read(encoding: "UTF-8"))
-  rewrite_links(overview, lectures_by_number, COURSE_SLUG)
+  overview = "> #{course_meta['archive_notice']}\n\n#{overview}" if course_meta["archive_notice"]
+  rewrite_links(overview, lectures_by_number, COURSE_SLUG, nil, {}, shared_material_urls)
   overview_data = {
     "uid" => "#{COURSE_SLUG}-overview",
     "type" => "course",
@@ -645,7 +708,7 @@ if overview_path.file?
     "description" => course_meta.fetch("description"),
     "excerpt" => course_meta.fetch("description"),
     "content_lang" => course_meta["notes_language"] || "zh-CN",
-    "resources" => imported_resources(course["resources"]),
+    "resources" => imported_resources(course["resources"], local_material_paths: local_material_paths),
     "permalink" => "/courses/#{COURSE_SLUG}/",
     "toc" => true
   }
@@ -658,7 +721,7 @@ if review_path.file?
   review = review_path.read(encoding: "UTF-8")
   review_title = review[/\A#\s+(.+)$/, 1].to_s.strip
   review = strip_document_title(review)
-  rewrite_links(review, lectures_by_number, COURSE_SLUG)
+  rewrite_links(review, lectures_by_number, COURSE_SLUG, nil, {}, shared_material_urls)
   review_data = {
     "uid" => "#{COURSE_SLUG}-review-checklist",
     "type" => "course",
@@ -693,6 +756,14 @@ resource_sources = [
     "permalink" => "/courses/#{COURSE_SLUG}/practice/",
     "output" => COURSE_OUTPUT_DIR.join("resources", "practice.md"),
     "description" => "按 Recitation、Lab、Bootcamp、Hackathon 与 Assignment 组织完整实践路线。"
+  },
+  {
+    "path" => SOURCE_DIR.join("ASSIGNMENTS.md"),
+    "kind" => "assignments",
+    "order" => 2,
+    "permalink" => "/courses/#{COURSE_SLUG}/assignments/",
+    "output" => COURSE_OUTPUT_DIR.join("resources", "assignments.md"),
+    "description" => "按五个官方作业串联课程模块、handout、实现环境、学习边界与完成清单。"
   },
   {
     "path" => SOURCE_DIR.join("READINGS.md"),
@@ -745,7 +816,10 @@ resource_sources.each do |resource|
   markdown = path.read(encoding: "UTF-8")
   title = markdown[/\A#\s+(.+)$/, 1].to_s.strip
   body = strip_document_title(markdown)
-  rewrite_links(body, lectures_by_number, COURSE_SLUG)
+  if course_meta["archive_notice"] && %w[assignments readings materials].include?(resource.fetch("kind"))
+    body = "> #{course_meta['archive_notice']}\n\n#{body}"
+  end
+  rewrite_links(body, lectures_by_number, COURSE_SLUG, nil, {}, shared_material_urls)
   data = {
     "uid" => "#{COURSE_SLUG}-resource-#{resource.fetch('kind')}-#{resource['lecture_number'] || resource.fetch('order')}",
     "type" => "course",

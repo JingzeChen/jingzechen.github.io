@@ -1,0 +1,1872 @@
+[00:00:05] OK.
+[00:00:06] Welcome back.
+[00:00:10] We're going to move away from pre-training now.
+[00:00:12] And I think we'll get into, in my opinion,
+[00:00:15] some of the messier parts of language modeling.
+[00:00:19] I mean, data is always pretty messy,
+[00:00:20] but I think post-training and everything
+[00:00:23] that goes along with it is really artisanal in many ways.
+[00:00:28] So to set the stage, thus far, I think
+[00:00:32] you can get to a souped up version of GPT3.
+[00:00:35] I'm sure you can use more flops, you can get more data.
+[00:00:38] So you can make something a little bit better than GPT3.
+[00:00:40] But ultimately, the amount of utility
+[00:00:43] you can get from something like GPT3,
+[00:00:46] which is a very big, strong base model,
+[00:00:48] is ultimately a little bit limited.
+[00:00:51] When we went from GPT3 to something like ChatGPT,
+[00:00:55] I'm sure if your first exposure to these systems
+[00:00:57] was ChatGPT was kind of amazing, if you
+[00:01:00] go back and interact with GPT3, you'll be like,
+[00:01:03] what is this thing?
+[00:01:03] What is the point of this thing?
+[00:01:04] And the only thing you could really do with it
+[00:01:06] was things like copywriting or these fun little tasks,
+[00:01:10] where you don't really need reliability or instruction
+[00:01:12] following.
+[00:01:14] So today, we are going to get from GPT3 to something that
+[00:01:18] is getting basically close to ChatGPT,
+[00:01:21] So this is the very first part that we need.
+[00:01:23] And in the next lecture, we will go from ChatGPT to GPT o1
+[00:01:29] or any of the thinking models that we have today.
+[00:01:32] So those are going to be the two parts.
+[00:01:33] And the process that will take us from the left to the right
+[00:01:36] will be a process that usually people call post-training.
+[00:01:42] And I want to emphasize just how remarkable it is that we
+[00:01:46] can do instruction following.
+[00:01:48] Instruction following is this process
+[00:01:51] of being able to put in a pretty long, complicated prompt
+[00:01:54] and get back very reasonable answers at the GPT-3 level,
+[00:02:00] fine-grained control of these systems
+[00:02:02] was basically impossible.
+[00:02:03] Like you would put in a bunch of few shot prompts,
+[00:02:05] and you'd say, well, if my examples were good enough,
+[00:02:07] I'd get something reasonable.
+[00:02:09] In practice, your ability to steer these models or limited.
+[00:02:12] But once GPT-3.5 and GPT-4 comes around,
+[00:02:15] you start getting these examples of very long programmatic
+[00:02:19] prompts.
+[00:02:20] And then the model really one shotting the whole prompt.
+[00:02:24] And so what do you really need in order
+[00:02:27] to get this kind of instruction following to work?
+[00:02:31] And so pre-training is always important.
+[00:02:33] It's the basis on which we build all of this.
+[00:02:35] So if we ignore pre-training and we just
+[00:02:37] try to train our way to victory, we will get none of the things
+[00:02:40] that we want.
+[00:02:41] Absolutely none of it.
+[00:02:42] So pre-training is critical because it
+[00:02:45] scales in this very diverse, broad way.
+[00:02:48] But once we have pre-training, we
+[00:02:50] have to then extract the kinds of behaviors
+[00:02:52] that we want out of this kind of primordial soup
+[00:02:55] that is pre-training.
+[00:02:56] And to do that, we are going to have
+[00:02:58] to do much more explicit data collection, much more
+[00:03:01] explicit steering, and a lot of messy engineering
+[00:03:04] that in some ways we don't have to do so far.
+[00:03:07] I mean, the architecture stuff you might think is messy.
+[00:03:09] I think it really doesn't compare to the messiness
+[00:03:12] of real world post-training.
+[00:03:14] And so we're going to go and collect some data,
+[00:03:17] or we will talk as if we are going
+[00:03:19] to go and collect some data.
+[00:03:20] We're going to talk about what that data looks like,
+[00:03:23] how to train with it, and what the scale of that looks like.
+[00:03:29] And I will preface the rest of this lecture
+[00:03:31] and say, information about frontier post-training
+[00:03:35] is honestly pretty sparse in many, many ways.
+[00:03:38] If you look at the materials that I'm
+[00:03:40] going to reference today, a lot of it's
+[00:03:43] going to be actually pretty old.
+[00:03:44] It's going to be before the competition from ChatGPT
+[00:03:47] started to heat up.
+[00:03:48] So for example, the RLHF paper, learning
+[00:03:51] to summarize from human feedback,
+[00:03:53] that's actually incredibly detailed.
+[00:03:54] I'll point to that today in lecture.
+[00:03:56] If you're interested, I suggest you
+[00:03:58] go read some of the appendices.
+[00:03:59] It contains things like detailed annotation guidelines,
+[00:04:03] how they were instructing people to give feedback to the models,
+[00:04:06] similarly with Anthropic's HH paper back in 2022.
+[00:04:11] And then now that competition has heated up, basically,
+[00:04:13] none of the vendors want to release
+[00:04:15] any information about their post-training processes.
+[00:04:19] The data is very much a trade secret.
+[00:04:21] And so we are not going to be able to talk about annotation
+[00:04:24] guidelines and things like that for anything that resembles
+[00:04:27] a modern language model.
+[00:04:30] We do have closed source-- or open source models.
+[00:04:34] But on the other hand, a lot of the open source recipes
+[00:04:37] rely on distillation.
+[00:04:38] I think it's nature is very different from what the frontier
+[00:04:43] labs are doing in terms of human data collection, which is really
+[00:04:46] a very tricky and messy thing.
+[00:04:48] And I'll try to point out some of that,
+[00:04:50] but it will be difficult to talk about some
+[00:04:51] of that very comprehensively.
+[00:04:55] OK.
+[00:04:55] And then, just as an example of this,
+[00:04:58] I was doing some pre-research for this lecture earlier,
+[00:05:02] and I found this very fun example back in 2023
+[00:05:05] about the trade secretness of post-training data, where
+[00:05:08] I guess, scale AI's internal documents got
+[00:05:11] leaked at some point.
+[00:05:12] And they had a whole bunch of very frank conversations
+[00:05:15] about what was happening in post-training data land.
+[00:05:17] And one of them was like, well, they
+[00:05:19] were trying to make Google Bard better,
+[00:05:21] but they couldn't figure out why GPT-4 was so much better.
+[00:05:24] And so they said, well, we need to reverse engineer what's
+[00:05:27] happening, and we need to get our annotators
+[00:05:30] to produce responses that are more detailed and better
+[00:05:33] than GPT-4.
+[00:05:34] So these kinds of competitive dynamics
+[00:05:36] are happening all the time.
+[00:05:38] And that's also why some of this detail
+[00:05:40] is going to be missing from today's lecture.
+[00:05:43] That said, algorithm wise, we do have a pretty good handle
+[00:05:46] on what is happening.
+[00:05:47] But algorithms are not really the secret sauce.
+[00:05:50] It's not where a lot of the leverage leverages.
+[00:05:52] It's going to be the data.
+[00:05:54] So if we look at the RLHF papers,
+[00:05:58] we see a very straightforward recipe, two-part recipe.
+[00:06:01] The first part is you go and collect some demonstration data.
+[00:06:04] So for every prompt you want some annotator
+[00:06:08] to provide supervised fine tuning data,
+[00:06:10] so reference, responses for that prompt.
+[00:06:13] And you're going to do some fine tuning.
+[00:06:15] Then after you have that, you're going
+[00:06:16] to do some reinforcement learning of some kind
+[00:06:18] to try to shape the behavior of the model to be more aligned
+[00:06:22] or more in line with what humans think are good responses.
+[00:06:26] So I'm going to start by talking about this very first phase,
+[00:06:29] which is the SFT part of post-training.
+[00:06:33] And this is the part that's really basically all about data.
+[00:06:36] We all how to SFT a model.
+[00:06:38] That's basically exactly the same as pre-training.
+[00:06:40] So the only real difference with some minor variation
+[00:06:44] is going to be the training data.
+[00:06:46] So I will focus on the training data
+[00:06:48] almost entirely for this part of the lecture.
+[00:06:53] OK.
+[00:06:54] With a little bit of discussion about the method.
+[00:06:59] So we will go through the data.
+[00:07:02] We are going to look at some examples.
+[00:07:04] I'll talk about some historical developments
+[00:07:06] and what the trends are, at least in open source
+[00:07:08] post-training data land.
+[00:07:11] And then I will talk about some pitfalls,
+[00:07:12] some ways in which collecting this kind of data
+[00:07:15] is much harder than you think.
+[00:07:17] And if you've taken classes like 224N,
+[00:07:21] you're going to find some things that are very reminiscent
+[00:07:24] of issues that you see when you start building classic
+[00:07:28] supervised deep learning models from scratch.
+[00:07:32] So let me take a moment to pause,
+[00:07:34] and then just talk about the progression of SFT data
+[00:07:37] over the years.
+[00:07:40] I think I'm going to go top left to bottom right.
+[00:07:43] That's roughly my chronological ordering.
+[00:07:45] And there's been a lot of different tricks
+[00:07:47] and a lot of things that people have done in the open source
+[00:07:50] language modeling land to try to both improve system performance
+[00:07:54] and to try to understand what factors of this kind of data
+[00:07:58] are useful to train models.
+[00:08:01] I think, really, the oldest and in some ways
+[00:08:04] the most visionary of this is things like FLAN.
+[00:08:08] This was used to train the T5 model by Google.
+[00:08:11] There a rough idea for this was to say, well,
+[00:08:14] NLP people have already collected
+[00:08:16] a bunch of supervised data sets of inputs and outputs.
+[00:08:19] We should just train the model on all of these.
+[00:08:22] Reasonable thing to try.
+[00:08:25] Turned out, for various reasons, this
+[00:08:26] was not the right thing to do.
+[00:08:27] I'll talk about that later.
+[00:08:29] Self-instruct, and other follow ups to that, this was also
+[00:08:33] very forward-looking in terms of its thinking was saying, well,
+[00:08:36] why can't we use the model itself to generate data?
+[00:08:39] Well, models are getting better all the time.
+[00:08:41] And in fact, they might even be better than some
+[00:08:43] of our annotators.
+[00:08:45] Why don't we get models to write very good, high quality
+[00:08:50] responses to our inputs?
+[00:08:51] And that's the self-construct idea.
+[00:08:53] And then there came a bunch of distillation style approaches.
+[00:08:57] Alpaca is one of them.
+[00:08:59] The Berkeley folks had one called
+[00:09:00] Vicuna in which they were using online user shared
+[00:09:05] prompts as the way to-- as the inputs to distill on.
+[00:09:09] And then there were other efforts
+[00:09:11] that were more entirely human-driven,
+[00:09:13] like Open Assistant.
+[00:09:14] You can think of this kind of like Wikipedia.
+[00:09:16] It was a bunch of people getting together
+[00:09:18] to write prompts and responses.
+[00:09:20] And then you have a new generation WizardLM
+[00:09:23] and Tulu3 and others of saying, well,
+[00:09:26] that language models are very good synthetic data generators.
+[00:09:29] Why don't we come up with increasingly complicated ways
+[00:09:32] of generating instruction following
+[00:09:34] data using language models?
+[00:09:36] And then finally, I'll touch briefly on this.
+[00:09:39] SFT and post-training has changed yet again
+[00:09:42] in recent years because I think the focus is less on chat,
+[00:09:45] and much more on agents and tool use.
+[00:09:47] And so there is now a new generation of SFT pipelines
+[00:09:51] that are designed to generate tool use and agentic data.
+[00:09:54] So this is roughly a bunch of different developments
+[00:09:58] in post-training data land, at least in the open source world.
+[00:10:03] So in the closed source world, where--
+[00:10:05] well, some of the companies may be distilling each other,
+[00:10:07] but where you're also collecting human data.
+[00:10:09] How you're collecting the human data
+[00:10:11] is a big important ingredient.
+[00:10:12] That's not reflected in any of this discussion.
+[00:10:15] OK.
+[00:10:16] I can pause here in case anyone has questions
+[00:10:19] before I move on to what we're going
+[00:10:21] to do next is look at some of the details of these data sets.
+[00:10:25] Good.
+[00:10:26] Oh, yeah.
+[00:10:27] So for post-training, we need the input-output pairs, right?
+[00:10:30] That's right.
+[00:10:31] So input-output pairs.
+[00:10:32] Does the correctness of those input-output matters?
+[00:10:34] How far does it--
+[00:10:36] Yeah.
+[00:10:36] So the question was how much does
+[00:10:37] the correctness of the input-output pairs matter?
+[00:10:40] That's a nuanced question.
+[00:10:42] I mean, I think the top level answer
+[00:10:44] is you should go collect the highest quality responses you
+[00:10:48] can because the bad stuff will teach the model to do bad stuff.
+[00:10:51] On the other hand, it turns out that you can SFT models
+[00:10:54] on all sorts of strange things, and they will
+[00:10:56] learn to follow instructions.
+[00:10:59] I think Percy's former student had a paper in which you're
+[00:11:02] like training models without even the responses or something.
+[00:11:06] And you can train models to be instruction following.
+[00:11:10] And so there's a lot of pre-training generalization
+[00:11:12] behaviors that let you get away with worse quality data.
+[00:11:15] So it's actually a pretty nuanced question,
+[00:11:17] what you need in instruction following data.
+[00:11:22] OK.
+[00:11:22] Good.
+[00:11:24] So I want to maybe start with FLAN.
+[00:11:28] I think FLAN is very much like a forward-looking data set
+[00:11:33] for its time.
+[00:11:34] It's established this idea of doing this multitask
+[00:11:38] post-training.
+[00:11:38] If you're going to do downstream tasks,
+[00:11:40] go collect all the downstream tasks and train on it.
+[00:11:43] Very reasonable, but smart idea at the time.
+[00:11:46] But if we look at what's in FLAN,
+[00:11:48] we actually find that it's a little bit
+[00:11:50] of a strange data set.
+[00:11:53] You have this thing that's like, well, here's an email.
+[00:11:57] And then there's this thing that gets appended, which
+[00:11:59] is write a subject line for this email,
+[00:12:01] and then the subject line goes on the right.
+[00:12:04] This is a very strange thing.
+[00:12:05] I don't think you've ever probably prompted
+[00:12:08] a model to do a task like this, let alone the instructions
+[00:12:11] at the very end.
+[00:12:12] And the reason why you get something
+[00:12:14] like this is because FLAN is generated from existing data
+[00:12:17] sets.
+[00:12:17] So there's a data set called Enron emails.
+[00:12:20] This is basically a way to turn Enron emails
+[00:12:22] into a supervised task because it has a body, and a subject,
+[00:12:26] you can make this subject prediction task.
+[00:12:29] Similarly, you have a summarization task.
+[00:12:32] This is-- I don't know if this was taken from CNN, Daily Mail
+[00:12:35] or Exxon, but it was taken from one
+[00:12:36] of the big, major summarization data sets.
+[00:12:40] Highlights for this article, take the article part
+[00:12:42] of a summarization data set, put the summary on the right.
+[00:12:46] But you immediately notice, compared
+[00:12:48] to something like ChatGPT, the summaries are very short.
+[00:12:51] In fact, if you look really closely,
+[00:12:53] the summaries are often hallucinated.
+[00:12:55] There's a bunch of details that are not in the inputs.
+[00:12:58] And in some ways, related to this question,
+[00:13:01] the original NLP data sets, from which font was built,
+[00:13:05] was not the highest of quality.
+[00:13:08] And so when you train on this thing,
+[00:13:09] you also inherit a whole bunch of deficiencies from those data
+[00:13:12] sets.
+[00:13:13] And the unnaturalness of the structure of these data
+[00:13:15] sets also carry down all the way.
+[00:13:19] And so this is a very smart idea.
+[00:13:21] FLAN is a very smart idea to create this big data set out
+[00:13:24] of these data set-- existing benchmarks.
+[00:13:29] But really, the unnaturalness really gets you.
+[00:13:32] And I'll mention one more thing, going back one slide.
+[00:13:34] I think when font was originally constructed,
+[00:13:37] part of the theory of how post-training should work
+[00:13:40] was that you needed scale.
+[00:13:42] In pre-training, we know we need a lot of scale.
+[00:13:44] So you might also think that in post-training, we
+[00:13:46] need a ton of scale to unlock capabilities.
+[00:13:50] And so because of that, they took tons of data sets and lots
+[00:13:52] of data, and had this gigantic data set.
+[00:13:55] We'll see later on that a lot of these data sets
+[00:13:58] just get really much smaller, and it still works.
+[00:14:00] And so really, part of the change from font to later data
+[00:14:03] sets is this observation that if you have a sufficiently strong,
+[00:14:07] big, pre-trained model, you can actually get away
+[00:14:09] with very few high quality examples because
+[00:14:12] of pre-training generalization is going to get you
+[00:14:15] quite a bit of the way.
+[00:14:16] And so it's the wrong point in some ways on the quality,
+[00:14:19] quantity trade off.
+[00:14:20] Although, there was no way to until we explored the full space
+[00:14:24] of these data sets.
+[00:14:27] And then I think, after that, maybe next point in how
+[00:14:32] instruction tuning data sets are understanding of it changed
+[00:14:36] was after ChatGPT came out, some of my students
+[00:14:40] did this thing called Alpaca, where
+[00:14:42] they distilled ChatGPT traces to get input-output pairs.
+[00:14:45] So this is an example from that data set.
+[00:14:47] You get more natural-looking inputs, longer chatty outputs.
+[00:14:52] Because of course, it's taken from ChatGPT.
+[00:14:56] And what we found was that these kinds of examples, now,
+[00:15:00] reliably induced ChatGPT-like behavior on models.
+[00:15:05] Importantly, only when we did it to the original Llama models,
+[00:15:11] so pre-training, post-training, both of them need to work out.
+[00:15:14] But we did find that this was the point at which
+[00:15:17] these things started to work.
+[00:15:18] And so I think people realized at this point
+[00:15:20] that if you got this kind of chat-style data,
+[00:15:24] it was actually not that hard to build ChatGPT-style systems.
+[00:15:29] Getting the details right is still hard,
+[00:15:31] but to get most of the way.
+[00:15:33] So then I think there was this big push to create, essentially,
+[00:15:38] the highest quality human-driven version of these kinds of data
+[00:15:41] sets.
+[00:15:43] To give you a little bit more context, at the time,
+[00:15:45] I think after ChatGPT came out and Alpaca came out,
+[00:15:48] I think there was this enormous optimism
+[00:15:50] that if only we could collect a sufficiently high quality
+[00:15:54] and large, instruction-tuning data set,
+[00:15:57] we could then catch up and match a lot
+[00:15:59] of the performance of these big closed source labs.
+[00:16:02] So there's a lot of energy and excitement
+[00:16:04] to building these data sets.
+[00:16:05] And so in that context, Open Assistant
+[00:16:08] is this big crowdsourced effort to build such a data set.
+[00:16:11] So a lot of volunteers got together
+[00:16:13] and they said, well, we're going to come up with really
+[00:16:15] hard and interesting prompts.
+[00:16:17] We're going to come up with good, high quality responses,
+[00:16:19] and we're going to do it at scale.
+[00:16:21] In the same way that Wikipedia managed
+[00:16:22] to produce something very high quality at scale.
+[00:16:25] A very admirable, very impressive effort
+[00:16:27] that generated actually a decent amount of data.
+[00:16:29] I forget if it's like 10,000 or more examples before stalling
+[00:16:34] out as a project.
+[00:16:36] I can maybe talk about that if someone's interested.
+[00:16:39] But if you look now, we have chat-style inputs, very long,
+[00:16:43] detailed, high quality expert responses on the right.
+[00:16:46] Good stuff.
+[00:16:48] I'll talk about some of the pitfalls later as well.
+[00:16:50] OK.
+[00:16:50] Finally, I've taken this from some
+[00:16:52] of the newest of the instruction-tuning data sets.
+[00:16:55] We've really started to move as a field,
+[00:16:57] or in terms of the products that people want,
+[00:17:00] from just a chat interface to something that's
+[00:17:02] like a full agent system.
+[00:17:05] So we don't want just textual responses.
+[00:17:07] We want tool calls.
+[00:17:08] We want to-do lists.
+[00:17:10] If you've ever used Cloud Code or Codex,
+[00:17:12] you know that it produces a to-do list
+[00:17:14] to check off as it goes.
+[00:17:16] We want all of those things.
+[00:17:17] And so SFT data now, if you look at, for example
+[00:17:20] Nemotron, so that's NVIDIA's open source efforts,
+[00:17:22] their SFT data, a big chunk of it
+[00:17:25] is these kinds of agentic SFT examples,
+[00:17:28] where not only do you have the responses, which are provided
+[00:17:32] in the assistant field here, but also tool calls that can happen
+[00:17:37] in parallel alongside the text.
+[00:17:38] And this is SFT data.
+[00:17:40] So this is explicitly supervised into the model.
+[00:17:45] And so now, we're moving much more
+[00:17:47] towards these structured formats.
+[00:17:52] And I've been talking about this as I've gone through.
+[00:17:54] But we've seen big, higher level transitions
+[00:17:57] in how we think about and build these kinds of data sets.
+[00:18:00] It's useful to roughly internalize these perspectives.
+[00:18:04] One of them is this chattiness thing.
+[00:18:07] It's hard for me to fully articulate what this is,
+[00:18:10] but there is a sense in which the classic NLP data sets, even
+[00:18:13] the high quality ones, were very input to programmatic output
+[00:18:17] almost.
+[00:18:19] But people don't really want to talk to NLP benchmark,
+[00:18:21] they want to talk to people.
+[00:18:23] And so there was this big shift that
+[00:18:24] has happened towards more detailed human-like responses.
+[00:18:28] There's a big shift towards higher quality annotators,
+[00:18:31] and much more detailed.
+[00:18:32] Open Assistant is a good example of this, of having
+[00:18:34] experts write your responses.
+[00:18:36] And then finally, tool use and figuring out the right interface
+[00:18:40] and API for all of this has been a big final shift
+[00:18:43] that's been happening.
+[00:18:44] I'm sure things will keep changing,
+[00:18:46] but these are some high level factors
+[00:18:49] to think about in terms of how SFT data has changed
+[00:18:53] over the last few years.
+[00:18:55] OK.
+[00:18:55] I'll talk about all sorts of pitfalls or challenges
+[00:19:01] in a moment.
+[00:19:03] Any questions on the specifics of data sets and things
+[00:19:06] like this?
+[00:19:08] Good.
+[00:19:09] OK.
+[00:19:10] So now, I think, let's say, you are
+[00:19:12] put in charge of collecting human annotation data for SFT.
+[00:19:17] What kinds of things should you be mindful of?
+[00:19:20] There's lots of formatting things
+[00:19:23] that you might want to think about.
+[00:19:24] There's also things like knowledge,
+[00:19:26] how much knowledge should be put into the responses?
+[00:19:29] How much data points do you want?
+[00:19:32] And how do you deal with safety of your model?
+[00:19:35] What kinds of safety data should you be collecting?
+[00:19:40] And I think one thing I want to highlight is length is--
+[00:19:44] and style variation, in general, is a very, very big part
+[00:19:47] of this post training process.
+[00:19:49] People say, Claude has a different tone than ChatGPT.
+[00:19:53] ChatGPT is too chatty, so on and so forth.
+[00:19:56] All of these are conscious decisions
+[00:19:58] that are made by the data collection folks.
+[00:20:00] And also, we see very wide variation
+[00:20:03] if you look at the data sets in terms
+[00:20:04] of the length of the responses.
+[00:20:07] And one thing I do want to highlight
+[00:20:09] is when you go and evaluate preferences,
+[00:20:14] these stylistic factors matter a ton.
+[00:20:17] So people will get very easily tricked.
+[00:20:19] I don't know if tricked is the right word.
+[00:20:21] They will very often select responses
+[00:20:24] that have bullet pointed lists in their outputs,
+[00:20:27] or they will select responses that
+[00:20:29] have more and longer detail.
+[00:20:31] I think part of this is very natural, especially
+[00:20:33] if you're in an evaluation setting, where you put in front
+[00:20:36] of two examples and someone asks you which one is better,
+[00:20:38] I think more detailed and list like responses
+[00:20:41] are generally good.
+[00:20:43] But this does induce very explicit distortions
+[00:20:46] in the kinds of tone that a chatbot has relative to people.
+[00:20:54] These factors-- oh, yeah.
+[00:20:55] So [INAUDIBLE] complex matter in the data set?
+[00:20:58] I'll talk about that later.
+[00:21:01] And you can ask me questions if I don't fully
+[00:21:03] answer your question then.
+[00:21:08] But I think the thing about style,
+[00:21:10] and the thing to be careful about,
+[00:21:12] is if you're looking at engagement signals,
+[00:21:14] as most of these companies are, it's very, very easy
+[00:21:17] to fool yourself into thinking you're getting better data,
+[00:21:20] when in reality, your models capabilities are not changing.
+[00:21:24] So if you look at all of these different kinds
+[00:21:26] of post-training data sets that you can train on,
+[00:21:30] you'll see big variations in preferences when you
+[00:21:33] train on some of these things.
+[00:21:35] So that's the right column over there, AlpacaEval, for example.
+[00:21:38] But really, it doesn't necessarily
+[00:21:39] change standard benchmarking evaluations.
+[00:21:43] So your models aren't necessarily smarter
+[00:21:44] because you've trained on certain kinds
+[00:21:46] of post-training data, at least in these ones.
+[00:21:48] But you can very much shift the engagement signals.
+[00:21:52] And so this is telling you, you want
+[00:21:54] to think about style control separately
+[00:21:56] from capabilities control.
+[00:21:59] OK.
+[00:21:59] The other thing, and this, I think,
+[00:22:01] is a quite, in many ways, important thing
+[00:22:04] to think about in terms of how we collect and think
+[00:22:07] about post-training data.
+[00:22:09] I think Open Assistant is very instructive
+[00:22:11] because it was an effort that was intended
+[00:22:14] to be the highest quality in some ways, post-training data.
+[00:22:18] And so you often see things like this.
+[00:22:20] Like for example, this reference-- sorry,
+[00:22:22] this response contains a reference to an article.
+[00:22:26] This J Michel, m the pay of corporate executives, and blah,
+[00:22:29] blah, blah.
+[00:22:30] And so this is actually teaching the model two different things
+[00:22:34] at once.
+[00:22:35] Let's say, you're SFT-ing on this data.
+[00:22:38] So first of all, you're doing next token prediction.
+[00:22:40] So it's teaching the model about this Bivens J & Michelle L
+[00:22:45] citation.
+[00:22:46] It's also telling the model another thing, which
+[00:22:48] is when you're giving a response, a good thing to do
+[00:22:51] is to give a reference.
+[00:22:53] So these are two different mechanisms
+[00:22:56] that are going on at once.
+[00:22:58] You're teaching the model about different pieces of knowledge,
+[00:23:00] which is good because you want the model to be knowledgeable,
+[00:23:03] but you're also teaching the model
+[00:23:05] to emit detailed knowledge.
+[00:23:08] And this is sometimes problematic
+[00:23:10] because what this is going to force the model to do
+[00:23:13] is sometimes it will misgeneralize,
+[00:23:15] and it will hallucinate out a reference instead of actually
+[00:23:17] giving a proper reference.
+[00:23:19] Models don't really know necessarily
+[00:23:21] whether a reference is true or false.
+[00:23:25] And there's been a lot of interesting arguments
+[00:23:27] that people have made around this.
+[00:23:31] And I think the Folklore, which I think is not wrong.
+[00:23:34] There's some good empirical evidence
+[00:23:35] to support this Folklore.
+[00:23:37] Is that if you train a model, especially at the SFT phase,
+[00:23:41] to emit facts that it does not, this will make it hallucinate.
+[00:23:47] Because the model, as I said, is trying
+[00:23:49] to generalize two behaviors at once.
+[00:23:50] It's trying to generalize the knowledge but also the format.
+[00:23:53] And so teaching it something where
+[00:23:55] you have the format in a piece of unknown knowledge
+[00:23:58] is kind of teaching the model to forcibly emit unknown knowledge.
+[00:24:02] And people have shown that if you train on, for example,
+[00:24:07] information that you don't really know,
+[00:24:09] then this leads to hallucination and overfitting
+[00:24:13] to pieces of knowledge.
+[00:24:14] Whereas if you're training on only known facts,
+[00:24:16] you don't necessarily see this.
+[00:24:19] John Schulman makes a separate argument,
+[00:24:21] which is that this is the reason why you need reinforcement
+[00:24:23] learning and training.
+[00:24:24] I mean, this is unsurprising because if you
+[00:24:26] know John Schulman, he's like a reinforcement learning guy.
+[00:24:28] He made PPO.
+[00:24:29] Of course, he is very pro reinforcement learning.
+[00:24:32] But the argument is sound.
+[00:24:33] That, in some ways, in order to teach
+[00:24:36] the model what it knows and doesn't
+[00:24:37] do have to be policy-dependent.
+[00:24:40] You can't have an external person shoving knowledge down
+[00:24:43] your throat if you want the model to be calibrated about
+[00:24:46] what it knows and doesn't.
+[00:24:48] OK.
+[00:24:50] And so to put that piece together,
+[00:24:53] you might not want to train on the highest quality data
+[00:24:57] if the model doesn't already that data.
+[00:24:59] Tail knowledge can actually sometimes
+[00:25:01] be actively harmful in that it might induce hallucinations,
+[00:25:04] especially if it's associated with markers
+[00:25:06] like reference colon.
+[00:25:08] They'll force the model to emit a reference afterwards.
+[00:25:11] I'll talk about RLHF later, but this
+[00:25:14] is one of the reasons why reinforcement learning is
+[00:25:17] important and useful.
+[00:25:18] For things that are model-dependent,
+[00:25:19] knowing what you know, RL is a very useful way
+[00:25:23] to teach models to not say things that it does not know.
+[00:25:27] And so knowledge storage is actually
+[00:25:29] very messy and a very nuanced concept.
+[00:25:31] You don't really want to just say yes, just pack
+[00:25:34] knowledge in there.
+[00:25:34] You want to be very careful about exactly what supervision
+[00:25:37] you're throwing in at the post-training stage.
+[00:25:39] This is one of the reasons why I think
+[00:25:40] post-training is quite messy.
+[00:25:42] You have to deal with all of these realities of serving
+[00:25:44] a system eventually to a user.
+[00:25:46] Yes.
+[00:25:47] What's the definition of tail knowledge?
+[00:25:50] Yeah.
+[00:25:50] I don't think there's a formal definition of knowledge.
+[00:25:53] For example, in the past when I've worked on things like this,
+[00:25:56] it's been things like the number of times
+[00:25:59] that-- sorry, the length of a Wikipedia article, for example,
+[00:26:03] might be a proxy for its well-knownness.
+[00:26:06] And then you might say, yes, if we
+[00:26:08] train on stuff that's not well known,
+[00:26:10] we do see that the model hallucinates more.
+[00:26:11] But there's no formal like, yes, this is tail
+[00:26:13] and this is not knowledge, because knowledge
+[00:26:15] itself can't really be pinned down, precisely.
+[00:26:19] OK.
+[00:26:20] Yeah.
+[00:26:20] [INAUDIBLE]
+[00:26:28] The question was why would RL help for hallucinations?
+[00:26:32] And the reason why RL might help,
+[00:26:34] let me give a folk story for why this might help.
+[00:26:36] Imagine, the model has internal to it.
+[00:26:39] I know something direction inside it's activations.
+[00:26:43] SFT time, maybe what's happening is
+[00:26:45] you forced it to generate references from your SFT data.
+[00:26:49] And so it's just going to generate
+[00:26:51] references no matter what.
+[00:26:52] But when you RL, you might notice
+[00:26:54] that you get good rewards when you generate references in the I
+[00:26:58] know stuff direction.
+[00:26:59] And you get bad rewards when you generate references in the I
+[00:27:02] don't know direction.
+[00:27:04] And so then you might then learn to generalize that I know things
+[00:27:07] or don't things activations into whether you emit a reference.
+[00:27:10] So it's possible that if you know what
+[00:27:12] somewhere inside the model, RL can help you extract that
+[00:27:15] into your output policy.
+[00:27:16] If you don't know what you know at all, at any level,
+[00:27:19] RL cannot help you there.
+[00:27:21] It can't help you with the problem of having
+[00:27:25] some level of calibration.
+[00:27:26] Yeah.
+[00:27:27] So just to follow up on that.
+[00:27:28] But if it emitted a bad reference,
+[00:27:30] where do you get penalized in the loss function?
+[00:27:34] In SFT, well, in some ways, implicitly, you're
+[00:27:37] getting penalized for anything that is not a reference,
+[00:27:41] like assigning any probability mass to something
+[00:27:43] that is not this exact sequence is penalized.
+[00:27:46] So in some ways, SFT isn't doing the wrong thing.
+[00:27:48] This is a correct sequence.
+[00:27:50] The problem is SFT is the generalization
+[00:27:53] properties of this.
+[00:27:55] That I can't perfectly generalize off this one example.
+[00:27:58] There's two things, two disentangled things that
+[00:28:00] are being taught here, one is the reference template,
+[00:28:03] and then the other thing is the actual content of the knowledge.
+[00:28:07] And if I generalize based on the template, I'm in big trouble.
+[00:28:12] Great.
+[00:28:13] Great questions.
+[00:28:13] Yeah.
+[00:28:15] OK.
+[00:28:17] The other thing that I want to talk about is safety.
+[00:28:21] Once we get the post-training, we
+[00:28:22] have to really start engaging with all
+[00:28:24] of the messy realities of how are people going to use this.
+[00:28:27] I think pre-training people live in this ivory tower,
+[00:28:30] like let's just compress the world.
+[00:28:32] But post-training people have to say, yes.
+[00:28:35] But what if people are using our system
+[00:28:38] for political manipulation and disinformation?
+[00:28:41] And post-training people might say, yes,
+[00:28:43] we see individualized spearfishing.
+[00:28:45] We need to prevent this from happening.
+[00:28:47] You are the last line of defense, in some ways,
+[00:28:50] between you and misuse of the systems.
+[00:28:52] And so what do you do?
+[00:28:53] Well, you have to apply safety controls to the system.
+[00:28:56] That will refuse to respond to malicious inputs.
+[00:28:59] This is the de facto way by which these companies enforce
+[00:29:03] the safety controls.
+[00:29:04] And so it falls upon the post-training team.
+[00:29:07] Unfortunately, safety SFT information
+[00:29:10] seems even more sparse than capabilities
+[00:29:14] SFT information in publicly available documents.
+[00:29:19] I pulled out the Llama 2 description
+[00:29:21] of how they do safety SFT.
+[00:29:23] If anything, this is one of the more detailed descriptions.
+[00:29:26] But you'll see that they don't even
+[00:29:27] talk about how many examples.
+[00:29:29] They used for safety tuning, which is kind of crazy to me.
+[00:29:32] But regardless, really, the framework
+[00:29:34] by which all the safety tuning approaches operate
+[00:29:37] is to balance two things.
+[00:29:38] You want to balance how often am I allowing
+[00:29:42] bad queries to get through, which is, I think the violation
+[00:29:44] rate here.
+[00:29:46] And then you also want to not over refuse
+[00:29:48] because someone might ask a question like,
+[00:29:50] how do I kill a Python process.
+[00:29:51] And then if you're a bot, it's like, no,
+[00:29:53] I can't let you kill anything, that's
+[00:29:55] very frustrating to the user.
+[00:29:56] And so the false refusal rate also needs to be low.
+[00:29:58] So want to control this and have a good Pareto
+[00:30:01] trade between the two.
+[00:30:04] And so what you do is you basically create
+[00:30:07] various kinds of tailored data to navigate this trade off.
+[00:30:11] In terms of the scale of the amount of data
+[00:30:13] you collect, you usually have something like a few thousand
+[00:30:17] or tens of thousands of examples.
+[00:30:19] For example, in Llama 2, I think it's
+[00:30:21] about a few thousand examples that are used for this process.
+[00:30:25] This state of affairs is a little bit
+[00:30:27] unsatisfying if I left you with only that slide.
+[00:30:30] So I will talk about a little bit more detail.
+[00:30:33] I think if you want to look at how post-training is done,
+[00:30:37] maybe the only good reference right now would be two or three.
+[00:30:41] This would be the post-training pipeline for the OLMo models
+[00:30:45] that Allen AI put out.
+[00:30:48] And given the lack of details about post-training
+[00:30:50] in many places, this is one of the few places where
+[00:30:53] you can see a reasonably performant
+[00:30:55] post-training pipeline in action.
+[00:30:57] And they do have, for example, a safety component,
+[00:31:00] which consists of something like 50,000-ish examples total.
+[00:31:06] And if you look, they all follow the same fairly simple strategy
+[00:31:09] for generating SFT data, which is the following.
+[00:31:13] In a previous project, they had this thing
+[00:31:15] called WildChat, where basically they gave free API or free chat
+[00:31:19] access to a bunch of people so that they
+[00:31:21] can go out and use various kinds of chat interactions.
+[00:31:25] In exchange, they collected what they were doing on those chats.
+[00:31:29] And from that, they were able to basically filter out
+[00:31:32] a whole bunch unsafe behaviors that were being attempted
+[00:31:36] to be done on these chat interfaces,
+[00:31:39] as well as jailbreaks that people attempted to do.
+[00:31:41] And so they mined these at scale,
+[00:31:43] and then created essentially the preferred response,
+[00:31:46] which is to resist the jailbreak in one case,
+[00:31:48] and to say no in another case.
+[00:31:51] Fairly, very straightforward approach.
+[00:31:54] And I think from what we see, at least in the technical reports
+[00:31:58] and the model cards of the various closed source companies,
+[00:32:01] similar things are happening, and that you
+[00:32:03] look at your usage information, you find unsafe behaviors.
+[00:32:07] You get your annotators to play whack-a-mole
+[00:32:10] with these bad behaviors.
+[00:32:14] OK.
+[00:32:14] The final thing I'll mention, and this
+[00:32:16] is related to what I said about the number of examples
+[00:32:19] that you need for SFT.
+[00:32:20] I think one thing, if you haven't played with SFT before
+[00:32:23] that you will be surprised by, is
+[00:32:25] if you have a sufficiently capable model,
+[00:32:27] it does not take very many examples to steer these systems.
+[00:32:30] So if you want to do something safety tuning,
+[00:32:32] if you take 500 examples, let's say,
+[00:32:35] in the vein of you find a bunch of unsafe stuff,
+[00:32:38] or you synthesize a bunch of unsafe stuff,
+[00:32:40] and then you write refusals and you put that into the system,
+[00:32:44] you'll find that even with as little as 500 examples, the rate
+[00:32:48] at which you follow malicious instructions or other kinds
+[00:32:50] of hate speech instructions, and so on, drops dramatically.
+[00:32:54] And with 500 examples, you're really
+[00:32:56] applying this fairly surgical--
+[00:32:58] not surgical, very small push to the model.
+[00:33:01] But that results in a fairly nice across the board
+[00:33:04] reduction in these safety issues over here.
+[00:33:08] And so one way to think about it is models
+[00:33:11] already have am I going to be a safe model
+[00:33:14] or an unsafe model access inside of it after pre-training
+[00:33:18] so it does not take very many examples to pull this out.
+[00:33:21] Now, one thing to also remember at the end of this
+[00:33:25] is just because you can steer a model
+[00:33:28] with very few examples, doesn't mean that there's
+[00:33:30] no benefit to more examples.
+[00:33:32] If you're OpenAI or Anthropic, and you
+[00:33:33] want to enforce really fine grained distinctions about what
+[00:33:36] is safe and not safe, you do need very large scale data
+[00:33:40] collection does.
+[00:33:41] This doesn't really change that story.
+[00:33:43] OK.
+[00:33:43] So SFT at its best is this thing where
+[00:33:48] if you're extracting pre-training behaviors,
+[00:33:50] like it's already in there somewhere in pre-training,
+[00:33:53] and all you want to do is pull out the right modes out
+[00:33:55] of the model, then instruction fine tuning works very, very
+[00:33:59] well.
+[00:34:00] With very little data, as long as you
+[00:34:01] have the right high quality ones,
+[00:34:03] you can get the model to do what you want.
+[00:34:06] And adding data or factually correct ones
+[00:34:09] can sometimes hurt you, at least in terms of hallucination.
+[00:34:11] And then finally, it doesn't take very much data.
+[00:34:14] And so you can often focus on quality instead of quantity.
+[00:34:18] Good.
+[00:34:18] OK.
+[00:34:19] This is going to be the end of the data part for SFT.
+[00:34:21] So if anyone has questions, ask me before I move on.
+[00:34:26] Yes.
+[00:34:26] How do we know what is already a behavior [INAUDIBLE]?
+[00:34:33] Yeah.
+[00:34:33] The question was how do we whether something
+[00:34:35] is in pre-training?
+[00:34:36] I think this is the sloppiness of what I was saying,
+[00:34:39] which is that we don't really know per se.
+[00:34:41] We can know what things aren't in pre-training.
+[00:34:43] We can look for the kinds of generalization to, for example,
+[00:34:47] programming languages that are very rare that's
+[00:34:49] very hard using SFT.
+[00:34:50] So we can show those things.
+[00:34:52] We can't show necessarily that, for example, safety is something
+[00:34:55] that's in pre-training per se.
+[00:34:57] Yes.
+[00:34:58] Can you talk more about this when you talk about RL.
+[00:35:00] But there's this whole question of SFT destroying features
+[00:35:05] with RL invading them.
+[00:35:07] That's like [INAUDIBLE] trying to talk about that.
+[00:35:11] I'm not going to talk about that later.
+[00:35:13] The question was whether SFT is destroying features in RLs
+[00:35:16] like pushing up or down.
+[00:35:19] I think the lines are very blurry between the two,
+[00:35:21] to be honest, especially, when we get into something
+[00:35:23] like expert iteration and all these other things, that
+[00:35:25] look like SFT with extra bells and whistles.
+[00:35:27] So I don't necessarily think it's
+[00:35:29] a core distinction between RL and SFT,
+[00:35:31] rather that it's more of a distinction in the kinds
+[00:35:34] of feedback that we get.
+[00:35:35] SFT is this dense feature supervision,
+[00:35:38] whereas RL is the self-taught policy supervision.
+[00:35:42] And the other thing about RL is that you're
+[00:35:45] getting your own output from your own policy.
+[00:35:47] So there's a sense in which you don't maybe
+[00:35:49] deviate quite as far in what you're being reinforced on.
+[00:35:51] And that's probably an important part of what's happening.
+[00:35:54] OK.
+[00:35:55] So now, let's talk about methods.
+[00:35:56] For most of this class, we've been
+[00:35:58] excited to talk about methods.
+[00:35:59] In this part, it is about the most boring thing
+[00:36:01] because you just do gradient descent.
+[00:36:03] I just put the picture here as almost a joke.
+[00:36:06] You just take loss.backwards and that's basically it.
+[00:36:10] But there is one nuance I do want
+[00:36:11] to talk about that is important, which
+[00:36:15] is this increasing trend of turning instruction tuning
+[00:36:18] into part of pre-training.
+[00:36:21] It used to be that when these things first appeared,
+[00:36:23] the pre-training and post-training were
+[00:36:25] just these separate ideas, that you would pre-train on web data,
+[00:36:30] and then you would post-train afterwards.
+[00:36:32] But people realized why separate two things when
+[00:36:35] you can mix them together.
+[00:36:37] And so lots of high quality data, and even
+[00:36:40] instruction tuning data, is now getting
+[00:36:42] mixed in at the tail end of training
+[00:36:44] when the decay phase usually of training happens.
+[00:36:47] And this really allows you to scale up instruction tuning.
+[00:36:50] It also allows you to essentially emphasize
+[00:36:53] higher quality data.
+[00:36:54] The impact of this has been quite dramatic.
+[00:36:57] And so everyone, as far as I know, is doing it.
+[00:36:59] You can see it in most of the model release reports,
+[00:37:04] that there's a mint training or a second phase pre-training
+[00:37:07] with a different data mix.
+[00:37:10] And importantly, one thing that I'll-- this is my pet peeve.
+[00:37:14] I'll say is that now, when someone tells you
+[00:37:17] something is a base model, that's kind of a lie.
+[00:37:20] Because a base model is usually about, yes,
+[00:37:22] predicting the next word on internet data or something.
+[00:37:25] Well, really, base models today are pre-trained on ultra chat,
+[00:37:29] and who knows what else.
+[00:37:31] Those are like chat data sets that are synthetically designed
+[00:37:34] to make you good at chat.
+[00:37:35] And so it's very hard to say that this
+[00:37:37] is like a base model in the traditional sense of the word.
+[00:37:40] I've taken this example of a two-phase training.
+[00:37:43] I think this one's from MiniCPM.
+[00:37:46] Because I think they show very nicely the change in the mix.
+[00:37:50] So this first bar is the very standard pre-training phase,
+[00:37:55] where you've got all sorts of internet data on the left.
+[00:37:57] And on the right, you're kind of switching
+[00:37:59] to this higher quality, and also very chatty data set.
+[00:38:04] You've got Stack Exchange QA.
+[00:38:06] You've got Ultra Chat.
+[00:38:08] You've got all sorts of other SFT data.
+[00:38:11] And then you've decreased the fraction
+[00:38:13] of standard general purpose pre-training data.
+[00:38:16] So almost everyone does this today.
+[00:38:18] And you can think of the point of this
+[00:38:20] as saying, well, the boundaries between pre-training
+[00:38:23] and instruction tuning, and also high quality data is just
+[00:38:27] being blurred very much.
+[00:38:29] Yes.
+[00:38:33] Are the queries masked in this kind of data?
+[00:38:35] No, this is pure pre-training.
+[00:38:36] And so you're also predicting the prompt as well.
+[00:38:40] But actually, that's not a huge difference
+[00:38:42] because some SFT recipes do also predict the prompt.
+[00:38:46] Yes.
+[00:38:47] [INAUDIBLE]
+[00:38:53] OK.
+[00:38:54] So the question was whether the data quality
+[00:38:55] is lower in the decay.
+[00:38:56] Usually, the intuition is you want
+[00:38:58] the reverse, that the decay is the most important part
+[00:39:01] of your training.
+[00:39:01] It's the part that's closest to deployment during pre-training.
+[00:39:04] Also, it's the part where the lowest learning rate.
+[00:39:06] And so for both of those reasons, maybe
+[00:39:08] you want to put the highest quality stuff into the decay.
+[00:39:11] And so I guess, Book Chinese, and all these things
+[00:39:15] are supposed to be higher quality.
+[00:39:17] Certainly, Wiki and Stack Exchange
+[00:39:19] is usually considered high quality.
+[00:39:21] Yes.
+[00:39:22] How is the mixture--
+[00:39:23] I guess, for pre-training, you discussed other mixtures
+[00:39:25] beside these [INAUDIBLE] cheaper models.
+[00:39:27] And then from there, you can use statistical analysis to decide.
+[00:39:30] But then, I guess, for midtraining and post-training,
+[00:39:33] you have to essentially run it on the larger model,
+[00:39:35] or do people still have some smaller model
+[00:39:38] they use as a proxy?
+[00:39:39] I assume there's some reduction in the amount of information
+[00:39:43] you can build.
+[00:39:44] I guess, you mentioned what's good there
+[00:39:46] about these data mixtures and where do they get them.
+[00:39:48] Yeah.
+[00:39:49] So data mixtures, I mean, both for pre-training
+[00:39:52] and post-training are very trial and error.
+[00:39:54] We do have algorithms like many people have written papers
+[00:39:57] about things in this space.
+[00:39:59] But I think they're fairly unreliable.
+[00:40:01] There's a lot of trial and error and intuition
+[00:40:03] that happens for this space.
+[00:40:05] But the nice thing about this two-phase training
+[00:40:08] and this midtraining stuff is that midtraining is much shorter
+[00:40:12] than full pre-training.
+[00:40:13] So if you're doing data mix optimization for midtraining,
+[00:40:16] you can run something like 10 of these for each one of these
+[00:40:19] on the left right.
+[00:40:21] And so this lets you not quite brute force the problem,
+[00:40:23] but it does let you try a lot of ablations.
+[00:40:26] And so actually, I think the usual way that I've
+[00:40:29] heard a lot of this done is actually in the decay phase,
+[00:40:32] you do a lot of data ablations, which
+[00:40:33] are cheap to run and so on, and then you
+[00:40:36] get estimates of data quality and then you reflect that
+[00:40:38] even back to the first stage--
+[00:40:40] Into the pre-training.
+[00:40:41] Into the pre-training stage.
+[00:40:43] Yeah.
+[00:40:43] So to decide the pre-training mix,
+[00:40:45] often, you actually run a bunch of ablations on decay.
+[00:40:47] And then you will figure out what to put back
+[00:40:49] or how to set the pre-training mix.
+[00:40:52] The reason why you don't just make pre-training high quality
+[00:40:54] is you just don't have enough tokens.
+[00:40:56] You'll run out of tokens if you try to make Wikipedia
+[00:40:58] your whole pretrained.
+[00:41:00] Is there any intuition based on the information you get from,
+[00:41:04] I guess, how good the [INAUDIBLE] performance was
+[00:41:06] with your prior mixture.
+[00:41:07] Is there any intuition with how those are--
+[00:41:10] how it's adjusted, I guess?
+[00:41:14] That's very case by case of how you
+[00:41:17] go from downstream deltas on ablations to mixes.
+[00:41:20] There are systematic ways you can
+[00:41:22] fit models and do these things, but they're often brittle.
+[00:41:24] What I've heard from people is that actually, it's
+[00:41:26] much more trial and error than you think.
+[00:41:28] You ablate a domain, you make rankings
+[00:41:30] over which ablations had the most impact,
+[00:41:33] and then you decide what to put in.
+[00:41:35] Actually, a good example of this, a fun example
+[00:41:38] of this, that's been leaked is when
+[00:41:40] Meta got sued for using Books.
+[00:41:44] In the court documents, there's actually
+[00:41:45] a bunch of documents showing some researchers
+[00:41:48] doing ablations and trying to estimate,
+[00:41:50] how useful are each of these Book subsets.
+[00:41:52] And so that's exactly the kinds of things that happen.
+[00:41:55] And then ultimately, they'll decide based
+[00:41:56] on that what the mixes are.
+[00:41:59] Cool.
+[00:41:59] OK.
+[00:42:01] So now, we're done with SFT.
+[00:42:04] The algorithm part was very short.
+[00:42:06] And now we get to talk about RLHF.
+[00:42:07] So this is the second phase.
+[00:42:09] We're done with doing supervised fine tuning.
+[00:42:11] Now, we're going to do something very
+[00:42:12] different from pre-training, where we're just
+[00:42:14] going to upweight or downweight different model outputs based
+[00:42:17] on how a rater, or in some cases, a reward
+[00:42:20] model decides how good these responses are.
+[00:42:24] And before we get into algorithms and stuff,
+[00:42:27] I do want to pause for one moment on this slide
+[00:42:29] and talk about a conceptual difference
+[00:42:31] that I think is actually quite important.
+[00:42:33] Maybe it's less important for people
+[00:42:35] that weren't originally coming from StatML background
+[00:42:39] and so on.
+[00:42:39] But I think there is actually a very different way
+[00:42:42] of thinking about SFT or even pre-training and RLHF.
+[00:42:46] So in pre-training, what are we doing?
+[00:42:48] We're doing generative modeling of some sequence.
+[00:42:51] So you have a collection of sequences
+[00:42:52] and you're trying to predict the next word.
+[00:42:54] SFT is also the same.
+[00:42:55] You've changed the distribution, but you're
+[00:42:57] predicting the next word.
+[00:42:59] So you can think about this using your generative modeling
+[00:43:01] brain.
+[00:43:02] This is purely a generative modeling problem.
+[00:43:05] And then you're just going to fit some distribution.
+[00:43:07] Now once we get to the second part, the RLHF,
+[00:43:09] we are no longer playing a fit a distribution game.
+[00:43:13] We are fitting a maximize a reward game.
+[00:43:15] So what we want is we want to find some distribution.
+[00:43:19] We still have a distribution.
+[00:43:21] This is a policy now.
+[00:43:22] Such that this policy is going to maximize
+[00:43:24] some downstream reward.
+[00:43:25] And maybe that reward is something how long your users
+[00:43:28] are engaged on your platform.
+[00:43:30] Maybe that reward is like what math problems you can solve,
+[00:43:33] but there's some of reward.
+[00:43:34] And I don't care if I've mimicked some distribution.
+[00:43:37] And this is conceptually very different
+[00:43:39] because now, in the second world,
+[00:43:41] I can totally collapse out my distribution onto a single point
+[00:43:43] for every input.
+[00:43:44] So for every prompt, my model could have a single answer, not
+[00:43:48] a distribution.
+[00:43:49] And that would be OK, as long as it got a good reward.
+[00:43:51] So that's a big important conceptual distinction
+[00:43:55] to keep in your mind.
+[00:43:57] And I wanted to highlight it before we get
+[00:43:58] into some of the later bits.
+[00:44:01] OK.
+[00:44:01] So now, why do we want to do this thing of doing
+[00:44:07] reinforcement learning?
+[00:44:09] We could just say, why don't you forever go and collect SFT data?
+[00:44:15] Well, I think one thing that is important for thinking about RL
+[00:44:18] is when we try to optimize what humans want,
+[00:44:22] there is sometimes a big difference in what they say they
+[00:44:25] want and what they generate.
+[00:44:27] And that's one thing that we found in the past study.
+[00:44:30] I put this here because I find this so funny,
+[00:44:32] even though it's a little bit old now.
+[00:44:34] We asked a bunch of freelance writers
+[00:44:36] to summarize news documents.
+[00:44:39] And we found that a few annotators actually
+[00:44:42] preferred Instruct Davinci, which
+[00:44:44] was the predecessor to ChatGPT, over their own writing.
+[00:44:49] And that was very strange.
+[00:44:50] And we were like, are these guys actually doing annotation?
+[00:44:52] So we interviewed them, and we asked
+[00:44:53] them like, why did you like the AI
+[00:44:56] outputs over your own writing?
+[00:44:57] And they said, well, I looked at it
+[00:45:00] and I thought, actually, this is pretty good stuff.
+[00:45:02] And so it turned out that, they're writers, they're good,
+[00:45:05] they're good at writing.
+[00:45:06] Their summaries are high quality.
+[00:45:07] We check it for quality.
+[00:45:09] But actually, when they looked at it,
+[00:45:11] they were like, I didn't realize that's actually
+[00:45:13] a better way of doing it.
+[00:45:14] So people aren't really these optimal systems.
+[00:45:16] And so when they judge things, it's actually different.
+[00:45:19] And so because of this gap, sometimes
+[00:45:20] you might want to rate outputs rather than just
+[00:45:23] to generate demonstrations.
+[00:45:25] Another reason is that in some domains,
+[00:45:29] verification is a lot easier than generation.
+[00:45:31] Math, which I'll talk about more next lecture,
+[00:45:35] is a prime example of this, where verifying a proof
+[00:45:39] is probably much easier than generating the proof.
+[00:45:41] And folks like DeepSeek have gone down
+[00:45:43] that path for self-verification using models.
+[00:45:46] That's another place, where this idea
+[00:45:49] of having reinforcement learning and judging yourself
+[00:45:52] is a good idea.
+[00:45:54] OK.
+[00:45:55] I'm not going to cover what people call RLVR today.
+[00:45:58] That's its own universe.
+[00:45:59] It's going to be an entire lecture next time.
+[00:46:01] I'll talk about the exciting promises of reasoning models.
+[00:46:05] But today, I'm going to talk about RLHF.
+[00:46:08] In RLHF, we'll have different components.
+[00:46:10] And I'm going to talk about data, how do we collect it.
+[00:46:13] And then I'm going to talk about algorithms,
+[00:46:15] how do we actually do it.
+[00:46:16] And I'll talk about two major families of algorithms
+[00:46:19] before talking about maybe some pitfalls at the very end.
+[00:46:22] OK.
+[00:46:23] Good.
+[00:46:24] So in RLHF, the high level way that we do things is now we
+[00:46:28] have a good model after SFT.
+[00:46:29] It follows some instructions.
+[00:46:31] We now put prompts into the model.
+[00:46:33] The model is going to generate a couple of different outputs.
+[00:46:35] And we usually do this by just sampling with temperature one.
+[00:46:38] At the end of SFT, the model is pretty diverse,
+[00:46:40] so this is a reasonable thing to do.
+[00:46:42] A rater comes in and rates all of the examples
+[00:46:45] and provides a ranking over the examples.
+[00:46:48] Sometimes, even a binary ranking.
+[00:46:49] And then a model is going to be trained on those rankings.
+[00:46:53] And we're going to use standard reinforcement learning
+[00:46:55] techniques to maximize the score that we get on that reward
+[00:46:59] model.
+[00:47:00] And we go through the reward model
+[00:47:02] because it might be easier to train a verifier
+[00:47:05] than to train a model that does well directly.
+[00:47:07] OK.
+[00:47:08] So how do we get data for this thing?
+[00:47:11] As I said before, the general way in which we do this
+[00:47:14] is to get pairwise ratings.
+[00:47:15] And so you're going to have an interface like this, where
+[00:47:18] you have a couple AI responses and you're
+[00:47:20] going to give a response saying response one or two is better.
+[00:47:23] This is just a standard annotation interface
+[00:47:25] that I've gone and found, but most places have similar things.
+[00:47:30] We can now look at what an actual company would do in order
+[00:47:34] to do this.
+[00:47:35] It's not that different, although they have some nuances.
+[00:47:38] If you want to go and really read up on this,
+[00:47:40] I would suggest you look at the InstructGPT appendix.
+[00:47:43] It's the last point at which we have a glimpse
+[00:47:46] into data collection processes from industry.
+[00:47:50] And so at least in the InstructGPT case, they say,
+[00:47:53] OK, we want you to rate these outputs
+[00:47:55] for being helpful, truthful, and harmless.
+[00:47:57] So they have to balance three things.
+[00:47:59] Helpfulness is how clear the writing is,
+[00:48:01] or being sensitive to internationality,
+[00:48:04] or not giving overly long answers.
+[00:48:06] You want to be truthful, so don't hallucinate.
+[00:48:08] And then harmless, if it's unsafe,
+[00:48:10] we want you to say that-- or we want
+[00:48:13] you to upweight things that are refusing to respond
+[00:48:17] to questionable prompts.
+[00:48:18] So this makes sense as an omnibus objective
+[00:48:21] for training chatbots.
+[00:48:24] Another very similar example that I found
+[00:48:28] is, this is, I think, the only other example of a closed source
+[00:48:33] lab annotation being out in the public.
+[00:48:37] This one is for Google Bard.
+[00:48:38] So that was quite a while ago, but their annotations
+[00:48:41] got leaked by some annotators.
+[00:48:43] And you can see they have a very similar structure
+[00:48:45] of saying, we want helpfulness, we want the presentation
+[00:48:48] of the response to be good.
+[00:48:49] And actually, their rating in a Likert scale
+[00:48:51] rather than pairwise feedback, but they
+[00:48:54] have a very similar structure.
+[00:48:56] It's not a very super long set of instructions,
+[00:48:58] but you get the sense what kinds of things are included,
+[00:49:01] like don't contain inaccurate information
+[00:49:04] or be coherent and be easy to consume, so short for the user
+[00:49:09] to read.
+[00:49:12] Things have changed quite a bit since then.
+[00:49:15] There are a couple of different surveys of annotators.
+[00:49:19] I think the high level thing that I'll
+[00:49:21] say before going through the next two slides
+[00:49:23] is, in general, I think the worker
+[00:49:25] distribution for annotation has shifted
+[00:49:27] upwards, more towards experts, more towards higher cost.
+[00:49:31] And we see that in compensation and things like this.
+[00:49:34] So if you look at the education level of data annotators,
+[00:49:38] this is for one of ScaleAI's platforms.
+[00:49:40] So it's not representative of the full space of data
+[00:49:43] annotators for language models.
+[00:49:45] But this is probably a reasonable subset of those.
+[00:49:49] The majority, or a large fraction of them,
+[00:49:52] are bachelor's degrees or master's holders.
+[00:49:54] So that's like 70% some of these annotators.
+[00:49:57] And the age is something like 35 is the modal age.
+[00:50:02] And the task that they're doing are
+[00:50:03] often like creative writing and technical writing and so on,
+[00:50:08] are often the tasks that these annotators end up performing.
+[00:50:13] This is one step towards experts, but I think even more,
+[00:50:16] there's been a growth in the last year or two
+[00:50:19] in bespoke annotators.
+[00:50:21] And I think this is because a lot of the labs
+[00:50:22] are now pushing into deploying these systems
+[00:50:25] in actual white collar jobs.
+[00:50:28] And so you want doctors, you want lawyers,
+[00:50:30] you want these people to annotate the responses.
+[00:50:32] You want them to give SFT data.
+[00:50:35] And so there are these projects that
+[00:50:37] are internal to these companies like OpenAI,
+[00:50:40] where annotators are being paid a pretty decent wage per hour
+[00:50:45] to do these annotations.
+[00:50:47] And so if you look at the median wages,
+[00:50:49] they're above $50 across a range of different topics.
+[00:50:53] But if you look at the experts, some of these experts
+[00:50:55] are being paid more than $100 per hour to do annotation work.
+[00:51:01] And so I think this is to say, if your mental model
+[00:51:04] of an annotator was low cost pairwise feedback
+[00:51:08] from somewhere overseas, that's not really the full picture.
+[00:51:11] There's a lot of annotation happening right now that's
+[00:51:14] very bespoke, very expensive, but it's kind of also a pyramid.
+[00:51:17] It's not like that lower cost scalable
+[00:51:20] annotation has gone away.
+[00:51:21] OK.
+[00:51:24] And to emphasize this point to you, getting this kind of data
+[00:51:29] is actually very challenging.
+[00:51:31] That's why the pay is high.
+[00:51:32] That's why there's so many data collection startups.
+[00:51:34] I think the hard challenges now is
+[00:51:37] getting verifiable annotators, especially ones where you're
+[00:51:41] sure that they're not using AI.
+[00:51:43] If you all have done survey research, or crowdsourcing
+[00:51:46] recently, I'm sure you found that people are using ChatGPT
+[00:51:50] as part of their survey responses
+[00:51:52] or as part of their annotation workloads.
+[00:51:53] Basically, preventing people from doing
+[00:51:55] this is extremely, extremely difficult. It's
+[00:51:57] also very difficult to get truly correct responses
+[00:52:00] when people are under time pressure.
+[00:52:03] For example, that Google Bard example
+[00:52:05] that was part of, I think, some labor dispute where
+[00:52:09] the annotators for Google Bard were saying,
+[00:52:11] we have to check the correctness of these long chat responses
+[00:52:14] in under a minute.
+[00:52:15] It's impossible for us to do that.
+[00:52:17] There's no way that we can actually
+[00:52:18] follow these instructions.
+[00:52:23] And to add, there's a growing amount of expert data
+[00:52:27] collection, but there's also a very large amount, still,
+[00:52:31] of low paid annotation groups.
+[00:52:36] ScaleAI, I think, did quite a bit of this initially.
+[00:52:39] I don't know if they still do, where
+[00:52:41] they outsourced a lot of this low cost annotation
+[00:52:44] and got into quite a bit of trouble.
+[00:52:46] And so in the same way that I guess the modern economy has
+[00:52:48] this bifurcation in terms of high and low wage jobs,
+[00:52:52] we see the same thing with annotations as well.
+[00:52:58] The final thing I want to talk about in terms of annotators
+[00:53:01] is demographics.
+[00:53:03] One thing that's quite important is
+[00:53:04] that annotators have a surprising amount of influence
+[00:53:07] over what the model does.
+[00:53:09] So post-training comes at the end.
+[00:53:11] And it's, in some sense, the final shaping step of the model
+[00:53:14] before it gets shipped out.
+[00:53:16] So if you're not really precise with how the annotators steer
+[00:53:20] the model, and your annotation groups have biases,
+[00:53:24] you can actually end up getting some pretty surprising behavior.
+[00:53:28] So one of the studies that we did
+[00:53:30] in the early days of instruction tuning
+[00:53:33] with one of my postdocs, between Percy and I,
+[00:53:36] was that we looked at essentially
+[00:53:39] which kinds of ideological opinions
+[00:53:42] language models were more aligned to.
+[00:53:43] And we did this by asking standard opinion, poll questions
+[00:53:46] to language models, and seeing which human demographics they
+[00:53:50] were closest to.
+[00:53:51] And so what you find-- or what we found
+[00:53:54] is that base models of various kinds
+[00:53:56] were kind of similar to Protestants or Roman Catholic
+[00:53:58] opinions, and far from Buddhist or Hindu ones.
+[00:54:03] And then what we found is that if you post-train
+[00:54:07] these models, so the three right columns,
+[00:54:09] you find that they're more different from Protestants
+[00:54:12] and Roman Catholics, and becomes more similar to Buddhist,
+[00:54:16] Hindus, and atheists in terms of the kinds of opinions
+[00:54:19] that they give.
+[00:54:20] And we're like, that's really strange.
+[00:54:22] Why these three groups?
+[00:54:23] It turns out, if you look at the appendix of the InstructGPT
+[00:54:27] paper, you find the annotators, who
+[00:54:30] were annotating for these models,
+[00:54:31] and they line up, like a lot of Southeast Asians,
+[00:54:35] and also people in the West Coast of America.
+[00:54:38] And that's roughly the demographic groups corresponding
+[00:54:41] to these.
+[00:54:43] You also find, I guess, another added note in the recent years,
+[00:54:47] there's been a lot of findings that very subtle biases
+[00:54:50] can transmit through data.
+[00:54:52] So one example of this is something
+[00:54:53] called emergent misalignment.
+[00:54:55] If you have a piece of data trained from a model
+[00:54:58] or generated from a model, that's been trained to say like,
+[00:55:01] I like owls or something, and you train on
+[00:55:03] that innocuous looking data, the model trained on it
+[00:55:06] will actually inherit a preference for owls.
+[00:55:08] And so there's all these weird kinds of subliminal transfer
+[00:55:11] effects that can happen with data
+[00:55:13] that are quite hard to catch.
+[00:55:15] And so that's one thing to be really,
+[00:55:16] really quite careful about.
+[00:55:19] And this is true, more generally.
+[00:55:20] I think this whole study of LLM political opinions
+[00:55:23] and so on can be quite fragile and sketchy at times.
+[00:55:27] But the annotator distribution and who your annotators are also
+[00:55:31] matters quite a bit for the different kinds more
+[00:55:35] material errors that your model might make.
+[00:55:38] So this is a study that's quite nice by Hosking, et al,
+[00:55:41] where they studied like if I get really
+[00:55:43] expert annotators, like people who really care about doing
+[00:55:46] the job right, versus random collection of crowdworkers,
+[00:55:51] how do their annotations differ?
+[00:55:52] And they show very nice, striking results
+[00:55:55] that people who are just non-expert annotators, that
+[00:55:58] are just kind of paid on a platform
+[00:56:00] really like to emphasize formatting effects, which
+[00:56:03] is this row over here.
+[00:56:04] You see, it's red.
+[00:56:05] It's over enriched in these non-expert annotators.
+[00:56:08] On the other hand, things like factuality or inconsistency
+[00:56:11] are things that are much more emphasized than the expert
+[00:56:15] annotators.
+[00:56:15] Of course, it's much, much harder to test for factuality,
+[00:56:18] and so it's no surprise that if you don't have experts,
+[00:56:22] you don't actually end up checking for these.
+[00:56:24] This is another way in which your distribution of annotators
+[00:56:27] ends up mattering, not demographic, but here,
+[00:56:30] how much they care and what their expertise is.
+[00:56:34] It's been shown for a while now that because of all these-- oh,
+[00:56:37] was there a question?
+[00:56:38] Yeah.
+[00:56:38] I was going to ask how do you measure quality and [INAUDIBLE]?
+[00:56:43] What are the [INAUDIBLE] to be higher quality than another?
+[00:56:48] Yeah.
+[00:56:49] So the question was, what does it mean for one annotator
+[00:56:51] to be higher quality than another?
+[00:56:53] I think there's no gold standard rule where you can mechanically
+[00:56:57] turn the crank and be are a good annotator.
+[00:56:59] I think, I'll maybe give two different kinds of answers.
+[00:57:02] One of them is a sufficiently-detailed annotation
+[00:57:04] guideline should hopefully be semi objective.
+[00:57:07] You will say, it should be factual.
+[00:57:10] And then you'll define what factuality is.
+[00:57:12] And then you might even have objective criteria.
+[00:57:13] Like in the first three pages of the Google search,
+[00:57:15] you don't find anything that contradicts it.
+[00:57:17] And if you can find something that
+[00:57:19] doesn't follow the guideline, you
+[00:57:20] can be like, yes, you're not following the rule.
+[00:57:22] That's one notion of a good annotator.
+[00:57:24] The other notion of a good annotator
+[00:57:26] is inter-annotator agreement.
+[00:57:29] And that's a statement about a population of annotators,
+[00:57:31] whether they have high variance or not.
+[00:57:33] I think the only issue with that is it doesn't tell you
+[00:57:35] what the bias is.
+[00:57:36] It tells you the variance.
+[00:57:37] And some tasks inherently have variance.
+[00:57:40] If you're asking do you like this, that's
+[00:57:42] a task with lots of variance.
+[00:57:43] So inter-annotator agreement is not useful.
+[00:57:46] If you're asking, is it factual, maybe it should be lower.
+[00:57:48] But even if it's zero, if you've asked the right question.
+[00:57:51] Or if they're all using ChatGPT, the variance will also be zero.
+[00:57:55] So it's very hard to assess quality
+[00:57:57] even though there's ways of maybe getting at that question.
+[00:58:00] So is the reason you're seeing annotators or companies starting
+[00:58:05] to recruit more experts, or how we educated people
+[00:58:09] to be annotators because they give somewhat higher quality
+[00:58:13] or more lower grade on answers?
+[00:58:17] Or is it because the data that you're collecting
+[00:58:19] is just something that only these people can answer?
+[00:58:23] I think it's more of the latter.
+[00:58:25] Maybe you need a lawyer to check if a Blue Book
+[00:58:28] annotation is correct.
+[00:58:29] You need to be relatively well trained to be able to do that.
+[00:58:33] And there's also tacit knowledge of various kinds
+[00:58:36] that maybe you want to extract.
+[00:58:37] So that's one of the reasons.
+[00:58:39] It is true that I think, in general, the platforms are
+[00:58:41] moving more towards higher quality annotators,
+[00:58:43] even for general annotation tasks.
+[00:58:45] I think a big part of this is because LLMs have gotten good,
+[00:58:49] and if you don't like in-person supervised people,
+[00:58:52] they will use the cheapest LLM to generate
+[00:58:55] plausible-looking answers.
+[00:58:58] And so I think there's a lot of annotator shops
+[00:59:00] whose value proposition is basically
+[00:59:02] like we have real people that do real things,
+[00:59:04] and we will verify that this is true for you.
+[00:59:07] Cool.
+[00:59:08] OK.
+[00:59:08] Yeah.
+[00:59:09] What's the largest problem-- and I hear
+[00:59:12] you might be getting to this.
+[00:59:13] What's the largest problem using a domain-specific model
+[00:59:19] as an annotator?
+[00:59:20] So the question was, what's the problem
+[00:59:22] with using domain-specific models as an annotator?
+[00:59:24] I guess, there's two separate questions there.
+[00:59:27] One is like are domain-specific models good?
+[00:59:28] And then the other question is like should we
+[00:59:30] use models to annotate data?
+[00:59:32] Model-based data annotation is quite good.
+[00:59:35] If you're not at the frontier, and what
+[00:59:37] you want to do is basically catch up to the frontier,
+[00:59:39] model-based annotation is very, very good.
+[00:59:42] Modern models are probably much, much better
+[00:59:44] than random crowd worker you can get.
+[00:59:47] And so model-based annotations, good idea.
+[00:59:50] Now, domain-specific models, well,
+[00:59:52] can you get domain-specific models that are better
+[00:59:54] than the strongest open models?
+[00:59:56] Sometimes, quite difficult. And so for that reason,
+[00:59:59] I don't think there's a unique advantage, for example,
+[01:00:01] to annotating with domain-specific models.
+[01:00:03] In general, model-based annotations are a good idea.
+[01:00:08] OK.
+[01:00:08] So I didn't plant that question, but we
+[01:00:10] are moving towards model-based annotations now.
+[01:00:15] If you look at LLM-generated annotations of various kinds,
+[01:00:18] you will find that these models are surprisingly good.
+[01:00:22] When GPT-4 came out, some of my students and I
+[01:00:25] did comparisons between GPT-4's annotations,
+[01:00:28] and carefully curated human annotations.
+[01:00:31] And if you compare the rankings of systems, they're pretty good.
+[01:00:34] If you compare the agreement between humans
+[01:00:37] to models, the mode of humans to models, they're pretty good.
+[01:00:42] And their cost is an order of magnitude less.
+[01:00:44] So that's all nice and good.
+[01:00:46] And at the time, when we initially
+[01:00:48] did this, back in the GPT-4 era, it
+[01:00:51] was still not clear which way things were
+[01:00:53] going to go, like in the open world,
+[01:00:55] for example, where are we going to move
+[01:00:56] towards expensive human annotation,
+[01:00:59] or will everything just become, in some ways, distillation
+[01:01:02] from stronger models.
+[01:01:04] I think at this point, it's been enough years
+[01:01:06] that we know the answer, which is there's basically
+[01:01:10] no space for human collected data if all you want to do
+[01:01:16] is to catch up to the frontier and capabilities.
+[01:01:19] I think one of the things that I found
+[01:01:21] very interesting at the time and instructive is Huggingface
+[01:01:25] was trying to build an open source model called Zephyr.
+[01:01:28] And one of the things that they really wanted to do at the time
+[01:01:31] was to not do any model distillation.
+[01:01:33] And so they said, well, we're not
+[01:01:34] going to use any model-based annotations or model-based data,
+[01:01:38] and we're going to spend a lot of time and effort
+[01:01:40] collecting human data.
+[01:01:41] So they went to the same vendors that OpenAI and others
+[01:01:44] do to basically go and collect a bunch of human data.
+[01:01:47] But basically, they found that it was extremely time-consuming,
+[01:01:51] costly, and the results they were getting
+[01:01:53] were not actually better than using model-based annotations.
+[01:01:56] And so in the end, they basically
+[01:01:58] just used model-based feedback for this,
+[01:02:01] which I think is instructive.
+[01:02:03] They gave it a very real good shot
+[01:02:05] using the resources that they had.
+[01:02:08] But in the end, they ended up using AI feedback.
+[01:02:11] And this has basically been the case.
+[01:02:12] So for SFT, and also for RLHF, we
+[01:02:16] find that UltraChat and UltraFeedback,
+[01:02:19] which are model-generated are now very standard.
+[01:02:22] Tulu3, which I mentioned as one of the big, almost
+[01:02:25] flagship, open source post-training processes,
+[01:02:29] uses model-based annotations for all of its pipeline.
+[01:02:34] And so this is basically where we've
+[01:02:35] ended up in terms of should we use
+[01:02:39] model-based annotations or not.
+[01:02:41] Models are very good at following instructions,
+[01:02:43] very scalable.
+[01:02:44] So you can collect the right kinds of data that you want.
+[01:02:46] And this is roughly where things are.
+[01:02:49] Of course, if you want to push the frontier out,
+[01:02:51] you don't get to necessarily play
+[01:02:52] these games, except in limited circumstances.
+[01:02:55] And so you're still very much reliant on human-driven data
+[01:02:58] collection.
+[01:03:01] OK.
+[01:03:02] Yeah.
+[01:03:02] [INAUDIBLE] example.
+[01:03:06] What is the [INAUDIBLE] model [INAUDIBLE]
+[01:03:09] because 70 is [INAUDIBLE] very small.
+[01:03:12] Well, 70 is small now.
+[01:03:14] I guess, at the time, I guess, 70
+[01:03:17] was a very respectable open source model.
+[01:03:19] It's like Llama is a 7B.
+[01:03:21] Everyone loves Llama 7B.
+[01:03:22] We too would like to train a 7B.
+[01:03:24] And so in that sense, it was respectable.
+[01:03:27] I don't know if they went and tried it for their bigger runs,
+[01:03:31] but at least, at that scale, they
+[01:03:32] weren't seeing any differences.
+[01:03:34] I would be very surprised if they switched to the bigger one,
+[01:03:37] and suddenly there was a big difference.
+[01:03:39] Cool.
+[01:03:40] OK.
+[01:03:41] There are other places where you might do model generation that
+[01:03:45] is not purely distillation.
+[01:03:47] Anthropic had an early work on self-training.
+[01:03:49] This was Constitutional AI, where they kind of prompted
+[01:03:51] a model to generate safety data, and then
+[01:03:54] they trained the model itself on that prompted data.
+[01:03:58] And that allowed them to get a safer model out of the model.
+[01:04:01] And you can think of this as a very early self post-training
+[01:04:05] data generation loop.
+[01:04:06] And the other paper-- sorry, the other project
+[01:04:09] that I mentioned to you of a self instruct, that's
+[01:04:11] a different kind of capability centric version
+[01:04:14] of this kind of idea.
+[01:04:15] So you can use models to bootstrap
+[01:04:17] your own post-training data.
+[01:04:18] But if you want something like lawyers or scientists,
+[01:04:21] you can't get world knowledge without getting people
+[01:04:25] to annotate.
+[01:04:26] So you're kind of stuck, at least,
+[01:04:27] for that, with collecting human annotators.
+[01:04:31] The other thing I'll mention is that models are also
+[01:04:34] very susceptible to the same kinds of biases
+[01:04:36] as humans, sometimes in ways that are quite problematic as
+[01:04:41] well, even more problematic.
+[01:04:42] There's been a couple studies, after this kind of wave of model
+[01:04:47] generated data, stuff started coming out,
+[01:04:49] showing that actually you could just push length
+[01:04:52] of your responses way out.
+[01:04:55] And you would continue to get improvements
+[01:04:57] in the win rates of model-judged performance.
+[01:05:02] And if you look, the one outlier here
+[01:05:05] is ChatGPT 3.5, basically saying,
+[01:05:08] well, they're not just length hacking,
+[01:05:09] they're actually a model that is actually better.
+[01:05:12] Similarly, others showed-- this was a very nice paper showing
+[01:05:17] that you can just RLHF on length alone,
+[01:05:19] and you could do quite well on many of these benchmarks.
+[01:05:23] So that's roughly the data story.
+[01:05:27] Who's collecting the data?
+[01:05:29] What kinds of things to be conscious of?
+[01:05:31] And then now in the remaining time that I have,
+[01:05:33] I'm going to talk about the algorithm.
+[01:05:36] I'm only going to briefly talk about PPO
+[01:05:38] because both in the interest of time
+[01:05:40] and because I'm just going to do a more extended treatment next
+[01:05:43] lecture.
+[01:05:44] And then I'll talk a little bit about DPO,
+[01:05:45] which is the cool fun bit.
+[01:05:47] OK.
+[01:05:48] So now, remember, we're in the RLHF regime.
+[01:05:52] The goal is the following.
+[01:05:53] I'm going to maximize, under my policy, the reward
+[01:05:57] that I get by sampling from that policy.
+[01:05:59] And this is like baby reinforcement learning.
+[01:06:01] Because people might say we're playing bandits.
+[01:06:04] This is not true multi-turn interesting RL.
+[01:06:06] And that's roughly right.
+[01:06:07] And so our algorithms will also be quite simple.
+[01:06:11] So the objective that I just showed you, maximize reward,
+[01:06:14] it appears almost exactly in the InstructGPT paper.
+[01:06:18] If you look at--
+[01:06:19] open the paper up, and you go to equation 2,
+[01:06:21] you'll find exactly the kind of thing I wrote down,
+[01:06:23] where you sample from your RL policy,
+[01:06:26] I want to maximize my reward, subject to this second term,
+[01:06:30] which is really just a KL divergence.
+[01:06:32] All that it's saying is I want to stay
+[01:06:34] close to my pre-trained model because I
+[01:06:36] don't want to go too far and become degenerate.
+[01:06:40] Same thing is true from Stiennon, et al.
+[01:06:43] This is another paper.
+[01:06:45] You see, the reward in this case is a pairwise feedback model
+[01:06:48] that you've learned.
+[01:06:49] So you train a binary classifier on which of a pair of examples
+[01:06:53] is better.
+[01:06:54] And then you hill climb on that reward.
+[01:06:56] So very simple structure that we have.
+[01:06:58] Now, how do we actually do that hill climbing?
+[01:07:01] We use an algorithm called PPO.
+[01:07:03] If you've taken RL class, you, of course, know what PPO is.
+[01:07:06] If you haven't, I will give you a baby description
+[01:07:09] of what PPO is.
+[01:07:10] Also, you'll have to understand it for the assignment.
+[01:07:14] So the very basic starting point is the policy gradient identity.
+[01:07:18] What I want to do is I want to maximize my reward
+[01:07:21] sampling from my policy.
+[01:07:22] How do I optimize that?
+[01:07:23] Well, everything in machine learning is gradient descent.
+[01:07:26] So I take gradients.
+[01:07:27] So I want the gradient with respect to my parameters.
+[01:07:30] And you can push the gradient in and do the policy gradient
+[01:07:33] trick.
+[01:07:33] And you can show that that's equivalent to the equation
+[01:07:36] on the right.
+[01:07:36] So I'm just going to take the gradient of my log probabilities
+[01:07:39] and weigh it by my rewards.
+[01:07:41] And this really just looks like SFT, but with weighted examples,
+[01:07:46] effectively.
+[01:07:47] Now, you might say, OK, policy gradients are great.
+[01:07:50] I love policy gradients, but the problem with policy gradients
+[01:07:53] is I need to sample every time I want
+[01:07:55] to take an optimization step.
+[01:07:57] And sampling is very expensive.
+[01:07:58] We've already talked about in the systems parts,
+[01:08:00] inference is often very complicated and hard,
+[01:08:03] whereas training is very arithmetically intense and good.
+[01:08:06] And so I want to roll out once, and I
+[01:08:08] want to reuse that rollout multiple times.
+[01:08:11] So this is something called off-policy.
+[01:08:13] To do off-policy, I want to take multiple steps
+[01:08:16] but not go too far.
+[01:08:18] Because if I go too far, my estimates of my local
+[01:08:21] rewards kind of blow up.
+[01:08:22] So this is something called TRPO.
+[01:08:24] The basic idea is I want to take policy gradients,
+[01:08:27] but I want to stay a little bit close to where
+[01:08:29] I am while you do something called an importance weighting
+[01:08:31] correction.
+[01:08:32] I'm not going to go into that in detail.
+[01:08:33] Finally, PPO says, well, TRPO is a good idea,
+[01:08:37] but this distance constraint is actually
+[01:08:39] kind of hard to deal with.
+[01:08:41] And so I'm going to come up with a heuristic clipping
+[01:08:43] thing that's just going to discourage the RL
+[01:08:45] algorithm from going to places where I'm too
+[01:08:49] far from the original policy.
+[01:08:50] I'll go through the details of this in the next lecture.
+[01:08:54] So you don't need to worry about it.
+[01:08:55] But the main progression of policy
+[01:08:56] gradient off-policy, you end up at PPO.
+[01:08:59] Hopefully, you roughly understand.
+[01:09:03] PPO, already, the equations look a little bit gnarly.
+[01:09:06] And so a lot of people for many years
+[01:09:08] have asked the following question.
+[01:09:10] Can we get rid of PPO?
+[01:09:11] And this was a big thing for many people.
+[01:09:15] And many reasonable people thought
+[01:09:17] about lots of good ways of getting rid of PPO.
+[01:09:19] And I will tell them to you so that you do not necessarily
+[01:09:21] repeat them in your own research.
+[01:09:24] For example, you can say, I have a pair of examples,
+[01:09:27] and I can do SFT, but with a special kind of SFT.
+[01:09:30] For the pair that's good, I will prepend a good token.
+[01:09:34] And for the example that's bad, I'm
+[01:09:35] going to prepend a bad token.
+[01:09:37] So you're going to append some tokens.
+[01:09:39] And then when I generate, I'm just
+[01:09:40] going to prefix my response with good so my model only
+[01:09:43] generates good stuff.
+[01:09:44] So this is reducing PPO to SFT or RL to SFT.
+[01:09:47] It does not work.
+[01:09:49] People have tried training the model only on the good stuff.
+[01:09:52] Also does not work very well.
+[01:09:54] You can train the reward model, get LLM outputs,
+[01:09:57] select only the stuff that the reward model selects
+[01:09:59] and train on them.
+[01:10:00] That does not work as well, although it does somewhat work.
+[01:10:04] So many people have tried, many different iterations.
+[01:10:07] And in the end, we do now have a thing
+[01:10:11] that is much less complex than PPO, works pretty well.
+[01:10:15] And is, in many ways, looks just like SFT.
+[01:10:18] And this is DPO.
+[01:10:20] And so the algorithm is very, very simple.
+[01:10:22] What we're going to do is we're going
+[01:10:24] to try to get rid of the complicated parts of PPO.
+[01:10:26] What are we going to get rid of?
+[01:10:27] We're going to get rid of the reward model.
+[01:10:29] We're going to get rid of anything that
+[01:10:31] has to do with on-policy stuff.
+[01:10:32] And by getting rid of these two things,
+[01:10:34] we're going to try to make a much more simple RLHF algorithm.
+[01:10:39] And it relies on a very simple intuition.
+[01:10:42] Everything in deep learning is just
+[01:10:44] taking gradient steps in the direction of good things.
+[01:10:47] And so we're going to take steps in the direction of the log
+[01:10:50] loss of the good stuff.
+[01:10:51] And then we will take negative gradient steps
+[01:10:53] on the direction of the bad stuff.
+[01:10:55] In other words, we're going to reverse for the log probability
+[01:10:59] of anything that is bad.
+[01:11:01] This is basically the most naive thing you can do.
+[01:11:03] Because you're doing SFT on one hand,
+[01:11:05] and you're doing kind of negative SFT on the bad thing.
+[01:11:09] It turns out that if you wait these two appropriately,
+[01:11:11] you will get an algorithm that is actually pretty good.
+[01:11:14] And I'll give you the derivation because it's all very simple.
+[01:11:18] So remember, our goal is to optimize this equation over
+[01:11:21] here.
+[01:11:22] So this should look familiar to you.
+[01:11:23] The first term is my expected reward under my policy pi theta.
+[01:11:27] The second term is saying that's my KL distance.
+[01:11:29] I want my policy to remain close to my reference.
+[01:11:33] That's what I pretrain.
+[01:11:35] Now, I'm going to make a assumption.
+[01:11:37] This is the one strong assumption
+[01:11:39] that I'm going to make.
+[01:11:40] And I'm going to assume that pi, my policy,
+[01:11:43] is actually not a neural network at all.
+[01:11:45] It is the set of all possible policies.
+[01:11:47] It is a nonparametric thing.
+[01:11:48] It can approximate anything.
+[01:11:50] So if pi can be anything, I can actually
+[01:11:53] solve that top problem closed form.
+[01:11:55] I actually know what the minimizer is.
+[01:11:58] And the minimizer is the following.
+[01:12:01] The minimizer is actually to take my original reference
+[01:12:05] policy, and to exponentially tilt it by my reward.
+[01:12:08] In other words, every response gets upweighted or downweighted
+[01:12:13] with a weight, x of 1 over beta r
+[01:12:16] based on how good the reward is.
+[01:12:18] This makes a lot of sense.
+[01:12:19] If the reward is really bad, I'm going
+[01:12:20] to exponentially downweight.
+[01:12:21] If the reward is really good, I'm
+[01:12:22] going to exponentially upweight it.
+[01:12:24] So this is the closed form solution if pi can be anything.
+[01:12:27] Now, we can then--
+[01:12:29] now that this pi of r, this perfect solution,
+[01:12:33] I can solve for the implied reward.
+[01:12:35] In other words, I can solve for what is
+[01:12:37] the r that would induce this.
+[01:12:40] And so I can solve for that.
+[01:12:41] I can put the pi on the left side,
+[01:12:43] and I can solve for the reward that we would have.
+[01:12:48] And then we can take that implied reward
+[01:12:51] that I wrote down.
+[01:12:53] And then I can solve for what would happen
+[01:12:55] in the original RLHF objective.
+[01:12:57] I plug-in my reward into that objective here, into my loss.
+[01:13:00] And this gives the DPO objective,
+[01:13:02] which is very intuitive.
+[01:13:04] It basically says take gradient steps in the positive direction,
+[01:13:10] and then take negative gradient steps in the bad direction.
+[01:13:12] 0 you can already see what's going to happen.
+[01:13:14] This first term over here, this is the good stuff.
+[01:13:17] This is the bad stuff on the right term here.
+[01:13:19] And they're going to be balancing each other.
+[01:13:22] OK.
+[01:13:23] And so if I take the gradient of this,
+[01:13:24] I think this is the most intuitive form of DPO,
+[01:13:26] at least to me, you have two things.
+[01:13:29] For every pair that you've had annotated,
+[01:13:32] I'm going to increase the likelihood of the example,
+[01:13:34] that one, and I'm going to decrease the likelihood
+[01:13:37] of the example that lost.
+[01:13:39] And I'm going to scale the step size in some sense
+[01:13:45] by how much my implied reward model is wrong.
+[01:13:49] Did my model already assign a very high reward
+[01:13:52] to the winning one?
+[01:13:53] If it did so, I will take a small step.
+[01:13:55] But if I was very wrong, and I said, oh, these two are almost
+[01:13:58] equal, I had same probability.
+[01:14:00] But in that case, I will actually
+[01:14:02] take a much bigger step size.
+[01:14:03] So based on the probability differences,
+[01:14:05] I will take bigger or smaller step sizes on this differential
+[01:14:09] log prob objective.
+[01:14:10] So hopefully, the action of this gradient objective
+[01:14:14] is quite clear to people.
+[01:14:17] OK.
+[01:14:17] So this is actually much, much simpler than PPO
+[01:14:21] because all I'm doing is taking gradients.
+[01:14:22] And we all how to do that with our standard processes.
+[01:14:27] And I think the nice thing is that it does work reasonably
+[01:14:29] well.
+[01:14:30] I think for a while, people were very obsessed with is DPO
+[01:14:34] better than PPO or vice versa?
+[01:14:36] I think the answer now is maybe it doesn't matter very much,
+[01:14:39] unless you're like at the frontier training
+[01:14:40] the very best model.
+[01:14:42] DPO is reasonably good.
+[01:14:43] And it's good enough for LlaMA.
+[01:14:45] It's good enough for me.
+[01:14:46] If you go and open up the LlaMA tech report,
+[01:14:48] you'll find that they basically had this nice outer loop
+[01:14:52] training, where they had their model, they SFTd it,
+[01:14:55] they did DPO.
+[01:14:57] And then they used that DPO model
+[01:14:59] to then generate candidates that the rejection sampled and they
+[01:15:02] repeated this process.
+[01:15:03] So there's the outer loop on top of it.
+[01:15:04] But basically, the core RLHF primitive for Llama was DPO.
+[01:15:10] In the years since, there's been a lot
+[01:15:12] of different variants of DPO.
+[01:15:15] There was SimPO, which basically changes the weighting.
+[01:15:18] So instead of using pi ref, you have this y of l normalizer.
+[01:15:24] There was length normalized DPO, which normalizes by the length
+[01:15:28] in order to avoid certain length hacking
+[01:15:30] issues that seem to arise.
+[01:15:33] But really, none of these variants
+[01:15:36] maybe seem to matter very much.
+[01:15:39] One of the things that I'll mention,
+[01:15:40] that I thought was very interesting,
+[01:15:42] was these results are very, very contingent on the specifics
+[01:15:45] of the experiment setup.
+[01:15:47] So even at Ai2, there was a paper that was like, well,
+[01:15:51] it turns out that if you go from DPO to PPO,
+[01:15:54] you'll get a better result. But then they also
+[01:15:58] had a paper for Tulu2, where they said, actually,
+[01:16:01] if you do DPO right, you can do better than PPO.
+[01:16:05] And so depending on how you execute this,
+[01:16:09] one can be better than the other.
+[01:16:10] I'm sure you have experiences reading deep learning
+[01:16:12] papers and so on, where the results are very fragile.
+[01:16:16] So maybe the takeaway from all of this
+[01:16:18] is that these DPO variants are actually
+[01:16:20] close enough to the right thing to give you pretty
+[01:16:22] good performance in many cases.
+[01:16:24] This core idea of take gradient step in the right direction
+[01:16:27] and take negative gradient step from the bad stuff
+[01:16:30] works reasonably well as long as you set the step sizes right.
+[01:16:34] OK.
+[01:16:35] I will end with the last few slides on things
+[01:16:37] to watch out for in RLHF.
+[01:16:40] So one of the things to watch out for is over optimization.
+[01:16:43] And this is maybe one of the biggest things.
+[01:16:46] To give you also historical context,
+[01:16:48] when InstructGPT came out, and people were very excited
+[01:16:52] about this, I think there was a very real question
+[01:16:54] can we RLHF our way to superintelligent systems
+[01:16:58] or whatever?
+[01:16:59] Maybe we can.
+[01:16:59] Just collect enough thumbs up, thumbs down.
+[01:17:01] Turns out that is actually quite challenging.
+[01:17:04] Because you find that if you try to really push the RLHF
+[01:17:08] process forward, you'll start overfitting
+[01:17:11] to your learned reward model.
+[01:17:13] So the KL regularizer that I talked about
+[01:17:15] is really critical in a lot of cases in order
+[01:17:18] to prevent your optimization process
+[01:17:21] from overfitting your reward model,
+[01:17:24] at least if your optimization process is very good.
+[01:17:27] The other thing that I'll talk about is model collapse.
+[01:17:32] So people have seen lots of times, where RL models have
+[01:17:36] much less diversity.
+[01:17:37] They're concentrated on a few different possible outputs.
+[01:17:40] And this connects back to what I said before right RLHF
+[01:17:43] models are really no longer modeling
+[01:17:46] a distribution which comes with its own inherent diversity.
+[01:17:49] It's a policy that can collapse as
+[01:17:51] long as it gets a good reward.
+[01:17:52] So this is another thing that RLHF models have really
+[01:17:56] struggled with in recent years.
+[01:18:01] So actually, I'm going to skip this because we're at time.
+[01:18:04] And I think this entropy and mode collapse thing actually
+[01:18:07] ends up being quite important even today.
+[01:18:11] And the GPT-4 era actually was one of the few plots
+[01:18:14] that OpenAI put out, where they said, actually, we
+[01:18:16] have a few open problems left.
+[01:18:17] And one of the open problems they had was,
+[01:18:19] actually, our models are uncalibrated
+[01:18:21] after we do RLHF, which you can see in this plot over here.
+[01:18:24] I don't think anyone has really solved that yet.
+[01:18:27] The Anthropic folks also had an argument saying, well,
+[01:18:31] it's naturally uncalibrated.
+[01:18:32] You could recalibrate sometimes, but not always.
+[01:18:35] This becomes very important in the next lecture
+[01:18:38] when we talk about things like RLVR,
+[01:18:40] where the entropy and exploration is actually
+[01:18:42] quite critical for the model to explore
+[01:18:45] all the possible solutions, and to make progress on some
+[01:18:47] of these very hard problems.
+[01:18:50] Great.
+[01:18:52] So to put it all together, RLHF data collection
+[01:18:56] is also very hard.
+[01:18:57] I think part of the thing about post-training
+[01:18:59] is it's very complicated, messy process because a lot of it
+[01:19:02] is getting good data.
+[01:19:04] And getting good data is always very difficult.
+[01:19:07] RLHF algorithms are quite complex.
+[01:19:09] PPO is especially difficult. I'll talk a little bit about it
+[01:19:12] next lecture.
+[01:19:13] Thankfully, we do also have a simpler variant.
+[01:19:16] They're called GRPO.
+[01:19:16] That works pretty well.
+[01:19:17] That's what you'll do in your assignments.
+[01:19:19] But this is one place where there's been
+[01:19:21] a lot of recent developments.
+[01:19:23] Finally, I think, in terms of RLHF,
+[01:19:25] one of the big, big problems is over optimization.
+[01:19:29] And the transition to the next lecture
+[01:19:30] is going to be, is there rewards where we won't over optimize
+[01:19:34] or we can just dumping compute and the model performance just
+[01:19:37] keeps monotonically getting better.
+[01:19:39] And that's one of the reasons why what people call
+[01:19:41] RLVR is just so been so impactful.
+[01:19:45] Thanks.
+[01:19:46] I'll see you all Thursday.

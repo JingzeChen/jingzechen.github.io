@@ -81,7 +81,7 @@ course_registry.each_key do |course_slug|
     "#{course_slug}: overview module count mismatch"
   )
   primary_resources = course_resources.count do |_, data|
-    %w[labs practice readings materials review].include?(data["resource_kind"])
+    %w[labs practice assignments readings materials review].include?(data["resource_kind"])
   end
   reading_resources = course_resources.count { |_, data| data["resource_kind"] == "reading" }
   assert.call(
@@ -136,6 +136,7 @@ end
 
 timeline_sections = 0
 rendered_slides = {}
+executable_note_count = 0
 
 lectures.each do |path, data|
   label = "#{data['course']} lecture #{data['lecture_number']}"
@@ -177,6 +178,17 @@ lectures.each do |path, data|
 
     asset = source_file.call(resource["url"])
     assert.call(asset && File.file?(asset), "#{label}: supporting resource #{resource['title']} is missing")
+  end
+
+  executable_notes = data["executable_notes"]
+  if executable_notes
+    executable_note_count += 1
+    executable_notes_path = source_file.call(executable_notes["url"])
+    assert.call(executable_notes["url"].to_s.end_with?(".py"), "#{label}: executable notes must be Python source")
+    assert.call(
+      executable_notes_path && File.file?(executable_notes_path),
+      "#{label}: executable lecture notes are missing"
+    )
   end
 
   thumbnail = source_file.call(data["thumbnail"])
@@ -246,6 +258,18 @@ lectures.each do |path, data|
     assert.call(!slide_image.nil?, "#{label}: slide image is missing")
     assert.call(!slide_image&.[]("src").to_s.empty?, "#{label}: slide image source is missing")
   end
+  if executable_notes
+    workbench = html.at_css("[data-course-workbench]")
+    assert.call(
+      workbench&.[]("data-executable-notes-url") == executable_notes["url"],
+      "#{label}: executable notes URL is missing from the workbench"
+    )
+    assert.call(!html.at_css('[data-course-tab="executable-notes"]').nil?, "#{label}: executable notes tab is missing")
+    assert.call(
+      !html.at_css('[data-course-panel="executable-notes"] [data-course-executable-notes-content]').nil?,
+      "#{label}: executable notes panel is missing"
+    )
+  end
   timeline.each do |section|
     assert.call(
       !html.at_css("##{section.fetch('note_anchor')}").nil?,
@@ -263,4 +287,5 @@ unless failures.empty?
 end
 
 puts "Validated #{course_registry.size} courses, #{lectures.size} lectures, " \
-     "#{timeline_sections} aligned sections, and #{rendered_slides.size} rendered slides."
+  "#{timeline_sections} aligned sections, #{rendered_slides.size} rendered slides, " \
+  "and #{executable_note_count} executable lecture notes."

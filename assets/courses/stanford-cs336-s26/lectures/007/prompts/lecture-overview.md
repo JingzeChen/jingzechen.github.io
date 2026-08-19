@@ -1,0 +1,636 @@
+# 本讲
+Lecture 07: Parallelism
+
+请输出以下部分：
+
+## 学习目标
+## 需要的先修知识
+## 老师的教学主线
+## 核心概念与依赖关系
+## 关键推导、例子与结论边界
+## 易错点与待核对项
+## 掌握标准
+## 复习顺序
+
+保留时间戳和代码页码引用。不要重复粘贴全部片段笔记，也不要省略重要推导。代码材料必须写成 `[代码: lecture_07.py p.N]`；仅 transcript 片段不得补写代码页码。
+
+# 逐段课堂笔记
+
+--- 片段笔记 1（00:00:05-00:10:02） ---
+> 片段边界：00:00:05-00:10:02
+
+## 本段在整讲中的作用
+
+本段是整讲的开场与问题设定。老师先把上周“单张 GPU 内部如何通过 kernel 提速”切换到本周“如何利用多张 GPU 继续提速”，然后用统一视角把单 GPU 与多 GPU 放到同一层级体系里：无论是 HBM 之于算力单元，还是另一张 GPU 之于当前 GPU，真正的瓶颈都来自“算力离数据很远”，因此核心任务是组织计算，尽量避免数据传输成为瓶颈。[00:00:10-00:02:01] [00:02:04-00:03:16] [代码: lecture_07.py p.2]
+
+在这个总动机之下，老师给出本讲的两条主线：第一，为什么训练大模型一定会走向多 GPU；第二，后续所有并行策略都可以看成在不同层级上做复制或切分。结尾处老师再把话题引到 collective operations，为后面正式讲分布式通信原语做铺垫。[00:03:17-00:05:56] [00:06:18-00:10:02] [代码: lecture_07.py p.2]
+
+## 教学展开
+
+1. 老师先回顾上周内容：上周讨论的是如何让单个 GPU 更快，方法是往 GPU 内部看，关注 HBM、L2、L1、register、SM 等层级；本周则把这幅图向外扩展，假设一个系统里不止一张 GPU，而是 4 张甚至 1000 张 GPU，需要思考怎样同时利用这些算力训练模型。[00:00:13-00:01:08]
+2. 接着老师提出贯穿两周的统一抽象：无论单 GPU 还是多 GPU，本质上都是“compute 很远离 data”。在单 GPU 情况下，数据可能远在 HBM；在多 GPU 情况下，所需数据可能甚至在另一张 GPU 上。所以问题不在于“有没有很多 GPU”，而在于“如何编排计算，避免数据搬运拖慢系统”。[00:01:13-00:02:01] [代码: lecture_07.py p.2]
+3. 然后老师把系统层级从快到慢排开：单机单卡里的 L1/shared memory 最快，其次是 HBM；再往外是单机多卡通过 NVLink/NVSwitch 通信；最外层则是多机多卡通过 InfiniBand 或 Ethernet 互连。上周是在本地 memory hierarchy 里减少访存，本周是在 GPU 与节点之间减少通信。[00:02:04-00:03:16] [代码: lecture_07.py p.2]
+4. 在“为什么要做多 GPU”这个问题上，老师给出两个非常直接的理由。第一，参数、激活、梯度、优化器状态加起来可能根本装不进单卡 HBM；第二，即便装得下，也可能想用更多 FLOPs 更快训练，因此把训练过程拆到多卡上。[00:03:17-00:04:12] [代码: lecture_07.py p.2]
+5. 之后老师补上一条现实中的权衡：有时模型能放进单卡，但这样可用核心数较少；如果把它摊到更多卡上，就要为通信付带宽代价。所以“如何并行化”不是机械套模板，而是容量、算力、通信之间的计算题。[00:03:57-00:04:12]
+6. 老师随后说明本讲代码组织方式：整讲以 Python 代码展示；真正直接运行 `lecture_07.py` 时会启动 multiprocessing，但课堂里为了逐行 trace，会切到特殊的单进程模式。因此课上看到的是讲解友好的执行路径，而不是完整的多进程 stdout。[00:04:18-00:04:57] [代码: lecture_07.py p.2]
+7. 最后老师概览本讲结构。第一部分讲 distributed communication/computation 的 building blocks：编程模型、硬件、Torch 实现和 NCCL 带宽测试；第二部分讲 distributed training，分别走 data parallelism、tensor parallelism、pipeline parallelism 三种切分方式，并用 MLP 代替完整 Transformer 展示核心机制。[00:05:02-00:05:46] [代码: lecture_07.py p.2]
+8. 片段结尾开始引入 collective operations：这是 1980 年代并行编程就已有的一组通信原语。所谓 collective，不是手写每张卡到每张卡的点对点传输，而是先声明跨多个设备的通信模式模板，由系统去执行。随后老师引出 rank 与 world size 这两个基本术语，为下一段逐个解释 broadcast、scatter、gather、reduce 等操作做准备。[00:05:50-00:10:02]
+
+## 概念、符号与推导
+
+- **统一层级视角：** 单 GPU 的问题是算力单元离 HBM 远；多 GPU 的问题是当前 GPU 离另一张 GPU 上的数据远。两者都服从“尽量减少数据传输瓶颈”的同一原则。[00:01:13-00:02:01] [代码: lecture_07.py p.2]
+- **Generalized hierarchy：** 从近到远依次可看作 L1/shared memory、HBM、单机多卡互连、跨节点网络。速度逐层变慢，因此并行策略必须尊重层级差异。[00:02:04-00:03:16] [代码: lecture_07.py p.2]
+- **多 GPU 的两个动机：** 一是容量不够，二是想用更多 GPU 的 FLOPs 缩短训练时间。前者偏“能不能装下”，后者偏“能不能更快”。[00:03:17-00:03:57] [代码: lecture_07.py p.2]
+- **collective operation：** 一类跨多个设备的通用通信模式，不直接逐条写点对点消息，而是声明模式，让运行时系统负责调度与实现。[00:05:50-00:06:37]
+- **rank / world size：** rank 指某个具体设备，world size 指设备总数。老师在这个片段末尾先把术语抛出，但尚未逐个展开各类 collective 的语义。[00:06:44-00:10:02]
+
+本段无公式推导。
+
+## 例子与课堂提示
+
+- **1 trillion 参数模型装不进单卡**：老师用 B200 约 192GB HBM 对比 1T 参数模型，说明多 GPU 首先是容量问题，而不是“追求更复杂工程”的人为偏好。[00:03:29-00:03:46]
+- **trace 模式与真实多进程输出不同**：课堂里逐行 trace 时关闭了 multiprocessing，因此看到的执行路径主要是帮助理解代码结构，不等于完整并行运行时的标准输出行为。[00:04:18-00:04:57] [代码: lecture_07.py p.2]
+- **MLP 作为代表性模型**：老师明确说不直接上完整 Transformer，而用 MLP 讲三类并行。提示是：本讲追求的是并行模式本身，而不是模型细节大全。[00:05:25-00:05:46] [代码: lecture_07.py p.2]
+- **易错点**：不要把“有很多 GPU”误解成“自然就更快”。老师一开始就强调“用很多 GPU 很容易，但高效使用它们很难”，因为通信本身会吞掉收益。[00:01:47-00:02:01]
+
+## 本段掌握检查
+
+1. 问：老师如何用一句统一的话把单 GPU 和多 GPU 的优化问题联系起来？  
+答：两者都可以看成算力离数据很远，因此要组织计算，尽量避免数据传输成为瓶颈。[00:01:13-00:02:01]
+
+2. 问：做多 GPU 训练的两个直接理由是什么？  
+答：一是参数、梯度、激活和优化器状态可能放不进单卡 HBM；二是即便放得下，也可能想用更多 GPU 的 FLOPs 来加快训练。[00:03:17-00:03:57]
+
+3. 问：本讲第一部分和第二部分分别讲什么？  
+答：第一部分讲 distributed communication/computation 的 building blocks，包括 collective、硬件、Torch/NCCL 与带宽测试；第二部分讲 data、tensor、pipeline 三类训练并行。[00:05:02-00:05:46] [代码: lecture_07.py p.2]
+
+4. 问：什么是 rank，什么是 world size？  
+答：rank 是某个具体设备的编号，world size 是参与通信的设备总数。[00:06:44-00:10:02]
+
+## 待核对项
+
+- [需回听 00:04:31] 老师说明 trace 模式时提到的“special single process mode”字幕较快，笔记只保留“课堂 trace 不做真正 multiprocessing”的确定信息。
+- [需回听 00:06:44] 本段末尾进入 collective operations 示例前，字幕有少量停顿与重复，后续具体定义以下一段内容为准。
+
+--- 片段笔记 2（00:10:02-00:20:00） ---
+> 片段边界：00:10:02-00:20:00
+
+## 本段在整讲中的作用
+
+本段把上一段引入的 collective operations 具体化，按照老师的顺序从基础原语一路讲到训练里真正常用的 all-gather、reduce-scatter、all-reduce 与 all-to-all。它是整讲后半部分所有并行训练代码的通信词汇表：如果这一段没听懂，后面 DDP 的梯度同步、tensor parallel 的激活拼接、MoE 的动态路由都会失去语义锚点。[00:10:02-00:16:23] [代码: lecture_07.py p.3]
+
+老师在本段尤其强调“先会认，再会用”的层次：broadcast、scatter、gather、reduce 是热身；all-gather、reduce-scatter、all-reduce 才是后续训练里的主力；all-to-all 则是给 MoE 这类动态路由结构准备的最一般模板。[00:11:42-00:19:44] [代码: lecture_07.py p.3]
+
+## 教学展开
+
+1. 片段开头先收束前面未讲完的 gather：gather 是把各个 rank 上的碎片拼到某个目标 rank 上，老师默认举的是 rank 0。它不是训练里最常直接使用的操作，但能帮助理解 all-gather。[00:10:02-00:10:46]
+2. 接着老师讲 reduce。它从“每个 rank 各有一份输入”开始，对这些输入做一个结合且交换的操作，例如 sum、min、max，然后把结果放到指定 rank。老师还顺手给出一个帮助记忆的看法：gather 可以被想成“把拼接当成 reduction 操作”的特例。[00:10:46-00:11:42] [代码: lecture_07.py p.3]
+3. 随后老师暂停接受提问。有同学问这是否类似 NumPy 的 broadcasting。老师回答：概念上都有“一个东西扩到多个地方”的味道，但这里讨论的是 collective communication，在实例化层面和 NumPy 的广播不同。[00:12:01-00:12:33]
+4. 之后老师进入更重要的 all-gather。它等于“对所有 rank 都执行 gather”，即每个 rank 最终都拿到所有碎片拼起来后的完整结果。老师先不给细节证明，而是直接告诉大家，后面会看到“每个 rank 只持有一部分参数，再通过 all-gather 拼回完整参数做 forward”的用法。[00:12:36-00:13:43] [代码: lecture_07.py p.3]
+5. 再往后是 reduce-scatter。老师把它描述为“先按每个维度做 reduction，再把结果分散到不同 rank”。示例里四个 rank 各持一个长度为 4 的向量，最终第 0 维和写到 rank 0，第 1 维和写到 rank 1，依此类推。老师预告它将在 backward 之后用于“把不同数据分片上的梯度求和，再把结果分散存储”。[00:13:43-00:15:18] [代码: lecture_07.py p.3]
+6. 在此基础上，老师给出 all-reduce：它就是 reduce-scatter 再加 all-gather。也就是说，先把各维度 reduction 的结果分散出去，再把这些结果复制回所有 rank，于是每个 rank 都拿到完全相同的汇总张量。老师点明，data parallel 里最先会真正用到的就是 all-reduce，因为它正对应“把梯度求和，再让所有 rank 保持相同参数副本”。[00:15:18-00:16:41] [代码: lecture_07.py p.3]
+7. 然后老师讲 all-to-all。它不再是“把整块东西送到单点或全体”，而是每个 rank 都能向每个其他 rank 发送自己的一部分消息。示例中每个向量的位置就代表最终目的 rank，因此输出看起来像把一个矩阵按列重组到对应目的地。[00:16:48-00:18:17] [代码: lecture_07.py p.3]
+8. 最后老师解释 all-to-all 为什么适合 MoE：每个 rank 同时持有一部分数据和一部分 experts，需要根据数据动态决定激活路由到哪个 expert，因此天然是 all-to-all 通信。如果所有发送都恰好均衡，它近似于矩阵转置；更一般地，它也能处理不均衡拆分，但实践中仍希望尽量负载均衡。[00:18:17-00:19:44] [代码: lecture_07.py p.3]
+9. 片段末尾老师开始总结术语记忆法：reduce 就是做某种 reduction，scatter 与 gather 互逆，all 表示目的地是所有设备。这个总结与后续训练代码是一一对应的记忆抓手。[00:19:44-00:20:00] [代码: lecture_07.py p.3]
+
+## 概念、符号与推导
+
+- **Broadcast：** 从一个源 rank 把同一份数据复制到所有 rank。老师在上一段已引入，这一段主要在训练里把它当成基础背景。[代码: lecture_07.py p.3]
+- **Gather：** 输入是各 rank 上的碎片，输出是在某个目标 rank 上把碎片拼接成完整张量。[00:10:14-00:10:46] [代码: lecture_07.py p.3]
+- **Reduce：** 输入是各 rank 的局部值，对它们做某个结合且交换的操作，结果放到某个目标 rank。典型操作是 sum、min、max。[00:10:46-00:11:42] [代码: lecture_07.py p.3]
+- **All-gather：** 先 gather 出完整结果，再把这个完整结果放到所有 rank 上。训练中的典型用途是“每个 rank 只拿参数分片，但 forward 前需要完整参数”。[00:12:36-00:13:43] [代码: lecture_07.py p.3]
+- **Reduce-scatter：** 对每个维度做 reduction，再把各维结果分散给不同 rank。示例映射为：`[0,1,2,3]`,`[1,2,3,4]`,`[2,3,4,5]`,`[3,4,5,6]` 经过 sum 后得到 `6,10,14,18`，分别落到 rank 0,1,2,3。[00:13:43-00:15:18] [代码: lecture_07.py p.3]
+- **All-reduce：** `all-reduce = reduce-scatter + all-gather`。这不是比喻，而是老师后面会在代码里直接验证的等价关系。[00:15:18-00:16:41] [代码: lecture_07.py p.3]
+- **All-to-all：** 每个 rank 向所有其他 rank 都可能发一部分数据，最一般。若发送完全均衡，可把它近似看成矩阵转置；若不均衡，则仍可表达动态路由。[00:16:48-00:19:44] [代码: lecture_07.py p.3]
+
+本段没有一般数学公式推导，但有一组老师反复使用的离散映射例子：
+
+- `reduce-scatter(sum)`：四个长度为 4 的向量，按列求和并把第 `i` 列结果放到 rank `i`。  
+- `all-reduce(sum)`：先得到列和 `6,10,14,18`，再复制到全部 rank。  
+- `all-to-all`：每个输入向量的位置 `j` 表示要发往 rank `j` 的元素，因此输出按“目的 rank”而不是“来源 rank”重组。[代码: lecture_07.py p.3]
+
+## 例子与课堂提示
+
+- **NumPy broadcasting 的类比**：老师允许把 collective broadcast 和 NumPy broadcasting 作概念类比，但立即提醒两者处在不同层面，不要把张量语义广播和设备间通信广播混为一谈。[00:12:01-00:12:33]
+- **all-gather 的训练预告**：老师没有在本段展开完整模型，而是先告诉大家，后面会遇到“每个 rank 持有参数分片，forward 前 all-gather 拼整”的模式，这是理解 all-gather 最重要的课堂提示。[00:13:13-00:13:43]
+- **all-reduce 是 data parallel 的起点**：老师明确说 basic 版本先专注 all-reduce；更复杂的 ZeRO 或 FSDP 则需要把 all-reduce 拆成 reduce-scatter 和 all-gather 之后再介入管理内存与通信。[00:16:09-00:16:41]
+- **all-to-all 服务于 MoE 的动态路由**：这里的关键不是“会不会转置”，而是“激活最终送往哪个 expert 由数据决定”，所以需要最一般的 rank 到 rank 映射。[00:18:17-00:19:44]
+- **易错点**：不要把“all”理解成“所有人都参与 reduction 的输入”；更准确地说，它描述的是输出结果最终去到所有设备。[00:19:44-00:20:00]
+
+## 本段掌握检查
+
+1. 问：gather 和 all-gather 的区别是什么？  
+答：gather 只把拼好的完整结果放到一个目标 rank；all-gather 则让每个 rank 都拿到这个完整结果。[00:10:14-00:10:46] [00:12:36-00:13:06]
+
+2. 问：reduce-scatter 做了哪两步事？  
+答：先按每个维度做 reduction，例如逐列求和；再把各维结果分散写到不同 rank。[00:13:43-00:15:18]
+
+3. 问：为什么说 all-reduce 可以看成 reduce-scatter 加 all-gather？  
+答：因为它先产生分散在各 rank 上的 reduction 结果，再把这些结果复制到所有 rank，于是每个 rank 都拿到相同的完整向量。[00:15:18-00:16:41]
+
+4. 问：all-to-all 在课堂上的典型应用是什么？  
+答：MoE 中每个 rank 同时有数据分片和 expert 子集，激活要根据路由规则发往不同 expert，所以通信模式是 all-to-all。[00:18:17-00:19:44]
+
+5. 问：老师给出的记忆术中，reduce、scatter/gather、all 分别怎么记？  
+答：reduce 是做 reduction；scatter 是 gather 的逆；all 表示结果最终去到所有设备。[00:19:44-00:20:00]
+
+## 待核对项
+
+- [需回听 00:10:14] 字幕写成 “the inverse of scatter is scatter”，结合上下文应为 “the inverse of scatter is gather”，这里按老师后续完整解释记为 gather。
+- [需回听 00:17:12] all-to-all 示例里老师口头指向具体元素时有若干代词与停顿，笔记采用代码页上给出的张量布局固定含义。[代码: lecture_07.py p.3]
+- [需回听 00:19:27] 老师引用此前 MoE 课程时人声压缩明显，笔记仅保留“要做负载均衡”这一确定结论。
+
+--- 片段笔记 3（00:20:00-00:29:59） ---
+> 片段边界：00:20:00-00:29:59
+
+## 本段在整讲中的作用
+
+本段把通信原语落回真实硬件约束，回答“这些 collective 最终跑在什么互连上”。它是整讲从抽象编程模型转入系统现实的桥梁：前一段定义了通信模式，这一段说明同样的模式在 PCIe、NVLink、InfiniBand、Ethernet 上成本完全不同，因此并行策略绝不能脱离拓扑谈性能。[00:20:23-00:23:14] [00:23:22-00:29:59] [代码: lecture_07.py p.4]
+
+同时，本段给出了后续判断各种并行方式是否合适的硬件标准。老师把 NVLink/NVSwitch、InfiniBand、Ethernet 与 RDMA 放在一条从快到慢的链上，并点明：越靠外层，通信越慢、越应谨慎使用频繁同步或大体量传输。[00:23:22-00:27:42] [代码: lecture_07.py p.4]
+
+## 教学展开
+
+1. 一开始老师先把 collective 术语收尾，总结 reduce 是某种 associative/commutative operation，scatter 和 gather 互逆，all 只是目的地是所有设备。然后他停下来回答一个操作层面的问题：像 gather、reduce 这类“写到 rank 0”的例子里，目标 rank 并非预先永久固定，而是在执行调用时由代码指定。[00:20:00-00:21:23]
+2. 接着老师回答“这些是概念还是代码”的疑问：此刻主要是在讲概念 building blocks，但很快就会看到代码实现。然后他主动转入硬件，因为大家已经知道 GPU 内部结构，下一步要知道 GPU 之间怎样连起来。[00:21:28-00:22:01]
+3. 老师先给出“家用/传统”图景：一台服务器里 CPU、RAM、PCIe 总线和若干 GPU 连接在一起；不同机器之间再通过 Ethernet 相连。这个拓扑下，同一节点内 GPU 靠 PCIe 通信，不同节点则只能“绕出去”走 Ethernet。老师还用“你和朋友把各自 gaming GPU 连起来训练大模型”的类比强调这套方案很原始、很慢。[00:22:10-00:23:22] [代码: lecture_07.py p.4]
+4. 然后老师切到“真正训练大模型”的现代图景：通常一个 node 里有 8 张 GPU，通过 NVLink 接到 NVSwitch；多个 node 组成 pod，再通过 InfiniBand 互联。这里 8 GPUs per node 是常见值，256 nodes per pod 只是课堂上的示意数字。[00:23:22-00:25:12] [代码: lecture_07.py p.4]
+5. 为了给大家带宽量级感，老师把 NVLink 5 的总带宽说成约 1.8TB/s，并回忆 B200 HBM 大概 8TB/s，所以跨 GPU 通信即便在 NVLink 上也仍比本地 HBM 慢约 4 倍。结论是：NVLink 已经很快，但依然是比片上/卡上存储更慢的一层。[00:23:52-00:24:23] [代码: lecture_07.py p.4]
+6. 接着老师解释为什么程序员常把同一 NVLink 域内的 GPU 近似看成“任意互联”：从编程视角上，GPU 到 GPU 的消息由硬件经 NVSwitch 路由，程序不需要手写每一跳怎么走。[00:24:28-00:24:52]
+7. 往更大规模扩展时，老师说你不可能用一个 NVSwitch 覆盖无穷多 GPU，所以必须把节点分成 pod，用 InfiniBand 连接；再大则用 Ethernet 连接 pod。距离越远，带宽越差、延迟越高，这和单 GPU 内部 memory hierarchy 的层层变慢是同构的。[00:24:56-00:26:11] [代码: lecture_07.py p.4]
+8. 后半段老师讲 RDMA。传统 Ethernet 要 GPU 先把数据交给 CPU，再放到 kernel socket buffer、封包、写 NIC，延迟高。RDMA 的目标是让一张 GPU 能直接读写另一张 GPU 的内存而不经过 CPU；NVLink/NVSwitch 与 InfiniBand 都支持这一点，而标准 Ethernet 不支持。[00:26:19-00:27:42] [代码: lecture_07.py p.4]
+9. 最后老师提两个硬件进展：NVIDIA 的 NVL72 把 72 张 GPU 放进一个 NVLink domain；另一边则是 RoCE，让 Ethernet 也能部分实现绕开 CPU 的 RDMA 效果，作为比 InfiniBand 更便宜但通常更弱的方案。片段收尾时，老师把“GPU 通过 NVLink/NVSwitch、InfiniBand、Ethernet 分层互联”的总体图像再次压缩复述了一遍。[00:27:49-00:29:59] [代码: lecture_07.py p.4]
+
+## 概念、符号与推导
+
+- **目标 rank 可配置**：在 gather/reduce 的例子里，rank 0 只是示例，不是协议硬编码。真正调用时由程序指定写往哪个 rank。[00:20:48-00:21:23]
+- **传统拓扑**：同机 GPU 通过 PCIe 通信，不同机器通过 Ethernet 连接。它可以工作，但不适合大规模高效训练。[00:22:10-00:23:14] [代码: lecture_07.py p.4]
+- **现代数据中心拓扑**：单 node 内 8 GPU 经 NVLink 连接到 NVSwitch；多 node 通过 InfiniBand；更大 cluster/pod 之间再走 Ethernet。[00:23:22-00:25:12] [代码: lecture_07.py p.4]
+- **带宽层级**：NVLink 5 大约 1.8TB/s，总体上仍慢于 B200 的约 8TB/s HBM，因此跨卡传输即使在最好情形下也不是“免费”。[00:23:52-00:24:23] [代码: lecture_07.py p.4]
+- **RDMA：** Remote Direct Memory Access，表示一张 GPU 可直接读写另一张 GPU 的内存而不经过 CPU中转。这里 RDMA 更像能力或 desiderata，而 NVLink、InfiniBand、RoCE 是实现这类能力的不同硬件/网络路径。[00:26:19-00:27:42] [00:28:46-00:29:11]
+- **NVL72 / RoCE：** 前者把更大规模 GPU 留在一个高速 NVLink 域内，后者让 Ethernet 获得类似 RDMA 的能力，用更低成本换取较弱但可用的性能。[00:27:49-00:29:35] [代码: lecture_07.py p.4]
+
+本段无公式推导，但存在一个量级比较：
+
+- NVLink 5 约 `1.8 TB/s`，B200 HBM 约 `8 TB/s`，所以跨 GPU 互连相对 HBM 大约慢 4 倍。这个比较的功能不是得到精确常数，而是提醒“最好的跨卡互连仍是外层通信”。[00:23:52-00:24:23] [代码: lecture_07.py p.4]
+
+## 例子与课堂提示
+
+- **gaming GPU + 朋友的机器**：老师用这个例子说明“能连起来”不等于“适合训练”，因为一旦走 Ethernet，通信成本会很夸张。[00:23:04-00:23:14]
+- **rank 0 不是天生特殊**：课堂例子经常把结果写到 rank 0，只是因为讲解方便。真正写代码时可以按调用场景决定目标 rank。[00:20:48-00:21:23]
+- **RDMA 的课堂记法**：老师建议把 RDMA 看成“GPU 直接访问 GPU 内存”的操作愿景，而把 NVLink/NVSwitch/InfiniBand 看成实现这件事的硬件路线。[00:32:22-00:33:04]
+- **9 张 GPU 的坏情况**：如果前 8 张在一个 node，第 9 张落到另一个没有 NVLink 直连的 node，它既不提供很多额外算力，又很贵地参与通信。这是在提醒大家：并行规模要结合拓扑，而不是只按 GPU 数目做算术。[00:34:44-00:35:34]
+- **易错点**：不要把“同一台机器内有很多 GPU”自动理解成“它们之间就像共享 HBM 一样快”。老师反复用带宽对比说明，NVLink 虽快，仍远慢于本地 HBM。[00:23:52-00:24:23]
+
+## 本段掌握检查
+
+1. 问：gather/reduce 示例里为什么总写到 rank 0？它能改吗？  
+答：rank 0 只是示例。真正调用时可以指定 GPU ID 或 rank，目标在执行调用时确定。[00:20:48-00:21:23]
+
+2. 问：传统家用拓扑和现代训练集群拓扑的关键差别是什么？  
+答：前者主要依赖 PCIe 与 Ethernet，后者在 node 内用 NVLink/NVSwitch，在 node 间用 InfiniBand，再往外才是 Ethernet，因此层级更细、带宽更高。[00:22:10-00:25:12]
+
+3. 问：老师为什么专门比较 NVLink 和 HBM 带宽？  
+答：为了强调即使最快的跨 GPU 互连也比本地 HBM 慢得多，跨卡通信仍然是昂贵层级。[00:23:52-00:24:23]
+
+4. 问：RDMA 与 NVLink / InfiniBand / RoCE 是什么关系？  
+答：RDMA 是“绕开 CPU 直接做远程内存访问”的能力或目标；NVLink、InfiniBand、RoCE 是实现这种能力的不同互连方案。[00:26:19-00:29:11]
+
+5. 问：为什么第 9 张 GPU 可能反而不划算？  
+答：如果它落在另一个慢互连节点上，就会带来很高通信代价，却只增加少量算力。[00:34:44-00:35:34]
+
+## 待核对项
+
+- [需回听 00:28:59] 老师提到 Meta 的论文与具体模型名时字幕含糊，只保留“Meta 探索过 RoCE”这一不影响主线的结论。
+- [需回听 00:35:43] 关于 TPUs 的追问中学生提问内容与老师的快速回应并不完整，笔记不扩写 TPU 架构细节。
+
+--- 片段笔记 4（00:29:59-00:39:58） ---
+> 片段边界：00:29:59-00:39:58
+
+## 本段在整讲中的作用
+
+本段完成从“硬件层面知道 GPU 怎样互联”到“软件层面如何真正调用它们”的过渡。老师先用 NCCL 解释 collective 为何能从抽象操作落到真实通信，再把接口抬高到 `torch.distributed`，让学生看到分布式程序在代码层最基本的启动、rank/world size、backend 和 barrier 这几个控制点。[00:29:59-00:37:20] [代码: lecture_07.py p.5]
+
+它的作用不在于展示复杂训练逻辑，而在于把运行时骨架搭起来：后面所有示例函数都默认大家已经接受“一个 world size 对应多个进程/多个 rank，collective 通过分布式后端执行，必要时用 barrier 做同步”这一编程心智模型。[00:37:20-00:39:58]
+
+## 教学展开
+
+1. 一开头老师解释 NCCL 的位置。NCCL 是更底层的 NVIDIA Collective Communications Library，负责把 all-reduce、reduce、broadcast 这类 collective 翻译成 GPU 之间实际发送的低层 packet。[00:29:59-00:30:20]
+2. 老师继续说明 NCCL 并不只是“一个固定算法实现”，而是会先探测硬件拓扑，再挑选 GPU 之间的路径，最后启动真正执行发送/接收的 GPU kernels。也就是说，通信本身在 GPU 世界里也体现为 kernel。[00:30:22-00:30:51]
+3. 但老师没有继续深挖 NCCL 内部，而是立即切到 PyTorch。这里的重点是：学生写训练程序时通常不会直接手写 NCCL，而是通过 `torch.distributed` 这层更干净的接口使用 collective。[00:31:05-00:31:07] [00:36:20-00:37:13] [代码: lecture_07.py p.5]
+4. 中间的问答进一步澄清了硬件概念。老师把 rack 解释成数据中心里的物理机架，tray 则可粗略理解为装有 8 GPU 的单元；随后又把 RDMA 与 NVLink/InfiniBand 的关系重新说清：前者是“可以直接访问远端 GPU 内存”的能力，后者是具体硬件路径。[00:31:14-00:33:22]
+5. 面对“9 张 GPU 怎么分配任务”的提问，老师的回答不是给一个算法，而是强调拓扑依赖：如果第 9 张 GPU 落到另一个 node、又没有高速互连，它会带来糟糕的性价比；若整个集合仍在高速交换域里，则合理得多。[00:34:33-00:35:34]
+6. 回到软件层面，老师介绍 `torch.distributed`：它提供 collective 的统一接口，例如 all-gather；它还能根据硬件选不同 backend，GPU 常用 NCCL，CPU 常用 gloo；并且它还支持更高层的算法如 FSDP，但本课不会直接拿现成高级封装，而是先从原语搭起。[00:36:20-00:37:13] [代码: lecture_07.py p.5]
+7. 最后老师用 `spawn(collective_operations_main, world_size=4)` 说明“把同一函数复制运行多次”的进程模型。随后他沿着课堂 trace 进入运行函数，强调 world size 是进程数，rank 从 0 到 world size-1，每个进程各自运行一份逻辑。[00:37:20-00:38:22] [代码: lecture_07.py p.5]
+8. 在 setup 部分，老师说需要配置 master address 和 port，但这只是元数据协调，并非真正的数据路径；真正的数据通信仍走 NCCL 或 gloo。因为课堂机器是 laptop，所以演示时用 gloo；若有 CUDA，则会选 NCCL backend。[00:38:31-00:39:04]
+9. 片段末尾老师介绍 barrier：多个进程是异步推进的，可能完全不同步，所以想保证“这段代码一定在另一段之前都执行到某处”，就要插入同步屏障；代价是屏障越多，等待越多。[00:39:13-00:39:58]
+
+## 概念、符号与推导
+
+- **NCCL 的职责链：** 接收高层 collective 请求，识别硬件拓扑，决定路径，启动 GPU kernels 发送/接收数据。[00:29:59-00:30:51]
+- **`torch.distributed`：** 面向用户的高层接口层，屏蔽 NCCL 等低层细节，同时支持多种 backend 和部分更高层算法。[00:36:20-00:37:13] [代码: lecture_07.py p.5]
+- **world size：** 参与程序的进程总数；在本课示例里通常可把它近似理解为设备数。[00:37:20-00:38:22]
+- **rank：** 某个具体进程/设备的编号，范围是 `0` 到 `world_size - 1`。[00:37:20-00:38:22]
+- **master address / port：** 用于分布式环境初始化时的元数据协调，不是大张量数据的实际通信通道。[00:38:31-00:38:52]
+- **backend 选择：** 有 CUDA 时优先 NCCL；没有 CUDA 时用 gloo。课堂 laptop 演示走的是 gloo。[00:38:52-00:39:04] [代码: lecture_07.py p.5]
+- **barrier：** 一个同步点。所有进程必须都到达该点，后续代码才继续执行。因此它是保证观测顺序的工具，也是潜在等待来源。[00:39:13-00:39:58]
+
+本段无公式推导。
+
+## 例子与课堂提示
+
+- **通信 kernel**：老师提醒“在 GPU 上跑的一切最终都是 kernel”，连通信也不例外。这是理解 NCCL 的重要课堂提示：collective 不是魔法，而是被编译/调度成具体 GPU 工作。[00:30:43-00:30:51]
+- **9 张 GPU 的反例**：这个问答说明并行设计不能只看 GPU 数量。多一张落在差拓扑位置的卡，可能只增加通信负担。[00:34:33-00:35:34]
+- **gloo 与 NCCL 的分工**：老师用 laptop 演示 gloo、真实 GPU 用 NCCL，提醒大家 backend 与硬件紧密耦合。[00:38:52-00:39:04]
+- **barrier 的双刃剑**：它能强行对齐异步进程的执行点，适合教学和调试；但放太多就会产生不必要的等待，因此真实高性能程序不会随便堆屏障。[00:39:13-00:39:58]
+
+## 本段掌握检查
+
+1. 问：NCCL 在这套软件栈里负责什么？  
+答：它把高层 collective 翻译成真实低层通信，探测拓扑、选路径，并启动 GPU kernels 做发送和接收。[00:29:59-00:30:51]
+
+2. 问：为什么老师说实际写 PyTorch 程序时“不需要显式思考 NCCL”？  
+答：因为 `torch.distributed` 已经给出 collective 的高层接口，用户通常通过它调用；底层再由 NCCL 或其他 backend 实现。[00:36:20-00:37:13] [代码: lecture_07.py p.5]
+
+3. 问：world size 和 rank 在课堂示例里分别表示什么？  
+答：world size 是并行进程总数，rank 是某个进程/设备的编号，范围从 0 到 world size-1。[00:37:20-00:38:22]
+
+4. 问：master address / port 是不是实际传大张量的通道？  
+答：不是。它主要用于协调；真正的大数据通信走 NCCL 或 gloo。[00:38:31-00:38:52]
+
+5. 问：barrier 的作用和代价分别是什么？  
+答：作用是确保所有进程都走到同一个同步点之后再继续；代价是引入等待，放得太多会拖慢程序。[00:39:13-00:39:58]
+
+## 待核对项
+
+- [需回听 00:31:45] 老师解释 NVL72 的 tray 物理结构时有一个词字幕识别不稳，笔记只保留“两颗 CPU、每颗 CPU 接四张 GPU、每个 tray 共八张 GPU”的确定信息。
+- [需回听 00:33:33] “NCCL 是否对 multi-node 优化”的学生问题里个别连接词不清，老师的结论性回答是“应当针对这类大模型工作负载做过大量优化”。
+
+--- 片段笔记 5（00:39:58-00:49:56） ---
+> 片段边界：00:39:58-00:49:56
+
+## 本段在整讲中的作用
+
+本段是第一部分中最“代码落地”的片段。老师用 `torch.distributed` 分别演示 all-reduce、reduce-scatter、all-gather 的实际调用方式，并当场验证前面讲过的语义；随后开始做 communication benchmarking，把“理解 collective 是什么”推进到“理解它们大概有多贵、怎么计量”。[00:40:02-00:46:30] [00:46:38-00:49:56] [代码: lecture_07.py p.6] [代码: lecture_07.py p.7] [代码: lecture_07.py p.8]
+
+它在整讲中的作用还包括给后面训练并行提供一个计算式模板：老师在这里正式把 world size、payload size、wall clock duration 与 effective bandwidth 联系起来，后面分析训练并行的通信成本时就不再只是口头说“多一点/少一点”，而是有了一套具体量纲。[00:47:15-00:49:56] [代码: lecture_07.py p.8]
+
+## 教学展开
+
+1. 老师先做 all-reduce 示例。每个 rank 从 `tensor([0., 1, 2, 3]) + rank` 开始，所以四个 rank 分别持有错开的向量。由于各进程异步执行，打印顺序是乱的，但这并不影响 collective 的语义。[00:40:02-00:40:41] [代码: lecture_07.py p.6]
+2. 然后老师调用 `dist.all_reduce`，指定 reduction 操作为 sum、`async_op=False`。他强调这个调用会把 backend 的通信细节全部包起来，并且会**原地修改**输入张量，所以 all-reduce 之后每个 rank 上的数据都变成按列求和后的同一份结果。[00:40:51-00:41:41] [代码: lecture_07.py p.6]
+3. 面对“rank 是否就是 GPU”的提问，老师给出本课简化：在这门课里，rank 就把它当成 GPU 看待即可。这是为了降低术语门槛，帮助学生集中在并行模式而不是进程抽象上。[00:42:01-00:42:19]
+4. 接着老师演示 reduce-scatter。这里输入张量和输出张量分开分配：输入保留原值，输出只分配目标形状。调用 `dist.reduce_scatter_tensor` 后，输入不变，而输出在每个 rank 上得到对应该 rank 的 reduction 结果。[00:42:23-00:43:26] [代码: lecture_07.py p.6]
+5. 随后有学生问异步 all-reduce 怎样理解。老师回答：collective 自身是一个大操作，若把 `async_op=True`，调用会先返回，之后程序可以去做与本次通信独立的其他事情，例如为下一步加载数据。等真正需要结果时，再通过 wait 或 barrier 之类手段确认完成。这相当于引出“通信与计算重叠”的概念，虽然本课不细讲。[00:43:37-00:45:04]
+6. 然后老师做 all-gather。这里把 reduce-scatter 的输出作为输入，先给每个 rank 分配一个长度为 world size 的输出张量，再调用 `dist.all_gather_into_tensor`。操作后，各 rank 都拿到完整向量，老师据此当场确认：`all-reduce = reduce-scatter + all-gather`。[00:45:04-00:46:13] [代码: lecture_07.py p.6]
+7. 示例结束后，老师顺手点出良好实践：分布式环境跟 setup 对称地要 cleanup。这不是理论重点，但表明一个完整 distributed program 需要初始化与收尾两个阶段。[00:46:13-00:46:30] [代码: lecture_07.py p.6]
+8. 进入 benchmarking 之后，老师不再只看小玩具张量，而是用 `100 * 1024**2` 个元素做 all-reduce 基准测试。过程与前面单 GPU benchmark 类似：先 warmup，再 synchronize + barrier 把两层异步都停稳，然后开始计时、执行 collective、再次等待、结束计时。[00:46:38-00:48:02] [代码: lecture_07.py p.7] [代码: lecture_07.py p.8]
+9. 最后老师解释如何从计时推到 effective bandwidth。每个 rank 都会得到一个 duration；若只报一个数字，可以取平均。更关键的是，要根据 payload 大小和实际跨 rank 发送的数据量，去构造“发送总字节数 ÷ 总等待时间”的带宽指标，而不是只盯着某个毫秒数本身。[00:48:09-00:49:56] [代码: lecture_07.py p.8]
+
+## 概念、符号与推导
+
+- **all-reduce 的原地语义：** `dist.all_reduce(tensor=data, ...)` 会直接覆盖 `data`，输入张量既是输入也是输出。[00:40:51-00:41:41] [代码: lecture_07.py p.6]
+- **reduce-scatter 的分离输入/输出语义：** `input` 保持原值，`output` 只保存该 rank 分到的 reduction 结果。[00:42:23-00:43:26] [代码: lecture_07.py p.6]
+- **all-gather 的拼回完整张量语义：** 每个 rank 持有局部输入，先分配完整输出，再由 collective 把所有局部值聚合到所有 rank。[00:45:04-00:46:13] [代码: lecture_07.py p.6]
+- **异步 collective：** 若 `async_op=True`，调用本身可先返回，后续再 wait 或 barrier；其意义在于允许与独立计算重叠。[00:43:37-00:45:04]
+- **benchmark warmup 原因：** 首次执行可能包含初始化、缓存等额外成本，因此先做一次不计时运行，再做正式测量。[00:47:24-00:47:42] [代码: lecture_07.py p.8]
+
+本段给出了 all-reduce 带宽测量的计算式：
+
+$$
+\text{size\_bytes} = \text{element\_size} \times \text{numel}
+$$
+
+$$
+\text{sent\_bytes} = \text{size\_bytes} \times 2 \times (\text{world\_size} - 1)
+$$
+
+$$
+\text{total\_duration} = \text{world\_size} \times \text{duration},\qquad
+\text{bandwidth} = \frac{\text{sent\_bytes}}{\text{total\_duration}}
+$$
+
+其中额外的 `2` 来自 send + receive；乘上 `world_size - 1` 对应 ring/tree all-reduce 中每个 rank 需要经历的跨 rank 交换步数。[代码: lecture_07.py p.8]
+
+## 例子与课堂提示
+
+- **打印顺序乱但结果对**：老师特意让大家看到四个 rank 的打印顺序可能打乱，提醒学生不要把“输出顺序”误当成“collective 语义”的一部分。[00:40:30-00:40:47]
+- **“本课里 rank 就当 GPU”**：这是课堂教学简化，帮助学生先建立直观模型，再在以后区分进程和设备。[00:42:01-00:42:19]
+- **异步操作的典型收益**：老师用“先发通信，再去做下一步的数据准备”来解释 overlap，这个例子比抽象地说 `async` 更接近真实训练程序。[00:44:18-00:44:50]
+- **输出张量里的脏值不用管**：在 all-gather 前，老师指出预分配输出里可能已有任意值，但 collective 会负责写满它。这个提醒是在防止学生把未初始化内存误解为逻辑错误。[00:45:24-00:45:32]
+- **易错点**：benchmark 时必须同时处理 CUDA 异步和多进程异步。只看 Python 代码“走到下一行”并不代表通信或 kernel 已真正完成。[00:47:24-00:48:02]
+
+## 本段掌握检查
+
+1. 问：为什么 all-reduce 之后每个 rank 都得到相同张量？  
+答：因为它先对各 rank 同位置元素做 reduction，然后把结果复制到所有 rank 上；而且在 PyTorch 示例里它是原地写回输入张量。[00:40:51-00:41:41]
+
+2. 问：reduce-scatter 与 all-gather 在输入输出形状上有什么区别？  
+答：reduce-scatter 从较大输入得到较小输出，每个 rank 只保留一个分片；all-gather 则从局部输入拼成完整输出，完整结果出现在所有 rank 上。[00:42:23-00:46:13] [代码: lecture_07.py p.6]
+
+3. 问：`async_op=True` 真正允许程序做什么？  
+答：它让 collective 调用先返回，程序可以并行去做与该通信无依赖的计算或数据准备，等需要结果时再同步。[00:43:37-00:45:04]
+
+4. 问：老师为什么在计时前后都调用 synchronize 和 barrier？  
+答：因为既有 CUDA kernel 的异步，也有不同进程的异步；两者都要停稳，计时才对应真实 collective 成本。[00:47:24-00:48:02]
+
+5. 问：all-reduce 带宽公式里的 `2` 从哪里来？  
+答：来自 send 与 receive 两部分数据移动；课堂代码里用 `size_bytes * 2 * (world_size - 1)` 计入总发送量。[代码: lecture_07.py p.8]
+
+## 待核对项
+
+- [需回听 00:43:01] 老师说 reduce-scatter 前输出张量“碰巧是 0，但也可以是别的值”，原字幕在数值描述上稍快，笔记按其逻辑意义整理。
+- [需回听 00:44:56] 关于异步 collective 结束后“call a wait or a barrier”的表述较快，笔记保留“需显式等待结果完成”这一确定结论。
+
+--- 片段笔记 6（00:49:56-00:59:53） ---
+> 片段边界：00:49:56-00:59:53
+
+## 本段在整讲中的作用
+
+本段完成第一部分 benchmark 的收尾，并正式切入第二部分 distributed training。老师先把 all-reduce 与 reduce-scatter 的带宽解释完，说明为什么它们尽管工作量不同，却可能测出相近的 effective bandwidth；随后他把视角转向训练，给出 data parallelism 的第一张概念图，把“collective 原语”真正变成“训练策略”。[00:49:56-00:53:20] [代码: lecture_07.py p.9]
+
+从整讲结构看，这一段的关键不是把 data parallel 的所有代码讲完，而是先建立两个判断标准：第一，通信性能要用 payload 和总等待时间归一化地看；第二，训练并行的切分方式可以从“切数据”开始理解，data parallel 就是把 batch 沿样本维切开。[00:53:20-00:59:53]
+
+## 教学展开
+
+1. 老师先把上一段未讲完的带宽公式说完。带宽等于总发送字节数除以总持续时间，而总持续时间要乘上 world size，因为所有 rank 都在等待这次 collective 完成。all-reduce 的课堂示例大致得到约 400GB/s 的有效带宽。[00:49:56-00:50:33]
+2. 接着老师强调一个重要性质：从 `size * 2 * (world_size - 1) / (world_size * duration)` 这个表达式看，随着 world size 增大，`(world_size - 1) / world_size` 会趋近 1，因此 effective bandwidth 近似只剩 `2 * size / duration` 量级。也就是说，这个指标在设计上是近似独立于 world size 的，也不直接依赖 ring 还是 tree 这类底层拓扑表述。[00:50:45-00:51:34]
+3. 然后老师说明 reduce-scatter benchmark 与 all-reduce 几乎完全同构：同样先建输入/输出、warmup、执行、计时，再用输入字节数和总持续时间估算带宽，只是此时不再出现 send+receive 的额外 `2x` 因子。[00:51:41-00:52:24] [代码: lecture_07.py p.9]
+4. 紧接着老师解释为什么 reduce-scatter 与 all-reduce 最终测出来的带宽应当差不多。因为 all-reduce 本身就等于 reduce-scatter 加一次 all-gather，所以它传的数据量是 2 倍、耗时也约 2 倍，二者在带宽定义里相互抵消。[00:52:37-00:53:07] [代码: lecture_07.py p.9]
+5. 第一部分结束后，老师回答一个计时细节问题：为什么要对 CUDA kernel 做 synchronize？因为即便进入多进程世界，本质上仍是在每个进程里发 CUDA 操作，而 CUDA 默认异步；如果 Python 走到下一行时 kernel 还没完成，计时与同步都会失真。[00:53:30-00:54:14]
+6. 对于“是先 barrier 还是先 synchronize”的追问，老师没有给绝对形式证明，但他直觉上认为应先等本地 CUDA 真正完成，再做全局 barrier；否则每个进程可能只是很快抵达 barrier，而本地 GPU 上的工作并没有真正停稳。[00:54:18-00:55:03]
+7. 之后老师宣布进入 part two，开始讲如何训练模型。他特意选多层 MLP 而不是完整 Transformer，因为 MLP 已经代表了 Transformer 中最主要的计算瓶颈，因此足够用来解释并行思想。[00:55:09-00:55:34]
+8. 第一种策略是 data parallelism。老师给出图像化理解：沿 batch 维切数据，每个 GPU 只负责其中一部分数据，但保留完整模型参数并做正常训练，之后再通过同步把不同 rank 上产生的梯度对齐。[00:55:34-00:56:25]
+9. 在具体形状上，老师用 batch size 为 128、num dim 为 1024 的数据矩阵举例，然后按 world size 把行切成若干份。若 world size 为 4，则每个 rank 拿到 32 条样本，即一个本地 batch。老师也提醒，真实系统里最好让每个 rank 自己加载数据，而不是都从同一份全局张量切片，这里只是为了讲清机制。[00:56:25-00:57:59]
+10. 片段结尾开始走进 data parallel 代码：构造若干层 `num_dim x num_dim` 的参数矩阵、交给 optimizer，并进入训练循环，准备讲 forward、backward 与梯度同步。这部分在下一段继续展开。[00:58:05-00:59:53]
+
+## 概念、符号与推导
+
+- **all-reduce 带宽近似独立于 world size：** 因为 
+
+$$
+\text{bandwidth} = \frac{\text{size} \times 2 \times (w-1)}{w \times \text{duration}}
+$$
+
+当 `w` 增大时，`(w-1)/w \to 1`，于是近似只剩 `2 * size / duration` 的尺度。[00:50:45-00:51:12]
+
+- **reduce-scatter 带宽公式：**
+
+$$
+\text{data\_bytes} = \text{input.element\_size()} \times \text{input.numel()}
+$$
+
+$$
+\text{sent\_bytes} = \text{data\_bytes} \times (w-1)
+$$
+
+$$
+\text{total\_duration} = w \times \text{duration},\qquad
+\text{bandwidth} = \frac{\text{sent\_bytes}}{\text{total\_duration}}
+$$
+
+这里没有 `2x`，因为课堂代码按 reduce-scatter 本身的发送量计字节。[代码: lecture_07.py p.9]
+
+- **all-reduce 与 reduce-scatter 的带宽近似相同：** 因为前者大致做后者加一次 all-gather，数据量约 2 倍、时间也约 2 倍，带宽比值不变。[00:52:37-00:53:07]
+- **data parallel 的切分方式：** 沿 batch 维切数据，不切参数；每个 rank 拿一段样本，但保留一整份模型参数。[00:55:34-00:56:25]
+- **局部 batch 大小：** 若 batch size 为 `B`，world size 为 `w`，则本地 batch 大小是 `B / w`。课堂示例中 `128 / 4 = 32`。[00:57:01-00:57:20]
+
+## 例子与课堂提示
+
+- **带宽不是毫秒数本身**：老师强调 effective bandwidth 是“统一口径后的吞吐指标”，可以更公平比较 collective，而不是只看一个 wall clock 数字。[00:49:56-00:50:33]
+- **先 synchronize 再 barrier 的直觉**：这段回答不是形式化证明，而是工程判断：本地 CUDA 工作若还没停，光到 barrier 没意义。[00:54:18-00:55:03]
+- **MLP 足够代表 Transformer 的 compute bottleneck**：老师用这个理由说明为何课程示例不追求模型全貌，而是抓住训练并行的骨架。[00:55:15-00:55:34]
+- **真实系统应各 rank 自己读数据**：课堂集中从同一张全局矩阵切片只是为了演示；老师明确提醒这在工程上会形成不必要瓶颈。[00:57:47-00:57:59]
+
+## 本段掌握检查
+
+1. 问：为什么 all-reduce 和 reduce-scatter 往往测得相近的 effective bandwidth？  
+答：因为 all-reduce 约等于 reduce-scatter 加一次 all-gather，数据量和耗时都差不多翻倍，在带宽公式里相互抵消。[00:52:37-00:53:07]
+
+2. 问：老师为什么说带宽指标近似不依赖 world size？  
+答：因为公式中的 `(world_size - 1) / world_size` 随 world size 增大趋近 1，所以主要量纲落在 `size / duration` 上。[00:50:45-00:51:12]
+
+3. 问：为什么 benchmark 时不能只靠 barrier，不做 CUDA synchronize？  
+答：因为 CUDA 操作默认异步，Python 或进程抵达 barrier 不代表 GPU 上的 kernel 已结束。[00:53:44-00:55:03]
+
+4. 问：data parallel 在课堂图像里是怎么切的？  
+答：按数据矩阵的行切 batch，每个 rank 负责一段样本，但每个 rank 都保留完整参数做常规训练。[00:55:34-00:56:25]
+
+5. 问：课堂里的局部 batch 大小是多少？  
+答：batch size 128、world size 4 时，每个 rank 拿到 32 条样本。[00:57:01-00:57:20]
+
+## 待核对项
+
+- [需回听 00:54:25] “先 barrier 再 synchronize 行不行”的讨论中老师明确表示自己不完全确定，笔记保留了他给出的工程直觉而未把它写成严格规则。
+- [需回听 00:55:21] “multilayer MLPs” 后老师自我纠正“MLP 已经包含 multilayer”这一句节奏较快，笔记只保留其教学含义。
+
+--- 片段笔记 7（00:59:53-01:09:53） ---
+> 片段边界：00:59:53-01:09:53
+
+## 本段在整讲中的作用
+
+本段完整讲清了 data parallelism，并把它与 tensor parallelism 做出第一次鲜明对照。前半段的主旨是说明 DDP 为什么只是在标准训练循环里多插入一行 all-reduce，就能让各 rank 像“看过全部数据一样”更新参数；后半段则展示另一种完全不同的切法：不切 batch，而是切每层参数矩阵的列，并把激活在各 rank 间 all-gather 回完整形状。[00:59:53-01:03:04] [01:03:04-01:09:53] [代码: lecture_07.py p.10] [代码: lecture_07.py p.12] [代码: lecture_07.py p.13] [代码: lecture_07.py p.14]
+
+它在整讲中的关键价值是建立“切什么，就要同步什么”的思维。data parallel 切数据，所以要同步梯度；tensor parallel 切参数宽度，所以 forward 里要同步激活、backward 里要做对偶的 reduce-scatter。[01:02:08-01:03:04] [01:07:22-01:09:30]
+
+## 教学展开
+
+1. 片段开头承接上一段的训练循环。老师指出，在每个 rank 上完成本地 forward、backward 后，只要把每个参数的梯度做一次 all-reduce 平均，再调用 optimizer 更新，本质上就等于各 rank 在用全局平均梯度同步训练。老师觉得这一点“很优雅”，因为相较标准训练，代码层只多了一行梯度同步。[00:59:53-01:00:36] [代码: lecture_07.py p.12]
+2. 接着老师解释这行同步的意义：每个 rank 只处理自己的 local batch，但同步后每个 rank 手上的梯度完全一致，于是它们在各自优化器里执行同样的参数更新；因此参数始终保持一致，好像所有 rank 都一起看到了全部数据。[01:00:13-01:00:36] [01:02:08-01:02:32] [代码: lecture_07.py p.10] [代码: lecture_07.py p.12]
+3. 问答环节先澄清 data parallel 的基本约束。老师说 batch size 至少要不小于 world size 才有意义，最好还更大；如果 batch size 不是 world size 的整数倍，可以 padding，但显然整除更省事。[01:00:47-01:01:26]
+4. 对于“Transformer 会不会不一样”的追问，老师给出 data parallel 的模块化观点：DDP 本身并不关心 forward 里到底是 MLP 还是 Transformer，只关心每个 rank 本地算完梯度后，是否把梯度做一致化处理。[01:01:40-01:02:04]
+5. 然后老师用三句话总结 data parallel：loss 在各 rank 上不同，因为用的是不同数据；梯度在反向传播后起初也不同；但经过 all-reduce 以后，梯度变得相同，因此参数更新之后各 rank 的参数继续保持相同。[01:02:08-01:02:32] [代码: lecture_07.py p.10]
+6. 老师再往前预告下一讲的 FSDP/ZeRO：当前 basic DDP 依赖 all-reduce，并要求每个 rank 都把整份参数放进内存；如果参数放不下，就得把 all-reduce 拆开、更聪明地只在需要时 gather 或 scatter 参数与梯度。[01:02:32-01:02:59] [代码: lecture_07.py p.10]
+7. 随后切到 tensor parallelism。老师说这里“不再切数据，而是切每一层”，每个 rank 只负责每层参数矩阵的一部分，因此一般会带来更多通信。[01:03:04-01:03:29] [代码: lecture_07.py p.13]
+8. 在设定上，tensor parallel 为了简化，把全部数据复制到所有 rank。数据形状仍是 `batch_size x num_dim`，但老师定义 `local_num_dim = num_dim / world_size`，表示每个 rank 只负责输出宽度的一部分。于是每层参数从完整的 `num_dim x num_dim` 变成各 rank 上的 `num_dim x local_num_dim`，等价于沿列切参数矩阵，所以老师称之为 column tensor parallel。[01:03:34-01:04:41] [代码: lecture_07.py p.14]
+9. 接下来的 forward pass 逻辑是：每个 rank 用完整输入 `x` 乘自己负责的列分片参数，得到 `batch_size x local_num_dim` 的局部激活；然后给每个 rank 预分配一个激活列表，调用 all-gather，把所有 rank 的局部激活收集起来，再按列拼接回完整的 `batch_size x num_dim` 激活，供下一层继续使用。[01:04:48-01:07:01] [代码: lecture_07.py p.14]
+10. 在问答里，老师明确指出 data parallel 和 tensor parallel 的差别：前者基本不需要改模型结构，模型像黑盒模块一样对待；后者必须把模型本身按矩阵乘法结构拆开。至于 backward，老师说 forward 里是 all-gather，那么 backward 里就是与之对偶的 reduce-scatter，而且在课堂这种“从零搭”写法里，需要自己显式管理，不会因为调用 `.backward()` 自动神奇完成。[01:07:22-01:09:39]
+11. 片段末尾老师宣布接下来快速讲 pipeline parallelism，并先给出一句话定义：这次是沿深度切网络，让每个 rank 负责一部分层。[01:09:39-01:09:53]
+
+## 概念、符号与推导
+
+- **DDP 的核心改动：** 标准训练循环保持不变，只在 `loss.backward()` 之后，对每个参数的梯度执行 `dist.all_reduce(..., op=AVG)`，再做 `optimizer.step()`。[00:59:53-01:00:36] [代码: lecture_07.py p.12]
+- **data parallel 的状态关系：** 不同 rank 的 loss 不同，本地梯度起初不同；all-reduce 平均后梯度相同；因此更新后的参数仍相同。[01:02:08-01:02:32] [代码: lecture_07.py p.10]
+- **局部 batch 大小：**
+
+$$
+\text{local\_batch\_size} = \frac{\text{batch\_size}}{\text{world\_size}}
+$$
+
+课堂示例中 `batch_size = 128`、`world_size = 4`，所以每个 rank 看到 32 条数据。[代码: lecture_07.py p.11] [代码: lecture_07.py p.12]
+
+- **tensor parallel 的局部维度：**
+
+$$
+\text{local\_num\_dim} = \frac{\text{num\_dim}}{\text{world\_size}}
+$$
+
+每个 rank 的每层参数形状因此从完整的 `num_dim x num_dim` 变成 `num_dim x local_num_dim`。[01:03:52-01:04:24] [代码: lecture_07.py p.14]
+
+- **column tensor parallel 的 forward：**
+
+$$
+x_{local} = x W_{local}, \qquad x_{local} \in \mathbb{R}^{\text{batch\_size} \times \text{local\_num\_dim}}
+$$
+
+对所有 rank 做 all-gather 后再沿列拼接：
+
+$$
+x = \operatorname{concat}(x_{local}^{(0)}, x_{local}^{(1)}, \ldots, x_{local}^{(w-1)}, \text{dim}=1)
+$$
+
+于是恢复出完整的 `batch_size x num_dim` 激活。[01:04:48-01:07:01] [代码: lecture_07.py p.14]
+
+- **forward/backward 对偶性：** 在这套 column tensor parallel 讲法下，forward 主要用 all-gather 拼回完整激活；backward 则要用 reduce-scatter 把梯度重新分散回各 rank。[01:08:09-01:09:25]
+
+## 例子与课堂提示
+
+- **“只多一行代码”**：老师用这句话强调 data parallel 的工程吸引力。它说明 DDP 在概念上很模块化，而不是要求重写整个模型。[00:59:59-01:00:13]
+- **batch size 至少要不小于 world size**：这是非常实用的课堂提醒。否则连“每个 rank 都有数据分到”这件事都很难成立。[01:00:47-01:01:02]
+- **Transformer 在 DDP 下几乎一样**：老师借问答提醒大家，data parallel 基本不关心模型内部结构，这也是它普适的原因之一。[01:01:40-01:02:04]
+- **tensor parallel 需要“muck around with the model”**：这是老师对两类并行差异最尖锐的总结。data parallel 不动模型，tensor parallel 必须理解矩阵乘法和层内部结构。[01:07:22-01:07:58]
+- **易错点**：不要以为 `.backward()` 会自动为课堂这种手写 tensor parallel 做好分布式梯度通信。老师明确说，在本课的“从零实现”语境下，需要自己显式调用对应 collective。[01:08:37-01:09:30]
+
+## 本段掌握检查
+
+1. 问：为什么说 DDP 只是“标准训练 + 一行梯度同步”？  
+答：因为每个 rank 仍正常做 forward/backward，只是在 backward 之后对每个参数梯度做 all-reduce 平均，然后再 optimizer.step。[00:59:53-01:00:36] [代码: lecture_07.py p.12]
+
+2. 问：data parallel 下为什么各 rank 的参数会保持相同？  
+答：虽然各 rank 用不同 local batch，导致 loss 和初始梯度不同，但 all-reduce 后梯度相同，因此它们执行相同的参数更新。[01:02:08-01:02:32]
+
+3. 问：tensor parallel 里切的是什么，不切的是什么？  
+答：不切数据，全部 rank 都有完整数据；切的是每层参数矩阵的宽度，每个 rank 只负责 `local_num_dim` 那一列分片。[01:03:04-01:04:41] [代码: lecture_07.py p.14]
+
+4. 问：column tensor parallel 的 forward 为什么需要 all-gather？  
+答：因为每个 rank 只算出了完整激活的一部分列，必须把所有 rank 的局部激活收齐并拼接，才能得到下一层所需的完整 `batch_size x num_dim` 输入。[01:05:24-01:07:01]
+
+5. 问：在课堂这版 tensor parallel 里，backward 大致对应什么通信模式？  
+答：对应 reduce-scatter，可看作与 forward 中 all-gather 的对偶。[01:08:09-01:09:25]
+
+## 待核对项
+
+- [需回听 01:00:47] “batch size has to be at least world size”是老师的课堂口语表述，笔记按“这套简单切法需要如此”理解，未扩写到更宽泛的工程变体。
+- [需回听 01:08:00] 关于 backprop 时老师原句中个别字幕残缺，结合上下文与后续解释整理为“backward 用 reduce-scatter 对偶处理梯度”。
+
+--- 片段笔记 8（01:09:53-01:19:51） ---
+> 片段边界：01:09:53-01:19:51
+
+## 本段在整讲中的作用
+
+本段讲完第三类主要策略 pipeline parallelism，并把前面三类并行方式放回统一的设计空间中比较：它们分别切 batch、切宽度、切深度；各自对应不同的通信模式、硬件要求和性能瓶颈。老师还顺着代码尾部收束了本讲辅助函数与 tracing 机制的意义，使整份 `lecture_07.py` 的组织从训练示例一路闭环到运行框架和课程总结。[01:09:53-01:17:58] [01:18:03-01:19:51] [代码: lecture_07.py p.15] [代码: lecture_07.py p.16] [代码: lecture_07.py p.17] [代码: lecture_07.py p.18] [代码: lecture_07.py p.19] [代码: lecture_07.py p.20] [代码: lecture_07.py p.21] [代码: lecture_07.py p.22] [代码: lecture_07.py p.23] [代码: lecture_07.py p.24]
+
+它的教学重点不是再讲一种 collective，而是让学生看到：并行策略一旦从“知道原语”进入“设计训练系统”，就必然牵涉 micro-batch、pipeline bubble、通信/计算重叠、硬件拓扑适配，以及手写原语与编译器自动分片这两种不同编程哲学。[01:11:00-01:19:00]
+
+## 教学展开
+
+1. 老师先承接上一段，对 pipeline parallelism 给出最直接的图像：每个 rank 不再拿每层的一部分列，而是拿一组完整层，也就是沿网络深度方向切开。[01:09:53-01:10:48] [代码: lecture_07.py p.15] [代码: lecture_07.py p.16]
+2. 在代码里，这意味着先把完整数据放到设备上，再计算 `local_num_layers = num_layers / world_size`，每个 rank 只初始化自己负责的那几层参数。这里仍用 `get_init_params` 创建方阵权重，并通过 `int_divide` 约束层数能被 world size 整除。[01:10:20-01:10:48] [代码: lecture_07.py p.16] [代码: lecture_07.py p.21] [代码: lecture_07.py p.22]
+3. 老师随后引出 micro-batch。因为如果整批数据一次性在 pipeline 里流动，下游 rank 常常会空等上游结果，产生 pipeline bubbles。于是代码把大 batch 再按 `num_micro_batches` 切成更小的块，rank 0 负责把原始数据 chunk 成多个 micro-batch，其他 rank 则只预分配接收激活的缓冲区。[01:10:48-01:11:25] [01:12:29-01:13:27] [代码: lecture_07.py p.16]
+4. 接下来老师按循环解释 pipeline 前向过程：如果当前 rank 不是第一个，就先 `recv` 从前一 rank 收到一个 micro-batch；然后只对本 rank 负责的若干层做前向；如果当前 rank 不是最后一个，就把产生的激活 `send` 给下一 rank。这里使用的是点对点 `send`/`recv`，而不是前面那组 collective。[01:11:25-01:12:14] [代码: lecture_07.py p.16]
+5. 然后老师专门解释为什么要 micro-batch。自然的深度切分虽然简单，但会带来 bubble：某些 rank 正在等待别的 rank 把张量处理好，自己无法工作。把一个大 batch 切成多个更小 micro-batch 后，流水线能更快填满与排空，从而减少等待时间。[01:12:29-01:13:27] [代码: lecture_07.py p.16]
+6. 紧接着老师指出，这份 naive 代码还缺了一个关键优化：communication/computation overlap。理想情况是本 rank 在算当前 micro-batch 时，下一次发送或接收已经异步挂起，从而让等待继续缩短。课堂代码只给出正确结构，真正的异步版本需要用更复杂的接口和状态管理。[01:13:32-01:14:14] [代码: lecture_07.py p.16]
+7. 后半段老师把这种 overlap 的思想推广到 data parallel：并不是一定要等全部 backward 结束才统一 all-reduce 梯度；如果足够聪明，可以在某些梯度一算完就开始发，从而与剩余计算重叠。这点会在作业里继续展开。[01:14:23-01:15:07]
+8. 再往后，老师把 MLP 示例的代表性说清：更一般的模型当然需要更多 bookkeeping，但 MLP 已经足以说明核心算法。然后他补充本讲未覆盖的其他并行形式，包括 sequence parallelism、expert parallelism 以及多种并行的组合。[01:15:11-01:16:06]
+9. 接着老师给出最重要的工程判断：选哪种并行方式强烈依赖硬件。tensor parallel 每层都要传大量激活，所以通常只适合高速 NVLink 域内；pipeline parallel 对慢互连更能容忍，甚至可以在跨很远节点的去中心化训练里出现；组合方案则常见于“节点内做 tensor parallel，节点间再叠 data parallel、FSDP 或 pipeline parallel”。[01:16:10-01:17:35]
+10. 老师还补充 critical batch size 这一训练层面的约束：data parallel 可以一路把 batch 做大，但当 batch 大到超过某个临界点后，继续放大未必再提高效率，这时可能更值得转向 tensor parallel 等其他方案。[01:17:35-01:17:58]
+11. 最后老师对比另一种编程哲学。课程故意用 PyTorch 原语、显式 collective 和点对点操作，让大家机械地看清每一步通信发生在哪；而在 JAX/TPU 世界里，也可以只声明模型与 sharding 策略，让编译器自动决定需要哪些通信。这种方式更省心，但不符合本课“from scratch”目标。[01:18:03-01:19:00]
+12. 收尾总结部分，老师把并行方式重新压缩成几句：可以按 data、tensor/expert、pipeline、sequence 切；本讲只做 basic DDP，下次讲 FSDP/ZeRO；tensor parallel 需要很快互连，pipeline parallel 较少依赖超快互连，但必须认真消除 pipeline bubbles。[01:19:09-01:19:51]
+
+## 概念、符号与推导
+
+- **pipeline parallel 的切分轴：** 沿网络深度切层，而不是切 batch 或切每层宽度。[01:09:53-01:10:48] [代码: lecture_07.py p.15] [代码: lecture_07.py p.16]
+- **局部层数：**
+
+$$
+\text{local\_num\_layers} = \frac{\text{num\_layers}}{\text{world\_size}}
+$$
+
+它决定每个 rank 需要保存和计算多少层。[代码: lecture_07.py p.16] [代码: lecture_07.py p.22]
+
+- **micro-batch 大小：**
+
+$$
+\text{micro\_batch\_size} = \frac{\text{batch\_size}}{\text{num\_micro\_batches}}
+$$
+
+拆得更细的目标是减少 pipeline bubble，而不是改变数学上的总 batch。[代码: lecture_07.py p.16] [代码: lecture_07.py p.22]
+
+- **点对点通信模式：** 若 `rank - 1 >= 0`，先 `recv`；完成本 rank 的局部层计算后，若 `rank + 1 < world_size`，再 `send` 给下一 rank。[代码: lecture_07.py p.16]
+- **pipeline bubble：** 某个 rank 因等待上游/下游张量而空闲的时间。micro-batch 与 overlap 都是在减少这部分空转。[01:12:57-01:14:14]
+- **辅助运行框架：** `setup` 用 master address/port 初始化进程组，`cleanup` 销毁进程组；`DisableDistributed` 在 trace 模式下把分布式函数临时替换成 no-op；`spawn` 在正常模式下 `mp.spawn` 多进程，在 trace 模式下只直接跑 rank 0 版本。它们解释了为什么课堂能逐行讲解分布式代码而不真正启动完整多进程。[代码: lecture_07.py p.17] [代码: lecture_07.py p.18] [代码: lecture_07.py p.19] [代码: lecture_07.py p.20]
+- **参数与形状辅助函数：** `get_init_params` 在对应 rank 的设备上按固定随机种子初始化参数；`int_divide` 强制整除；`summarize_tensor` 与 `render_duration` 只是为了更紧凑地打印张量形状和时间。[代码: lecture_07.py p.21] [代码: lecture_07.py p.22] [代码: lecture_07.py p.23] [代码: lecture_07.py p.24]
+
+## 例子与课堂提示
+
+- **micro-batch 的功能不是“改训练目标”**：老师介绍它的唯一直接目的，是减少 pipeline bubble，让流水线更快填满与排空。[01:12:29-01:13:27]
+- **point-to-point 与 collective 的分工**：前半讲大多是 collective，这里改用 `send`/`recv`，提醒大家不同并行方式天然对应不同通信原语。[01:11:52-01:12:14] [代码: lecture_07.py p.16]
+- **tensor parallel 适合节点内，pipeline parallel 更能容忍慢网络**：这是老师给出的最重要部署经验之一，说明“并行方式”必须和“互连层级”一起选。[01:16:22-01:17:14]
+- **critical batch size 提醒**：data parallel 不是无限往上堆 batch 就会更好，训练动态本身会出现收益递减点。[01:17:35-01:17:58]
+- **JAX/TPU 的编译器路线**：老师把它当作对照组，提醒学生本课故意不用那套“自动处理通信”的方式，因为目标是先把机械细节看清楚。[01:18:03-01:19:00]
+
+## 本段掌握检查
+
+1. 问：pipeline parallel 和 tensor parallel 的切分方式有何不同？  
+答：tensor parallel 切每层的宽度，每个 rank 持有每层的一部分参数；pipeline parallel 切网络深度，每个 rank 持有若干完整层。[01:09:53-01:10:48]
+
+2. 问：为什么 pipeline parallel 要把 batch 再切成 micro-batches？  
+答：为了减少 pipeline bubbles，让各 rank 更快开始处理并保持流水线持续忙碌。[01:12:29-01:13:27]
+
+3. 问：这份 pipeline 示例为什么用 `send`/`recv` 而不是 all-gather 或 all-reduce？  
+答：因为激活是按层顺序从上游 rank 传给下游 rank，通信模式天然是相邻 rank 的点对点流动。[01:11:52-01:12:14] [代码: lecture_07.py p.16]
+
+4. 问：为什么老师说 tensor parallel 一般放在 NVLink 域内？  
+答：因为它几乎每层都要传较大的激活张量，对互连带宽要求很高；慢网络下通信代价会很重。[01:16:22-01:16:47]
+
+5. 问：课堂 trace 模式为什么能逐行讲分布式代码而不真的开多进程？  
+答：因为 `spawn` 在 trace 模式下只直接调用一份函数，并借助 `DisableDistributed` 把分布式接口暂时替换成 no-op。[代码: lecture_07.py p.19] [代码: lecture_07.py p.20]
+
+## 待核对项
+
+- [需回听 01:10:48] 老师提到“Wednesday 由 Tatsu 继续讲 micro-batches”时专有名字幕识别不稳，笔记仅保留“下一次会继续深挖”这一课堂安排。
+- [需回听 01:18:26] 关于 JAX/TPU 编译器路线的个别连接词字幕缺失，笔记未补写课上未明确说明的编译器内部机制。
+
+--- 片段笔记 9（01:19:51-01:20:58） ---
+> 片段边界：01:19:51-01:20:58
+
+## 本段在整讲中的作用
+
+本段是全讲收束。老师把前面贯穿数次出现的“recompute、存本地显存、跨设备通信”三种资源交换关系再压缩成一句总结，并回到 data parallel 为什么愿意在各 rank 冗余保存整份参数与优化器状态这一最现实的问题。它不是新增技术内容，而是把整讲拉回一个统一权衡框架：显存、通信、冗余计算之间没有免费的午餐。[01:19:51-01:20:33]
+
+同时，老师给出面向未来的结论：硬件会越来越快，但模型也会越来越大，因此这种分层并行与分层通信的结构不会消失，只会持续存在。这一句为下次继续展开更复杂并行技术埋下了总前提。[01:20:33-01:20:58]
+
+## 教学展开
+
+1. 老师先回到此前提过的 activation checkpointing 和 GPU memory tradeoff：遇到中间结果时，可以选择重算，可以选择把它存在本地显存，也可以扩展成“存在另一张 GPU 上”，只是这样就把存储问题转成了通信问题。[01:19:51-01:20:12]
+2. 接着老师再解释 data parallel 的冗余性。表面看每个 rank 都在更新并保存完整参数，好像做了重复工作；但这么做的回报是，不需要在每一步都来回移动优化器状态。也就是说，data parallel 是用参数副本冗余换较简单的状态管理与通信模式。[01:20:12-01:20:33]
+3. 最后老师给出全讲视角的判断：即便硬件越来越快，研究者和工程师总会想训练更大的模型，所以“层级化硬件 + 层级化并行”的结构性问题会一直在。片段以“下周继续深挖更多 parallelism techniques”作结。[01:20:33-01:20:58]
+
+## 概念、符号与推导
+
+- **三种资源交换方式：** 重新计算、存本地内存、存另一张 GPU 并在需要时通信取回。这是老师把本讲与之前单 GPU 内存优化内容连起来的桥梁。[01:19:51-01:20:12]
+- **data parallel 的冗余逻辑：** 每个 rank 保留完整参数并各自更新，看似重复；但这样避免了频繁迁移 optimizer state，因此在工程上常常更划算。[01:20:12-01:20:33]
+- **层级结构不会消失：** 只要模型规模持续追逐更大算力，局部快、远端慢、需要在层级间平衡通信与存储的格局就会一直存在。[01:20:33-01:20:58]
+
+本段无公式推导。
+
+## 例子与课堂提示
+
+- **“存到另一张 GPU”**：这是老师对 memory/computation/communication 三角关系的简短但关键补充，提示学生不要把“跨 GPU 存储”当成免费扩容，而要把它看成一种通信换空间的设计。[01:20:04-01:20:12]
+- **data parallel 的副本不是白费**：老师用优化器状态举例，提醒学生判断“冗余”时不要只数参数副本，还要看整体系统需要搬运什么状态。[01:20:12-01:20:33]
+- **易错点**：硬件更快不意味着并行问题会自动消失。老师的结论恰好相反，因为模型目标规模也会同步增长。[01:20:33-01:20:47]
+
+## 本段掌握检查
+
+1. 问：老师如何把 activation checkpointing 的讨论延伸到多 GPU？  
+答：除了重算和存本地内存之外，还可以把中间结果存在另一张 GPU 上，但这会把问题转成通信问题。[01:19:51-01:20:12]
+
+2. 问：为什么 data parallel 愿意让每个 rank 保存完整参数？  
+答：因为这样就不必频繁搬运 optimizer state，虽然有参数副本冗余，但工程上更简单也常更划算。[01:20:12-01:20:33]
+
+3. 问：为什么老师说分层并行结构会一直存在？  
+答：因为硬件再快，人们也会继续追求更大的模型，所以局部快、远端慢、需要跨层级协调的现实不会消失。[01:20:33-01:20:58]
+
+## 待核对项
+
+无。

@@ -1,0 +1,1533 @@
+[00:00:05] Cool.
+[00:00:06] So thanks so much, everyone for coming.
+[00:00:09] I think you have a pretty cool course here.
+[00:00:12] And thanks, of course, Percy, for inviting me to give a talk.
+[00:00:16] So I think in this class, you're mostly talking about training
+[00:00:20] and how to train these language models, and get to this place
+[00:00:25] where we can have these things that can talk back to.
+[00:00:29] And today, I'm going to talk a little bit
+[00:00:31] about once you have one of those models, what it looks
+[00:00:34] like from the other side, what it looks like to actually serve
+[00:00:37] these models, do inference, turn these things from say,
+[00:00:43] electricity, into tokens, into intelligence.
+[00:00:47] And also what are some of the fun research problems
+[00:00:50] and research things that you can do when you look
+[00:00:52] at it from that standpoint.
+[00:00:55] I'll start with some of high level motivation.
+[00:00:59] I think one thing that's become abundantly clear to all of us
+[00:01:02] is that we are really going through almost
+[00:01:05] a new industrial revolution in terms
+[00:01:07] of these models and their capabilities.
+[00:01:09] These slides I made during my job talks two years ago.
+[00:01:12] So the exact examples are going to be pretty old,
+[00:01:15] but you can do human-level text generation, code generation,
+[00:01:19] Cursor, Claude Code, GPT 5.5, not just 4.
+[00:01:26] You can generate images and videos
+[00:01:28] or understand images and videos and process them.
+[00:01:32] You can start to understand new modalities.
+[00:01:34] So we're starting to see some of the applications
+[00:01:36] and the sciences in bio and health DNA models,
+[00:01:40] all these sorts of things.
+[00:01:42] One of the things that has really
+[00:01:44] been driving my research for a while
+[00:01:45] is the question of what has made these advances possible,
+[00:01:48] and how can we improve on them in the next generations?
+[00:01:53] And one abundant driver of these capabilities is really scale.
+[00:01:56] So again, this is at this point, are
+[00:01:59] pretty old figure but these models have really scaled up
+[00:02:05] in massive ways.
+[00:02:06] So in 2018, at the beginning of my PhD in antiquity,
+[00:02:10] these were hundreds million parameter models
+[00:02:12] at their largest.
+[00:02:13] And we were like, oh my God, these things are pretty crazy.
+[00:02:16] By 2019, we thought that they were too dangerous to release,
+[00:02:19] that's GPT 2.
+[00:02:20] I think in this class, you can train a GPT 2 quality model.
+[00:02:24] I'm not sure if you did.
+[00:02:25] If you tried hard enough, you could.
+[00:02:30] And today, of course, you have open source models
+[00:02:32] that are a trillion parameters and more.
+[00:02:35] Frontier is probably at 5 to 10 trillion parameters.
+[00:02:38] It's pretty exciting.
+[00:02:40] With these, you have a bunch of new capabilities like chat,
+[00:02:43] writing code, analyzing complex text, doing your homework
+[00:02:47] for you, et cetera.
+[00:02:50] What's really remarkable about this
+[00:02:52] is that this transition is happening faster than we think.
+[00:02:56] So certainly, faster than I thought at the beginning
+[00:02:59] of my PhD a few years ago.
+[00:03:01] So I think one really apt analogy and the dates
+[00:03:04] actually match up in an interesting way.
+[00:03:07] So in 1902, there are 130,000 working horses in Manhattan.
+[00:03:11] So these are horses that you don't just
+[00:03:13] have around for giggles, but you actually
+[00:03:15] have them because they play some key role.
+[00:03:20] And they would-- these horses would produce--
+[00:03:23] each would produce pounds of manure a day,
+[00:03:25] times 130,000 horses, you have a real manure problem.
+[00:03:28] So in fact, there were entire conferences
+[00:03:30] that were just gathered around the question
+[00:03:33] of-- entire academic conferences around,
+[00:03:35] what do we do about all the poop that these horses produce?
+[00:03:38] So in 1898, they actually had one of these in New York.
+[00:03:41] And their conclusion from that conference
+[00:03:42] was, there's nothing we can do about the horse manure.
+[00:03:45] You just have to hold your nose and deal with it.
+[00:03:48] 10 years later, by 1912, cars had already outnumbered horses
+[00:03:53] in Manhattan.
+[00:03:54] So that 10 year transition, you saw
+[00:03:56] these things that have been around for centuries
+[00:04:02] start to be replaced by cars.
+[00:04:06] And I think for us, for language models,
+[00:04:08] for a lot of the stuff that we do,
+[00:04:10] that 1912 moment was probably last year.
+[00:04:13] So at least for me, last year, I started
+[00:04:15] writing the majority of my code using these language models.
+[00:04:19] Most people in my team do it.
+[00:04:21] I tell all my students to do it, except when
+[00:04:23] they're doing their homework.
+[00:04:25] But this is a really exciting transition
+[00:04:28] that we're living through.
+[00:04:32] One of these things that is really driving this
+[00:04:34] is, a lot of the scale is driven by GPUs.
+[00:04:38] So in a very real sense, you could say GPUs are the new oil.
+[00:04:43] This is again a older announcement,
+[00:04:45] but you're seeing hundreds of billions of dollars
+[00:04:47] and more of investment into GPUs.
+[00:04:51] History rhymes in interesting ways with similar things,
+[00:04:56] but there are entire countries-- entire sovereign wealth funds
+[00:04:59] that are making these things a major part of their piece.
+[00:05:07] And one thing that is really abundantly clear
+[00:05:10] is that inference is really the piece.
+[00:05:13] So you can think of inference as the engine that turns
+[00:05:16] electricity into intelligence.
+[00:05:17] So the same way that oil is only useful in a car, if you can have
+[00:05:23] an engine that turns that oil into useful kinetic motion,
+[00:05:28] inference engines, GPU kernels, these
+[00:05:30] are the things that really turn--
+[00:05:33] that really turn these GPUs from sand,
+[00:05:35] like Percy said, into something that we can use today.
+[00:05:39] And I think that's clear.
+[00:05:40] So if you think about it, these machine learning models,
+[00:05:42] they're really just DAGs of operations.
+[00:05:44] There are some mathematical object that exists in the ether.
+[00:05:47] The inference engines, the GPU kernels, all these pieces, these
+[00:05:51] are the things that you actually have to program
+[00:05:53] and map them down to ML operations.
+[00:05:55] I think you do some of that in this class.
+[00:05:57] I think you implement some flash attention.
+[00:05:59] So some training side.
+[00:06:00] But there's a whole world of complexity
+[00:06:02] when it comes to inference and the inference side of things.
+[00:06:07] So if you take away nothing from today's talk,
+[00:06:10] I hope there's one thing which is, if you understand inference
+[00:06:14] and understand the inference engines,
+[00:06:15] if you understand the GPU kernels
+[00:06:17] that underlie a lot of the core technology,
+[00:06:21] you can enable full stack innovation in machine learning
+[00:06:24] algorithms.
+[00:06:25] So I'm going to start with, in today's talk,
+[00:06:27] a high level overview of the lifetime of a token.
+[00:06:31] So when you make a request to one of these models, what
+[00:06:34] happens to that request, how it goes
+[00:06:37] through the entire inference service,
+[00:06:38] what are some of the interesting choices you have to make.
+[00:06:41] And then I'll dive deeper into two more research projects
+[00:06:45] around, if you take certain pieces of this system, what
+[00:06:50] are questions that you can ask and what are
+[00:06:52] some things that you can do?
+[00:06:55] Before I get into all the technical details,
+[00:06:57] I'll quickly make a plug.
+[00:06:59] So I'm here representing two organizations.
+[00:07:00] So one is UCSD, where I have a small lab,
+[00:07:04] and some of their work is represented in this talk.
+[00:07:07] Then I'm also representing together
+[00:07:09] who did a bunch of the work that's represented in this talk
+[00:07:13] together as an AI cloud.
+[00:07:15] So there's GPUs, Inference, Fine-Tuning, and all the rest.
+[00:07:20] Heavy research background.
+[00:07:22] So including Percy, I don't think you can see my mouse,
+[00:07:24] but he's on the screen.
+[00:07:26] And then we've got a big research presence behind that,
+[00:07:30] and behind a lot of the things that you're
+[00:07:31] going to see in this talk.
+[00:07:34] All right.
+[00:07:35] I'll start by giving a high level overview
+[00:07:38] of a lifetime of a token.
+[00:07:40] So when you make a request to a inference system,
+[00:07:44] what are the different pieces that are going to go through?
+[00:07:47] And these slides are cribbed from a presentation
+[00:07:49] that my student, Austin made from his experiences together.
+[00:07:55] I'll make a note that all of the slides
+[00:07:57] are completely AI generated from Nano Banana Pro,
+[00:08:01] but they're pretty good as long as you don't
+[00:08:02] look too closely at the tech.
+[00:08:04] So I'd say, at a high level everything is correct.
+[00:08:07] If you look very closely, you'll see things that are very wrong.
+[00:08:11] This is a overview of all the pieces of an inference engine.
+[00:08:17] So I'll give a high level description of how it works.
+[00:08:21] So you get a request in.
+[00:08:22] The first thing that's going to happen
+[00:08:24] is that the request gets scheduled
+[00:08:26] to various different GPUs.
+[00:08:27] You might have disaggregated prefill and decode
+[00:08:30] on different machines.
+[00:08:33] You'll run that request against a KV Cache to see,
+[00:08:35] have I seen this request or versions of this request before?
+[00:08:39] Is there some compute that I can actually save?
+[00:08:45] Then you'll start executing the core machine learning code.
+[00:08:49] So here are new tokens.
+[00:08:51] Here are new operations that we need to compute.
+[00:08:54] There are various optimizations that you can make.
+[00:08:56] So you can split that computation
+[00:08:58] across different machines.
+[00:08:59] You can parallelize across different nodes.
+[00:09:01] You can parallelize it within a node across different GPUs
+[00:09:04] depending on the size of your model,
+[00:09:06] depending on how you can split up, split that up.
+[00:09:09] And I think one of the exciting things is that, as we are--
+[00:09:14] as the hardware is developing, we're
+[00:09:17] actually going to start to see more different choices that you
+[00:09:19] can make there.
+[00:09:21] But once you make all those choices, once you execute
+[00:09:24] all the code at the end, you get the tokens that you can say,
+[00:09:26] hey, Chad, what did Percy mean when
+[00:09:28] he said linear regression because I
+[00:09:31] skipped that day in my class?
+[00:09:33] And you get this whole end to end experience.
+[00:09:38] One of the things that I think is
+[00:09:40] useful to start thinking about is,
+[00:09:43] what do these different workloads look like?
+[00:09:47] And there's quite a bit of different things.
+[00:09:50] So this is one of the sites where if you look too closely,
+[00:09:52] I think some of the fives turned into S's.
+[00:09:55] But one of the things that you want to think about
+[00:09:58] is, when you're actually serving production traffic,
+[00:10:00] it doesn't necessarily look like-- certainly,
+[00:10:02] doesn't look what the type of tokens
+[00:10:05] that you see during training.
+[00:10:07] But it also doesn't look like if you just made up a traffic
+[00:10:11] workload in your head.
+[00:10:12] So what is the type thing that we typically see?
+[00:10:16] So for a particular workload, you'll
+[00:10:19] see a particular distribution of input and output tokens.
+[00:10:22] So let's take a coding workload.
+[00:10:24] So let's say you're somebody like Cursor, where you have
+[00:10:29] your whole code base is available to the agent
+[00:10:31] and you're asking questions about it,
+[00:10:32] typically, what that will look like,
+[00:10:34] is that you'll have a long amount of input.
+[00:10:36] So tens of Thousands of input tokens.
+[00:10:39] And then depending on how you've trained your model,
+[00:10:41] the model might output some amount of thinking tokens,
+[00:10:44] or it might output some short input in.
+[00:10:48] And this will change based on workload.
+[00:10:50] It'll change based on model.
+[00:10:53] So a coding workload for example will look very different
+[00:10:57] from a summarization workload, or a narrative summarization.
+[00:11:02] So if your work involves pasting entire books into a chat window
+[00:11:07] and then talking back and forth to figure out what's happening,
+[00:11:09] that's going to look very different than a standard chat
+[00:11:12] thing.
+[00:11:13] So if you just go to chat and say,
+[00:11:14] hey, explain to me first order calculus or whatever,
+[00:11:18] that's going to have very different workload shapes.
+[00:11:21] The way that we use language models today,
+[00:11:23] there's very turn-based agentic workflows.
+[00:11:27] So when you're coding, you go back and forth with your coding
+[00:11:30] agent, say, hey, do this.
+[00:11:31] No, I didn't mean that, do that.
+[00:11:33] Your coding agents themselves can iterate on the language
+[00:11:36] models quite a bit.
+[00:11:37] So they might invoke some tools and say,
+[00:11:42] grep search for something in my data-- in my code base,
+[00:11:45] and then take that and go feed it back to the model.
+[00:11:49] I might try to do an internet search and look up this thing
+[00:11:52] that my user asked me.
+[00:11:53] So typically, you have these multiple turns
+[00:11:57] in your conversation.
+[00:11:59] Now, another interesting piece is
+[00:12:00] different applications will have different times.
+[00:12:03] So if you're in a fast, interactive chat based loop,
+[00:12:06] or if you're talking on your phone
+[00:12:08] to ChatGPT in the voice mode, you
+[00:12:11] might have relatively quick responses.
+[00:12:14] If on the other hand, you've put together an agentic workflow
+[00:12:18] where you say, hey, go do this for me,
+[00:12:20] I'm going to leave you alone and just iterate on your own,
+[00:12:23] you'll have a different cadence.
+[00:12:24] If at some point your agent gets stuck and say, hey, help,
+[00:12:28] I need to ask for advice, and you don't notice it,
+[00:12:31] there might be another gap between turns.
+[00:12:33] So all of these things start to define
+[00:12:35] what your workload looks like.
+[00:12:37] So how many new tokens do you get in it every time?
+[00:12:40] How many tokens are you going to generate?
+[00:12:42] How long is my session?
+[00:12:44] Am I a very sticky user who keeps
+[00:12:46] going back and forth with my Claude Agent,
+[00:12:48] or am I a user who's just going to ask one question
+[00:12:51] and then leave and come back the next day?
+[00:12:54] And of course, how long between turns do you have?
+[00:12:58] I, for example, have a chat that I've
+[00:13:01] had with a ChatGPT agent about how I should set up my workout
+[00:13:05] and my workouts week to week.
+[00:13:08] And I interact with that chat once every other week.
+[00:13:12] So that is a very different traffic pattern
+[00:13:14] than some of the other ones.
+[00:13:17] And then of course, depending on your application,
+[00:13:19] you might have different targets.
+[00:13:20] So if you have a interactive application, you might say,
+[00:13:24] I want to get the first tokens back in less than a second,
+[00:13:26] so that the agent can say, hey, I'm thinking
+[00:13:29] and I'm going to say blah de blah de blah.
+[00:13:31] Or I might say, I know I'm going to be generating 500 tokens,
+[00:13:35] and I want that whole response to come back
+[00:13:37] within a certain amount of time so that my user can read it fast
+[00:13:39] enough and all these pieces.
+[00:13:46] So as that-- when that request comes in,
+[00:13:50] there are a few basic pieces that come in.
+[00:13:53] I'll rest a bit on the prefill and decode piece
+[00:13:56] in a little bit.
+[00:13:57] So let's say you have some amount of text that comes in,
+[00:13:59] the first thing you're going to do
+[00:14:01] is you're going to tokenize it.
+[00:14:02] I think you're all familiar with that.
+[00:14:04] But then once there, you start getting into a somewhat complex
+[00:14:07] scheduling regime because you have to ask questions like,
+[00:14:10] have I seen these tokens before?
+[00:14:12] Can I just look up some of the activations in a cache?
+[00:14:17] And then you get to basically, these two major pieces
+[00:14:21] of the actual machine learning computation.
+[00:14:25] These are called prefill and decode,
+[00:14:27] and they're very different beasts.
+[00:14:28] So prefill means let's say you have 10,000 tokens that
+[00:14:31] you've never seen before, and you want to go compute what
+[00:14:35] the activations and what the logit should be.
+[00:14:37] So 10,000 tokens in, one token out.
+[00:14:40] That's a very compute bound operation.
+[00:14:42] So that actually looks pretty close to the things
+[00:14:44] that you guys have been looking at for training time.
+[00:14:46] So when you're training, you have some large amount
+[00:14:48] of tokens.
+[00:14:49] You write your flash attention kernel
+[00:14:50] when you run your training loop.
+[00:14:52] Prefill is very similar.
+[00:14:53] You just don't run your backwards pass.
+[00:14:55] And then you have this thing called decode.
+[00:14:56] So decode is when you're then just generating
+[00:14:59] one token at a time.
+[00:15:00] So you pass in these 10,000 tokens.
+[00:15:02] It's like, hey, here's my code base,
+[00:15:04] tell me what function ABC does?
+[00:15:06] The model is going to process the whole prompt
+[00:15:09] and then start generating one token at a time, maybe
+[00:15:12] three or four tokens if you have speculative decoding working.
+[00:15:15] And if you think about that operation-- so every time you
+[00:15:18] generate a new token, you then have to run that back
+[00:15:20] through the model.
+[00:15:21] If you do the math on that, there's actually not too many
+[00:15:24] flops that you need to compute.
+[00:15:25] So it's going to be a relatively light computation,
+[00:15:29] but it's going to be very memory bandwidth bound.
+[00:15:31] So what that means is you're going
+[00:15:33] to be running-- you have to load up the model
+[00:15:35] every time just to generate a single token.
+[00:15:38] At the end, you get--
+[00:15:39] at the end of that model pass, of course,
+[00:15:41] you then have a single number that
+[00:15:44] represents a token that then gets turned into a string.
+[00:15:47] You probably do a little bit of processing on that.
+[00:15:50] So you look for stop tokens.
+[00:15:52] You check.
+[00:15:52] You might run a safety check to say, oh,
+[00:15:56] is my user trying to hack into the system
+[00:15:59] in a bad way, et cetera?
+[00:16:01] And then at the end, you get the tokens.
+[00:16:05] And the inference engine is really running in this loop,
+[00:16:08] waiting for these requests to come in.
+[00:16:10] So it's waiting-- so it's running this scheduling
+[00:16:13] execution token sampling loop and repeating.
+[00:16:21] So I'll get into a little bit of-- so now we
+[00:16:24] can take one step deeper and start to look at,
+[00:16:26] what does it look like when you have
+[00:16:28] a system that is processing many different requests at a time?
+[00:16:32] So we have this phenomenon called-- this technique called
+[00:16:34] continuous batching.
+[00:16:36] So the way to read this figure is that it
+[00:16:39] is time is flowing downward.
+[00:16:41] So as you go down, there are new requests that are coming in.
+[00:16:45] So let's say, if we go to step one,
+[00:16:47] you have some long requests.
+[00:16:48] You have a user that is asking to analyze some long document,
+[00:16:55] and the engine is going and generating a bunch of tokens
+[00:16:58] out.
+[00:16:59] You might have another request comes in that starts
+[00:17:02] to take up some resources.
+[00:17:04] So these resources are first compute resources.
+[00:17:07] You have to run things over multiple requests at once.
+[00:17:11] They can be memory resources if you're filling up a KB Cache.
+[00:17:15] And so you'll see these multiple requests
+[00:17:18] happening at the same time.
+[00:17:21] After a step, that short request might finish
+[00:17:23] and you get a new request that comes in,
+[00:17:26] and maybe it's running for a couple steps.
+[00:17:29] If you have another request that comes in,
+[00:17:32] maybe it's another very long request.
+[00:17:34] So that's going to be that orange one in step four.
+[00:17:36] But maybe you don't have enough GPU memory.
+[00:17:37] So you need to store all your KV Cache on your GPU.
+[00:17:41] Maybe you've run out.
+[00:17:42] You might start queuing for some reason there.
+[00:17:45] Then once that long request is done,
+[00:17:47] you can start the new request, and then, et cetera,
+[00:17:50] you can watch it run.
+[00:17:51] So already, you're seeing some of the complexity
+[00:17:53] when you have many different requests living in a system
+[00:17:57] and how it goes on.
+[00:18:02] One of the pieces that's quite important
+[00:18:05] is this thing called a KV Cache.
+[00:18:08] So the way to think about this is that you probably
+[00:18:12] have a lot of users who are saying, hi, ChatGPT
+[00:18:15] or hi, Claude.
+[00:18:16] And then theoretically, you don't
+[00:18:19] need to compute new activations and run that again
+[00:18:22] for every single user.
+[00:18:25] Or if you have a long book that the user has passed in,
+[00:18:28] you compute, you run the prefill over that once,
+[00:18:31] and then the next time you get some addendum to that request.
+[00:18:34] The next turn in the conversation,
+[00:18:36] you don't need to compute the whole thing again.
+[00:18:39] So we have these mechanisms called KC Caches
+[00:18:42] that use prefix sharing, that say, hey,
+[00:18:45] I have this new set of tokens that comes in,
+[00:18:47] use a very traditional data structure like a basic tree,
+[00:18:51] look at which tokens have I seen before, which tokens are new,
+[00:18:55] and then basically, do a lookup of what those activations are
+[00:18:58] going to look like.
+[00:19:01] Once you actually have the computation on the GPUs,
+[00:19:04] there's various ways to split it.
+[00:19:06] So I'm not sure if you talked about this too much,
+[00:19:09] but let's say you have a trillion parameter model
+[00:19:12] and you're running on 280 gigabyte GPUs,
+[00:19:16] you're not going to be able to fit
+[00:19:18] the whole model onto each GPU.
+[00:19:21] So there are various ways that you might split it.
+[00:19:23] So you might take every tensor and split
+[00:19:26] it four ways across four GPUs.
+[00:19:28] This is called tensor parallelism.
+[00:19:30] Or today, we have a lot of the state of the art models
+[00:19:34] or a mixture of experts models.
+[00:19:35] So you have these individual experts
+[00:19:38] that get selectively activated depending on different tokens.
+[00:19:41] You can split those across different GPUs.
+[00:19:43] The choices that you make at this point
+[00:19:45] will determine what are the bottlenecks.
+[00:19:47] How many GPUs do you need to run your model?
+[00:19:52] How many sessions can you serve at the same time?
+[00:19:55] Et cetera.
+[00:19:58] One of the big things that happens
+[00:20:00] is that we tend to split prefill and decode onto different GPUs,
+[00:20:05] different sets of machines, and that's
+[00:20:08] because they have very different compute bottlenecks
+[00:20:10] and compute characteristics.
+[00:20:12] So prefill looks a lot like what you guys do during training.
+[00:20:15] You just run it.
+[00:20:16] It's very flop heavy.
+[00:20:18] You can really use the most out of your GPUs.
+[00:20:21] Decode on the other hand is very memory bandwidth heavy.
+[00:20:24] Because you're not doing that much compute,
+[00:20:26] but you still have to load up all the model
+[00:20:30] weights at the same time.
+[00:20:31] These things will also take different amounts of time.
+[00:20:34] So prefill will typically take a lot longer than a single decode
+[00:20:37] step.
+[00:20:37] But you're going to be running a lot more decode steps,
+[00:20:40] because you will run prefill once for a prompt,
+[00:20:42] you'll run decode once for every token that you generate.
+[00:20:46] So a very basic optimization that pretty much we've
+[00:20:50] all started adopting is that you'll
+[00:20:51] run prefill on one set of workers,
+[00:20:54] decode on another set of workers,
+[00:20:56] so that you can specialize those two
+[00:20:57] computations to different pieces of the stack.
+[00:21:01] And turns out, there's a lot of innovation
+[00:21:03] that you can have when you have these splits.
+[00:21:06] Some things that you might have heard of,
+[00:21:07] that when NVIDIA bought Grok.
+[00:21:10] So NVIDIA, the King of GPUs, buys this new inference chip.
+[00:21:16] One of the reasons is that the decode workload
+[00:21:19] is so different from prefill workload,
+[00:21:20] that if you're looking at code, you can
+[00:21:23] be using very different chips.
+[00:21:25] So for example, in the next generation of hardware,
+[00:21:28] NVIDIA is planning on using its GPUs for the pre-fill side,
+[00:21:32] using these LPU Grok chips for the decode.
+[00:21:35] You see similar things with Cerebras.
+[00:21:38] So OpenAI has this compute partnership with Cerebras.
+[00:21:41] It's another chip that's much better at decode.
+[00:21:43] There are other companies like SambaNova
+[00:21:45] and so on, that are also making bets
+[00:21:47] on various parts of this space.
+[00:21:53] Here's a fun one, an interesting one.
+[00:21:55] So when you actually start deploying
+[00:21:58] these inference engines at scale,
+[00:22:00] so when you're starting to serve trillions of tokens or more
+[00:22:03] a day, you start to get some pretty nasty bugs.
+[00:22:06] So this is a set of bugs.
+[00:22:07] I think most of these happened in
+[00:22:12] late last year with some of the open source inference engines.
+[00:22:17] And basically, one of the characteristics
+[00:22:22] of these large scale systems is that something
+[00:22:25] that will work well at a small scale
+[00:22:26] will inevitably start breaking at a large scale.
+[00:22:29] So we're talking events that happen with 0.001% of the time
+[00:22:33] or less.
+[00:22:35] Some of these can be so NaN.
+[00:22:38] So sometimes, you'll have a kernel
+[00:22:40] that is very slightly wrong.
+[00:22:42] But the conditions for triggering it are very rare.
+[00:22:46] And you will start having some of your logits
+[00:22:49] turn into NaNs halfway through the computation.
+[00:22:54] When that happens, we figure it out
+[00:22:56] that the model starts outputting the same token.
+[00:22:58] So I think some model, the output just
+[00:23:00] started saying, hi, hi, hi, hi, after a while,
+[00:23:03] or start outputting exclamation points
+[00:23:05] and you get caught into these loops.
+[00:23:09] Another model, at some point, someone
+[00:23:12] made a change to how you're handling tool calls.
+[00:23:15] So tool calls are when the model says,
+[00:23:18] hey, I want to make an internet search or something like that.
+[00:23:22] So the model will actually say, go do an internet search.
+[00:23:24] And then your end harness has to then go use old fashioned code
+[00:23:28] to do the internet search.
+[00:23:30] At some point, those tool calls stop being processed correctly
+[00:23:36] in one of the engines.
+[00:23:37] And the symptom for that the completion lengths shot up
+[00:23:40] because the model would say, hey, make an internet search,
+[00:23:43] and then it would usually--
+[00:23:47] when the model is behaving correctly,
+[00:23:48] it says, hey, make an internet search.
+[00:23:50] I'm done.
+[00:23:51] Go return to the user.
+[00:23:52] Go do that, whatever.
+[00:23:53] But in this case, it wasn't returning correctly.
+[00:23:56] So it'd say, hey, make an internet search.
+[00:23:57] Hey, make an internet search.
+[00:23:59] Hey, I don't know why there's no internet search going on.
+[00:24:01] It would just get into this very long doom
+[00:24:03] loop for tens of thousands of tokens.
+[00:24:07] There's another one that--
+[00:24:10] this one was interesting because it actually
+[00:24:14] took out a number of insurance providers at the same time.
+[00:24:18] And it actually got blamed on a quantization issue.
+[00:24:21] But actually, what was happening was a much more subtle bug
+[00:24:24] where the model would just suddenly, randomly
+[00:24:28] start to output Chinese characters
+[00:24:30] when it had no reason to.
+[00:24:32] So for some models, that sometimes there's
+[00:24:38] some speculation, oh, they must have
+[00:24:40] fine-tuned on a Chinese model because my model suddenly
+[00:24:42] starts.
+[00:24:42] I ask it a question in English and starts
+[00:24:44] speaking back to me in Chinese.
+[00:24:47] Actually, what was happening is that there was just an off by I
+[00:24:50] error in one of the kernels, and it would be a very subtle bug.
+[00:24:53] So sometimes, you would read in some extra uninitialized memory
+[00:24:59] space from your GPU, run it through retention, and then
+[00:25:03] at the end of that whole process,
+[00:25:04] you get a random Chinese character.
+[00:25:06] Then the model will go, why did I start suddenly
+[00:25:08] thinking in Chinese?
+[00:25:10] I must be-- the user must be asking me a question in Chinese,
+[00:25:13] and then it will just go veer off into Chinese.
+[00:25:15] So sometimes when this happens, it's
+[00:25:18] because the model has legitimately
+[00:25:19] been trained to say--
+[00:25:22] to think in Chinese.
+[00:25:23] Sometimes, it can just be an off by one bug in somebody's code.
+[00:25:32] Some interesting things that are starting
+[00:25:34] to happen in a lot of the more advanced inference stacks.
+[00:25:38] So a major piece of running large production systems
+[00:25:43] is that you want to have as large of a KV Cache as possible.
+[00:25:47] So it is best if you can cache requests
+[00:25:51] from many different users or from the same user
+[00:25:53] across many different sessions, and be able to run
+[00:25:57] as many sessions as possible.
+[00:25:59] You first started this by storing your KV Cache on GPU,
+[00:26:03] and then you quickly run out of GPU memory.
+[00:26:05] So the next, you can start storing into CPU DRAM.
+[00:26:08] So if you're paying attention to Jensen's keynotes,
+[00:26:13] he's recently started getting very obsessed
+[00:26:16] with CPU performance.
+[00:26:18] One of the reasons is because a past generation of CPUs
+[00:26:23] was actually really slow.
+[00:26:25] And as a result, started bottlenecking a bunch
+[00:26:28] of very important workloads.
+[00:26:31] And as a result, you start to pay attention
+[00:26:33] because if you're $500,000 machine is being bottlenecked
+[00:26:38] by the $1,000 CPU that you purchased to put on top of it,
+[00:26:42] that's not a great place.
+[00:26:44] One of the reasons that can happen
+[00:26:45] is that you might be storing your KV Cache on CPU memory.
+[00:26:49] And so you really care about the speed
+[00:26:51] of being able to read that KV cache back.
+[00:26:53] Next, you might put more KV cache onto the disk itself.
+[00:26:57] And then you start caring about SSDs and SSD space.
+[00:27:02] Again, you've probably heard these rumblings about OpenAI
+[00:27:05] buying up all the SSD, all the DRAM in the world.
+[00:27:08] Part of the reason is for stuff like this,
+[00:27:11] where you want to store as much stuff in your KV Cache
+[00:27:13] as you can.
+[00:27:15] And then of course, when you're actually building your engine,
+[00:27:18] there's this complicated dance of,
+[00:27:20] I haven't seen these tokens in a while.
+[00:27:23] Maybe I'll evict it, send it on to the CPU,
+[00:27:25] or send it into disk, or send it into some other global store.
+[00:27:29] When I get a new request in, I have to go look.
+[00:27:32] I have to go wait for those to come in,
+[00:27:34] fetch them, load them up into my thing, and then we're happy.
+[00:27:40] It's kind of CPU offloading.
+[00:27:42] Is it like a special kind of workload that gets offloaded?
+[00:27:45] For something fast, you don't want to do this.
+[00:27:48] Time to hit a SSD is very long.
+[00:27:50] Can you repeat the question?
+[00:27:51] Yes.
+[00:27:52] Yeah, so the question is so for this offloading,
+[00:27:55] is it a particular type of workload that you offload?
+[00:27:58] So here, we actually get to some pretty--
+[00:28:01] i'm sure none of you guys have taken an operating systems
+[00:28:03] class.
+[00:28:04] But you should take your operating systems classes--
+[00:28:06] you actually get to some pretty classic scheduling things.
+[00:28:09] So you could have this diagram except for the GPU
+[00:28:13] things on the right.
+[00:28:14] Looks exactly like a operating systems diagram that you might
+[00:28:18] have seen in the '70s or the '80s.
+[00:28:21] Because we used to have this problem, where if you opened up
+[00:28:24] too many applications on your computer,
+[00:28:26] you would run out of CPU memory, and then
+[00:28:28] you'd have to put those applications onto the disk.
+[00:28:33] And it is exactly the same workload.
+[00:28:35] So ideally, here, actually on the left side,
+[00:28:41] the Nano Banana hallucinated evictions
+[00:28:43] for least recently used which is actually
+[00:28:45] a pretty decent heuristic.
+[00:28:47] There's probably some OS paper somewhere that says that LRU is
+[00:28:50] within 2x of what you can do.
+[00:28:52] That's optimal.
+[00:28:53] Of course, the best thing that you want to do
+[00:28:54] is, if you could predict the future, you would know,
+[00:28:57] oh, I'm about to have a request come in of a particular kind.
+[00:29:02] Let me go prefetch that memory in.
+[00:29:05] It might actually be possible to predict the future.
+[00:29:08] So for example, when you go into your chat app
+[00:29:10] and you bring up some old conversation from a month ago,
+[00:29:13] that's a very strong signal that you're
+[00:29:15] going to go start asking a question about it.
+[00:29:17] You might then want to go load that up onto a GPU.
+[00:29:21] But in a perfect world, you predict the future.
+[00:29:25] If you can't predict the future, you use various heuristics.
+[00:29:28] And really, it's a question of how much traffic
+[00:29:34] you want to put onto your GPU footprint.
+[00:29:37] I've never talked to anybody who wants to put
+[00:29:39] less traffic onto their GPUs.
+[00:29:41] So I think Modulo or subject to those SLAs
+[00:29:45] that we splashed up at the beginning,
+[00:29:49] you want to serve as much traffic as you can.
+[00:29:54] Some fun things that are starting to happen.
+[00:29:57] So in the last generation of Blackwell GPUs,
+[00:30:01] NVIDIA started putting together these new GPUs called
+[00:30:05] NVl72 Grace Blackwell chips.
+[00:30:07] So these are 72 GPUs that are connected
+[00:30:09] with really fast interconnects.
+[00:30:12] And so you start to do things like,
+[00:30:14] how can I split my trillion parameter model across all 72
+[00:30:17] GPUs?
+[00:30:18] Does this make any sense?
+[00:30:20] What does it buy me?
+[00:30:22] What happens?
+[00:30:24] How do I start to think about fault tolerance?
+[00:30:26] So these things can fail a lot for various different reasons.
+[00:30:31] One reason is that the connectors are flimsy.
+[00:30:34] They're made of plastic, not made of metal.
+[00:30:36] So if you like jam the thing in too much,
+[00:30:38] then your cables are going to bend the things a little bit,
+[00:30:41] and then you get really flaky NV links, which
+[00:30:46] is a whole thing in itself.
+[00:30:48] But what happens when--
+[00:30:49] so this is the AI generation.
+[00:30:50] So let's put a fan into the chips, which doesn't quite
+[00:30:54] make sense.
+[00:30:55] One of the things that you want to start thinking about
+[00:30:57] is, if I've taken a model split it across 64 GPUs,
+[00:31:00] and I'm serving production traffic against millions
+[00:31:03] of users, trillions of tokens.
+[00:31:05] What do I do when a single GPU goes down?
+[00:31:08] Is there some way to make that fault tolerant?
+[00:31:10] And there's a lot of fun things to think about there.
+[00:31:14] And then, of course, you're starting
+[00:31:16] to see these models have a million contexts or more.
+[00:31:19] How do you actually process it?
+[00:31:21] Do you split that context across many different GPUs?
+[00:31:24] How do you do these different things?
+[00:31:30] So I want to dive--
+[00:31:31] just very briefly highlight one set--
+[00:31:34] one example of an optimization that you
+[00:31:36] can start to make when you start looking
+[00:31:40] at this whole process from a systems level.
+[00:31:43] So this is a piece of work that we put together
+[00:31:47] a few months ago called Cache-aware Prefill-decode
+[00:31:50] Disaggregation.
+[00:31:51] It's a very simple optimization.
+[00:31:53] It's two lines of code in the routing layer,
+[00:31:56] but can actually make a pretty big difference.
+[00:31:58] So the basic idea is, you have all these requests that
+[00:32:01] are coming in.
+[00:32:02] Most of them are going to be turn by turn requests
+[00:32:07] in a conversation, where somebody's already
+[00:32:09] started a conversation.
+[00:32:11] But let's say your average conversation lasts 10 turns
+[00:32:14] and then the user goes away, that suggests
+[00:32:16] that 10% of your requests are going to be very fresh, very
+[00:32:20] new requests.
+[00:32:21] So when you have a new request that comes in,
+[00:32:22] that's going to be thousands of tokens.
+[00:32:25] It's going to look very different.
+[00:32:26] It's going to be a lot more expensive to compute.
+[00:32:29] You don't necessarily want to put that prefill
+[00:32:32] against a short conversation where you're halfway
+[00:32:36] through conversation.
+[00:32:37] So someone paste in a book and says,
+[00:32:39] hey, talk to me about this book.
+[00:32:40] You don't want that running at the same time
+[00:32:42] as someone who's midway through a conversation,
+[00:32:44] like, chat explain to me why 1 plus 1 equals 2.
+[00:32:50] And chat is like, 1 plus 1 equals 2
+[00:32:52] because numbers and whatnot.
+[00:32:53] And you're like, oh, I don't get it.
+[00:32:54] You don't want that very short question and answering
+[00:32:58] to happen in the same time, on the same GPUs,
+[00:33:01] as the very long request.
+[00:33:06] So you can put together this really simple router that
+[00:33:09] says, OK, if we have a new request that
+[00:33:11] comes in that's very low cache hit rate,
+[00:33:14] send it to one set of GPUs so that those can all
+[00:33:17] process things together and then send all my other warm requests
+[00:33:20] to another set of prefill nodes.
+[00:33:22] It turns out if you do this, you can get up
+[00:33:24] to 40% faster serving with these very, very simple optimization.
+[00:33:31] So that's one set of things I'd say,
+[00:33:33] the way that I would characterize
+[00:33:35] where we are in terms of the research
+[00:33:38] and these techniques is that we're very early.
+[00:33:40] So this is the type of thing that in 10, 20 years,
+[00:33:45] they're going to look back on and be like, oh, why are
+[00:33:47] these guys talking about this?
+[00:33:49] Isn't this already obvious to folks?
+[00:33:52] But really, it's because we're starting to see these things,
+[00:33:55] running them at production in new ways.
+[00:33:57] Seeing these new bits of traffic in new ways.
+[00:34:04] All right.
+[00:34:04] So that was a overview of the inference life of a kernel.
+[00:34:09] Now I'm going to talk about two interesting research
+[00:34:12] projects that are very much inspired by some of the things
+[00:34:15] that we see when serving things.
+[00:34:18] So this first one we're going to be talking about language model
+[00:34:22] decode, and how you can make it go
+[00:34:24] a lot faster with these things called mega kernels.
+[00:34:27] This is a collaboration between Stanford and Together.
+[00:34:32] So the fundamental challenge when you're running Decode.
+[00:34:34] So Decode is the process by, you've processed your prompt
+[00:34:37] and now you're generating one token at a time.
+[00:34:39] The fundamental challenge is that you
+[00:34:43] have to run the whole model to generate a single token.
+[00:34:47] So that means that instead of using all this big parallelism
+[00:34:51] that you get with a GPU that you can
+[00:34:53] do during pre-filler training, you've
+[00:34:55] now turned this massively parallel system into basically
+[00:34:59] a glorified memory loader.
+[00:35:03] And one of the things that makes this extra challenging
+[00:35:06] is that the way that we typically
+[00:35:08] write down kernels and run a model
+[00:35:11] is that we will write down kernels and program
+[00:35:14] things one operation at a time.
+[00:35:16] So you guys can probably understand why this is so.
+[00:35:19] Kernels tend to be pretty challenging to write.
+[00:35:21] I'm sure you guys all had a lot of fun writing flash attention.
+[00:35:25] But that means that typically, what we do is
+[00:35:27] we look at all the different operations in a language model,
+[00:35:31] and we will run--
+[00:35:32] we will write a single kernel for that operation at a time.
+[00:35:37] So this makes things a lot easier to program
+[00:35:40] because you just have to write your Norm
+[00:35:42] kernel, your matmul kernel, your attention kernel.
+[00:35:46] But you end up seeing, it ends up introducing a lot of downtime
+[00:35:52] into your system.
+[00:35:54] So this is an example of what it might
+[00:35:57] look like when you're running inference across your kernel.
+[00:36:00] So this is obviously a cartoon, but the example
+[00:36:04] is drawn from a particular attention inference kernel.
+[00:36:09] The way to read this is that on the x-axis, you have time.
+[00:36:12] So time is flowing from left to right.
+[00:36:14] On the y-axis, you have all the different little streaming
+[00:36:19] multiprocessors on your GPU.
+[00:36:21] So on a H100, there are 132 of these.
+[00:36:24] On the B200, there's 148, et cetera.
+[00:36:27] The bars indicate useful work.
+[00:36:29] So when there's a bar here, one of the processors on the GPU
+[00:36:35] is actually doing work, and the empty space is just waiting.
+[00:36:39] So you're just waiting for other operations
+[00:36:41] to finish so that you can have something else go on.
+[00:36:45] And so basically, you get into this position
+[00:36:49] where no matter how well you try to write the kernel,
+[00:36:52] you're always going to have downtime in your GPU.
+[00:36:54] So you're going to have things like kernel launch.
+[00:36:56] So a kernel lock or kernel teardown,
+[00:36:58] that's these big gaps in the red and the yellow.
+[00:37:01] You're going to have these things called tail effects.
+[00:37:03] So this is just the same way that if you
+[00:37:07] have a short prompt that gets processed with a very long
+[00:37:10] prompt, this same thing goes all the way down
+[00:37:12] to the basic attention operation.
+[00:37:14] If you're processing a batch of inputs
+[00:37:16] and one input is very short, one input is very long,
+[00:37:18] you're going to be waiting for the very long input to finish.
+[00:37:22] And then because you're running these across multiple kernels,
+[00:37:27] you will actually start to see these gaps between kernels start
+[00:37:30] to add up.
+[00:37:32] So one thing that we put together to try to solve this,
+[00:37:35] is thing called a Megakernels.
+[00:37:37] So this is basically saying instead
+[00:37:39] of treating each operation in the model as its own operation
+[00:37:42] writing kernel for it, instead, let's write a single kernel
+[00:37:44] to cover multiple operations at once.
+[00:37:47] This is similar to the fusion that you see in flash attention,
+[00:37:50] except done more aggressively across a larger
+[00:37:54] number of things.
+[00:37:55] And in particular, what it does is
+[00:37:56] it turns a GPU from a single device--
+[00:38:00] a single operation is you start thinking of the GPU
+[00:38:03] as a massive distributed system and saying,
+[00:38:05] OK, I have all this work that I need to get done.
+[00:38:08] Some of it has dependencies on other stuff.
+[00:38:10] So that red stuff has some dependencies
+[00:38:12] on some of the green bars.
+[00:38:14] How can I schedule it?
+[00:38:15] How can I distribute the work to maximize my GPU utilization?
+[00:38:23] If you do this just to the attention inference kernel,
+[00:38:26] you get 30% to 70% speedups.
+[00:38:28] And then the nice thing is that you can actually
+[00:38:30] do this to the whole model.
+[00:38:32] So this is one layer of a Llama-1B model.
+[00:38:35] So here, we've basically taken the entire layer
+[00:38:40] and put it together into one kernel.
+[00:38:42] If you look at all these different bars,
+[00:38:43] you see things are overlapped in really weird ways.
+[00:38:46] That's because we are now starting to overlap a weight
+[00:38:50] load from the next-- from the layer into the attention,
+[00:38:55] or starting to run parts of reduction
+[00:38:58] before the attention operation is over.
+[00:39:03] Here's one interesting example.
+[00:39:06] So here's one thing that you can do.
+[00:39:08] So if you look at modern LLMs, you have the attention layer.
+[00:39:12] You have the QKV projections.
+[00:39:14] You're going to add some rope scaling to it.
+[00:39:16] So that's these blue lines.
+[00:39:18] So those blue lines are QKV plus rope.
+[00:39:21] And then the orange lines, this is
+[00:39:22] the beginning of the attention.
+[00:39:25] So one of the insights is that you can start loading in your KV
+[00:39:30] Cache into your attention before you're finished with QKV,
+[00:39:34] and particularly, during decode.
+[00:39:36] So these orange bars with some of these circles,
+[00:39:38] you start the KV Cache load while the QKV plus rope is still
+[00:39:42] running.
+[00:39:42] And then once QKV is done, then you have your new query tokens.
+[00:39:46] You can run the rest of the attention operation.
+[00:39:49] So basically, when you have this fine-grained control of GPUs,
+[00:39:54] you can start some operations before others are over.
+[00:39:58] Here's another one.
+[00:40:01] So again, the orange is the first part
+[00:40:03] of the attention computation.
+[00:40:05] The red is the O projection that comes after attention.
+[00:40:09] And you have your O projection.
+[00:40:10] Start loading the weights before your attention operation
+[00:40:12] is over.
+[00:40:16] We put this together in a very relatively complex CUDA
+[00:40:21] framework with basically instruction and instruction
+[00:40:24] based abstraction, where we can implement
+[00:40:27] each sub-kernel in its own file, and then
+[00:40:30] have a big virtualized shared memory
+[00:40:33] system to orchestrate the running of these operations.
+[00:40:41] And to do this, we put together this library
+[00:40:43] called ThunderKittens, which is one of these kernel writing
+[00:40:48] libraries.
+[00:40:49] You can think of it as almost like Triton,
+[00:40:51] except more low level, a lot more
+[00:40:53] fine-grained control over things.
+[00:40:57] The payoff is you get near speed of light decoding inference.
+[00:41:00] So these numbers are actually a lot better now.
+[00:41:03] But the Megakernel shown by this bar in teal,
+[00:41:07] and you can see it runs a lot faster than some
+[00:41:09] of the other state of the art engines.
+[00:41:12] And on the H100, it's achieving 72%
+[00:41:15] bandwidth utilization, which is near the speed of light
+[00:41:18] on the GPU.
+[00:41:19] So if you just ignore all the complexities of what we're
+[00:41:22] doing here and say, how fast can the GPU physically
+[00:41:25] go to do this operation?
+[00:41:27] We are pretty close to 72% of that speed of light.
+[00:41:32] So one interesting bit there is a takeaway from that section,
+[00:41:35] is that, if you have very deep control of the kernels
+[00:41:38] and the understanding of the hardware,
+[00:41:40] you can start to enable very different compute paradigms.
+[00:41:44] And all these things, you only see
+[00:41:46] when you start playing with inference at a deep level.
+[00:41:51] And now, I'll talk about something
+[00:41:53] that's a little bit new.
+[00:41:54] So this is now getting into the realm of new architectures.
+[00:41:59] And I'm going to be talking about this new model called
+[00:42:02] Parcae.
+[00:42:02] So this is some work that comes out
+[00:42:04] of my UCSD lab led by Hayden, and then
+[00:42:07] also in collaboration with these two folks, Zachary and Taylor.
+[00:42:12] So I'm going to come back to this.
+[00:42:14] So at the beginning of the talk, I talked about, hey,
+[00:42:16] all these new capabilities are coming
+[00:42:18] because you're starting to scale these models, and parameters,
+[00:42:20] and data.
+[00:42:21] With Parcae, we wanted to ask another question, which
+[00:42:23] is, is this the only way you have to scale?
+[00:42:26] Or is it potentially is there potentially something
+[00:42:28] else-- some other way that you can get this quality?
+[00:42:33] And with Parcae, we wanted to-- this was basically
+[00:42:36] our take on a technique called loop transformers,
+[00:42:39] where you take some blocks of your transformer
+[00:42:41] and you run them in a loop.
+[00:42:43] So instead of having your tokens go all one
+[00:42:47] layer at a time through the model,
+[00:42:48] at some point you say, hey, as you're going through,
+[00:42:51] just send it back through that loop at a time.
+[00:42:55] You're going to see, there's a couple different pieces here.
+[00:42:57] So one is, we use some State Space Model theory, some SSM
+[00:43:01] theory to stabilize this operation.
+[00:43:04] Naively, if you just run this and let the thing train,
+[00:43:07] we saw that the thing was going to blow up.
+[00:43:09] And then the other thing is we started
+[00:43:11] to see some interesting scaling laws that suggest that you want
+[00:43:14] to be scaling the recurrence of these recurrent models
+[00:43:17] as you increase the data.
+[00:43:20] So in order to make the best use out of your parameters,
+[00:43:25] you want to actually be reusing them somewhat.
+[00:43:29] First, I'll talk a little bit of motivation
+[00:43:31] of why we found this looping problem to be very interesting.
+[00:43:35] So the basic idea is, let's say you have some activation that's
+[00:43:39] going through part of your model, at some point,
+[00:43:41] it hits these loops blocks and it's just going
+[00:43:44] to run the same activation.
+[00:43:45] It's going to run through that same layer some number of times.
+[00:43:48] So that purple block is the recurrent block.
+[00:43:51] And then at the end, you get the thing that comes back.
+[00:43:55] So there are some advantages of this.
+[00:43:58] So you can keep your parameters constant,
+[00:44:00] but it gives you a dial to increase your flops.
+[00:44:02] So if you think that flops-- more flops
+[00:44:06] equals higher quality, this is a way
+[00:44:08] to increase your quality without paying a higher parameter cost.
+[00:44:12] Another thing is, there's this old work--
+[00:44:15] old is a relative term from a few years ago--
+[00:44:17] that suggests that you actually get higher expressivity--
+[00:44:20] their expressivity.
+[00:44:21] There are things that you can't express
+[00:44:26] with the same number of parameters,
+[00:44:28] that you can express with these looped models.
+[00:44:33] And one of our driving questions was, what's
+[00:44:35] the best quality per parameter?
+[00:44:36] What's the best intelligence per parameter?
+[00:44:38] Or intelligence per parameter and data
+[00:44:40] that these things will allow you to do?
+[00:44:45] There are some promising initial results.
+[00:44:47] So this is a paper from Tom Goldstein's group in Maryland
+[00:44:51] that suggests that hey, this thing might be better
+[00:44:53] than transformers.
+[00:44:55] These are some results on the Arc tasks.
+[00:45:00] And there's also a bunch of Twitter hype,
+[00:45:02] because about a week before we released Parcae,
+[00:45:05] some dude from OpenAI said that Claude mythos is a recurrent--
+[00:45:08] is a looped language model.
+[00:45:10] I don't think it's right.
+[00:45:11] I think he was just making it up.
+[00:45:12] But as a result, it really blew up in Twitter
+[00:45:18] in speculation right before this.
+[00:45:21] Eventually, he had to write this blog post being like, hey,
+[00:45:24] my bad, I just made that up.
+[00:45:25] None of it's true.
+[00:45:27] But it was sufficiently interesting to go.
+[00:45:29] So we were working on it before this Twitter hype,
+[00:45:32] but I think there was something interesting, something
+[00:45:36] interesting to look at here.
+[00:45:38] Now, one problem with these looped models
+[00:45:40] is if you looked at any of them and you tried to train them,
+[00:45:43] and then you changed anything about the training algorithm
+[00:45:46] at all.
+[00:45:47] So if you change the learning rate by a little bit,
+[00:45:50] you'd suddenly start to see these models blow up.
+[00:45:52] So if you did a simple thing like a learning rate sweep,
+[00:45:55] you'd see nine times out of 10, this model just
+[00:45:58] isn't going to converge, it's going to blow up.
+[00:46:00] You're going to get NaNs.
+[00:46:01] You're going to get these big loss spikes.
+[00:46:03] And so we were saying, hey, there
+[00:46:05] seems to be something wrong with this.
+[00:46:06] So if you're training a model and you're actually scaling it
+[00:46:09] up, and you see there, these big loss spikes, that
+[00:46:11] suggests something has gone very wrong with your training
+[00:46:14] process, you should take a deeper look
+[00:46:16] and try to figure out what happened.
+[00:46:18] In previous work, there were some hacks
+[00:46:20] like you can put norms in every layer
+[00:46:22] to figure out what's happening or just pick two--
+[00:46:25] the learning rate of 2e-4.
+[00:46:27] Don't pick any of the other learning rates.
+[00:46:29] But we were thinking, hey, the existence of these loss spikes
+[00:46:32] suggests that there's probably something more deeper going on.
+[00:46:39] And so we took a bit of a mathematical state space
+[00:46:42] model-esque approach to the stabilization question.
+[00:46:48] Our basic insight was, you can look at this process.
+[00:46:53] So actually, if you look at this process,
+[00:46:55] you try to think about how to analyze it analytically.
+[00:46:59] It's going to be very complicated, because this big R
+[00:47:01] block has tons of parameters.
+[00:47:03] There's all sorts of nonlinearities.
+[00:47:05] There's a Softmax, there's GELU, and RoPE,
+[00:47:08] and all these other things.
+[00:47:10] So if you try to analyze it analytically,
+[00:47:12] it's quite complex.
+[00:47:14] Our insight was, we were just saying,
+[00:47:16] OK, let's actually just look at the residual of this thing.
+[00:47:20] So how is this activation changing from block to block?
+[00:47:24] Our first empirical observation was hey,
+[00:47:26] it actually doesn't change that much.
+[00:47:27] So each of these residual blocks is
+[00:47:30] changing the vector a little bit,
+[00:47:32] but not really having a massive impact.
+[00:47:38] And as a result, how can we-- so maybe
+[00:47:41] we can actually model this.
+[00:47:42] Maybe we can actually look at what's happening more deeply.
+[00:47:46] And so what we did is we went and wrote down a dynamic system
+[00:47:50] over this residual.
+[00:47:51] And when we did, we realized there's a couple pieces in here
+[00:47:54] that when you look at how you write down the model,
+[00:47:58] might look relatively benign, but actually
+[00:48:02] end up being a huge bit.
+[00:48:04] So what we did was we said, OK, there's all this nonlinear
+[00:48:07] stuff, there's this attention, there's this GELU,
+[00:48:11] there's this big feed-forward network
+[00:48:13] with the intermediates and stuff,
+[00:48:16] we're going to all put that into a box.
+[00:48:18] We're just going to call that R. And this R
+[00:48:20] is going to be some big nonlinear thing.
+[00:48:23] But we're going to put it-- just take it to the side.
+[00:48:29] What you're left with is these A and B matrices.
+[00:48:33] So this B matrix is some transformation
+[00:48:38] over your initial vector.
+[00:48:40] So what is that first vector before you start the loop?
+[00:48:44] And then this A vector is-- this A matrix is how do you transform
+[00:48:47] that residual in each loop?
+[00:48:51] And what we did is we said, hey, this simple thing, if you take
+[00:48:54] all the complexity of the transformer,
+[00:48:56] stick it to the side, you have a relatively simple way
+[00:48:59] of looking at all the previous loop transformers.
+[00:49:02] And in previous cases, you do end up
+[00:49:04] making some pretty normal decisions.
+[00:49:06] So in one case you just say, oh, you just
+[00:49:11] treat it as the identity.
+[00:49:12] You're just going to add things.
+[00:49:13] In another case, it's a fully learnable matrix.
+[00:49:18] And then we said, OK, what happens if we just so--
+[00:49:22] the residual-- we observed empirically,
+[00:49:25] that these A and B matrices are actually dominating
+[00:49:28] the magnitude of this equation.
+[00:49:31] What happens if you just drop that complicated nonlinear
+[00:49:34] piece?
+[00:49:35] What do you get out?
+[00:49:36] Well, you get out actually a pretty simple system
+[00:49:38] that if you use high school calculus,
+[00:49:40] you can just solve it to figure out what
+[00:49:42] the answers are going to be.
+[00:49:44] So here's the closed form solution.
+[00:49:46] You can actually compute what is,
+[00:49:49] given what the initial activation is,
+[00:49:50] and what that initial injection is,
+[00:49:52] you can actually just empirically compute
+[00:49:55] what the activation is going to look like at Step T plus 1.
+[00:50:00] And you notice a couple of things.
+[00:50:02] So this thing is dominated by these A matrices.
+[00:50:08] And especially, this A matrix that you are powering up
+[00:50:11] to a large degree.
+[00:50:15] And from here, what we realize is
+[00:50:18] that there's this quantity called the spectral radius
+[00:50:20] of this A. So spectral radius is basically
+[00:50:23] like another word for norm.
+[00:50:25] One way that you can look at this
+[00:50:26] is that, you're taking this matrix.
+[00:50:30] You're powering it up to huge amounts.
+[00:50:33] If this matrix can learn to be something like--
+[00:50:36] let's say that this matrix--
+[00:50:38] if you go to scalars, imagine that this matrix is 2.
+[00:50:41] And then this T is like 16 or something,
+[00:50:43] you've now taken this activation,
+[00:50:45] you've blown it up to 2 to the power of 16.
+[00:50:47] And it's really big.
+[00:50:49] And this starts to explain some of those big loss spikes.
+[00:50:52] And in particular, what we found is that, the choices that you
+[00:50:55] make for these A and B matrices that people
+[00:50:59] have made in these previous papers are either--
+[00:51:02] we call them, marginally stable or unstable.
+[00:51:05] Unstable-- make the system unstable.
+[00:51:11] And so with Parcae we said, OK, well, we
+[00:51:13] figured out this thing where if you take this particular look
+[00:51:16] at it, and you let these A and B do whatever they want,
+[00:51:20] you're going to get things that really explode.
+[00:51:22] What if we just constrain A and B such that if you run the math
+[00:51:26] they're not going to explode?
+[00:51:27] So for A, what we did is we said,
+[00:51:30] OK, we're effectively going to make
+[00:51:32] that A matrix a negative diagonal matrix.
+[00:51:34] So if you power that up, the term eventually goes to zero,
+[00:51:38] so it doesn't blow up.
+[00:51:40] This B matrix, we're going to put
+[00:51:41] a-- stick a really simple linear norm against it,
+[00:51:44] because this B matrix actually, only gets applied once
+[00:51:46] and doesn't really blow up.
+[00:51:49] E can be the spectral radius.
+[00:51:50] It's now going to be less than 1.
+[00:51:51] It's now actually going to be a stable system.
+[00:51:55] And now if you go train this model, what we saw
+[00:51:58] is that you actually saw stable loss curve.
+[00:52:00] So Parcae is this stabilized thing where we re-parameterize
+[00:52:04] A and B. You can see that even with this the 6e-4 learning rate
+[00:52:09] that was so bad for the other models,
+[00:52:11] you actually got a stable model at the end.
+[00:52:14] And you see that with doing this,
+[00:52:16] you can naturally constrain the state norm of the activations.
+[00:52:22] So two pieces here.
+[00:52:24] So that orange baseline is just a completely unconstrained
+[00:52:26] model.
+[00:52:27] You can see it blows up, goes to 10 to the 19th.
+[00:52:30] This blue line is actually a model where
+[00:52:35] you are applying a norm to it.
+[00:52:37] So what happens here is that the model is actually
+[00:52:40] trying to expand the activations because it's saying,
+[00:52:44] oh, with more room, I can represent different things
+[00:52:48] better.
+[00:52:48] I can put these different concepts further away
+[00:52:51] from each other or whatnot.
+[00:52:52] And then you're applying norm to it
+[00:52:54] to take that big thing that's trying to expand.
+[00:52:56] Then you try to norm it back down to one.
+[00:52:59] And then you have this big--
+[00:53:01] these two pressures that are fighting against each other that
+[00:53:04] manifests in loss spikes.
+[00:53:06] So even though on the right, your norms are very good,
+[00:53:08] you're not seeing the activation actually blow up.
+[00:53:11] You do see that the loss can do some pretty gnarly things.
+[00:53:16] So basically, there's this pretty simple change
+[00:53:19] in the activations can stabilize the training,
+[00:53:23] stabilize these recurrent loops.
+[00:53:27] So it's not only a more stable system,
+[00:53:28] you actually also get more higher quality models.
+[00:53:32] So this is a table where we are comparing Parcae models
+[00:53:37] against a previous loop transformer called Recurrent
+[00:53:40] Depth Model.
+[00:53:40] So you can see higher performance
+[00:53:42] across a variety of applications.
+[00:53:45] So you see Parcae outperforms the previous models
+[00:53:49] and also outperforms strong transformer baseline.
+[00:53:51] So this transformer is one of the nanochannel ones where
+[00:53:55] a bunch of people are trying to just get
+[00:53:57] it to learn as fast as it can.
+[00:53:59] And these Parcae models, if you take that same basic transformer
+[00:54:02] architecture, start looping it, and then stabilize it,
+[00:54:05] you get better perplexities, better end
+[00:54:09] to end quality as well.
+[00:54:13] And then one-- and then we started
+[00:54:15] to run some very basic scaling laws here.
+[00:54:18] And here, our question was, OK, this is really, really cute.
+[00:54:21] You can do this looping thing to make things better.
+[00:54:23] But really, should you-- is there any evidence
+[00:54:26] that there's something here that we
+[00:54:27] want to be doing looping more aggressively?
+[00:54:33] So here, I'll take a step back.
+[00:54:35] A few years ago, there was all this work
+[00:54:37] as we started to enter this regime where you wanted
+[00:54:41] to scale up all these models, a natural question
+[00:54:44] is, should I make the models bigger
+[00:54:45] or should I just train on more data?
+[00:54:48] So a few years ago, folks started
+[00:54:50] to ask, how should I scale these two quantities with each other?
+[00:54:53] Should I scale model parameters?
+[00:54:54] Should I scale data?
+[00:54:56] And we came up with all these very complicated power law
+[00:55:00] curves that all look like this.
+[00:55:01] They're very pretty.
+[00:55:02] There's lots of colors.
+[00:55:04] What you want to look out for is basically--
+[00:55:08] what you want to look out for is, if that curve is going down
+[00:55:11] into the right, it suggests you should
+[00:55:12] be scaling both data and parameters at the same time.
+[00:55:16] If we were going straight down, that
+[00:55:18] would mean just increase your training data.
+[00:55:21] There's no need to increase your parameters.
+[00:55:24] If it's going-- if it's flat, just going straight
+[00:55:26] to the right, that means don't increase your data at all,
+[00:55:30] just increase your parameters.
+[00:55:31] But you see, it's going down into the right.
+[00:55:33] That means you should scale data and parameters at the same time.
+[00:55:36] And now you see this.
+[00:55:37] You train a $1 trillion parameter
+[00:55:39] model on $35 trillion tokens, and you get better quality.
+[00:55:44] So our question was, OK, where does recurrence fit into this?
+[00:55:48] And there are a couple--
+[00:55:50] so down into the right means you want to scale data in params--
+[00:55:53] there are a couple possibilities with recurrence.
+[00:55:58] And so for example, you might conclude,
+[00:56:01] you should never run a recurrence.
+[00:56:02] It's better to just keep the same single recurrent model.
+[00:56:05] You might conclude, you should do a ton of recurrence,
+[00:56:08] or maybe only some recurrence to the bit.
+[00:56:13] What we're showing here is, at least in these initial scaling
+[00:56:16] laws, all of these curves are isometric,
+[00:56:20] and ISO-param, ISO-FLOP.
+[00:56:22] So each of these curves is a model.
+[00:56:24] So on the left and the right, you
+[00:56:25] have the same number of parameters.
+[00:56:28] As you go down, as you change the colors,
+[00:56:30] we are increasing the amount of flops
+[00:56:31] that you use to train the model by increasing
+[00:56:35] the amount of data.
+[00:56:36] So here, we're varying data and varying
+[00:56:38] the number of recurrences.
+[00:56:41] What we find is that in both of these models,
+[00:56:43] you see this down into the right trend again.
+[00:56:45] So what this is suggesting is that for these fixed parameter
+[00:56:49] training things, as you increase the amount of data,
+[00:56:52] you should actually also be increasing the amount
+[00:56:55] of recurrences that you have.
+[00:57:00] We find that these recurrences follow some pretty classic power
+[00:57:04] laws.
+[00:57:05] So you can actually start to predict.
+[00:57:08] You can get these scaling laws to start to predict quality,
+[00:57:11] as you scale, recurrences and your tokens jointly.
+[00:57:15] Yeah.
+[00:57:16] For a fixed model size [INAUDIBLE] recurrence.
+[00:57:19] What about jointly [INAUDIBLE] scaling [INAUDIBLE]?
+[00:57:21] Yeah.
+[00:57:22] So we have this really complex 3D figure that showed
+[00:57:27] recurrences, and data, and parameters.
+[00:57:31] And it pointed also whatever down into the right,
+[00:57:36] and down that way at the same time.
+[00:57:39] So if you believe that figure, it
+[00:57:42] suggests you should be scaling all three together.
+[00:57:45] But that figure was just really hard to look at, because it was
+[00:57:48] 3D and weird.
+[00:57:50] So these power laws suggest, when you're increasing data
+[00:57:55] you should be increasing recurrence.
+[00:57:57] And then you have other power laws that suggest,
+[00:57:59] when you're increasing data you should be increasing parameters.
+[00:58:02] So obviously, you should increase--
+[00:58:05] well, it suggests that you should increase all three
+[00:58:07] of them if you can.
+[00:58:09] But one piece here is that if you're
+[00:58:12] going to fix your model size and you're
+[00:58:13] going to increase the amount of data,
+[00:58:15] you should also be increasing the recurrence, which
+[00:58:18] is interesting because as far as I know, all of our models
+[00:58:22] today have no recurrence in them.
+[00:58:23] So they're all at the very left of these curves.
+[00:58:27] And they all have a ton of data, which
+[00:58:29] suggests that there might be something slightly better
+[00:58:31] that we could be doing when training these models.
+[00:58:36] And here's just that experiment in another way.
+[00:58:40] So on the orange curve, you have-- so here,
+[00:58:44] we fixed the model size.
+[00:58:47] The orange curve is a fixed depth model.
+[00:58:50] So this is like a traditional transformer model.
+[00:58:52] The blue curve is when you fix the flop budget,
+[00:58:58] where do you hit on the curve for a looping model?
+[00:59:02] So here, the orange and blue dots
+[00:59:06] have been trained with the same number of flops,
+[00:59:08] but a different amount of data, but they're the same size.
+[00:59:12] When you get to that number of flops
+[00:59:14] by increasing recurrences as well as--
+[00:59:17] and not just increasing data, you
+[00:59:18] start to get smaller validation losses, which again suggests
+[00:59:23] it might be the case that we should be looping all
+[00:59:26] of our big pre-training runs.
+[00:59:31] So that's Parcae.
+[00:59:33] If I take a little step back and go back
+[00:59:37] to the big takeaway of the talk, I think hopefully,
+[00:59:40] I've given you a little sense today
+[00:59:42] of if you understand the inference of these models,
+[00:59:44] if you understand the GPU kernels,
+[00:59:46] you understand all the pieces that goes into it.
+[00:59:50] You can really start to enable full stack innovation
+[00:59:53] and machine learning algorithms.
+[00:59:54] So whether that's through a new routing algorithm that
+[00:59:57] lets you serve more traffic serve
+[01:00:00] traffic in a different way.
+[01:00:01] Or new kernels that allow you to run part of your system way
+[01:00:04] faster.
+[01:00:05] Or new architectures that say, if you
+[01:00:08] have a lot fewer parameters, you can fit them
+[01:00:10] in a subset of your GPUs in a different way,
+[01:00:13] reduce the amount of communication,
+[01:00:15] these are all different pieces of that question
+[01:00:19] of that research problem that we're seeing today.
+[01:00:24] And yeah, hopefully I've inspired at least one of you
+[01:00:27] in this room to go take a deeper look at some of that.
+[01:00:31] So with that, thanks.
+[01:00:32] Happy to take a few questions.
+[01:00:34] [APPLAUSE]
+[01:00:38] We have about five, 10 minutes for questions.
+[01:00:41] So if you have a question, raise your hand.
+[01:00:46] Parcae, are you training from scratch on the loop?
+[01:00:50] I guess I was wondering if you could
+[01:00:52] take a picture of [INAUDIBLE].
+[01:00:57] Yeah.
+[01:00:57] Great question.
+[01:00:58] So the question was, with Parcae,
+[01:01:00] are we training from scratch?
+[01:01:02] Is there anything you can do with pre-trained models?
+[01:01:05] So there was a really troll blog post from someone
+[01:01:08] a few months ago where it was like, hey, I
+[01:01:10] won some leaderboard competition without training a single thing.
+[01:01:14] And what he did was he actually looped a two or three
+[01:01:17] layers in a Quinn model, and just
+[01:01:21] saw that on some math things it started having higher quality.
+[01:01:25] So we have a little bit of work trying
+[01:01:27] to look into this that maybe coming out soon.
+[01:01:30] But there could be some models where
+[01:01:31] if you do a little bit of looping just
+[01:01:34] to the pre-trained model, you can get a higher quality thing,
+[01:01:37] which is really weird.
+[01:01:38] It disturbs me.
+[01:01:40] I don't know why that would possibly be the case.
+[01:01:43] But yeah, we'll be--
+[01:01:45] we're quite interested in this.
+[01:01:46] I think we'll be looking at it and hopefully,
+[01:01:49] if I can convince Hayden, he'll be
+[01:01:50] staring at the activations-- at the actual weights
+[01:01:55] to figure out why when you loop it, it gets better.
+[01:01:58] Here's just a follow up on that.
+[01:02:00] So you talked about compute optimality for the loop models,
+[01:02:04] can you speak about the inference implications
+[01:02:06] and the memory and how that can make you go faster?
+[01:02:10] Yeah.
+[01:02:10] So one of the reasons that I was personally
+[01:02:12] very excited in these loop things
+[01:02:14] is that, one of the big bottlenecks
+[01:02:17] to serving inference efficiently actually
+[01:02:18] ends up being GPU memory.
+[01:02:20] So if you have fewer parameters, you
+[01:02:22] can fit, for example, more KV Cache,
+[01:02:25] or you can do less communication because you
+[01:02:28] need to split your model against fewer GPUs and things like that.
+[01:02:31] So there's actually a lot of flexibility
+[01:02:34] that a smaller model will get you.
+[01:02:37] I also had this dream that if you
+[01:02:38] could make the recurrent block small enough,
+[01:02:41] you could actually write a little Megakernel
+[01:02:43] to just do that recurrent in a little very
+[01:02:45] fast Megakernel loop.
+[01:02:47] So far, we haven't been able to make those blocks small enough.
+[01:02:50] But I think it's quite interesting.
+[01:02:53] Certainly, with the next generation of the LPU,
+[01:02:55] the Grok chips that are coming with NVIDIA things.
+[01:02:58] Those have 250 megabytes of memory or something like that.
+[01:03:02] So the thing that you'll be able to fit into them
+[01:03:04] is very, very small.
+[01:03:06] But maybe you can design something that will actually
+[01:03:08] fit into them, and then you can just keep your weights in memory
+[01:03:12] the whole time and just run your activations through
+[01:03:14] as quickly as you can.
+[01:03:15] So there are non-linear benefits that you
+[01:03:17] can get if you can cross some of these thresholds
+[01:03:20] that I'm hoping that we'll be able to get to pretty soon.
+[01:03:26] Yeah, OK.
+[01:03:27] [INAUDIBLE] I'm curious.
+[01:03:31] I guess the trade offs are that it's always
+[01:03:34] strictly more optimal.
+[01:03:36] [INAUDIBLE]
+[01:03:37] Great.
+[01:03:38] So the question is, what are the trade offs for my kernels?
+[01:03:41] The trade offs are people's blood, sweat, and tears.
+[01:03:44] So Megakernels, turns out they're very, very labor
+[01:03:47] intensive to write.
+[01:03:49] So to give you some context, a full talented kernel engineer
+[01:03:58] over the course of a year, will probably
+[01:03:59] be able to write Megakernels for one hardware for two
+[01:04:03] or three models for batch sizes 1 to 16.
+[01:04:07] Go batch size 17, he was like nope, start over.
+[01:04:10] Got to go again.
+[01:04:11] So they're very, very challenging to write.
+[01:04:13] And together, we're trying to put together
+[01:04:15] some compilers that can automate some of that process.
+[01:04:18] But I'd say, it's a very challenging thing to do.
+[01:04:22] I think the basic Megakernel idea
+[01:04:24] has gone in peaks and troughs over the last few decades
+[01:04:30] when it comes to GPU programming.
+[01:04:32] But yeah, so if you can do it, it will go super fast.
+[01:04:35] You will never be able to go faster,
+[01:04:37] but it just takes a lot of energy and a lot of effort.
+[01:04:44] Cool.
+[01:04:46] Maybe I can ask a question.
+[01:04:47] So can we talk a little bit more about co-design?
+[01:04:51] And in particular, you mentioned all these new hardware
+[01:04:55] like Grok and Cerebras on the inference side.
+[01:04:57] So if you're designing a model and that's
+[01:05:00] going to be the serving platform,
+[01:05:02] how should you be changing your architecture?
+[01:05:04] Yeah, I think there's a couple of things
+[01:05:07] that you should look at.
+[01:05:08] So one is, you are going to be most constrained by memory
+[01:05:11] first.
+[01:05:12] So if you know that you're going to be taking a model
+[01:05:15] and serving it a particular Cerebras chip,
+[01:05:19] you want to go look at the Cerebras wafer,
+[01:05:21] and figure out how much memory you have, and then
+[01:05:23] size your model so that it can fit there with enough KV Cache
+[01:05:26] or whatever to spare.
+[01:05:29] If you look at carefully, at the Chinese models that
+[01:05:32] are coming out, they've started making some interesting choices
+[01:05:36] that suggest they might be starting
+[01:05:38] to think about the Huawei chips that are coming out.
+[01:05:41] You'll see quantization choices that people make.
+[01:05:45] So if you have a model that you're
+[01:05:46] intending to serve on NVIDIA GPUs,
+[01:05:49] for example, NVIDIA's new Nemotron model that they
+[01:05:51] released, you will train that model in NVFP4.
+[01:05:54] This is a FP4 format that is proprietary to NVIDIA chips.
+[01:05:58] If you're not going to run it on NVIDIA chips, if you're AMD,
+[01:06:02] then you're going to run this other format called MXFP4.
+[01:06:05] They each have their pros and cons.
+[01:06:08] You'll make these subtle choices based on the hardware
+[01:06:11] that you're choosing.
+[01:06:14] I think there was a question over there.
+[01:06:17] I was wondering if it's ever-- if you just care about
+[01:06:20] compute optimal training, is it ever optimal to loop
+[01:06:23] as opposed to just adding more parameters,
+[01:06:25] or is it mainly like a trick to reduce inference cost?
+[01:06:29] Yeah.
+[01:06:30] So the trick with compute optimal
+[01:06:32] is it is, usually, like given a flop budget--
+[01:06:34] --repeat the question.
+[01:06:35] Oh yeah.
+[01:06:36] Sorry.
+[01:06:36] Sorry.
+[01:06:36] Yeah, the question was for Parcae,
+[01:06:38] would you ever choose to loop instead
+[01:06:40] of increasing parameters?
+[01:06:42] And so the trick with compute optimal
+[01:06:44] is always given some flop budget,
+[01:06:46] figure out what you want to hit.
+[01:06:49] It's almost a little bit contrived in that sense,
+[01:06:51] because if you want a higher quality model,
+[01:06:54] you should just increase your FLOPs budget.
+[01:06:56] And if you decided on your model size, just train longer.
+[01:06:59] Or if you're restricted by your model size, then loop longer.
+[01:07:05] Or if you run out of data, then pick the model size
+[01:07:08] that you think will be as overtrained-- as
+[01:07:12] well trained as you can for that size.
+[01:07:15] So I think there are choices.
+[01:07:17] And of course, you make all these choices in the context of,
+[01:07:20] do I think it'll get picked up?
+[01:07:23] How am I going to serve it?
+[01:07:24] If you're going to release the open source,
+[01:07:26] what is the size of model that people can serve
+[01:07:29] like on your laptop today?
+[01:07:31] So I think all these choices go into making a choice.
+[01:07:34] All these things go into making a choice of how big a model
+[01:07:37] you choose to train.
+[01:07:40] I think if you just make the model bigger
+[01:07:41] and train it on more data, it's always going to get better.
+[01:07:45] But I think it really depends on those design points.
+[01:07:55] Maybe another question about co-design.
+[01:07:57] So you mentioned at the beginning
+[01:07:58] different use cases like agentic coding versus let's say batch
+[01:08:03] processing of data.
+[01:08:05] So what are the most dramatic differences
+[01:08:10] in terms of optimal architectures
+[01:08:12] that you see across different use cases?
+[01:08:14] And at the end of the day, of course
+[01:08:17] model developers has to pick one and try to not be
+[01:08:21] reasonable on many use cases.
+[01:08:23] Yeah.
+[01:08:24] That's a great question.
+[01:08:25] So I think one of the big differences--
+[01:08:29] so when you have these agentic looped workflows,
+[01:08:32] one of the things that matters a lot
+[01:08:34] is that you want to keep your KV Cache as hot as possible.
+[01:08:38] So if you're doing a big batch processing thing where you only
+[01:08:40] see each document once and then you translate it,
+[01:08:43] the KV cache doesn't necessarily matter as much.
+[01:08:47] If you look at something like the DeepSeek MLA attention,
+[01:08:50] that is a radical compression of the KV
+[01:08:53] cache compared to what you would have for another model.
+[01:08:57] Or if you have the model that can process its KV Cache in FPA
+[01:09:01] or FP4, those are pretty big departures
+[01:09:04] in terms of the size of the KV Cache
+[01:09:06] that if you are sensitive to an agentic workflow
+[01:09:09] you would look at.
+[01:09:11] Then of course, the biggest one is like causal attention
+[01:09:14] or non-causal attention.
+[01:09:16] So if you're just doing a big batch processing workflows.
+[01:09:18] Like for the longest time, Google
+[01:09:20] was just using Bert models.
+[01:09:22] I think probably still uses Bert models on search.
+[01:09:26] And that's because you don't really
+[01:09:27] need to be generating a bunch of tokens on the other end.
+[01:09:30] So you just do that big bidirectional attention once,
+[01:09:33] you get your vector out, then you
+[01:09:35] stick that in database, do whatever you will with it.
+[01:09:38] Whereas the chat workflows, those processing,
+[01:09:43] there's always going to be this decode portion of it.
+[01:09:46] I think there have been intermediate things
+[01:09:48] like T5 was at some point a choice that people made
+[01:09:54] to do some bidirectional processing, and then also
+[01:09:57] some generation.
+[01:10:00] OK, maybe one last question.
+[01:10:04] Oh, yeah.
+[01:10:04] [INAUDIBLE], it was about using everything
+[01:10:10] into one kernel, [INAUDIBLE] but what
+[01:10:13] you were talking about before.
+[01:10:15] So I was just wondering, how does that [INAUDIBLE]
+[01:10:19] work a communication across multiple computers
+[01:10:22] are scaling the cost of [INAUDIBLE] that.
+[01:10:26] Yeah, great question.
+[01:10:27] So the question is about, how does Megakernel
+[01:10:30] work when you have multiple GPUs communication in the loop?
+[01:10:35] We had some very early preliminary work about this.
+[01:10:38] So it turns out you can also fuse the NCCL
+[01:10:41] calls into the Megakernel if you set it up correctly.
+[01:10:44] I think we haven't found a really great killer use
+[01:10:47] case for that yet, where sometimes you're
+[01:10:50] just bound by the latency of the NCCL call itself.
+[01:10:53] So these are also pieces of things that you can fuse.
+[01:10:57] When DeepSeek 4 came out, the DeepSeek 4s released
+[01:11:01] a Megakernel for the mixture of experts inference layer that can
+[01:11:04] run just for that where they actually did fuse some of those
+[01:11:07] communication.
+[01:11:08] So I think what we are starting to see,
+[01:11:10] we're starting to see more of is,
+[01:11:13] as you get to more of these models,
+[01:11:14] you'll have a little Megakernel for a part for the computation,
+[01:11:19] but you won't necessarily have a Megakernel for the whole model,
+[01:11:22] unless of course, you pay the blood, sweat, and tears price
+[01:11:25] and then really, really get the whole thing going.
+[01:11:29] OK, I think that's all the time we have.
+[01:11:31] Let's thank, Dan again.
+[01:11:32] [APPLAUSE]
+[01:11:33] Thanks so much for having me.
