@@ -1,0 +1,150 @@
+source:
+  post: _posts/book-notes/deep-learning/build-a-large-language-model-from-scratch/2026-08-08-build-a-large-language-model-from-scratch-ch02-working-with-text-data.md
+  body_sha256: 5474e21ccbc60d4dd1c4ba0b66e79c0392c286aea3bfb8e95754e3357e549f8b
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 10
+  question: 原文围绕「0. 本章定位、学习目标与数据主线」建立了怎样的核心认识？
+  question_source: 0. 本章定位、学习目标与数据主线
+  thesis: 教学正则 tokenizer 逐步展示了标点、空白、大小写和未知词处理的设计选择，但不适合作为通用生产方案。
+  thesis_source: 8. 核心结论
+  concepts:
+  - term: 0. 本章定位、学习目标与数据主线
+    meaning: 第 1 章说明了 GPT 类大语言模型通过“根据左侧上下文预测下一 token”进行预训练。但神经网络只能接收和输出数值张量，原始字符串既不能直接参与矩阵乘法，也不能对字符求梯度。因此，在实现注意力和
+      GPT 之前，必须先建立一条稳定的数据管线，把文本转成模型能够学习的输入与目标。
+    source_heading: 0. 本章定位、学习目标与数据主线
+  - term: 2.3 Converting Tokens into Token IDs（把 token 转成 token ID）
+    meaning: 排序不是语言模型的数学要求，只是让结果确定且便于展示。只要训练与推理共享同一词表，ID 可以按频率、合并规则或其他稳定方式分配。真实 tokenizer
+      通常会把词表和分词规则一起保存，而不是每次从当前文本重新排序生成。
+    source_heading: 2.3 Converting Tokens into Token IDs（把 token 转成 token ID）
+  - term: 2.6 Data Sampling with a Sliding Window（用滑动窗口采样数据）
+    meaning: 批大小也有权衡：小批次显存少、更新噪声大；大批次提高硬件利用率并平滑梯度，但需要更多内存，学习率等训练设置也可能随之调整。本章只构造数据，不在这里寻找全局最优批大小。
+    source_heading: 2.6 Data Sampling with a Sliding Window（用滑动窗口采样数据）
+  - term: 2.7 Creating Token Embeddings（创建 token 嵌入）
+    meaning: 同一个 ID 在批次中出现多次时，各位置贡献会按自动微分规则累积到同一行梯度。未被查到的行通常没有本批次直接梯度。这解释了为什么高频 token
+      更新机会多，也说明低频 token 表示更难学稳。
+    source_heading: 2.7 Creating Token Embeddings（创建 token 嵌入）
+  - term: 4. 核心公式与算法速查
+    meaning: 含义：同一原始 token 流切两次，目标起点比输入晚一个位置。每个长度 T 的窗口产生 T 个下一 token 标签。
+    source_heading: 4. 核心公式与算法速查
+  - term: 10. 自测题与参考答案
+    meaning: 边界 token 是序列中的普通可学习标记，模型仍可能跨过它读取前文。attention mask 在计算层把某些连接权重强制屏蔽；前者提供语义提示，后者施加硬约束。
+    source_heading: 10. 自测题与参考答案
+  logic:
+  - 0. 本章定位、学习目标与数据主线
+  - 2.3 Converting Tokens into Token IDs（把 token 转成 token ID）
+  - 2.4 Adding Special Context Tokens（添加特殊上下文 token）
+  - 2.7 Creating Token Embeddings（创建 token 嵌入）
+  - 3. 全章知识结构
+  - 8. 核心结论
+  - 10. 自测题与参考答案
+  sections:
+  - title: 0. 本章定位、学习目标与数据主线
+    source_heading: 0. 本章定位、学习目标与数据主线
+    paragraphs:
+    - 第 1 章说明了 GPT 类大语言模型通过“根据左侧上下文预测下一 token”进行预训练。但神经网络只能接收和输出数值张量，原始字符串既不能直接参与矩阵乘法，也不能对字符求梯度。因此，在实现注意力和
+      GPT 之前，必须先建立一条稳定的数据管线，把文本转成模型能够学习的输入与目标。
+    - token 嵌入没有顺序信息，怎样让模型区分同一 token 出现在不同位置？
+    - 也就是说，对批次中每个样本和位置，目标始终是原始 token 流中的下一 token。
+    - 术语说明：原书为了直观常说“逐词预测”和“词嵌入”，但实际 GPT-2 分词器处理的是 token。token 可能是完整词、子词片段、标点、空格模式或特殊标记。因此本笔记在算法与公式中使用“token
+      嵌入”，在介绍 Word2Vec 历史背景时保留“词嵌入”。
+  - title: 2.1 Understanding Word Embeddings（理解词嵌入）
+    source_heading: 2.1 Understanding Word Embeddings（理解词嵌入）
+    paragraphs:
+    - 不同数据类型需要不同的编码方式。文本嵌入器不能直接理解原始音频波形，图像嵌入器也不能凭空解析 token ID。所谓“都变成向量”只说明输出接口相似，不表示输入处理和训练目标相同。
+    - 嵌入也不是把对象无损压缩成一个人可以逐维解释的属性表。维度通常是分布式表示：一个语义属性可能由许多维共同表达，一维也可能同时参与多种关系。只有在训练目标迫使模型利用某些结构时，几何空间才会形成有用关系。
+    - 检索增强生成（RAG）常把查询和文档片段编码为句子或段落向量，以相似度检索相关片段，再把片段交给生成模型。本章只聚焦 GPT 输入端的 token 嵌入，RAG
+      的检索模型和索引不在本书范围内。
+    - 二维词向量适合画散点图，却只是可视化示意。真实 LLM 的数百到上万维向量无法直接完整画在二维平面上；降维图只保留部分结构，不能当作原空间的全部证据。
+  - title: 2.3 Converting Tokens into Token IDs（把 token 转成 token ID）
+    source_heading: 2.3 Converting Tokens into Token IDs（把 token 转成 token ID）
+    paragraphs:
+    - 排序不是语言模型的数学要求，只是让结果确定且便于展示。只要训练与推理共享同一词表，ID 可以按频率、合并规则或其他稳定方式分配。真实 tokenizer
+      通常会把词表和分词规则一起保存，而不是每次从当前文本重新排序生成。
+    - 词表应只从训练数据或预先确定的 tokenizer 训练语料构建。若在严格机器学习评测中用测试集扩充词表，就让数据准备窥见了测试分布，形成信息泄漏。
+    - 这是启发式 detokenization，不是严格恢复原始字符。因为编码时已丢弃原来的空白数量和换行，解码器只能重建一个自然可读的规范化版本。
+    - "“token ID 越接近，token 越相似”是错误的；ID 只是标签。语义关系是在训练后的嵌入和更深层隐藏表示中形成的。"
+  - title: 2.4 Adding Special Context Tokens（添加特殊上下文 token）
+    source_heading: 2.4 Adding Special Context Tokens（添加特殊上下文 token）
+    paragraphs:
+    - 结构边界：为了高效训练，多篇互不相关的文档常被拼接成一条 token 流；若没有标记，模型可能误以为前一篇结尾与后一篇开头是连续上下文。
+    - 边界 token 不会从架构层自动阻断注意力；它只是序列中的一个可学习标记。若系统要求文档之间绝对不能互相注意，还需额外构造 attention mask。原书此处只用它提供语义边界。
+    - 填充值本身与填充掩码必须区分。若批次中短样本用某个 ID 补齐，训练或注意力通常要用 mask 忽略这些位置；否则模型会把大量填充当成正常语言信号。只要被正确遮蔽，具体选择哪个可用
+      token ID 做 padding 往往不再关键。
+    - 名字相似不保证语义完全相同，不同模型的 BOS/EOS/PAD 约定应查各自 tokenizer 配置。
+  - title: 2.6 Data Sampling with a Sliding Window（用滑动窗口采样数据）
+    source_heading: 2.6 Data Sampling with a Sliding Window（用滑动窗口采样数据）
+    paragraphs:
+    - 这不是创建四个互不相关的标签。一个窗口的所有位置共享同一次模型前向传播，上三角因果 mask 决定各位置可见的前缀，右移目标则提供每个位置的正确下一 token。
+    - 原书指出，训练 LLM 时常见输入长度至少为 256；现代模型可能更长，但上下文增大也会显著提高注意力计算和内存成本。
+    - 更精确地说，它让每次优化的样本数固定，从而减少批统计与梯度方差变化；若损失按 token 正确取平均，小批次不必然产生尖峰。
+    - 批大小也有权衡：小批次显存少、更新噪声大；大批次提高硬件利用率并平滑梯度，但需要更多内存，学习率等训练设置也可能随之调整。本章只构造数据，不在这里寻找全局最优批大小。
+  - title: 2.7 Creating Token Embeddings（创建 token 嵌入）
+    source_heading: 2.7 Creating Token Embeddings（创建 token 嵌入）
+    paragraphs:
+    - 它不把批次或序列压平，也不对 token 求平均。每个位置仍对应一个独立向量，后续注意力才能比较位置之间的关系。
+    - 随机初始化必须打破不同 token 行之间的完全对称性；真正的语义来自后续训练，而非初始数值。若某个 token 从未出现在训练数据中，它的嵌入行就得不到相应语言建模信号。
+    - 同一个 ID 在批次中出现多次时，各位置贡献会按自动微分规则累积到同一行梯度。未被查到的行通常没有本批次直接梯度。这解释了为什么高频 token 更新机会多，也说明低频
+      token 表示更难学稳。
+    - 嵌入层只是模型第一层。它给 token 一个与上下文无关的基础向量；第 3 章注意力会把不同位置的信息混合，产生上下文化表示。
+  - title: 3. 全章知识结构
+    source_heading: 3. 全章知识结构
+    paragraphs:
+    - 符号协议：tokenizer 决定字符串如何切分、空白与特殊 token 如何解释。
+    - 索引协议：词表决定每个 token 对应哪个整数 ID。
+    - 样本协议：窗口长度和 stride 决定哪些上下文进入同一样本，右移规则决定标签。
+    - 向量协议：token/位置嵌入决定整数 ID 如何变成固定维度浮点张量。
+  - title: 4. 核心公式与算法速查
+    source_heading: 4. 核心公式与算法速查
+    paragraphs:
+    - 含义：词表大小决定嵌入表行数，模型维度决定列数；ID 是行索引，向量值才是可学习参数。
+    - 含义：同一原始 token 流切两次，目标起点比输入晚一个位置。每个长度 T 的窗口产生 T 个下一 token 标签。
+    - 含义：token 表示“是什么”，位置表示“在哪里”；同一位置表广播到每个批次，最终维度保持 d。
+    - 有效原因：有限新增词表项优先替换大量高频相邻对，压缩常见文本；基础符号仍为罕见文本提供兜底。
+  - title: 8. 核心结论
+    source_heading: 8. 核心结论
+    paragraphs:
+    - tokenizer 定义模型的离散输入协议，决定词表、序列长度、空白保真、上下文容量和计算成本。
+    - 教学正则 tokenizer 逐步展示了标点、空白、大小写和未知词处理的设计选择，但不适合作为通用生产方案。
+    - token ID 只是词表索引，没有数值大小或距离语义；训练后的嵌入才承载连续几何关系。
+    - token 嵌入只表示 token 身份，不含当前位置或上下文；同一个 ID 总是先查到同一行。
+  - title: 10. 自测题与参考答案
+    source_heading: 10. 自测题与参考答案
+    paragraphs:
+    - ID 只是词表行号，换一种稳定枚举顺序就会整体改变数值。模型用 ID 精确查行，不对 ID 本身做有序数值解释；语义来自对应嵌入向量和后续隐藏状态。
+    - 未来总会出现新姓名、拼写、合成词、代码标识符和多语言字符组合。有限整词集合无法穷举开放字符串空间；BPE 通过更小基础单位组合，而不是继续无限枚举整词。
+    - 边界 token 是序列中的普通可学习标记，模型仍可能跨过它读取前文。attention mask 在计算层把某些连接权重强制屏蔽；前者提供语义提示，后者施加硬约束。
+    - 训练只优化了已有位置行以及模型在相应长度下的注意力行为。超出位置表没有可查向量；即使新增随机或插值向量，模型也没在这些位置关系上训练，可靠性需要专门方法和评测。
+  takeaways:
+  - 符号协议：tokenizer 决定字符串如何切分、空白与特殊 token 如何解释。
+  - 向量协议：token/位置嵌入决定整数 ID 如何变成固定维度浮点张量。
+  - tokenizer 定义模型的离散输入协议，决定词表、序列长度、空白保真、上下文容量和计算成本。
+  - BPE 在大词表短序列与小词表长序列之间折中；可编码未知字符串不等于模型理解未知概念。
+  - token 嵌入只表示 token 身份，不含当前位置或上下文；同一个 ID 总是先查到同一行。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念复述
+  question: 原文如何解释「0. 本章定位、学习目标与数据主线」？
+  answer: 第 1 章说明了 GPT 类大语言模型通过“根据左侧上下文预测下一 token”进行预训练。但神经网络只能接收和输出数值张量，原始字符串既不能直接参与矩阵乘法，也不能对字符求梯度。因此，在实现注意力和
+    GPT 之前，必须先建立一条稳定的数据管线，把文本转成模型能够学习的输入与目标。
+  source_heading: 0. 本章定位、学习目标与数据主线
+- level: 边界判断
+  question: 原文如何解释「2.3 Converting Tokens into Token IDs（把 token 转成 token ID）」？
+  answer: 排序不是语言模型的数学要求，只是让结果确定且便于展示。只要训练与推理共享同一词表，ID 可以按频率、合并规则或其他稳定方式分配。真实 tokenizer
+    通常会把词表和分词规则一起保存，而不是每次从当前文本重新排序生成。
+  source_heading: 2.3 Converting Tokens into Token IDs（把 token 转成 token ID）
+- level: 边界判断
+  question: 原文如何解释「2.7 Creating Token Embeddings（创建 token 嵌入）」？
+  answer: 同一个 ID 在批次中出现多次时，各位置贡献会按自动微分规则累积到同一行梯度。未被查到的行通常没有本批次直接梯度。这解释了为什么高频 token
+    更新机会多，也说明低频 token 表示更难学稳。
+  source_heading: 2.7 Creating Token Embeddings（创建 token 嵌入）
+- level: 关系解释
+  question: 原文如何解释「4. 核心公式与算法速查」？
+  answer: 含义：同一原始 token 流切两次，目标起点比输入晚一个位置。每个长度 T 的窗口产生 T 个下一 token 标签。
+  source_heading: 4. 核心公式与算法速查
+- level: 概念复述
+  question: 原文如何解释「10. 自测题与参考答案」？
+  answer: 边界 token 是序列中的普通可学习标记，模型仍可能跨过它读取前文。attention mask 在计算层把某些连接权重强制屏蔽；前者提供语义提示，后者施加硬约束。
+  source_heading: 10. 自测题与参考答案

@@ -1,0 +1,189 @@
+source:
+  post: _posts/book-notes/ai-system/hands-on-llm-serving-and-optimization/2026-08-12-hands-on-llm-serving-and-optimization-ch10.md
+  body_sha256: cffb69e4e84f6aae365b648beb60b5b764d84d3acbd497666038fa7dee5cbe31
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 18
+  question: 原文围绕「0. 本章定位、学习目标与发展主线」建立了怎样的核心认识？
+  question_source: 0. 本章定位、学习目标与发展主线
+  thesis: 不变的方法是分层、计量、约束和迭代。 模态、硬件和训练方式会变，但 saved work、新增成本、错误边界与瓶颈迁移仍是评估核心。
+  thesis_source: 10. 本章知识结构与核心结论
+  concepts:
+  - term: 0. 本章定位、学习目标与发展主线
+    meaning: 前沿边界说明：原章中的模型、框架、版本和业界判断来自写作时点。Semantic router、vLLM V1、Punica、OpenRLHF
+      和 deterministic kernels 均会继续变化。应复用问题分解与证据链，不把具体产品描述当永久事实。
+    source_heading: 0. 本章定位、学习目标与发展主线
+  - term: 2. Performance Profiling Strategies
+    meaning: Profiling 的原则是从用户症状向内逐层缩小范围，而不是看到 GPU 慢就直接打开最细粒度 profiler。Profiler 自身有
+      overhead，应先采短而代表性的窗口。
+    source_heading: 2. Performance Profiling Strategies
+  - term: '4. Edge AI: Drivers and Enablers'
+    meaning: 把一个小 layer offload 到 NPU 若 transfer/sync 大于 compute saving 会变慢。Subgraph
+      partitioner 应最小化边界，并利用 shared/unified memory；unsupported op fallback 可造成 CPU↔NPU
+      ping-pong。
+    source_heading: '4. Edge AI: Drivers and Enablers'
+  - term: 5. Multi-LoRA Serving
+    meaning: Adapter artifact 是 tenant-specific intellectual property。需 registry ACL、signature/hash、加密、load
+      authorization、GPU eviction zeroization、日志隔离和 side-channel 评估。不能允许用户任意指定 HF path
+      让 worker 下载/执行不可信 adapter。
+    source_heading: 5. Multi-LoRA Serving
+  - term: 7. 主题之间的统一关系
+    meaning: Multimodal preprocessing 可能成为 profiling 找到的 CPU bottleneck；
+    source_heading: 7. 主题之间的统一关系
+  - term: 10. 本章知识结构与核心结论
+    meaning: 本章的总方法是：把 serving 从“执行 text model”扩展为语义决策、异构输入/硬件、参数多租户和训练数据生产系统；对每项新能力先写清它节省的模型调用、数据搬运或副本成本，再加入
+      embedding、preprocessing、adapter、offload、同步和 determinism 的新开销及安全约束；随后用 top-down
+      profiling、版本化 identity、shadow/canary 和端到端质量/latency/energy/goodput 指标持续验证。
+    source_heading: 10. 本章知识结构与核心结论
+  logic:
+  - 0. 本章定位、学习目标与发展主线
+  - 2. Performance Profiling Strategies
+  - 3. Multimodal Serving
+  - 5. Multi-LoRA Serving
+  - 6. Model Serving in Reinforcement Learning
+  - 9. 从本章抽象出的前沿技术评估方法
+  - 10. 本章知识结构与核心结论
+  sections:
+  - title: 0. 本章定位、学习目标与发展主线
+    source_heading: 0. 本章定位、学习目标与发展主线
+    paragraphs:
+    - 何时使用 Nsight Systems、PyTorch Profiler CPU/CUDA、Nsight Compute，怎样避免一开始就钻进 kernel？
+    - VLM 如何将 image placeholder 替换为 vision embeddings，644 个 placeholder 对 serving
+      有什么含义？
+    - Seeded reproducibility、bitwise determinism 与 batch invariance 有何区别，为什么后者会影响
+      RL reward/gradient？
+    - 前沿边界说明：原章中的模型、框架、版本和业界判断来自写作时点。Semantic router、vLLM V1、Punica、OpenRLHF 和 deterministic
+      kernels 均会继续变化。应复用问题分解与证据链，不把具体产品描述当永久事实。
+  - title: 1. Semantic Caching
+    source_heading: 1. Semantic Caching
+    paragraphs:
+    - "“How long is the flight from Seattle to Hawaii?”与改写可能共享答案，但只有 origin/destination、route/date/airline/实时风等业务条件一致时才安全。Semantic
+      similarity 是候选生成，不是 correctness proof。"
+    - 同语义 query 在不同 tenant 的数据权限不同，绝不能跨租户复用 private response。Cache entry 应保存 provenance、quality/safety
+      validation、created_at、TTL 和 invalidation tags。
+    - 将 user intent 与 MCP/tool schemas 做 retrieval，只给 LLM 少量 tools，减少 prompt tokens和选择错误。Router
+      只能推荐候选；最终 tool authorization、arguments validation 和 side-effect approval 仍由确定性
+      policy 执行。
+    - Embedding/classifier 选择 external frontier、internal medium、small SLM 或 reasoning
+      mode。原章提到 8B～32B task-specific SLM 可在特定任务媲美大模型，这是领域性结论，必须用业务 eval 验证。
+  - title: 2. Performance Profiling Strategies
+    source_heading: 2. Performance Profiling Strategies
+    paragraphs:
+    - Profiling 的原则是从用户症状向内逐层缩小范围，而不是看到 GPU 慢就直接打开最细粒度 profiler。Profiler 自身有 overhead，应先采短而代表性的窗口。
+    - Profiler instrumentation 会改变 timing，尤其小 kernel；先 warm-up、限定 steps，并与无 profiler
+      baseline 对照。
+    - 更多 CUDA streams 只有在 dependency、copy engine 和资源允许时才产生 overlap；盲目增加会竞争、增加 synchronization。
+    - 由此判断 compute-bound、memory-bound、latency/occupancy-bound，并选择 tile、block/grid、fusion
+      或替换 Flash/kernel。
+  - title: 3. Multimodal Serving
+    source_heading: 3. Multimodal Serving
+    paragraphs:
+    - 原章聚焦 VLM：输入 image/video/audio + text，经 encoder 后仍由 autoregressive language decoder
+      输出 text tokens。Diffusion image/video generation 的噪声迭代、latent 和 serving 形态不同，不在本章范围。
+    - Visual token 数依 resolution、patch size、dynamic tiling/frame sampling，不是每图固定 644。Video
+      可能产生大量 frames/tokens，需 resolution/frame/token budget 和 payload limit。
+    - 应监控 stage queue/latency、CPU cores/memory bandwidth、decoder/GPU idle gaps，不用单一
+      GPU utilization 猜测。
+    - Process 0 处理 API、preprocess、postprocess；Process 1 持续 scheduler/kernel launch。价值是
+      pipeline overlap 与 failure/resource isolation，不是 CPU 工作消失。
+  - title: '4. Edge AI: Drivers and Enablers'
+    source_heading: '4. Edge AI: Drivers and Enablers'
+    paragraphs:
+    - Audio/video/medical/financial/industrial raw data 本地处理减少传输与暴露，帮助满足 sovereignty/privacy，但
+      edge 不自动安全：设备物理访问、model extraction、local logs、OTA 和 key storage 都是攻击面。
+    - 厂商 TOPS 只有在相同 precision、sparsity、supported ops 和 sustained power 下可比。实际还看 memory
+      bandwidth/capacity、operator coverage、compiler/runtime 和 thermal steady state。
+    - 把一个小 layer offload 到 NPU 若 transfer/sync 大于 compute saving 会变慢。Subgraph partitioner
+      应最小化边界，并利用 shared/unified memory；unsupported op fallback 可造成 CPU↔NPU ping-pong。
+    - 需要处理断网 fallback、模型版本一致、feature compatibility、partial failure、privacy leakage
+      from embeddings 和 cloud response cache。Cloud/edge 模型不同会产生行为 drift，应建立统一 eval。
+  - title: 5. Multi-LoRA Serving
+    source_heading: 5. Multi-LoRA Serving
+    paragraphs:
+    - a_i 是其 adapter。Naive 按 adapter 分组会产生许多小 GEMM；Punica 等 kernel 用 segmented/grouped
+      GEMM 和 gather/scatter 高效应用不同低秩更新，再与 base output 合并。
+    - 不同 LoRA 会改变各层 K/V，prefix cache key 必须含 adapter ID/revision，通常不能跨 adapter 共享
+      private KV；共享发生在 base weights 和计算 kernel，而非所有 cache state。
+    - Merge + dedicated 适合：某 adapter 热到能独占/需多 replicas、严格性能隔离、需要 standalone artifact/kernel、base/version
+      不同、adapter composition 固定。
+    - Adapter artifact 是 tenant-specific intellectual property。需 registry ACL、signature/hash、加密、load
+      authorization、GPU eviction zeroization、日志隔离和 side-channel 评估。不能允许用户任意指定 HF path
+      让 worker 下载/执行不可信 adapter。
+  - title: 6. Model Serving in Reinforcement Learning
+    source_heading: 6. Model Serving in Reinforcement Learning
+    paragraphs:
+    - 原章引用 OpenRLHF 估计 80% RLHF time 用在 sample generation。该比例依 algorithm、model、sequence、hardware
+      和 implementation，核心事实是 rollout autoregressive generation 往往是主成本。
+    - Serving 优化对象从用户 latency 变为 training samples/hour、GPU utilization、policy freshness
+      和统计正确性。Thousands concurrency 可用于批量 rollouts，不要求用户 streaming，但 output 常很长。
+    - 相同 seed 不足以保证 batch invariance，因为不同 batch shape/algorithm/reduction order 改变
+      floating-point accumulation；微小 logit 差异可在 sampling 边界选择不同 token，之后 autoregressive
+      path 完全分叉。
+    - Determinism 可能牺牲 kernel choice、batch flexibility 和 throughput。应按 RL reproducibility
+      需求选择：token-level exact、logit tolerance 还是 distribution-level statistical equivalence。
+  - title: 7. 主题之间的统一关系
+    source_heading: 7. 主题之间的统一关系
+    paragraphs:
+    - Semantic router 可选择 edge/cloud、base/LoRA、reasoning/tool；
+    - Multimodal preprocessing 可能成为 profiling 找到的 CPU bottleneck；
+    - Multi-LoRA serving 可为 RL 同时评估多个 adapter/policies，但需版本隔离；
+    - RL 的 deterministic requirement 会限制动态 scheduler/kernel 的自由度；
+  - title: 9. 从本章抽象出的前沿技术评估方法
+    source_heading: 9. 从本章抽象出的前沿技术评估方法
+    paragraphs:
+    - 是 semantic decision、operator/kernel、input modality、placement、parameter multiplexing，还是
+      training loop？避免拿不同层 feature 直接比较。
+    - Semantic cache 省 LLM call 但加 embedding/search；multi-LoRA 省 base replicas 但加
+      adapter GEMM；offload 省 network/privacy 但加 edge compute。写出净收益式。
+    - VLM 加 visual tokens/encoder/CPU；edge 加 energy/thermal/network；LoRA 加 adapter
+      slots；RL 加 rollout/policy version。不能沿用纯文本 TPS 单一账本。
+    - Cache cold/warm/stale，VLM burst，edge thermal warm-up/throttle，LoRA load/evict/hot
+      promotion，RL weight switch 都是关键故障点。
+  - title: 10. 本章知识结构与核心结论
+    source_heading: 10. 本章知识结构与核心结论
+    paragraphs:
+    - Multimodal input 引入新的前置 pipeline。 Media preprocessing、vision encoder、visual
+      tokens 和 shape batching 使 CPU、network、encoder memory 都可成为瓶颈。
+    - Adapter identity 进入 scheduler/cache/security。 GPU slots、load/evict、prefix namespace、tenant
+      ACL 和 artifact integrity 都需管理。
+    - Determinism 也有性能代价。 应明确 bitwise、token-level 或 statistical reproducibility 需要，采用
+      counter RNG、version pin 和 replay test。
+    - 本章的总方法是：把 serving 从“执行 text model”扩展为语义决策、异构输入/硬件、参数多租户和训练数据生产系统；对每项新能力先写清它节省的模型调用、数据搬运或副本成本，再加入
+      embedding、preprocessing、adapter、offload、同步和 determinism 的新开销及安全约束；随后用 top-down
+      profiling、版本化 identity、shadow/canary 和端到端质量/latency/energy/goodput 指标持续验证。
+  takeaways:
+  - Semantic serving 将优化从 replica 提升到 intent。 它能跳过 LLM、选择小/大模型、reasoning 和 tools，但
+    false hit/route 的质量与安全代价更高。
+  - Multimodal input 引入新的前置 pipeline。 Media preprocessing、vision encoder、visual tokens
+    和 shape batching 使 CPU、network、encoder memory 都可成为瓶颈。
+  - Thermal-aware scheduler 优先稳定而非峰值。 模型、resolution、rate 和 placement 可动态降级，并需要 hysteresis。
+  - Serving 是 RL 训练的数据生产引擎。 Rollout 可占主要训练时间，优化目标是 valid trajectories/GPU-hour 与 policy
+    freshness，而非用户 TTFT。
+  - 本章的总方法是：把 serving 从“执行 text model”扩展为语义决策、异构输入/硬件、参数多租户和训练数据生产系统；对每项新能力先写清它节省的模型调用、数据搬运或副本成本，再加入
+    embedding、preprocessing、adapter、offload、同步和 determinism 的新开销及安全约束；随后用 top-down
+    profiling、版本化 identity、shadow/canary 和端到端质量/latency/energy/goodput 指标持续验证。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念辨析
+  question: 原文如何解释「8.1 Semantic cache = Prefix cache」？
+  answer: 错误。Semantic cache 以相似 intent 返回旧 response，不执行 LLM；prefix cache exact token
+    match 后复用 KV，仍执行 suffix/decode。
+  source_heading: 8.1 Semantic cache = Prefix cache
+- level: 概念辨析
+  question: 原文如何解释「8.7 GPU utilization 高就无需 profile」？
+  answer: 错误。可能 kernel 间 gaps 被采样掩盖、memory stall、低-value work；需 timeline/operator证据。
+  source_heading: 8.7 GPU utilization 高就无需 profile
+- level: 概念辨析
+  question: 原文如何解释「8.14 Edge 天然更低 latency、更安全、更便宜」？
+  answer: 错误。Local compute、device attack、energy/BOM/OTA 可能抵消；需端到端比较。
+  source_heading: 8.14 Edge 天然更低 latency、更安全、更便宜
+- level: 概念辨析
+  question: 原文如何解释「8.20 Multi-LoRA 可无限减少到一张 GPU」？
+  answer: 错误。聚合 compute/KV/adapter memory 和 SLO 决定 replicas；N→1 是低流量示意。
+  source_heading: 8.20 Multi-LoRA 可无限减少到一张 GPU
+- level: 概念辨析
+  question: 原文如何解释「8.26 Determinism 越强永远越好」？
+  answer: 错误。Bitwise deterministic kernel 可能降低 throughput；按训练需求选择 batch invariance/tolerance。
+  source_heading: 8.26 Determinism 越强永远越好

@@ -1,0 +1,165 @@
+source:
+  post: _posts/book-notes/software-architecture/fundamentals-of-software-architecture/2026-08-12-fundamentals-of-software-architecture-ch15-event-driven-architecture-style.md
+  body_sha256: ad0fe277ac05c124014ecc39802881098fafc892ca307d36379b8fb001b5e11b
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 13
+  question: 0. 本章要解决什么问题？
+  question_source: 0. 本章要解决什么问题
+  thesis: EDA 强在 evolvability、responsiveness、fault tolerance，弱在 simplicity 与 testability。
+    这是同一非确定异步机制的两面。
+  thesis_source: 13. 核心结论
+  concepts:
+  - term: 0. 本章要解决什么问题
+    meaning: 一些开发者把 EDA 视为 pattern。作者明确不同意：他们构建过完全以 EDA 为核心的系统，因此把它视为完整 architecture
+      style。与此同时，EDA 也可以嵌入 microservices、space-based architecture 等风格，形成 hybrid architecture。
+    source_heading: 0. 本章要解决什么问题
+  - term: 2. Style Specifics：风格细节
+    meaning: 改为异步队列后，Portfolio Management 先提交 trade order，Trade Order 后续处理并通过另一异步通道返回
+      confirmation。下游暂时离线时，上游仍可接收订单，两个系统可形成独立 quanta。
+    source_heading: 2. Style Specifics：风格细节
+  - term: 5. Common Risks：常见风险
+    meaning: 四类风险会互相强化：大 payload 增加 contract coupling；为了避免大 payload 改用 key，又增加同步查询；同步查询使
+      quanta 纠缠；失败分支让整体状态更难判断。因此不能逐项局部优化，要看整个 event flow。
+    source_heading: 5. Common Risks：常见风险
+  - term: 6. Governance：治理
+    meaning: EDA 的治理大多不是静态目录规则，而依赖 logs、traces 和 metrics 形成 observability governance
+      mesh。某些指标还需手工收集。
+    source_heading: 6. Governance：治理
+  - term: 9. Examples and Use Cases：案例与适用场景
+    meaning: 高并发竞价的“接受事件”可以异步，但决定最高 bidder 的核心状态转换仍需明确一致性边界，例如同一 auction key 单分区处理或数据库
+      compare-and-set。
+    source_heading: 9. Examples and Use Cases：案例与适用场景
+  - term: 13. 核心结论
+    meaning: EDA 强在 evolvability、responsiveness、fault tolerance，弱在 simplicity 与 testability。
+      这是同一非确定异步机制的两面。
+    source_heading: 13. 核心结论
+  logic:
+  - 0. 本章要解决什么问题
+  - 2. Style Specifics：风格细节
+  - 4. Cloud Considerations：云环境考虑
+  - 6. Governance：治理
+  - 7. Team Topology Considerations：团队拓扑考虑
+  - 11. 一般化的问题解决方法
+  - 13. 核心结论
+  sections:
+  - title: 0. 本章要解决什么问题
+    source_heading: 0. 本章要解决什么问题
+    paragraphs:
+    - 传统应用大多采用 request-based model：调用者提出明确请求，某个 orchestrator 按确定顺序同步调用处理器，最后返回结果。这种方式容易理解、测试和控制，但调用者要等待整个链路，并与下游可用性、延迟和扩展能力动态耦合。
+    - Event-Driven Architecture（EDA）换了一个视角：系统不总是等待“请完成某事”的请求，而是响应“某事已经发生”的事件。事件处理器完成自己的动作后，再发布
+      derived event，让其他处理器自主决定是否响应。
+    - 一些开发者把 EDA 视为 pattern。作者明确不同意：他们构建过完全以 EDA 为核心的系统，因此把它视为完整 architecture style。与此同时，EDA
+      也可以嵌入 microservices、space-based architecture 等风格，形成 hybrid architecture。
+    - Request-based model 中，request orchestrator 可以是 UI、API layer、orchestration service、event
+      hub、event bus 或 integration hub。它确定性、同步地把请求交给 request processors。
+  - title: 1. Topology：基本拓扑
+    source_heading: 1. Topology：基本拓扑
+    paragraphs:
+    - "“直到全部结束”是概念描述，实际 choreography 中通常没有一个组件天然知道这一时刻，这也是后文 state management 风险的来源。"
+    - Event broker 通常是 federated 的，即存在多个按领域组织的集群实例。每个 broker 包含该领域 event flow 所需的
+      event channels。
+    - 原章称持续触发、持续响应的循环 derived event 为 poison event。它会消耗 broker、CPU、存储和下游容量。
+    - 作者把事件流比作接力赛：event processor 接到“接力棒”，跑完自己的阶段，把新事件交给下一棒后就释放，可以继续处理其他事件。
+  - title: 2. Style Specifics：风格细节
+    source_heading: 2. Style Specifics：风格细节
+    paragraphs:
+    - 改为异步队列后，Portfolio Management 先提交 trade order，Trade Order 后续处理并通过另一异步通道返回 confirmation。下游暂时离线时，上游仍可接收订单，两个系统可形成独立
+      quanta。
+    - 原章引入 reactive architecture 的 Workflow Event pattern，通过 delegation、containment、repair
+      同时保护 resiliency 与 responsiveness。
+    - 如果 consumer 已提交数据库、但 ACK queue 前崩溃，broker 会重投，业务写入可能执行两次。上述机制通常实现的是 at-least-once
+      倾向，而不是跨 broker 与数据库的端到端 exactly-once。
+    - 当 producer 必须尽快从 consumer 获得 confirmation ID 或数据时，EDA 使用 request-reply messaging，也称
+      pseudosynchronous communication。
+  - title: 4. Cloud Considerations：云环境考虑
+    source_heading: 4. Cloud Considerations：云环境考虑
+    paragraphs:
+    - 原章在本节的核心结论是：EDA 与 cloud-based environment 高度匹配，能直接利用云厂商的异步服务，而云基础设施和云服务的弹性也与
+      EDA 的形态一致。
+    - 云厂商提供 managed queues、topics、streams 和 event buses；
+    - managed service 也有 quota、partition 和 retention 限制。
+    - 按 queue depth 扩容时，应同时限制数据库和外部 API 并发，避免把 broker 积压瞬间转化为 downstream overload。
+  - title: 5. Common Risks：常见风险
+    source_heading: 5. Common Risks：常见风险
+    paragraphs:
+    - 处理器可能意外发布 derived events，或本该响应却没有响应。事件树受条件、顺序、失败和动态订阅影响，很难预知 initiating event
+      的完整结果。
+    - EDA 动态耦合低，不代表静态耦合低。Payload contract 尤其是全量 data-based payload 会形成 brittleness。生产者可能不知道订阅者，contract
+      change 影响难以评估。
+    - 偶尔可以识别 final event，让最初 processor 订阅它；多数动态流程没有唯一终点。需要明确完成状态时，应考虑 mediator、workflow
+      state store 或业务级 process manager。
+    - 四类风险会互相强化：大 payload 增加 contract coupling；为了避免大 payload 改用 key，又增加同步查询；同步查询使
+      quanta 纠缠；失败分支让整体状态更难判断。因此不能逐项局部优化，要看整个 event flow。
+  - title: 6. Governance：治理
+    source_heading: 6. Governance：治理
+    paragraphs:
+    - EDA 的治理大多不是静态目录规则，而依赖 logs、traces 和 metrics 形成 observability governance mesh。某些指标还需手工收集。
+    - Loose schema 并不意味着无 contract。它只是把破坏从编译/注册阶段推迟到运行时。
+    - 原章强调 EDA 中任何同步通信都应跟踪和讨论，尤其是 domain 或 dedicated database topology。
+    - 强制 payload 最小，可能制造 anemic events 和 query storm；
+  - title: 7. Team Topology Considerations：团队拓扑考虑
+    source_heading: 7. Team Topology Considerations：团队拓扑考虑
+    paragraphs:
+    - 原章把 EDA 主要视为 technically partitioned architecture：一个 domain 往往由多个 event processors、channels、brokers、contracts
+      和可能的 databases 共同实现。它仍可由领域 cross-functional teams 负责，但团队理解完整流会更困难。
+    - 小型、领域边界清楚的 EDA 尚可；大型复杂事件树会降低 stream-aligned team 的有效性。
+    - 原章认为 enabling teams 与 EDA 匹配较差。原因是 processor 之间通过 derived events 与 contracts
+      集成，stream 内的局部实验可能扰动整个 flow，需要 enabling 与 stream teams 大量协调。
+    - 若使用 enabling team，应把实验放在明确隔离的环境和 contract 下，避免直接改变生产 event semantics。
+  - title: 9. Examples and Use Cases：案例与适用场景
+    source_heading: 9. Examples and Use Cases：案例与适用场景
+    paragraphs:
+    - 拍卖参与者数量未知，临近结束时流量激增，需要 scalability 与 elasticity。出价必须快速反馈，因此 responsiveness 很重要。
+    - 最关键的是：placing a bid 不是“请求系统替我做一个确定任务”，而是“一个 bid 已经发生”，系统必须响应这个事实。
+    - 高并发竞价的“接受事件”可以异步，但决定最高 bidder 的核心状态转换仍需明确一致性边界，例如同一 auction key 单分区处理或数据库 compare-and-set。
+    - 原章结论：EDA 非常复杂但非常强大。应先分析 workflow 和 processing，确认业务真的需要它的 superpowers。
+  - title: 11. 一般化的问题解决方法
+    source_heading: 11. 一般化的问题解决方法
+    paragraphs:
+    - 标出 producers、channels、consumers、fan-out、终点和可能环路，检查 poison event 与 Swarm of Gnats。
+    - 不要笼统写“可靠”。明确 at-most-once/at-least-once 倾向、dedup key、顺序范围、partition key、retry
+      和 DLQ。
+    - 先列每个 processor 的数据需求，再在 monolithic/domain/dedicated 中权衡。不要先 database-per-service
+      再发现所有服务必须同步互调。
+    - 只有当 responsiveness、scale、fault tolerance、extensibility 和 real-time reaction
+      的收益大于测试、状态、错误和治理成本时，才采用 EDA。
+  - title: 13. 核心结论
+    source_heading: 13. 核心结论
+    paragraphs:
+    - Broker choreography 以控制换性能和扩展。 Mediator orchestration 以部分解耦和性能换流程控制、状态与恢复。
+    - 防丢不等于 exactly-once。 Persistent queue、client ACK、DB commit 和 LPS 仍需幂等 consumer。
+    - EDA 强在 evolvability、responsiveness、fault tolerance，弱在 simplicity 与 testability。
+      这是同一非确定异步机制的两面。
+    - 治理重点是 contract static coupling 与 synchronous dynamic coupling。 需要日志、追踪和可观测治理网格。
+  takeaways:
+  - EDA 是完整架构风格，也可嵌入其他风格。 它由解耦 processors 异步触发和响应 events。
+  - Derived events 是演化能力的 hook。 新 consumer 可无侵入订阅，但事件必须有稳定业务语义。
+  - 异步错误必须委托、隔离和修复。 Workflow Event pattern 保护主队列吞吐，但需处理按 key 顺序。
+  - EDA 主要是技术分区。 一个 domain 常横跨多个 processors、channels 和 contracts。
+  - 只有当业务真正需要异步并行、广播扩展和故障隔离时，才值得用全链路可观测、幂等、防丢、错误恢复与契约治理来支付 EDA 的复杂度。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念辨析
+  question: 原文如何解释「10.1 Event 与 Message 只看 Topic/Queue」？
+  answer: 错误。Event/message 首先是语义：事实与命令。广播命令仍是 message，queue 中也可以传 event notification。
+  source_heading: 10.1 Event 与 Message 只看 Topic/Queue
+- level: 概念辨析
+  question: 原文如何解释「10.6 Data-Based Payload 总比 Key-Based 快」？
+  answer: Broker/数据库访问层面通常更快，但大 payload 会增加序列化、带宽、存储和 contract 风险。必须按事件率、fan-out、字段变化和数据库可达性权衡。
+  source_heading: 10.6 Data-Based Payload 总比 Key-Based 快
+- level: 概念辨析
+  question: 原文如何解释「10.10 发布当前无人订阅的事件一定浪费」？
+  answer: 错误。稳定的 extensible derived event 是未来 hook；但无业务意义的内部噪声不应发布。
+  source_heading: 10.10 发布当前无人订阅的事件一定浪费
+- level: 概念辨析
+  question: 原文如何解释「10.15 每个 Processor 一个数据库总是最好」？
+  answer: 错误。Dedicated topology 隔离最好，却可能迫使大量同步取数，抵消 EDA 优势。
+  source_heading: 10.15 每个 Processor 一个数据库总是最好
+- level: 概念辨析
+  question: 原文如何解释「10.19 EDA 就是 Kafka」？
+  answer: 错误。Kafka 是一种 event streaming broker。EDA 还可使用 AMQP、JMS topics、cloud notification
+    和其他 broker；架构语义不由产品名称决定。
+  source_heading: 10.19 EDA 就是 Kafka

@@ -1,0 +1,207 @@
+source:
+  post: _posts/book-notes/distributed-system/design-data-intensive-application/2026-08-05-ddia-2e-ch07-sharding.md
+  body_sha256: c5224ea92c8df4f19ae8811819370c73483f2eecbe1ea678e0390c1f996c3640
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 20
+  question: 原文围绕「0. 本章定位：复制同一份数据，分片拆开不同数据」建立了怎样的核心认识？
+  question_source: 0. 本章定位：复制同一份数据，分片拆开不同数据
+  thesis: 需要同时写多个 shards 时，部分成功如何处理成为核心问题；distributed transaction、workflow 与 consistency
+    将在后续章节继续讨论。
+  thesis_source: 7. 原章总结：分片让 shards 独立扩展，也让跨 shard 操作成为难点
+  concepts:
+  - term: 0. 本章定位：复制同一份数据，分片拆开不同数据
+    meaning: 原章依次从术语与代价出发，经过 multitenancy，再比较 key-range、hash、fixed shards、hash ranges
+      和 consistent hashing；随后处理 hot spots、automatic/manual rebalancing、request routing，最后讨论
+      local/global secondary indexes。
+    source_heading: 0. 本章定位：复制同一份数据，分片拆开不同数据
+  - term: 2. Pros and Cons of Sharding：为什么要分片，又为什么应尽量晚分片
+    meaning: 在 nonuniform memory access（NUMA） 架构中，某 CPU 访问本地 memory bank 比访问其他 socket
+      的远端 memory 更快。按 core/socket 分片可让大部分数据访问保持 local，减少 cache-line contention 和 remote-memory
+      latency。
+    source_heading: 2. Pros and Cons of Sharding：为什么要分片，又为什么应尽量晚分片
+  - term: 5. Request Routing：请求怎样找到正在变化的 shard owner
+    meaning: consensus coordination 提供 authoritative placement order；epoch/fencing
+      保护 cutover；redirect/refresh 让 stale caches 正常收敛。DNS 只适合 bootstrap，gossip 则适合能容忍临时
+      assignment disagreement 的弱一致系统。
+    source_heading: 5. Request Routing：请求怎样找到正在变化的 shard owner
+  - term: 6. Sharding and Secondary Indexes：按非 partition key 查询
+    meaning: local index 让 record 与 index write 同 shard 原子化，却让完整 secondary lookup
+      广播；global index 按 term 重新分片，让单 term postings 可定位，却将一次 write 扇出到多个 index shards，并产生
+      distributed transaction 或 async staleness。
+    source_heading: 6. Sharding and Secondary Indexes：按非 partition key 查询
+  - term: 11. 综合案例：全球多租户协作平台的分片设计
+    meaning: 该设计用 tenant locality 让主要 transactions 单 shard，用 explicit directory 支持
+      pooled/giant tenant 演化，用 fixed logical shards 与 replica placement 解耦 node count，再把
+      flexible search/analytics 放入独立 read models。
+    source_heading: 11. 综合案例：全球多租户协作平台的分片设计
+  - term: 13. 设计分片系统的一般方法
+    meaning: 明确 physical shard backup 与 logical tenant/key restore。保存历史 placement/schema
+      metadata，验证 global indexes 可重建；placement policy覆盖 replicas、backups、analytics
+      和 support exports。
+    source_heading: 13. 设计分片系统的一般方法
+  logic:
+  - 0. 本章定位：复制同一份数据，分片拆开不同数据
+  - 2. Pros and Cons of Sharding：为什么要分片，又为什么应尽量晚分片
+  - 4. Sharding of Key-Value Data：从 partition key 到 shard
+  - 6. Sharding and Secondary Indexes：按非 partition key 查询
+  - 7. 原章总结：分片让 shards 独立扩展，也让跨 shard 操作成为难点
+  - 12. 核心结论
+  - 13. 设计分片系统的一般方法
+  sections:
+  - title: 0. 本章定位：复制同一份数据，分片拆开不同数据
+    source_heading: 0. 本章定位：复制同一份数据，分片拆开不同数据
+    paragraphs:
+    - 一个 node 通常承载多个 shards。若每个 node 只放一个巨型 shard，增加节点、均衡负载和故障恢复都会很粗糙；把 shard 数设得多于
+      node 数，可用迁移若干 shards 来细粒度调节负载。
+    - 现实中会被 skew、network、routing、replication、distributed transaction、metadata service
+      和热点削弱，所以这是设计目标而非线性扩展承诺。
+    - 若 key 永远映射到固定 node，定位容易，但集群就无法平滑扩缩容或绕过故障。rebalancing 会改变 shard → node assignment，range
+      split 还会改变 key → shard assignment。
+    - 原章依次从术语与代价出发，经过 multitenancy，再比较 key-range、hash、fixed shards、hash ranges 和 consistent
+      hashing；随后处理 hot spots、automatic/manual rebalancing、request routing，最后讨论 local/global
+      secondary indexes。
+  - title: 1. Sharding and Partitioning：术语与边界
+    source_heading: 1. Sharding and Partitioning：术语与边界
+    paragraphs:
+    - 另一种说法称它源于 “System for Highly Available Replicated Data” 的首字母缩写，据说是 1980s 的数据库，但历史细节已不可考。词源有趣，却不应影响技术定义。
+    - key-range、hash-range 等 sharding scheme 主要决定 record placement；single-leader、multi-leader、leaderless
+      主要决定每 shard 的 replication semantics。
+    - 第 6 章关于 leader、quorum、lag、failover 和 conflict 的分析同样适用于 shard replicas。为避免两条维度同时展开，本章多数地方把一个
+      shard 当作单一 logical owner，只研究划分、移动与路由。
+    - 阅读时仍应保留一个现实前提：移动一个 replicated shard 往往要建立新 replica、追赶变更、切换 leadership，再删除旧 replica，而不是只复制一份静态文件。
+  - title: 2. Pros and Cons of Sharding：为什么要分片，又为什么应尽量晚分片
+    source_heading: 2. Pros and Cons of Sharding：为什么要分片，又为什么应尽量晚分片
+    paragraphs:
+    - 关系模型鼓励按多个字段查询、join 与约束。若 customers 按 customer ID 分片，而 orders 也按 customer ID
+      分片，按 customer 查询很快；但“查询某商品的全部订单”可能跨所有 shards。
+    - 避免 distributed transaction 的常见方法是异步更新其他 shards，但这会产生中间不一致和失败补偿。是否可接受取决于 invariant：analytics
+      counter 可晚更新，账户余额或唯一资源分配则不能随意放松。
+    - 在 nonuniform memory access（NUMA） 架构中，某 CPU 访问本地 memory bank 比访问其他 socket 的远端
+      memory 更快。按 core/socket 分片可让大部分数据访问保持 local，减少 cache-line contention 和 remote-memory
+      latency。
+    - sharding 用数据划分换来容量与写吞吐的 horizontal scaling，却把 partition key 固化为物理 locality 边界，并让未知
+      key 查询、join、transaction、迁移和运维变复杂。
+  - title: 4. Sharding of Key-Value Data：从 partition key 到 shard
+    source_heading: 4. Sharding of Key-Value Data：从 partition key 到 shard
+    paragraphs:
+    - key range 保留 partition-key order，让 point lookup、range scan 和复合-key locality
+      高效；不均匀 boundaries 与 split/merge 让 shard 数适应数据。但“相近 key 放一起”既是优势，也是相近 writes
+      集中成 hotspot 的原因。
+    - 原始 consistent hashing 常把 hash space 看成环，nodes 或 virtual nodes 占据 points，key
+      顺时针找到 owner。Cassandra/ScyllaDB 的 range 分配与其相似，但产品实现还包含 token allocation、replication
+      placement 和 topology awareness。
+    - hash 把 key-domain skew 打散，却破坏原 key range locality；fixed shards 用稳定 indirection
+      避免 mod N 全量 reshuffle，但难预测终身粒度；hash ranges 动态适应数据；consistent hashing 则抽象出 balance
+      与 minimal movement 两个目标。
+    - key-range 保留 locality 并动态 split，却怕相邻写热点；hash 打散 key domain，但 modulo node count
+      导致大规模无效 movement；fixed shards 稳定却难预测粒度；hash ranges 与 consistent hashing在自适应和
+      minimal movement 上提供不同方案。
+  - title: 5. Request Routing：请求怎样找到正在变化的 shard owner
+    source_heading: 5. Request Routing：请求怎样找到正在变化的 shard owner
+    paragraphs:
+    - 需要一个 authoritative component 决定 shard 应位于哪些 nodes。单 coordinator 最易形成一致 assignment，却成为故障点；若
+      coordinator 可 failover，则必须保证任一时刻只有一个有效 decision authority。
+    - 若 nodes 的 metadata versions 不同，A 可能 redirect B，B 又 redirect A。request 应携带 last-seen
+      epoch/hop limit；node 只接受更高 epoch 的 redirect，或要求 client 到 authoritative service
+      refresh。
+    - 示例假设 old node 能查询 current metadata。生产系统还需 signed/authenticated metadata、hop
+      limit、idempotent retry，以及 storage-level fencing，防止 old owner 仅靠本地 stale map
+      接受写。
+    - consensus coordination 提供 authoritative placement order；epoch/fencing 保护 cutover；redirect/refresh
+      让 stale caches 正常收敛。DNS 只适合 bootstrap，gossip 则适合能容忍临时 assignment disagreement
+      的弱一致系统。
+  - title: 6. Sharding and Secondary Indexes：按非 partition key 查询
+    source_heading: 6. Sharding and Secondary Indexes：按非 partition key 查询
+    paragraphs:
+    - 可在一个 distributed transaction 中原子更新 primary shard 与所有 affected index shards。这样
+      commit 后 index 与 record 一致，但 transaction participants、latency、locks/conflicts
+      与 failure recovery 增加。
+    - 若 indexer 暴露 applied log position，write response 可返回 primary commit position；search
+      请求要求 index 至少追到该 position，否则等待、fallback primary query 或明确返回 not-ready。
+    - index shard 也需要自己的 boundaries、replicas、routing 与 split/move。primary shard rebalance
+      不一定改变 global index entries；index-term rebalance 也不应重写 primary records。
+    - local index 让 record 与 index write 同 shard 原子化，却让完整 secondary lookup 广播；global
+      index 按 term 重新分片，让单 term postings 可定位，却将一次 write 扇出到多个 index shards，并产生 distributed
+      transaction 或 async staleness。
+  - title: 7. 原章总结：分片让 shards 独立扩展，也让跨 shard 操作成为难点
+    source_heading: 7. 原章总结：分片让 shards 独立扩展，也让跨 shard 操作成为难点
+    paragraphs:
+    - nodes 增加/删除、data 增长、hot ranges 变化时，必须 split/move/merge shards。一个 sharding scheme
+      的质量不只看 steady state，还看 rebalancing movement、在线 correctness 与故障放大风险。
+    - 先 hash key，再按 fixed shard、hash range 或 consistent-hashing algorithm 分配。hash
+      破坏原 key order，使 raw range query 低效，却通常让不同 keys 更均匀。
+    - client/router 要知道 key→shard 和 shard→node。assignment 随 move/failover 变化，常由 ZooKeeper、etcd
+      或内建 Raft 等 coordination mechanism 维护 authoritative map。
+    - 本章为简化暂时忽略 replicas，但生产系统每 shard 通常有多个 replicas。一次 shard move 实际包含 replica bootstrap、catch-up、leadership/epoch
+      cutover 与 old-copy cleanup。
+  - title: 11. 综合案例：全球多租户协作平台的分片设计
+    source_heading: 11. 综合案例：全球多租户协作平台的分片设计
+    paragraphs:
+    - control plane 按 capacity weight 和 failure domain 分配 replicas：一个 shard 的 3 replicas
+      位于不同 AZ，leader load 尽量均衡。node replacement 只移动 affected shards，不改变 tenant bucket→logical
+      shard mapping。
+    - cross-tenant reports 不直接 scatter 12,000 OLTP shards。CDC 把允许数据写入 warehouse/object
+      storage，按 date/tenant partitions 与 cluster columns 组织，使用 parallel analytical
+      engine。
+    - directory 保存 tenant schema cohort/version。new readers 先部署为 forward/backward
+      compatible，再选 canary cells/tenants migration，监控 query latency、index lag 与 rollback。
+    - 该设计用 tenant locality 让主要 transactions 单 shard，用 explicit directory 支持 pooled/giant
+      tenant 演化，用 fixed logical shards 与 replica placement 解耦 node count，再把 flexible
+      search/analytics 放入独立 read models。
+  - title: 12. 核心结论
+    source_heading: 12. 核心结论
+    paragraphs:
+    - sharding 主要突破单机 data volume 和 write throughput；read bottleneck 可先考虑 replication。
+    - authoritative placement 需要 epoch、consensus/fencing；stale route 用 redirect 正常收敛。
+    - asynchronous global index 是 materialized view，会有 lag、repair 与 read-your-writes
+      问题。
+    - 完整分片设计必须同时覆盖 partition、rebalance、routing、indexes、replication、backup 与 fault
+      testing。
+  - title: 13. 设计分片系统的一般方法
+    source_heading: 13. 设计分片系统的一般方法
+    paragraphs:
+    - 用 data growth、sustainable write/read throughput、isolation/compliance 和 failure
+      requirements 建 capacity model。先排除 index/query 优化、cache、read replicas 与合理 scale-up。
+    - 区分 range hot、single-key hot、read hot、write hot 和 temporary hot。可用 boundary split、dedicated
+      node、cache/replicas、salting、sharded counter 或 data-model redesign。
+    - 按 shard/key/tenant 监控 size、QPS、p99、skew、fan-out、move/index lag 与 headroom。automation
+      设置 concurrency、bandwidth、hysteresis、cooldown、admission 与 emergency stop。
+    - 明确 physical shard backup 与 logical tenant/key restore。保存历史 placement/schema
+      metadata，验证 global indexes 可重建；placement policy覆盖 replicas、backups、analytics
+      和 support exports。
+  takeaways:
+  - 当 data volume 或 processing/write throughput 已无法由单机合理承担时，sharding 把 dataset 拆成较小
+    subsets，分配到多台 machines。
+  - placement 还要跨 failure domains，不能把所有 replicas 随均衡器放到同一 rack/AZ。
+  - per-shard bytes、QPS、CPU、p99、hot-key contribution；
+  - hash 打散 key-domain skew，却不能打散一个 hot key。
+  - 完整分片设计必须同时覆盖 partition、rebalance、routing、indexes、replication、backup 与 fault testing。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念辨析
+  question: 原文如何解释「9.1 误区：sharding 与 replication 是同一件事」？
+  answer: sharding 拆不同数据，replication 复制同一 shard。生产系统通常先分 shard，再为每 shard 建 replicas；两条轴可独立选择。
+  source_heading: 9.1 误区：sharding 与 replication 是同一件事
+- level: 概念辨析
+  question: 原文如何解释「9.8 误区：hash 均匀就代表实际负载均匀」？
+  answer: hash 只打散不同 keys。hot key、large value、skewed query 和 cross-shard fan-out 仍可让
+    node 过载。
+  source_heading: 9.8 误区：hash 均匀就代表实际负载均匀
+- level: 概念辨析
+  question: 原文如何解释「9.14 误区：range sharding 一定产生热点」？
+  answer: 只有 access/write 与 key order 高度相关时才严重。随机 IDs 或良好 composite prefix 也可均匀；range
+    的 locality 仍很有价值。
+  source_heading: 9.14 误区：range sharding 一定产生热点
+- level: 概念辨析
+  question: 原文如何解释「9.22 误区：placement coordinator 不需要 consensus」？
+  answer: single-owner shards 若出现两个 coordinators，会分配矛盾 owners 并产生 split brain。authoritative
+    metadata 需要 ordered commit、epoch 与 fencing。
+  source_heading: 9.22 误区：placement coordinator 不需要 consensus
+- level: 概念辨析
+  question: 原文如何解释「9.28 误区：distributed transaction 不可能或完全不能用」？
+  answer: 许多 databases 支持，它能保护跨 shard invariant；只是 latency、availability、locking 和
+    recovery 成本更高。应按 correctness requirement 决定，而非教条回避。
+  source_heading: 9.28 误区：distributed transaction 不可能或完全不能用

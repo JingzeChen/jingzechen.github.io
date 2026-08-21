@@ -1,0 +1,172 @@
+source:
+  post: _posts/book-notes/software-architecture/fundamentals-of-software-architecture/2026-08-12-fundamentals-of-software-architecture-ch16-space-based-architecture-style.md
+  body_sha256: e037a0b25c0eab9666ca9ec0517f396a24f3c68c1c18037df38310c0349e1a92
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 14
+  question: 0. 本章要解决什么问题？
+  question_source: 0. 本章要解决什么问题
+  thesis: 当数据库同步事务已经成为不可接受的极端容量上限时，把计算与工作数据一起弹性复制到内存，并用可观测、可恢复、幂等的异步数据链来支付最终一致性的代价。
+  thesis_source: 13. 核心结论
+  concepts:
+  - term: 0. 本章要解决什么问题
+    meaning: 原章给出数据碰撞的经验公式和具体数值。本文会统一单位、复算并解释变量关系，但不会把它包装成严格概率定律。本文中的内存公式、排队直觉、幂等
+      data-writer 示例和决策流程属于教学扩展，不是原书规定的通用标准。
+    source_heading: 0. 本章要解决什么问题
+  - term: 2. Style Specifics：风格细节
+    meaning: Front cache 与 backing cache 保持同步，但不同 processing units 的 front caches
+      互不直接同步，内容和命中率可能不同。同一请求落到不同实例会出现不一致的 performance 与 responsiveness。因此作者不推荐在 Space-Based
+      中使用 near-cache。
+    source_heading: 2. Style Specifics：风格细节
+  - term: 5. Common Risks：常见风险
+    meaning: Data pump 与 writer 让 cache 和 database 始终是 eventually consistent。高并发下
+      pump 容易成为 bottleneck，显著延迟落库；如果 downstream systems 需要快速看到最新数据，这是重大风险。
+    source_heading: 5. Common Risks：常见风险
+  - term: 6. Governance：治理
+    meaning: 每个 processing-unit instance 定期暴露当前 memory usage。同类实例有相同 replicated cache，报告可按
+      processing-unit name 聚合；另一个 fitness function 记录 instance count，从而计算总内存。
+    source_heading: 6. Governance：治理
+  - term: 9. Examples and Use Cases：案例与适用场景
+    meaning: 售票库存高度动态、不可超卖，仅用无协调 replicated cache 风险很大。可选择 distributed cache、按 concert/section
+      分区单写、原子 reservation/CAS，并设置 reservation expiry。Space-Based 提供容量，不自动解决席位唯一性。
+    source_heading: 9. Examples and Use Cases：案例与适用场景
+  - term: 13. 核心结论
+    meaning: Data abstraction layer 隔离 cache contract 与 database schema。 Reader/writer
+      的 transformation logic 承担演化缓冲。
+    source_heading: 13. 核心结论
+  logic:
+  - 0. 本章要解决什么问题
+  - 2. Style Specifics：风格细节
+  - 4. Cloud Considerations：云环境考虑
+  - 6. Governance：治理
+  - 7. Team Topology Considerations：团队拓扑考虑
+  - 11. 一般化的问题解决方法
+  - 13. 核心结论
+  sections:
+  - title: 0. 本章要解决什么问题
+    source_heading: 0. 本章要解决什么问题
+    paragraphs:
+    - 标准业务事务只访问 processing unit 内存中的数据；持久数据库通过异步 data pump 最终同步，不再是每次请求必须等待的同步约束。
+    - 名称来自 tuple space：多个并行处理器通过共享内存空间协作。这里的“space”不是物理空间，而是可由多个处理单元访问和复制的数据空间。
+    - 把“计算实例可以扩，但所有请求仍同步争用一个数据库”的三角形，改造成“计算与事务状态一起在内存中水平复制，数据库在后台异步收敛”的矩形。
+    - 原章给出数据碰撞的经验公式和具体数值。本文会统一单位、复算并解释变量关系，但不会把它包装成严格概率定律。本文中的内存公式、排队直觉、幂等 data-writer
+      示例和决策流程属于教学扩展，不是原书规定的通用标准。
+  - title: 1. Topology：基本拓扑
+    source_heading: 1. Topology：基本拓扑
+    paragraphs:
+    - Application data 保存在内存中，并在 active processing units 之间复制。一个 processing unit 更新数据后，通过
+      data pump 异步把更新发送给数据库，通常借助具有持久队列的 messaging。
+    - 标准事务不直接等待中央数据库，所以传统最终瓶颈被移除。原章称这能带来 near-infinite scalability。这个表述应理解为“消除中央数据库这一同步约束后，计算层可近线性扩展的架构目标”，不是数学上的无限：内存、网络复制、消息吞吐、数据写回和成本仍有上限。
+    - 表中 virtualized middleware 是总称，内部包含多个 grid 和 manager；data readers/writers/pumps
+      位于内存事务面与持久数据面之间。
+    - 关键时序是：给用户的事务响应不等待最后三步。这提升响应性，却意味着 cache 与 database 之间存在最终一致窗口。
+  - title: 2. Style Specifics：风格细节
+    source_heading: 2. Style Specifics：风格细节
+    paragraphs:
+    - Data grid 是最关键组件。现代实现常把它完全放入 processing units，作为 replicated in-memory cache。若复制需要
+      external controller，或采用 distributed cache，则 virtualized middleware 中也存在 data-grid
+      功能。
+    - 一个 processing unit 可以持有多个 named caches。若没有本地数据，也可远程调用另一个 processing unit（choreography），或通过
+      processing grid 编排；但同步远程访问会削弱本架构的数据本地性和量子独立性。
+    - Front cache 与 backing cache 保持同步，但不同 processing units 的 front caches 互不直接同步，内容和命中率可能不同。同一请求落到不同实例会出现不一致的
+      performance 与 responsiveness。因此作者不推荐在 Space-Based 中使用 near-cache。
+    - Profile、WishList、Wallet、Preferences 四个 processing units 与四个 pumps，共享一个 Customer
+      data writer。Writer 包含整个 customer domain 的 SQL 和数据库逻辑。
+  - title: 4. Cloud Considerations：云环境考虑
+    source_heading: 4. Cloud Considerations：云环境考虑
+    paragraphs:
+    - Cloud：processing units、virtualized middleware，承担动态弹性事务处理；
+    - On-prem：physical databases、data readers/writers，承担受控数据管理、reporting、analytics；
+    - 作者称这是其他风格没有的独特强大特性。更谨慎地理解：异步数据面使这种混合部署特别自然，并非逻辑上只有 Space-Based 才能做 hybrid cloud。
+    - Kubernetes/autoscaling 可实现 Deployment Manager；
+  - title: 5. Common Risks：常见风险
+    source_heading: 5. Common Risks：常见风险
+    paragraphs:
+    - Data pump 与 writer 让 cache 和 database 始终是 eventually consistent。高并发下 pump 容易成为
+      bottleneck，显著延迟落库；如果 downstream systems 需要快速看到最新数据，这是重大风险。
+    - client-acknowledgment mode：writer 完成处理前消息留在 queue，且 broker 不让其他 writer 读取该 in-process
+      message。
+    - Data collision 发生在 replicated cache 的 active/active state：cache A 更新后尚未复制到 B，B
+      又更新同一数据；两个旧状态交叉覆盖，最终副本不一致且都不正确。
+    - 真实库存通常有热门 SKU，分布远非均匀，因此公式更适合 planning comparison，而不是 SLA 保证。应使用生产测得的 RL 与 peak
+      UR，并观察真实 conflict telemetry。
+  - title: 6. Governance：治理
+    source_heading: 6. Governance：治理
+    paragraphs:
+    - 每个 processing-unit instance 定期暴露当前 memory usage。同类实例有相同 replicated cache，报告可按
+      processing-unit name 聚合；另一个 fitness function 记录 instance count，从而计算总内存。
+    - 可按单一 processing unit 原子观察，也可聚合平均。实践还应看 p50/p95/p99/max；仅平均值会隐藏少数严重陈旧数据。
+    - Cache write 快于 database write，pump 是 backpressure point。持续记录 queue depth 和 oldest-message
+      age。
+    - 若输入速率长期超过 writers 的落库能力，queue 无限增长，同步时间变差，还增加数据丢失和 collision 风险。可按 pump 原子报告，也可聚合系统趋势。
+  - title: 7. Team Topology Considerations：团队拓扑考虑
+    source_heading: 7. Team Topology Considerations：团队拓扑考虑
+    paragraphs:
+    - Space-Based 主要是 technically partitioned architecture。一个 domain 由 processing
+      units、pumps、readers/writers、cache contracts、middleware 和 database 等技术构件组成。
+    - 它最自然地匹配按技术领域组织的团队，也可由 domain-aligned cross-functional teams 负责，但团队必须掌握更多构件。
+    - Data pumps、readers/writers 和 virtualized middleware 具有 shared/cross-cutting
+      性质，适合 enabling teams。专门团队可对 pump/writer 做实验与效率改进，不干扰主要功能团队。
+    - Data grid、pump、collision handling、异步同步错误都可能极其复杂，适合 complicated-subsystem team。Domain
+      team 不必理解复制协议和冲突恢复的全部细节，只依赖稳定 contract。
+  - title: 9. Examples and Use Cases：案例与适用场景
+    source_heading: 9. Examples and Use Cases：案例与适用场景
+    paragraphs:
+    - 原章给出经验门槛：高突发流量，或 throughput 超过约 10,000 concurrent users 的应用可考虑 Space-Based。它不是硬阈值；请求复杂度、数据库压力和
+      SLO 比单一人数更重要。
+    - 售票库存高度动态、不可超卖，仅用无协调 replicated cache 风险很大。可选择 distributed cache、按 concert/section
+      分区单写、原子 reservation/CAS，并设置 reservation expiry。Space-Based 提供容量，不自动解决席位唯一性。
+    - 不要让多个 active/active replicated copies 对同一 auction price 无协调写入，否则会出现与库存相同的 collision。
+    - Space-Based 是复杂但强大的 specialized style。作者最后强调，它是唯一同时最大化 responsiveness、scalability、elasticity
+      组合的风格，主要原因就是 cache 和缺少直接数据库访问。
+  - title: 11. 一般化的问题解决方法
+    source_heading: 11. 一般化的问题解决方法
+    paragraphs:
+    - 明确功能粒度、实例扩缩、session、readiness、member join/leave 和 orchestration。
+    - 为每个 update 定义 owner、pump、contract、writer、幂等键、ordering scope、retry、DLQ 和 commit
+      语义。
+    - 使用实测 RL、peak UR、实例数和 key 分布评估 collision；定义 cache-to-DB lag SLO。
+    - 监控 memory、instance count、sync time、queue depth、database reads、latency、elasticity
+      与成本。
+  - title: 13. 核心结论
+    source_heading: 13. 核心结论
+    paragraphs:
+    - Processing unit 同时承载功能与事务 working set。 弹性扩缩必须包含 membership、cache sync 与 readiness。
+    - Virtualized middleware 是多种基础设施能力的组合。 Messaging、data、processing grid 与 deployment
+      manager 各有明确职责。
+    - Data abstraction layer 隔离 cache contract 与 database schema。 Reader/writer 的
+      transformation logic 承担演化缓冲。
+    - Database 通常不进入 architecture quantum，但同步 UI/PU 关联和 processing-grid orchestration
+      会。
+  takeaways:
+  - Space-Based 专门解决极端并发、弹性和响应性问题。 它不是常规业务系统的默认风格。
+  - Replicated cache 优先性能和容错，distributed cache 优先一致性与大/高频数据。 同一系统通常应混合选择。
+  - Data abstraction layer 隔离 cache contract 与 database schema。 Reader/writer 的 transformation
+    logic 承担演化缓冲。
+  - 治理必须持续测内存、同步 lag、pump queue depth 和 database reads。 这些是架构成立的前提指标。
+  - 当数据库同步事务已经成为不可接受的极端容量上限时，把计算与工作数据一起弹性复制到内存，并用可观测、可恢复、幂等的异步数据链来支付最终一致性的代价。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念辨析
+  question: 原文如何解释「10.1 Space-Based 与 Service-Based 是同一个 SBA」？
+  answer: 不是。Service-Based 以粗粒度 domain services 平衡单体和微服务；Space-Based 以 in-memory grid
+    和弹性 processing units 消除同步数据库瓶颈。
+  source_heading: 10.1 Space-Based 与 Service-Based 是同一个 SBA
+- level: 概念辨析
+  question: 原文如何解释「10.7 Near-Cache 兼得两者全部优点」？
+  answer: 错误。各实例 front cache 内容和命中率不同，产生响应性能不一致，因此原章不推荐用于 Space-Based。
+  source_heading: 10.7 Near-Cache 兼得两者全部优点
+- level: 概念辨析
+  question: 原文如何解释「10.11 Eventual Consistency 表示“迟早就好，不必定义时间”」？
+  answer: 错误。必须有 sync-lag SLO、backlog age、保留时间和异常修复流程。
+  source_heading: 10.11 Eventual Consistency 表示“迟早就好，不必定义时间”
+- level: 概念辨析
+  question: 原文如何解释「10.16 碰撞公式是精确预测」？
+  answer: 错误。它假设均匀独立更新，是规划启发式。热门 key、批处理和网络抖动会偏离结果。
+  source_heading: 10.16 碰撞公式是精确预测
+- level: 概念辨析
+  question: 原文如何解释「10.20 五星 Scalability 代表无容量规划」？
+  answer: 错误。恰恰需要更严格地规划内存、RL、writer throughput、queue depth、cold start 和成本。
+  source_heading: 10.20 五星 Scalability 代表无容量规划

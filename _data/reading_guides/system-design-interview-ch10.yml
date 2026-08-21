@@ -1,0 +1,140 @@
+source:
+  post: _posts/book-notes/software-architecture/system-design-interview/2026-08-12-system-design-interview-ch10.md
+  body_sha256: 2542a42b99d938911927c14d28bbf49d5416e359ef3e12947744ca3a4d9a2de9
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 8
+  question: 原文围绕「0. 学习目标、阅读边界与全章总览」建立了怎样的核心认识？
+  question_source: 0. 学习目标、阅读边界与全章总览
+  thesis: 如果这些问题都能回答，就不只是会接入几个第三方 SDK，而是理解了本章的核心方法：把一次业务通知拆成持久意图、策略决策、通道任务、外部副作用和可观测状态，用队列隔离速度与故障，用幂等和重试管理不确定结果，并始终把用户偏好、时效、成本与通道真实能力纳入正确性定义。
+  thesis_source: 24. 核心结论与一般设计方法
+  concepts:
+  - term: 0. 学习目标、阅读边界与全章总览
+    meaning: 本文严格沿原书顺序展开。补充的 QPS/积压公式、outbox、投递语义、状态机、重试分类、幂等实现、优先级与隐私治理属于标准工程背景，不是作者逐式给出的原文。
+    source_heading: 0. 学习目标、阅读边界与全章总览
+  - term: 8.1 Notification Servers 职责
+    meaning: Notification Server 应快速完成“接受与编排”，不等待第三方交付。
+    source_heading: 8.1 Notification Servers 职责
+  - term: 12.4 何时渲染
+    meaning: 入队前渲染：内容稳定、Worker 简单，但多通道/locale 产生较大消息。
+    source_heading: 12.4 何时渲染
+  - term: 15.4 Retry Queue
+    meaning: 定时扫描 notification log。
+    source_heading: 15.4 Retry Queue
+  - term: 20. 更新后的最终架构
+    meaning: 持久化 notification log/outbox；
+    source_heading: 20. 更新后的最终架构
+  - term: 24. 核心结论与一般设计方法
+    meaning: 系统支持 iOS/Android push、SMS、Email，是软实时，用户可按类别和通道退订，每天约 1600 万条，平均 185/s，但活动峰值可能超过
+      1.6 万/s。业务服务提交带 event ID、模板版本、优先级和过期时间的通知意图。入口认证、授权、限流、幂等检查，并两阶段检查用户偏好和频控。意图与
+      outbox 在同一事务持久化，relay 写入按通道和优先级隔离的队列；无状态 Worker 独立扩容，渲染固定模板版本并通过 adapter 调 APNs、FCM、SMS
+      或 Email provider。
+    source_heading: 24. 核心结论与一般设计方法
+  logic:
+  - 0. 学习目标、阅读边界与全章总览
+  - 8.1 Notification Servers 职责
+  - 11.1 不确定结果场景
+  - 15.4 Retry Queue
+  - 17. 队列监控与容量推导
+  - 23.2 通道层
+  - 24. 核心结论与一般设计方法
+  sections:
+  - title: 0. 学习目标、阅读边界与全章总览
+    source_heading: 0. 学习目标、阅读边界与全章总览
+    paragraphs:
+    - Device token、手机号和 Email 地址为什么属于不同生命周期的联系信息？
+    - Queue depth、oldest message age 和生产/消费速率如何判断积压？
+    - App key/secret、内部认证和第三方凭据怎样安全管理？
+    - 本文严格沿原书顺序展开。补充的 QPS/积压公式、outbox、投递语义、状态机、重试分类、幂等实现、优先级与隐私治理属于标准工程背景，不是作者逐式给出的原文。
+  - title: 4.2 Device token
+    source_heading: 4.2 Device token
+    paragraphs:
+    - APNs 可判定 token 无效；
+    - 一个用户有多个设备/token；
+    - 同一设备上的不同 App 有不同 token；
+    - 登出后 token 与用户关系要解除。
+  - title: 8.1 Notification Servers 职责
+    source_heading: 8.1 Notification Servers 职责
+    paragraphs:
+    - 为内部/已验证客户端提供 API；
+    - 验证 Email、电话等基础格式；
+    - 从缓存/数据库取得用户、设备、设置和渲染数据；
+    - Notification Server 应快速完成“接受与编排”，不等待第三方交付。
+  - title: 11.1 不确定结果场景
+    source_heading: 11.1 不确定结果场景
+    paragraphs:
+    - Worker 在收到响应前网络超时；
+    - Worker 不知道发送是否成功；
+  - title: 12.4 何时渲染
+    source_heading: 12.4 何时渲染
+    paragraphs:
+    - 入队前渲染：内容稳定、Worker 简单，但多通道/locale 产生较大消息。
+    - Worker 时渲染：消息小、适配通道方便，但模板变化和缓存故障影响重试。
+  - title: 15.4 Retry Queue
+    source_heading: 15.4 Retry Queue
+    paragraphs:
+    - 多级 retry topics；
+    - 定时扫描 notification log。
+  - title: 17. 队列监控与容量推导
+    source_heading: 17. 队列监控与容量推导
+    paragraphs:
+    - 原书强调 queued notifications 总数：高说明 Worker 处理不够快，应扩容。
+    - 增加 Worker 只在瓶颈确实是 Worker，且 provider 配额仍有余量时有效。
+    - notification end-to-end latency。
+    - 100 万条积压若都是新营销消息，影响与一条 20 分钟未发送的安全告警不同。Oldest age 和 SLO 更有意义。
+  - title: 20. 更新后的最终架构
+    source_heading: 20. 更新后的最终架构
+    paragraphs:
+    - Notification template；
+    - 业务服务携带 event ID 调用 API；
+    - 持久化 notification log/outbox；
+    - Worker 再检查最新偏好，渲染固定版本模板；
+  - title: 23.2 通道层
+    source_heading: 23.2 通道层
+    paragraphs:
+    - Provider → APNs → iOS；
+    - Provider → FCM → Android；
+    - SMS Provider → Carrier → Phone；
+    - Email Provider → Mailbox；
+  - title: 24. 核心结论与一般设计方法
+    source_heading: 24. 核心结论与一般设计方法
+    paragraphs:
+    - 端到端 exactly-once 不能轻易承诺。 采用 event ID、幂等状态、至少一次处理和 provider 支持实现 effectively-once。
+    - 系统支持 iOS/Android push、SMS、Email，是软实时，用户可按类别和通道退订，每天约 1600 万条，平均 185/s，但活动峰值可能超过
+      1.6 万/s。业务服务提交带 event ID、模板版本、优先级和过期时间的通知意图。入口认证、授权、限流、幂等检查，并两阶段检查用户偏好和频控。意图与
+      outbox 在同一事务持久化，relay 写入按通道和优先级隔离的队列；无状态 Worker 独立扩容，渲染固定模板版本并通过 adapter 调 APNs、FCM、SMS
+      或 Email provider。
+    - 通知日志区分 pending、provider accepted、delivered、click 和 error；provider accepted 不等于展示。队列至少一次，因此消费者和
+      provider 请求使用稳定幂等键；ack 丢失时无法绝对 exactly-once，只能降低重复。临时错误指数退避加 jitter，429 遵守 Retry-After，invalid
+      token/hard bounce 停止重试并停用地址，过期消息丢弃，超预算进 DLQ。
+    - 如果这些问题都能回答，就不只是会接入几个第三方 SDK，而是理解了本章的核心方法：把一次业务通知拆成持久意图、策略决策、通道任务、外部副作用和可观测状态，用队列隔离速度与故障，用幂等和重试管理不确定结果，并始终把用户偏好、时效、成本与通道真实能力纳入正确性定义。
+  takeaways:
+  - 日发送 1600 万与活动尖峰。
+  - Queue depth/age；
+  - 分析是异步反馈环。 不能阻断发送关键路径，指标也必须承认通道和隐私带来的测量误差。
+  - 能否完整讲出改进架构的六步发送流程？
+  - 如果这些问题都能回答，就不只是会接入几个第三方 SDK，而是理解了本章的核心方法：把一次业务通知拆成持久意图、策略决策、通道任务、外部副作用和可观测状态，用队列隔离速度与故障，用幂等和重试管理不确定结果，并始终把用户偏好、时效、成本与通道真实能力纳入正确性定义。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念辨析
+  question: 原文如何解释「22.1 Notification intent 与 delivery attempt」？
+  answer: 一个业务通知意图可产生多个通道、设备和重试 attempt。不能把它们都塞进一行单状态。
+  source_heading: 22.1 Notification intent 与 delivery attempt
+- level: 概念辨析
+  question: 原文如何解释「22.7 Queue durability 与绝不丢」？
+  answer: 队列持久不自动解决“数据库提交后还没 publish 就崩溃”的双写问题。需要 outbox/relay。
+  source_heading: 22.7 Queue durability 与绝不丢
+- level: 概念辨析
+  question: 原文如何解释「22.11 用户 opt-out 与所有通知关闭」？
+  answer: 营销退订不一定阻止支付、安全和法律通知。Category 和 channel 必须分开建模。
+  source_heading: 22.11 用户 opt-out 与所有通知关闭
+- level: 概念辨析
+  question: 原文如何解释「22.15 App secret 写入客户端」？
+  answer: 客户端包可被逆向。用于服务端 Provider API 的 secret 必须留在可信服务端。
+  source_heading: 22.15 App secret 写入客户端
+- level: 概念辨析
+  question: 原文如何解释「22.20 发送成功后可以删除日志」？
+  answer: 日志还用于回执、审计、去重、统计和争议处理。应按合规和业务设置保留周期，而不是立即删除。
+  source_heading: 22.20 发送成功后可以删除日志

@@ -1,0 +1,140 @@
+source:
+  post: _posts/book-notes/software-architecture/system-design-interview-volume-2/2026-08-12-system-design-interview-volume-2-ch05.md
+  body_sha256: 0175c9b3dc6612258aea199b7b1b1bbaa0bcebd96afc0de0ae2bb8489683a5d2
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 8
+  question: 原文围绕「0. 监控系统解决的不是“存几个数字”」建立了怎样的核心认识？
+  question_source: 0. 监控系统解决的不是“存几个数字”
+  thesis: Alert Manager 的核心是降低噪声并保证送达。 合并、去重、抑制、访问控制、Retry 和渠道路由缺一不可。
+  thesis_source: 7. 核心结论
+  concepts:
+  - term: 0. 监控系统解决的不是“存几个数字”
+    meaning: 每条时序持续产生 Sample。即使一个 Sample 很小，千万级时序、高频采样和一年保留也会形成巨量写入与存储。与此同时，故障期间大量工程师打开相同
+      Dashboard，告警规则同时查询，读取呈突发性。
+    source_heading: 0. 监控系统解决的不是“存几个数字”
+  - term: 2.1 五个基本组成
+    meaning: Data Collection：从服务器、数据库、队列、缓存等来源采样；
+    source_heading: 2.1 五个基本组成
+  - term: 3.3 Scale the Metrics Transmission Pipeline
+    meaning: 代价：Kafka 运维、额外延迟、重复事件和积压容量。Facebook Gorilla 表明也可让 TSDB 自身在部分网络故障下保持高可用写入，不一定必须有中间队列。
+    source_heading: 3.3 Scale the Metrics Transmission Pipeline
+  - term: 3.6 TSDB Query Language
+    meaning: Group By Labels。
+    source_heading: 3.6 TSDB Query Language
+  - term: 3.11.5 “至少一次通知”的真实含义
+    meaning: Kafka 与 Retry 可让通知尝试至少一次，但第三方收到后 ACK 丢失会导致重复。渠道调用应携带 Idempotency Key；值班系统不能假设绝不重复。
+    source_heading: 3.11.5 “至少一次通知”的真实含义
+  - term: 8. 解决指标监控与告警问题的一般思路
+    meaning: 本章最值得迁移的方法是：从 Time Series Cardinality 和 Sampling Rate 而非“机器数”估算规模；让成熟
+      TSDB 处理时间索引与压缩，再围绕采集故障、查询突发和告警状态建立可靠管道。
+    source_heading: 8. 解决指标监控与告警问题的一般思路
+  logic:
+  - 0. 监控系统解决的不是“存几个数字”
+  - 2.1 五个基本组成
+  - 2.7 高层架构
+  - 3.6 TSDB Query Language
+  - 3.9 Cold Storage
+  - 4. Step 4：收束与最终设计
+  - 8. 解决指标监控与告警问题的一般思路
+  sections:
+  - title: 0. 监控系统解决的不是“存几个数字”
+    source_heading: 0. 监控系统解决的不是“存几个数字”
+    paragraphs:
+    - 现在发生了什么？ CPU、内存、请求率、错误率、队列深度是否正常？
+    - 什么时候需要行动？ 某条件持续多久后，应向谁、通过什么渠道告警？
+    - 每条时序持续产生 Sample。即使一个 Sample 很小，千万级时序、高频采样和一年保留也会形成巨量写入与存储。与此同时，故障期间大量工程师打开相同
+      Dashboard，告警规则同时查询，读取呈突发性。
+    - 作者用压缩、分层保留和降采样解决；用 Kafka 隔离采集与存储；用状态化 Alert Manager 把“阈值命中”变成可靠、去重、可路由的通知。
+  - title: 1.4 保留与分辨率
+    source_heading: 1.4 保留与分辨率
+    paragraphs:
+    - 30 天～1 年：1 小时分辨率。
+    - "“30 天保留 1 分钟分辨率”在工程上通常解释为：最近 30 天可查分钟 Rollup，其中前 7 天还额外保留 Raw；30 天后只保留小时 Rollup。"
+  - title: 2.1 五个基本组成
+    source_heading: 2.1 五个基本组成
+    paragraphs:
+    - Data Collection：从服务器、数据库、队列、缓存等来源采样；
+    - Data Transmission：把 Sample 可靠传到监控系统；
+    - Data Storage：按 Time Series 组织并保存；
+    - 这是一条端到端链路：采不到、传丢、存不下、查太慢或通知失败，都会让“告警可靠”失效。
+  - title: 2.7 高层架构
+    source_heading: 2.7 高层架构
+    paragraphs:
+    - Metrics Collector：采集、校验、可选聚合后写 TSDB；
+    - TSDB：按 Metric/Labels/Time 保存与查询；
+    - Alerting：周期查询并管理告警状态/通知；
+    - Visualization：Dashboard 展示。
+  - title: 3.3 Scale the Metrics Transmission Pipeline
+    source_heading: 3.3 Scale the Metrics Transmission Pipeline
+    paragraphs:
+    - Flink/Spark 可做清洗和聚合。
+    - 代价：Kafka 运维、额外延迟、重复事件和积压容量。Facebook Gorilla 表明也可让 TSDB 自身在部分网络故障下保持高可用写入，不一定必须有中间队列。
+    - 可按 Metric Name 分区，使同类数据在同 Consumer 聚合；
+    - 关键 Metric 与普通 Metric 分 Topic/优先级，防止噪声淹没告警信号。
+  - title: 3.6 TSDB Query Language
+    source_heading: 3.6 TSDB Query Language
+    paragraphs:
+    - Range Selection；
+    - Window/Rolling Aggregate；
+    - Group By Labels。
+    - 这些用 SQL Window Function 能表达，但较冗长。PromQL、Flux 等 DSL 更贴近时序操作。DSL 的价值是表达领域语义，不表示
+      SQL 无法计算。
+  - title: 3.9 Cold Storage
+    source_heading: 3.9 Cold Storage
+    paragraphs:
+    - 很少访问的旧数据迁移到低成本存储。Cold Tier 延迟更高，不服务实时告警；查询服务可异步读取或要求用户缩小范围。
+    - Downsampling 减少数据点，改变分辨率；
+    - Cold Storage 改变介质，数据可以仍是原精度。
+  - title: 3.11.5 “至少一次通知”的真实含义
+    source_heading: 3.11.5 “至少一次通知”的真实含义
+    paragraphs:
+    - Kafka 与 Retry 可让通知尝试至少一次，但第三方收到后 ACK 丢失会导致重复。渠道调用应携带 Idempotency Key；值班系统不能假设绝不重复。
+    - Rule Evaluation Lag/Failure；
+    - Notification Success/Retry；
+    - Alert Store Error；
+  - title: 4. Step 4：收束与最终设计
+    source_heading: 4. Step 4：收束与最终设计
+    paragraphs:
+    - Pull 与 Push 没有绝对赢家；
+    - Kafka 可扩展并解耦传输管道，但不是唯一方案；
+    - Compression/Encoding/Downsampling/Cold Storage 控制空间；
+    - Alerting 与 Visualization 优先评估成熟产品。
+  - title: 8. 解决指标监控与告警问题的一般思路
+    source_heading: 8. 解决指标监控与告警问题的一般思路
+    paragraphs:
+    - 明确是 Metrics 还是 Logs/Traces；计算 Series Cardinality、Sampling Interval、峰值点率、保留和告警延迟。
+    - 根据 Target 生命周期、网络方向、调试、身份和 Serverless 决定；Pull 用 Service Discovery，Push 用 Agent/LB/认证。
+    - 统一 Resolution Routing、Series/Points Limit、Timeout、Cache 与权限；防止事故期间 Dashboard
+      查询压垮 TSDB。
+    - 本章最值得迁移的方法是：从 Time Series Cardinality 和 Sampling Rate 而非“机器数”估算规模；让成熟 TSDB 处理时间索引与压缩，再围绕采集故障、查询突发和告警状态建立可靠管道。
+  takeaways:
+  - 先区分可观测信号。 本章只设计 Operational Metrics，不把日志、Trace 和业务指标混入同一模型。
+  - 成熟 TSDB 优于自行拼装通用数据库。 它内建标签索引、时间压缩、Retention、Rollup 和 DSL。
+  - Kafka 提供缓冲、解耦和重放，但不是绝对必需。 应比较其可靠性收益和运维成本。
+  - Rollup 必须匹配 Metric 类型。 Sum/Count 可组合；P99、Counter、Gauge、Histogram 语义不同。
+  - 成熟 Alerting/Visualization 通常应购买或复用。 自建需明确不可替代的理由。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念辨析
+  question: 原文如何解释「5.1 Metric Name 不等于 Time Series」？
+  answer: 同一个 Name 配不同 Label Set 会产生许多 Series。容量和索引压力由 Series Cardinality 主导。
+  source_heading: 5.1 Metric Name 不等于 Time Series
+- level: 概念辨析
+  question: 原文如何解释「5.8 Service Discovery 不只是地址簿」？
+  answer: Pull 模式还需要采样间隔、Timeout、Retry、Labels 和变更通知。
+  source_heading: 5.8 Service Discovery 不只是地址簿
+- level: 概念辨析
+  question: 原文如何解释「5.16 平均值会隐藏尖峰」？
+  answer: 告警或 SLO 需要 Min/Max、Histogram 或 Quantile。只保留 Avg 会让短故障消失。
+  source_heading: 5.16 平均值会隐藏尖峰
+- level: 概念辨析
+  question: 原文如何解释「5.21 Query Service 不是必备“中间层”」？
+  answer: 单 TSDB + 成熟插件时可直连；多存储、复杂权限和查询治理时才更有价值。
+  source_heading: 5.21 Query Service 不是必备“中间层”
+- level: 概念辨析
+  question: 原文如何解释「5.28 Build vs Buy 不是技术能力展示题」？
+  answer: 成熟 TSDB、Grafana、Alertmanager 通常更经济。自建必须有规模、语义、合规或成本上的明确理由。
+  source_heading: 5.28 Build vs Buy 不是技术能力展示题

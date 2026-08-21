@@ -1,0 +1,138 @@
+source:
+  post: _posts/book-notes/software-architecture/system-design-interview/2026-08-12-system-design-interview-ch11.md
+  body_sha256: a3f264324e536282416e1455c63f41a87af37a67676b13f5c49c4bfb13b6517f
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 8
+  question: 原文围绕「0. 学习目标、阅读边界与全章总览」建立了怎样的核心认识？
+  question_source: 0. 学习目标、阅读边界与全章总览
+  thesis: 如果这些问题都能回答，就不只是记住了“推模式和拉模式”，而是理解了本章的核心方法：把信息流视为由权威帖子与社交关系派生出的、面向每个收件人的有序索引；根据关系分布和活跃度决定在写时还是读时计算，再用异步物化、批量水合、权限校验和分层缓存，在写放大、读延迟、新鲜度与成本之间取得可观察的平衡。
+  thesis_source: 24. 核心结论与一般设计方法
+  concepts:
+  - term: 0. 学习目标、阅读边界与全章总览
+    meaning: 本文严格沿原书顺序展开。原章没有正式容量估算与代码；本文补充的 QPS、fanout 写放大、缓存容量、k 路归并、cursor、outbox、幂等、删除传播和可运行混合
+      feed 示例属于标准工程背景，不是作者逐式给出的原文。
+    source_heading: 0. 学习目标、阅读边界与全章总览
+  - term: 7. Step 3：Web 层认证与限流
+    meaning: 认证回答“是谁”，限流回答“能多快”，内容审核回答“内容是否允许”，三者不能互相替代。
+    source_heading: 7. Step 3：Web 层认证与限流
+  - term: 14. Newsfeed retrieval 深入
+    meaning: 部分条目会因删除、屏蔽、权限而过滤。请求 20 条时可先取 30–40 个 IDs，过滤后补足 20，设最大扫描预算防异常 feed 无限回源。
+    source_heading: 14. Newsfeed retrieval 深入
+  - term: 16.5 Counters Cache
+    meaning: 计数可异步聚合、短暂最终一致。必须防热门帖子单计数 key 写热点，可分片计数后汇总。
+    source_heading: 16.5 Counters Cache
+  - term: 20.5 监控关键指标
+    meaning: strategy transition duplicate rate。
+    source_heading: 20.5 监控关键指标
+  - term: 24. 核心结论与一般设计方法
+    meaning: 如果这些问题都能回答，就不只是记住了“推模式和拉模式”，而是理解了本章的核心方法：把信息流视为由权威帖子与社交关系派生出的、面向每个收件人的有序索引；根据关系分布和活跃度决定在写时还是读时计算，再用异步物化、批量水合、权限校验和分层缓存，在写放大、读延迟、新鲜度与成本之间取得可观察的平衡。
+    source_heading: 24. 核心结论与一般设计方法
+  logic:
+  - 0. 学习目标、阅读边界与全章总览
+  - 7. Step 3：Web 层认证与限流
+  - 11. Fanout Service 详细流程
+  - 16.5 Counters Cache
+  - 18.3 最终一致
+  - 23.3 Fanout 层
+  - 24. 核心结论与一般设计方法
+  sections:
+  - title: 0. 学习目标、阅读边界与全章总览
+    source_heading: 0. 学习目标、阅读边界与全章总览
+    paragraphs:
+    - 类似面试题包括 Facebook News Feed、Instagram Feed、Twitter Timeline 等。
+    - Graph DB、User Cache、Message Queue 和 Fanout Worker 分别承担什么职责？
+    - News Feed、Content、Social Graph、Action、Counters 五层缓存为何分开？
+    - 本文严格沿原书顺序展开。原章没有正式容量估算与代码；本文补充的 QPS、fanout 写放大、缓存容量、k 路归并、cursor、outbox、幂等、删除传播和可运行混合
+      feed 示例属于标准工程背景，不是作者逐式给出的原文。
+  - title: 2.5 估算结论
+    source_heading: 2.5 估算结论
+    paragraphs:
+    - 普通用户 push 可承受，但产生显著写放大；
+    - Feed Cache 应保存紧凑 ID；
+    - Queue/Worker 必须承受数十万 entry writes/s；
+    - 平均 QPS 掩盖名人和热点内容。
+  - title: 7. Step 3：Web 层认证与限流
+    source_heading: 7. Step 3：Web 层认证与限流
+    paragraphs:
+    - 限制用户在时间窗口内的发帖数量；
+    - 防 spam 和 abusive content。
+    - 上传媒体必须先完成或处于可追踪状态。
+    - 认证回答“是谁”，限流回答“能多快”，内容审核回答“内容是否允许”，三者不能互相替代。
+  - title: 11. Fanout Service 详细流程
+    source_heading: 11. Fanout Service 详细流程
+    paragraphs:
+    - Graph DB 适合管理关系与朋友推荐。对单向关注模型，更准确是 follower IDs。
+    - 不要对 5000 个用户逐一 RPC，使用批量 multi-get 或把必要策略投影到关系缓存。
+    - 可用 sorted set/list，自定义 score 处理同时间平局。
+    - 完整 User/Post 对象重复导致巨大内存；
+  - title: 14. Newsfeed retrieval 深入
+    source_heading: 14. Newsfeed retrieval 深入
+    paragraphs:
+    - Web Server 调 News Feed Service；
+    - 从 News Feed Cache 取 post IDs；
+    - 从 User/Post Cache 取完整对象，构造 fully hydrated feed；
+    - 部分条目会因删除、屏蔽、权限而过滤。请求 20 条时可先取 30–40 个 IDs，过滤后补足 20，设最大扫描预算防异常 feed 无限回源。
+  - title: 16.5 Counters Cache
+    source_heading: 16.5 Counters Cache
+    paragraphs:
+    - follower/following count。
+    - 计数可异步聚合、短暂最终一致。必须防热门帖子单计数 key 写热点，可分片计数后汇总。
+  - title: 18.3 最终一致
+    source_heading: 18.3 最终一致
+    paragraphs:
+    - 发布者 read-your-writes；
+    - P99 fanout propagation lag；
+    - Queue backlog 时的降级。
+  - title: 20.5 监控关键指标
+    source_heading: 20.5 监控关键指标
+    paragraphs:
+    - Feed/Post/User Cache hit；
+    - celebrity pull merge latency；
+    - missing feed audit sample；
+    - strategy transition duplicate rate。
+  - title: 23.3 Fanout 层
+    source_heading: 23.3 Fanout 层
+    paragraphs:
+    - Hybrid：普通用户 push，名人 pull；
+    - Queue + Worker 异步批量和幂等。
+  - title: 24. 核心结论与一般设计方法
+    source_heading: 24. 核心结论与一般设计方法
+    paragraphs:
+    - 假设每人每天发 2 帖、刷新 20 次，平均写约 231 QPS、读约 2315 QPS，读写比约 10:1；平均 200 朋友使 fanout 约 4.6
+      万 entries/s，名人则可能一帖千万写。
+    - Feed Cache 只存最近 K 个 IDs，News Feed Service 用 cursor 分页，批量 multi-get Post/User/Action/Counter
+      Cache，媒体由 CDN 加载。
+    - 最后监控发布/读取 P99、Queue oldest age、fanout recipients/s、缓存命中、名人 merge 延迟、deleted
+      leakage 和热点 shard。
+    - 如果这些问题都能回答，就不只是记住了“推模式和拉模式”，而是理解了本章的核心方法：把信息流视为由权威帖子与社交关系派生出的、面向每个收件人的有序索引；根据关系分布和活跃度决定在写时还是读时计算，再用异步物化、批量水合、权限校验和分层缓存，在写放大、读延迟、新鲜度与成本之间取得可观察的平衡。
+  takeaways:
+  - Publishing：Post durability → fanout → optional notification；
+  - 范围决定复杂度。 逆时间排序不需要个性化排名系统，但仍需要稳定排序和分页。
+  - 没有脱离业务分布的最佳方案。 活跃度、关系长尾、新鲜度、隐私和成本共同决定策略。
+  - 能否解释一致性哈希为什么不能消除单名人 fanout？
+  - 如果这些问题都能回答，就不只是记住了“推模式和拉模式”，而是理解了本章的核心方法：把信息流视为由权威帖子与社交关系派生出的、面向每个收件人的有序索引；根据关系分布和活跃度决定在写时还是读时计算，再用异步物化、批量水合、权限校验和分层缓存，在写放大、读延迟、新鲜度与成本之间取得可观察的平衡。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念辨析
+  question: 原文如何解释「22.1 News Feed 与 Notification」？
+  answer: Feed 是用户主动打开的内容列表；Notification 是主动提醒。帖子可进入 Feed 而不发 Push。
+  source_heading: 22.1 News Feed 与 Notification
+- level: 概念辨析
+  question: 原文如何解释「22.5 Hotkey 与名人 fanout」？
+  answer: 名人问题既可能是一个作者关系 key 很热，也可能是单事件产生巨大写放大。只做一致性哈希不能消除后者。
+  source_heading: 22.5 Hotkey 与名人 fanout
+- level: 概念辨析
+  question: 原文如何解释「22.11 Offset 与 Cursor」？
+  answer: 动态 Feed 中 offset 容易重复/遗漏；cursor 按稳定 keyset 继续。Cursor 也需版本和签名。
+  source_heading: 22.11 Offset 与 Cursor
+- level: 概念辨析
+  question: 原文如何解释「22.14 发布成功与所有朋友立即可见」？
+  answer: 成功通常表示 Post/outbox 持久化；朋友可见是异步 SLO。API 要定义语义。
+  source_heading: 22.14 发布成功与所有朋友立即可见
+- level: 概念辨析
+  question: 原文如何解释「22.21 混合策略自动最优」？
+  answer: 阈值错误、策略切换、去重和读时合并都增加复杂度。小系统可能纯 push 或纯 pull 更简单。
+  source_heading: 22.21 混合策略自动最优

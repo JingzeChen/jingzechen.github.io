@@ -1,0 +1,152 @@
+source:
+  post: _posts/book-notes/ai-system/hands-on-llm-serving-and-optimization/2026-08-12-hands-on-llm-serving-and-optimization-ch02.md
+  body_sha256: 8489f4d392164a41eee3feb2a751b16d68eb174f068e6b4b245a7d0dcfaabecd
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 12
+  question: 原文围绕「0. 本章定位、学习目标与因果主线」建立了怎样的核心认识？
+  question_source: 0. 本章定位、学习目标与因果主线
+  thesis: Serving framework 的核心是共享执行引擎。
+  thesis_source: 8. 本章知识结构与核心结论
+  concepts:
+  - term: 0. 本章定位、学习目标与因果主线
+    meaning: 实验口径说明：本章的 9.1205 s、3.1416 s、1.12 s、19.58 s、1.0626 s、2.3865 s 以及 10～20×、23×
+      等数据来自作者的特定模型、硬件、框架版本和 workload。它们能说明机制可能带来的数量级差异，但不是任意环境的性能承诺。比较前必须固定模型、精度、输入输出
+      token 长度、采样、并发、warm-up 和计时边界。
+    source_heading: 0. 本章定位、学习目标与因果主线
+  - term: 1. Inside the Mind of a Transformer：从服务视角看 Transformer
+    meaning: 不同头能够学习不同关系，如局部搭配、位置、指代或任务格式，但不应把每个头机械标成固定的人类概念。现代模型还常采用 grouped-query
+      attention（GQA）或 multi-query attention（MQA），让多个 query heads 共享较少的 K/V heads，以减少
+      KV cache 和内存带宽。
+    source_heading: 1. Inside the Mind of a Transformer：从服务视角看 Transformer
+  - term: 2. Executing LLM Generation：逐行理解推理
+    meaning: 图中第一根柱包含 prompt prefill 并产生首 token，因此显著较高；后续柱对应 cache-assisted decode。严格地说，首
+      token 延迟还可能含首次 kernel 编译、CUDA graph 捕获、内存分配和 warm-up，benchmark 应预热后多次测量。
+    source_heading: 2. Executing LLM Generation：逐行理解推理
+  - term: 4. LLM Batch Serving Basics：让多个请求共享一次设备执行
+    meaning: 一个 decode step 对单序列只处理一个 token，矩阵较窄，常无法占满 GPU 的并行单元。batching 把 B 个请求的
+      token/序列组成更大的张量，共享同一份模型权重并并行计算，从而摊薄 kernel launch 与权重读取开销。
+    source_heading: 4. LLM Batch Serving Basics：让多个请求共享一次设备执行
+  - term: 7. 从本章抽象出的性能分析方法
+    meaning: 画出 tokenize → queue → prefill → KV cache → repeated decode → detokenize/stream，记录每步输入形状和持久状态。状态不清就无法判断什么能缓存、何时释放。
+    source_heading: 7. 从本章抽象出的性能分析方法
+  - term: 8. 本章知识结构与核心结论
+    meaning: 本章的总方法是：从自回归概率依赖推导逐 token 执行，沿时间线找出完整历史重算，用 KV cache 以显存换取 decode 计算，再把请求拆成
+      compute-heavy prefill 与 bandwidth-heavy decode；最后由 serving framework 跨请求管理缓存和调度，通过
+      streaming 提前交付结果、通过 continuous batching 提高硬件利用率，并始终在真实请求分布与延迟 SLO 下验证收益。
+    source_heading: 8. 本章知识结构与核心结论
+  logic:
+  - 0. 本章定位、学习目标与因果主线
+  - 1. Inside the Mind of a Transformer：从服务视角看 Transformer
+  - 2. Executing LLM Generation：逐行理解推理
+  - 3. LLM Streaming Serving Basics：生成即交付
+  - 4. LLM Batch Serving Basics：让多个请求共享一次设备执行
+  - 7. 从本章抽象出的性能分析方法
+  - 8. 本章知识结构与核心结论
+  sections:
+  - title: 0. 本章定位、学习目标与因果主线
+    source_heading: 0. 本章定位、学习目标与因果主线
+    paragraphs:
+    - 第 1 章回答“模型服务系统有哪些形态”，第 2 章进一步打开 LLM 黑盒，回答“LLM 一次请求在设备上究竟怎样执行”。作者刻意从最小代码开始，而不是先展示生产平台，因为只有看清逐
+      token 生成中的状态变化，才能理解后续框架为什么需要 KV cache、调度器、流式输出与连续批处理。
+    - tokenizer、embedding、Transformer blocks 与 LM head 怎样把文本变成下一 token？
+    - causal mask、multi-head attention、hidden state、logit、概率与采样是什么关系？
+    - 实验口径说明：本章的 9.1205 s、3.1416 s、1.12 s、19.58 s、1.0626 s、2.3865 s 以及 10～20×、23×
+      等数据来自作者的特定模型、硬件、框架版本和 workload。它们能说明机制可能带来的数量级差异，但不是任意环境的性能承诺。比较前必须固定模型、精度、输入输出
+      token 长度、采样、并发、warm-up 和计时边界。
+  - title: 1. Inside the Mind of a Transformer：从服务视角看 Transformer
+    source_heading: 1. Inside the Mind of a Transformer：从服务视角看 Transformer
+    paragraphs:
+    - 但 LLM 没有永恒的参数阈值。今天的“小模型”可能大于早年的“大模型”；现代语言模型还可能是多模态、Mixture-of-Experts 或带工具能力。原章后续使用
+      LLM/Transformer 专指生成式 decoder-only Transformer，这是本章的讨论边界，不是对整个领域的永久定义。
+    - tokenizer 可能把一个词拆成多个 subword，也可能让标点、空格或单个汉字成为 token。原章为叙述方便交替使用 word 与 token，并给出英文平均
+      1 token 约 0.75 word 的粗略经验；该比例不适用于所有 tokenizer、语言、代码或数字文本。
+    - "“通常总选最高概率 token”只描述 greedy decoding。开放式生成常先做 top-k 或 top-p 截断再采样；beam search、重复惩罚和
+      constrained decoding 也会改变选择过程。模型负责产生 logits，解码策略负责从分布中决定 token，二者共同决定输出。"
+    - 不同头能够学习不同关系，如局部搭配、位置、指代或任务格式，但不应把每个头机械标成固定的人类概念。现代模型还常采用 grouped-query attention（GQA）或
+      multi-query attention（MQA），让多个 query heads 共享较少的 K/V heads，以减少 KV cache 和内存带宽。
+  - title: 2. Executing LLM Generation：逐行理解推理
+    source_heading: 2. Executing LLM Generation：逐行理解推理
+    paragraphs:
+    - decode 每轮只接收新 token，读取权重和不断增长的 KV cache，产生一个下一 token。单请求每步的矩阵较小，自回归依赖又限制了同一序列的时间并行，因此更容易受
+      HBM 内存带宽和 cache 读取限制，常称 memory-bandwidth-intensive。
+    - 图中第一根柱包含 prompt prefill 并产生首 token，因此显著较高；后续柱对应 cache-assisted decode。严格地说，首
+      token 延迟还可能含首次 kernel 编译、CUDA graph 捕获、内存分配和 warm-up，benchmark 应预热后多次测量。
+    - vLLM、SGLang 等 serving framework 把这些能力放到统一执行引擎中。它们的价值不只是“少写几行代码”，而是让多个动态请求共享模型权重和设备，同时持续吸收
+      PagedAttention、prefix caching、speculative decoding 等优化。
+    - 可复现实验应固定实际输入/输出长度，预热多轮，分别测 TTFT、TPOT、端到端延迟、tokens/s、峰值显存与质量，并报告软件/硬件版本。实践路线仍然合理：先用
+      Transformers 快速验证，再在代表性 workload 上评估 vLLM，而不是因一个倍数无条件迁移。
+  - title: 3. LLM Streaming Serving Basics：生成即交付
+    source_heading: 3. LLM Streaming Serving Basics：生成即交付
+    paragraphs:
+    - streaming 主要改善结果交付和可感知响应性，不自动减少模型 prefill/decode 计算。TTFT 不变时，首 token 仍不会更早生成；但用户不必等待完整答案，且能提前阅读或取消。
+    - 客户端断开后应调用 abort，使调度器尽快停止 decode 并回收 KV cache。
+    - Unicode/token 边界：单 token 解码未必构成完整可显示字符，通常按安全文本 chunk 发送；
+    - 取消也必须与计费、审计和部分输出语义一致：已经发送的内容无法收回；工具调用或外部副作用一旦执行，abort 模型不等于回滚业务操作。
+  - title: 4. LLM Batch Serving Basics：让多个请求共享一次设备执行
+    source_heading: 4. LLM Batch Serving Basics：让多个请求共享一次设备执行
+    paragraphs:
+    - 一个 decode step 对单序列只处理一个 token，矩阵较窄，常无法占满 GPU 的并行单元。batching 把 B 个请求的 token/序列组成更大的张量，共享同一份模型权重并并行计算，从而摊薄
+      kernel launch 与权重读取开销。
+    - 与原章所称约 2.2× 一致。它证明本 workload 的总完成吞吐提高，不代表 batch 中每个请求的 TTFT 都缩短。为了等 batch 到齐而排队，在线请求
+      latency 甚至可能上升。
+    - 传统 static batch 在开始前收集固定请求，一起运行到完成。prompt 长度不同需要 padding 或变长 attention 管理，造成无效计算；生成长度也不同，短请求结束后，其槽位若不能立即被新请求使用，就会形成尾部浪费。
+    - 它解决静态 batch 的空槽问题，更适合到达时间、prompt 长度和输出长度都不一致的在线流量。原章引用 2023 年 Anyscale 研究，continuous
+      batching 吞吐最高可提高 23×并降低 p50 latency；同样应保留其 workload 与实现条件，不能视为固定倍数。
+  - title: 7. 从本章抽象出的性能分析方法
+    source_heading: 7. 从本章抽象出的性能分析方法
+    paragraphs:
+    - 先确认哪些 token 已知、哪些必须等待。prompt 可并行 prefill，output 必须自回归 decode。不能用训练阶段的大 batch
+      直觉直接推断在线生成。
+    - 画出 tokenize → queue → prefill → KV cache → repeated decode → detokenize/stream，记录每步输入形状和持久状态。状态不清就无法判断什么能缓存、何时释放。
+    - 无 cache 循环重复计算历史 K/V 和 hidden states；这些值在历史不变时可复用，于是引出 KV cache。所有缓存都应回答：key
+      是什么、value 是什么、有效期多久、失效条件和内存上限是什么。
+    - 固定模型/权重、dtype、prompt token、实际 output token、sampling seed、并发、warm-up 与计时边界；报告硬件、软件版本、TTFT、TPOT、吞吐、显存和质量。
+  - title: 8. 本章知识结构与核心结论
+    source_heading: 8. 本章知识结构与核心结论
+    paragraphs:
+    - 下一 token 是 tokenizer、blocks、LM head 与 decoding policy 共同作用的结果。 logits 不是概率，最高
+      logit 也不一定被选中。
+    - Continuous batching 适配在线请求的动态长度。 它按 iteration 移除完成请求并补入新请求，减少静态 batch 的空槽，但仍需平衡公平、内存和
+      SLO。
+    - 理解执行时间线是后续优化的共同基础。 PagedAttention、prefix caching、speculative decoding、chunked
+      prefill 与多 GPU 调度，都建立在本章的 token、phase 和 cache 心智模型之上。
+    - 本章的总方法是：从自回归概率依赖推导逐 token 执行，沿时间线找出完整历史重算，用 KV cache 以显存换取 decode 计算，再把请求拆成
+      compute-heavy prefill 与 bandwidth-heavy decode；最后由 serving framework 跨请求管理缓存和调度，通过
+      streaming 提前交付结果、通过 continuous batching 提高硬件利用率，并始终在真实请求分布与延迟 SLO 下验证收益。
+  takeaways:
+  - LLM 服务难题来自模型执行依赖。 decoder-only Transformer 将序列概率分解为逐 token 条件概率，因此单序列 decode 天然串行。
+  - Attention 用 Q/K 匹配并加权 V，causal mask 保证不能偷看未来。 multi-head/GQA 不只影响建模能力，也直接影响 KV
+    cache 容量。
+  - prefill 与 decode 应分开观测和优化。 前者常偏计算密集并决定 TTFT，后者常偏带宽密集并决定 TPOT/ITL。
+  - Continuous batching 适配在线请求的动态长度。 它按 iteration 移除完成请求并补入新请求，减少静态 batch 的空槽，但仍需平衡公平、内存和
+    SLO。
+  - 本章的总方法是：从自回归概率依赖推导逐 token 执行，沿时间线找出完整历史重算，用 KV cache 以显存换取 decode 计算，再把请求拆成 compute-heavy
+    prefill 与 bandwidth-heavy decode；最后由 serving framework 跨请求管理缓存和调度，通过 streaming
+    提前交付结果、通过 continuous batching 提高硬件利用率，并始终在真实请求分布与延迟 SLO 下验证收益。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念辨析
+  question: 原文如何解释「6.1 Token = word」？
+  answer: 错误。token 由模型 tokenizer 定义，可能是词、词片段、汉字、空格或标点。英文 0.75 word/token 只是粗略平均。
+  source_heading: 6.1 Token = word
+- level: 概念辨析
+  question: 原文如何解释「6.5 模型总是选择概率最高的 token」？
+  answer: 错误。greedy 才选 argmax。temperature、top-k、top-p、beam search 和 penalties 都可能选择其他
+    token。
+  source_heading: 6.5 模型总是选择概率最高的 token
+- level: 概念辨析
+  question: 原文如何解释「6.10 Prefill = 第一个 token 的全部时间」？
+  answer: 不完全等同。首 token 时间包含排队、tokenization、prefill、采样、调度和网络，冷启动时还可能含 kernel 初始化；prefill
+    是其中的模型执行阶段。
+  source_heading: 6.10 Prefill = 第一个 token 的全部时间
+- level: 概念辨析
+  question: 原文如何解释「6.14 Batching 同时提高吞吐并降低所有请求延迟」？
+  answer: 错误。batching 通常提高吞吐，却可能因等待组 batch、资源争用而增加 TTFT 或尾延迟。continuous batching 只是改善折中，不会消除冲突。
+  source_heading: 6.14 Batching 同时提高吞吐并降低所有请求延迟
+- level: 概念辨析
+  question: 原文如何解释「6.18 Serving framework 自动给出最优配置」？
+  answer: 错误。框架提供高效机制和参数，但最优 batch、cache、精度与并行策略取决于模型、硬件、流量和 SLO。默认值只是起点。
+  source_heading: 6.18 Serving framework 自动给出最优配置

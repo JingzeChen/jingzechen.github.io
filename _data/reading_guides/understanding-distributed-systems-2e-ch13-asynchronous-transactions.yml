@@ -1,0 +1,153 @@
+source:
+  post: _posts/book-notes/distributed-system/understanding-distributed-system/2026-08-16-understanding-distributed-systems-2e-ch13-asynchronous-transactions.md
+  body_sha256: cf6c5ea4228786cdb26a407489bb833d7c2026aaf21f571bf5aa54af025bf714
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 9
+  question: 原文围绕「0. 本章定位：长时间跨服务操作不能一直持锁等待」建立了怎样的核心认识？
+  question_source: 0. 本章定位：长时间跨服务操作不能一直持锁等待
+  thesis: Relay 必须 ACK 后才删除/标记 row。 Send 后删除前 crash 会重复 delivery，因此 consumer 必须 dedup。
+  thesis_source: 16. 核心结论
+  concepts:
+  - term: 0. 本章定位：长时间跨服务操作不能一直持锁等待
+    meaning: 若 coordinator、participant 或网络很慢，transaction 无法推进。若同时用 2PL 提供 isolation，prepared
+      participants 会长期持锁，其他 transactions 也被阻塞。
+    source_heading: 0. 本章定位：长时间跨服务操作不能一直持锁等待
+  - term: 4. Sagas
+    meaning: 任一步可因业务或技术原因失败。若 flight 成功、hotel 失败，需要 cancel flight。Outbox 只保证一条 change
+      最终传播，不表达多步骤条件分支和补偿流程。
+    source_heading: 4. Sagas
+  - term: 6.1 Orchestration
+    meaning: 原章采用 orchestrator：中央 workflow state machine 明确命令 participants。
+    source_heading: 6.1 Orchestration
+  - term: 6.3 Managed workflow engines
+    meaning: activity delivery semantics；
+    source_heading: 6.3 Managed workflow engines
+  - term: 9. 其他隔离设计策略
+    meaning: 每一步写入 expected version；若状态被其他 workflow 修改，abort/replan，而不是覆盖。
+    source_heading: 9. 其他隔离设计策略
+  - term: 17. 从本章提炼出的通用解题方法
+    meaning: 在 local commit 后、send 后、ACK 前、checkpoint 前、compensation 中逐点 crash；验证无丢
+      message、无重复 effect、workflow 可恢复且 stale coordinator 被拒绝。
+    source_heading: 17. 从本章提炼出的通用解题方法
+  logic:
+  - 0. 本章定位：长时间跨服务操作不能一直持锁等待
+  - 4. Sagas
+  - 5.3 三步流程
+  - 6.3 Managed workflow engines
+  - 8.1 原章方案
+  - 13. Part II Coordination 总结
+  - 17. 从本章提炼出的通用解题方法
+  sections:
+  - title: 0. 本章定位：长时间跨服务操作不能一直持锁等待
+    source_heading: 0. 本章定位：长时间跨服务操作不能一直持锁等待
+    paragraphs:
+    - 若 coordinator、participant 或网络很慢，transaction 无法推进。若同时用 2PL 提供 isolation，prepared
+      participants 会长期持锁，其他 transactions 也被阻塞。
+    - State machine replication 可以改善 coordinator/participant 的节点可用性，却不能消除长事务本身的锁持有时间和跨组织阻塞，因此无法解决这一根本问题。
+    - 个平均 in-flight workflows 可能同时占锁（稳态、到达率与平均时长稳定的 Little 定律口径）。它不是最大并发数。异步设计把“等待”改成持久状态，而不是持有线程、连接和数据库锁。
+    - 更准确地说，saga/outbox 追求 eventual business completion 或 compensation，而不是把整个 workflow
+      伪装成严格隔离的单数据库事务。
+  - title: 2. Outbox pattern
+    source_heading: 2. Outbox pattern
+    paragraphs:
+    - payload 应包含 consumer 应用 update 所需的信息，或让 consumer 能可靠回源。Schema 也需要 version/evolution。
+    - 将同一 aggregate 的 events 路由到同一 partition 只是必要条件；relay 还必须按该 aggregate 的 outbox/version
+      顺序发布，不能让多个 workers 先发送较新 row。
+    - Debezium 等读取 database change log，把 committed outbox rows 发布。减少业务轮询，但引入 connector、offset
+      和 schema 运维。
+    - 区别：outbox 通常不提供 Raft 式全副本 consensus/linearizability；它更像权威状态到异步 projection 的可靠
+      change propagation。
+  - title: 4. Sagas
+    source_heading: 4. Sagas
+    paragraphs:
+    - 任一步可因业务或技术原因失败。若 flight 成功、hotel 失败，需要 cancel flight。Outbox 只保证一条 change 最终传播，不表达多步骤条件分支和补偿流程。
+    - 每个可能需要撤销的 T_i 有 compensating transaction C_i。
+    - 所以 saga 的“atomicity”是最终业务语义：成功完成所有步骤，或执行预定义补偿达到可接受终态；不是 ACID all-or-nothing
+      的不可见中间状态。
+    - 现实例子：航班 overbooking 后通过改签、退款、补偿券修复。它不能抹去用户已经看到的确认，但能恢复业务可接受状态。
+  - title: 5.3 三步流程
+    source_heading: 5.3 三步流程
+    paragraphs:
+    - 发送 T_1 给 flight service。失败则没有之前副作用，直接 ABORTED；
+    - T_1 成功后发送 T_2 给 hotel service。成功则 SUCCEEDED；
+    - T_2 失败，发送 C_1 cancel flight；补偿成功后 ABORTED。
+  - title: 6.1 Orchestration
+    source_heading: 6.1 Orchestration
+    paragraphs:
+    - 原章采用 orchestrator：中央 workflow state machine 明确命令 participants。
+    - orchestrator 复杂；
+  - title: 6.3 Managed workflow engines
+    source_heading: 6.3 Managed workflow engines
+    paragraphs:
+    - activity delivery semantics；
+    - replay/determinism；
+    - timeout/retry policy；
+    - workflow versioning；
+  - title: 8.1 原章方案
+    source_heading: 8.1 原章方案
+    paragraphs:
+    - Saga 修改的数据标记 dirty/pending，直到 workflow 结束才清除。
+    - wait/retry，直到 flag cleared。
+  - title: 9. 其他隔离设计策略
+    source_heading: 9. 其他隔离设计策略
+    paragraphs:
+    - 把冲突操作改成可交换，例如追加事实、CRDT counter，而不是覆盖 state。
+    - 每一步写入 expected version；若状态被其他 workflow 修改，abort/replan，而不是覆盖。
+    - 关键不可逆步骤前重新验证 invariant 和 dependencies，减少基于陈旧中间状态行动。
+    - 下游是否可基于 pending 做不可逆动作；
+  - title: 13. Part II Coordination 总结
+    source_heading: 13. Part II Coordination 总结
+    paragraphs:
+    - 即使工程师很少从零实现 Raft、replication 或 transaction engine，亲自理解一次它们的模型和故障边界，仍能让我们更正确地使用数据库、broker
+      和 workflow engine 提供的抽象，而不是把复杂性误认为已经消失。
+    - Fault tolerance 贯穿整个技术栈，原书将在 Part IV Resiliency 继续深入其工程实践。
+    - 把 coordination 移出 critical path：chain replication 把 topology consensus 放 control
+      plane；
+    - 先无协调推进，发现 inconsistency 后 apology：saga 用 compensation；
+  - title: 17. 从本章提炼出的通用解题方法
+    source_heading: 17. 从本章提炼出的通用解题方法
+    paragraphs:
+    - 列出 states、forward transitions、failure transitions、compensations、terminal/manual
+      states。每次 checkpoint 与 outgoing command 原子提交。
+    - 列出其他 transaction 在每个中间 state 能看到/能做什么。使用 pending state、semantic lock、reservation、version
+      check 或 commutative operation。
+    - 监控 oldest outbox age、relay throughput、consumer lag、dedup hit、saga state age、compensation
+      retry 和 manual queue。
+    - 在 local commit 后、send 后、ACK 前、checkpoint 前、compensation 中逐点 crash；验证无丢 message、无重复
+      effect、workflow 可恢复且 stale coordinator 被拒绝。
+  takeaways:
+  - 2PC 是同步阻塞协议，常与 2PL 同时使用。 Prepared participants 持锁等待，因而不适合小时/天级 workflow。
+  - Outbox 不让 destination 瞬时同步。 Relay/consumer 通过 retry 最终更新 projection。
+  - Compensation 不是 rollback。 它是新的可见业务操作，可能不完全逆转且可能失败。
+  - Managed workflow engine 可处理持久状态、retry 和 timer。 仍需业务定义 compensation 和 idempotency。
+  - Part II 的两大结论是 failures unavoidable、coordination expensive。 减协调的方法包括移出关键路径、事后补偿和
+    monotonic/CRDT 设计。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念辨析
+  question: 原文如何解释「14.2 Outbox 与普通 event log」？
+  answer: Outbox 的关键是业务 row 与 message intent 在同一 local transaction commit。另建一张表但分两次写不构成
+    transactional outbox。
+  source_heading: 14.2 Outbox 与普通 event log
+- level: 概念辨析
+  question: 原文如何解释「14.4 Idempotent 与 commutative」？
+  answer: 消息重试需要 idempotency；并发无序处理还可能需要 commutativity。
+  source_heading: 14.4 Idempotent 与 commutative
+- level: 概念辨析
+  question: 原文如何解释「14.6 Saga atomicity 与 ACID atomicity」？
+  answer: Saga 保证最终 success 或执行补偿流程；中间状态对其他事务可见。它不是 strict all-or-nothing isolation。若业务无法接受中间可见和补偿，应使用更强
+    transaction boundary 或重新设计。
+  source_heading: 14.6 Saga atomicity 与 ACID atomicity
+- level: 概念辨析
+  question: 原文如何解释「14.8 Semantic lock 与数据库 lock」？
+  answer: Semantic lock 是持久业务状态，可跨小时/重启；数据库 lock 是 concurrency-control primitive，通常随
+    transaction 短暂持有。
+  source_heading: 14.8 Semantic lock 与数据库 lock
+- level: 概念辨析
+  question: 原文如何解释「14.10 Eventual consistency 与最终一定成功」？
+  answer: Eventual consistency 依赖 retry、修复和最终通信；poison message、永久业务 rejection 和 schema
+    incompatibility 不会靠等待自动消失。
+  source_heading: 14.10 Eventual consistency 与最终一定成功

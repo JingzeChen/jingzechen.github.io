@@ -1,0 +1,159 @@
+source:
+  post: _posts/book-notes/machine-learning/hands-on-machine-learning/2026-08-02-homl-ch14-rnns-attention-nlp.md
+  body_sha256: e7630f720cb1ce6bf8f75c02263a304c4e68243f7dcf07573f1570a99b7f9a69
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 10
+  question: 原文围绕「阅读导引」建立了怎样的核心认识？
+  question_source: 阅读导引
+  thesis: 逐步删除对 corpus likelihood 影响最小的 tokens，直到目标大小。一个字符串可有多个 segmentation，适合 subword
+    regularization：训练模型时随机采样 segmentation，提高鲁棒性。SentencePiece 支持该方法和无空格语言。
+  thesis_source: 7. Tokenization Using Hugging Face Tokenizers
+  concepts:
+  - term: 阅读导引
+    meaning: 本文纯 PyTorch 示例已在 Python 3.12、PyTorch 2.11.0 CPU 环境验证。Hugging Face Datasets/Tokenizers/Transformers
+      当前未安装；相应代码注明安装与联网条件，数值引用官方 Notebook。
+    source_heading: 阅读导引
+  - term: 5. Generating Fake Shakespearean Text
+    meaning: 训练用真实 prefix，推理用自身生成 prefix，错误会改变后续输入分布，这叫 exposure bias。Scheduled sampling
+      可逐渐混入模型输出，但也有优化偏差；现代生成仍广泛采用 teacher-forced LM training 配合更强模型/解码。
+    source_heading: 5. Generating Fake Shakespearean Text
+  - term: 8. Reusing Pretrained Tokenizers
+    meaning: GPT-2 原始 tokenizer 无 pad token，因为 causal LM 常不需 batch padding；直接要求 padding
+      会报错，需显式指定 pad policy，不能随意假设 ID 0 是 pad。
+    source_heading: 8. Reusing Pretrained Tokenizers
+  - term: 10. Reusing Pretrained Embeddings and Language Models
+    meaning: Word2Vec/GloVe/FastText 每 token 一个静态向量，“right”在不同句义仍相同。ELMo/BERT 根据上下文产生每次出现不同的
+      contextual embedding。
+    source_heading: 10. Reusing Pretrained Embeddings and Language Models
+  - term: 13. Model Optimizations
+    meaning: Vocabulary 极大时，训练可只计算正确 class 和采样 negative classes，并修正 sampling distribution，近似
+      NLL。
+    source_heading: 13. Model Optimizations
+  - term: 20. 学习检查清单
+    meaning: 能解释 sampled/adaptive softmax 与 weight tying
+    source_heading: 20. 学习检查清单
+  logic:
+  - 阅读导引
+  - 5. Generating Fake Shakespearean Text
+  - 7. Tokenization Using Hugging Face Tokenizers
+  - 10. Reusing Pretrained Embeddings and Language Models
+  - 11. Task-Specific Classes, Trainer, and Pipelines
+  - 15. Attention Mechanisms
+  - 20. 学习检查清单
+  sections:
+  - title: 阅读导引
+    source_heading: 阅读导引
+    paragraphs:
+    - 文本分类：subword tokenizer、padding/mask、双向 RNN 与预训练 BERT；
+    - 机器翻译：encoder-decoder、teacher forcing、beam search 与 attention。
+    - Bidirectional encoder 可看完整输入，causal decoder 不能看未来输出。
+    - 本文纯 PyTorch 示例已在 Python 3.12、PyTorch 2.11.0 CPU 环境验证。Hugging Face Datasets/Tokenizers/Transformers
+      当前未安装；相应代码注明安装与联网条件，数值引用官方 Notebook。
+  - title: 3. Embeddings
+    source_heading: 3. Embeddings
+    paragraphs:
+    - 所以 Embedding 等价于无 bias Linear，但 lookup 不创建巨大 sparse one-hot，也不做大量乘零运算。
+    - 梯度只更新 batch 中出现 token 的 rows（除 optimizer decay 等影响）。
+    - 任务会把有助于预测的 tokens 拉到有用几何结构，但距离/方向不是天然可解释语义。
+    - Embedding 会复制 corpus 中的社会偏见。去偏、分组评估和 counterfactual testing 必须结合具体用途；几何去偏不保证下游公平。
+  - title: 5. Generating Fake Shakespearean Text
+    source_heading: 5. Generating Fake Shakespearean Text
+    paragraphs:
+    - Greedy 每步 argmax，确定但易重复，且局部最优不保证整个 sequence 概率最大。Sampling 按模型分布抽取，增加多样性。
+    - Top-p/nucleus：保留累计概率刚达到 p 的最小 token 集，集合大小随不确定性变化。
+    - 原书 helper 每生成一个字符都把整个 growing prefix 重新送入模型，复杂度浪费。高效做法是缓存 GRU hidden，每步只输入新
+      token。
+    - 训练用真实 prefix，推理用自身生成 prefix，错误会改变后续输入分布，这叫 exposure bias。Scheduled sampling
+      可逐渐混入模型输出，但也有优化偏差；现代生成仍广泛采用 teacher-forced LM training 配合更强模型/解码。
+  - title: 7. Tokenization Using Hugging Face Tokenizers
+    source_heading: 7. Tokenization Using Hugging Face Tokenizers
+    paragraphs:
+    - Word tokenizer 词表大且 OOV；character/byte 无 OOV 但 sequence 长。Subword 在二者间折中：常见词单
+      token，稀有词拆成可复用词素/片段。
+    - 逐步删除对 corpus likelihood 影响最小的 tokens，直到目标大小。一个字符串可有多个 segmentation，适合 subword
+      regularization：训练模型时随机采样 segmentation，提高鲁棒性。SentencePiece 支持该方法和无空格语言。
+    - Tokenizer 的 vocabulary、normalizer、pre-tokenizer、special IDs 和 postprocessor
+      都必须版本化。
+    - Batch 需同长度：短序列 pad、长序列 truncate。Attention mask：真实 token 1、padding 0；lengths
+      是 mask 行和。
+  - title: 8. Reusing Pretrained Tokenizers
+    source_heading: 8. Reusing Pretrained Tokenizers
+    paragraphs:
+    - Tokenizer 必须与 pretrained model checkpoint 配套：ID 17 在两个 tokenizer 中可能是完全不同 token。
+    - GPT-2 原始 tokenizer 无 pad token，因为 causal LM 常不需 batch padding；直接要求 padding 会报错，需显式指定
+      pad policy，不能随意假设 ID 0 是 pad。
+  - title: 10. Reusing Pretrained Embeddings and Language Models
+    source_heading: 10. Reusing Pretrained Embeddings and Language Models
+    paragraphs:
+    - Word2Vec/GloVe/FastText 每 token 一个静态向量，“right”在不同句义仍相同。ELMo/BERT 根据上下文产生每次出现不同的
+      contextual embedding。
+    - 冻结 BERT + GRU 官方参考 >88% validation accuracy；直接使用 task-specific head 并全量微调通常更强。
+    - ULMFiT 证明“先大 corpus 自监督 LM，再少标签 fine-tune”可大幅降低标注需求，推动 NLP 从只复用 word embedding
+      转向复用整个 LM。
+    - 它不要求 embedding matrix 的转置等于逆矩阵；原章节用“若正交则无需单独权重”只是直觉，不是 weight tying 成立条件。
+  - title: 11. Task-Specific Classes, Trainer, and Pipelines
+    source_heading: 11. Task-Specific Classes, Trainer, and Pipelines
+    paragraphs:
+    - Trainer 负责 batch、padding、checkpoint、distributed training、logging 和 evaluation。
+    - 官方 BERT IMDb 训练 2 epochs validation accuracy 约 90%。
+    - API 参数会随 Transformers 版本变化，应查当前文档；保存 checkpoint 必须包含 tokenizer/config。
+    - 检查 calibration、false positive/negative disparity；
+  - title: 13. Model Optimizations
+    source_heading: 13. Model Optimizations
+    paragraphs:
+    - Vocabulary 极大时，训练可只计算正确 class 和采样 negative classes，并修正 sampling distribution，近似
+      NLL。
+    - 按 token frequency 分 clusters：高频词完整计算，低频词先预测 cluster，再只计算目标 cluster。
+    - 若 embed dim 与 hidden dim 不同需额外 projection。
+  - title: 15. Attention Mechanisms
+    source_heading: 15. Attention Mechanisms
+    paragraphs:
+    - 固定 final state 让每个 source token 到远端 translation 的路径很长。Attention 在每个 decoder
+      step 直接访问全部 encoder outputs，形成可微内容寻址 memory。
+    - Padding 第三项权重严格 0。若一行全部被 mask，softmax 会 NaN，数据管道必须至少保留一个有效 token或专门处理。
+    - RNN recurrence 仍限制 decoder 并行，Transformer 下一章移除 recurrence。
+    - Attention weights 展示模型读取位置，但不是可靠因果解释：改变 weights 未必按直觉改变预测，且信息可能已混入 hidden states。
+  - title: 20. 学习检查清单
+    source_heading: 20. 学习检查清单
+    paragraphs:
+    - 能区分 static/contextual embeddings
+    - 能实现 teacher-forced encoder-decoder
+    - 能解释 sampled/adaptive softmax 与 weight tying
+    - 能用 log probability 实现 beam search
+  takeaways:
+  - 本文纯 PyTorch 示例已在 Python 3.12、PyTorch 2.11.0 CPU 环境验证。Hugging Face Datasets/Tokenizers/Transformers
+    当前未安装；相应代码注明安装与联网条件，数值引用官方 Notebook。
+  - 训练用真实 prefix，推理用自身生成 prefix，错误会改变后续输入分布，这叫 exposure bias。Scheduled sampling 可逐渐混入模型输出，但也有优化偏差；现代生成仍广泛采用
+    teacher-forced LM training 配合更强模型/解码。
+  - 它不要求 embedding matrix 的转置等于逆矩阵；原章节用“若正交则无需单独权重”只是直觉，不是 weight tying 成立条件。
+  - 若 embed dim 与 hidden dim 不同需额外 projection。
+  - 能用 log probability 实现 beam search
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念复述
+  question: 原文如何解释「阅读导引」？
+  answer: 本文纯 PyTorch 示例已在 Python 3.12、PyTorch 2.11.0 CPU 环境验证。Hugging Face Datasets/Tokenizers/Transformers
+    当前未安装；相应代码注明安装与联网条件，数值引用官方 Notebook。
+  source_heading: 阅读导引
+- level: 边界判断
+  question: 原文如何解释「5. Generating Fake Shakespearean Text」？
+  answer: 训练用真实 prefix，推理用自身生成 prefix，错误会改变后续输入分布，这叫 exposure bias。Scheduled sampling
+    可逐渐混入模型输出，但也有优化偏差；现代生成仍广泛采用 teacher-forced LM training 配合更强模型/解码。
+  source_heading: 5. Generating Fake Shakespearean Text
+- level: 边界判断
+  question: 原文如何解释「10. Reusing Pretrained Embeddings and Language Models」？
+  answer: Word2Vec/GloVe/FastText 每 token 一个静态向量，“right”在不同句义仍相同。ELMo/BERT 根据上下文产生每次出现不同的
+    contextual embedding。
+  source_heading: 10. Reusing Pretrained Embeddings and Language Models
+- level: 关系解释
+  question: 原文如何解释「13. Model Optimizations」？
+  answer: Vocabulary 极大时，训练可只计算正确 class 和采样 negative classes，并修正 sampling distribution，近似
+    NLL。
+  source_heading: 13. Model Optimizations
+- level: 概念复述
+  question: 原文如何解释「20. 学习检查清单」？
+  answer: 能解释 sampled/adaptive softmax 与 weight tying
+  source_heading: 20. 学习检查清单

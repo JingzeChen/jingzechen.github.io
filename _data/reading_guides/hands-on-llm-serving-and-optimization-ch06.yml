@@ -1,0 +1,181 @@
+source:
+  post: _posts/book-notes/ai-system/hands-on-llm-serving-and-optimization/2026-08-12-hands-on-llm-serving-and-optimization-ch06.md
+  body_sha256: 3d7dfe35784a272461a3789dc56ddbf83d65c9b722d9ecd550e356f3c5e4360d
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 15
+  question: 原文围绕「0. 本章定位、学习目标与优化地图」建立了怎样的核心认识？
+  question_source: 0. 本章定位、学习目标与优化地图
+  thesis: Batching 的硬件本质是提高数据复用。 Decode 同一步服务更多 sequences，使一次 weight read 产生更多 tokens，提高
+    arithmetic intensity。
+  thesis_source: 8. 本章知识结构与核心结论
+  concepts:
+  - term: 0. 本章定位、学习目标与优化地图
+    meaning: 版本与实验说明：本章包含 vLLM/SGLang 参数、kernel backend、GPU 格式和 benchmark 数据。框架 API、默认
+      kernel 和硬件支持会快速变化；原章中的版本与倍数只说明机制和特定实验，不能替代目标环境的官方兼容矩阵、质量评估和基准测试。
+    source_heading: 0. 本章定位、学习目标与优化地图
+  - term: 1. Request Batching and Scheduling-Level Optimizations
+    meaning: Chunk size 太大等于没有切分；太小则 arithmetic intensity、kernel efficiency 下降且 scheduler
+      overhead 增长。最佳 C 应通过 TTFT/ITL Pareto curve 选择，而不是让 chunk 和 decode “耗时完全相同”，因为不同硬件、batch
+      和层的时间会变化。
+    source_heading: 1. Request Batching and Scheduling-Level Optimizations
+  - term: 3. Model Compression
+    meaning: Weight/activation quantization 默认不必然改变 KV dtype。KV 从 FP16 降到 FP8，ideal
+      cache 减半，可容纳更多 active/prefix tokens，并减少 decode KV reads；但 attention 若需先 dequantize，收益依
+      kernel 和 context length。
+    source_heading: 3. Model Compression
+  - term: 4. Prefix Caching
+    meaning: Exact response cache 的 key 可含 model/version、完整 inputs、shape/dtype 和 generation
+      params；hit 时直接返回最终 output，完全不执行模型。对 deterministic traditional model 很有效，对自由文本和随机
+      sampling hit 较低，还要处理 stale/version/safety。
+    source_heading: 4. Prefix Caching
+  - term: 7. 从本章抽象出的通用优化方法
+    meaning: W4A16 消除 bandwidth 后可能 dequant/compute-bound；batch 提高后可能 compute/KV-bound；FlashAttention
+      后 FFN 占比上升；cache 命中后 decode 成为主成本。
+    source_heading: 7. 从本章抽象出的通用优化方法
+  - term: 8. 本章知识结构与核心结论
+    meaning: 本章的总方法是：先让 scheduler 以 sequence/token budget 持续填满 GPU，并用 chunked prefill
+      控制长 prompt 对 stream 的干扰；再从 architecture、kernel 和 allocator 三层减少 KV bytes、HBM
+      I/O 与碎片；随后按当前容量、带宽或计算瓶颈选择 W4A16、W8A8、KV quantization、distillation 或 sparsity；最后以
+      exact prefix cache 跳过可复用 prefill，并用版本、路由和 tenant namespace 把局部缓存扩展为安全的生产能力。
+    source_heading: 8. 本章知识结构与核心结论
+  logic:
+  - 0. 本章定位、学习目标与优化地图
+  - 1. Request Batching and Scheduling-Level Optimizations
+  - 2. Scaling Attention and Kernel Optimization
+  - 4. Prefix Caching
+  - 5. 技术之间的组合与优化顺序
+  - 7. 从本章抽象出的通用优化方法
+  - 8. 本章知识结构与核心结论
+  sections:
+  - title: 0. 本章定位、学习目标与优化地图
+    source_heading: 0. 本章定位、学习目标与优化地图
+    paragraphs:
+    - 第 5 章建立了容量、计算、显存带宽和通信四类瓶颈。本章开始逐项解决这些问题，重点仍是单模型、单 replica 内最常用的技术；跨 GPU/节点和系统级高级优化留到第
+      7 章。
+    - Kernel fusion、FlashAttention 和 PagedAttention 分别优化计算图、attention I/O 和 KV allocator
+      的哪一层？
+    - Exact response cache 与 prefix KV cache 有何不同，为什么后者仍要求 token-level exact prefix？
+    - 版本与实验说明：本章包含 vLLM/SGLang 参数、kernel backend、GPU 格式和 benchmark 数据。框架 API、默认 kernel
+      和硬件支持会快速变化；原章中的版本与倍数只说明机制和特定实验，不能替代目标环境的官方兼容矩阵、质量评估和基准测试。
+  - title: 1. Request Batching and Scheduling-Level Optimizations
+    source_heading: 1. Request Batching and Scheduling-Level Optimizations
+    paragraphs:
+    - 原章有一句将 decode 的 GPU memory bandwidth 描述为“measured in FLOPS”；正确口径是 bandwidth
+      用 bytes/s，FLOPS 衡量计算吞吐。Batching 提高每次搬运权重后的计算量，从而改善 FLOPS 利用率。
+    - 它通常不需要像 dynamic batching 那样为“凑满一个固定 cohort”设置显式 max delay，但仍有 queue、admission、priority、iteration
+      边界和可能的 scheduler delay，不能理解为零等待。
+    - Chunk size 太大等于没有切分；太小则 arithmetic intensity、kernel efficiency 下降且 scheduler
+      overhead 增长。最佳 C 应通过 TTFT/ITL Pareto curve 选择，而不是让 chunk 和 decode “耗时完全相同”，因为不同硬件、batch
+      和层的时间会变化。
+    - Chunked prefill 在同一个 engine/GPU pool 中分时混合两种 phase；prefill-decode disaggregation
+      将 phase 放到不同 workers/GPUs，增加 KV transfer 和系统调度问题，属于第 7 章范围。
+  - title: 2. Scaling Attention and Kernel Optimization
+    source_heading: 2. Scaling Attention and Kernel Optimization
+    paragraphs:
+    - Multi-head Latent Attention 不只是减少 KV head 数，而是将 K/V 投影到低维 latent representation，并在
+      attention 时恢复/使用所需表示。DeepSeek 论文给出的说法是其 cache 相当于约 2.25-group GQA，同时质量强于相应 MHA
+      baseline。
+    - 其他 backend 有 FlashInfer、xFormers、OpenAI Triton language kernels 等。这里的 Triton
+      compiler/language 与 NVIDIA Triton Inference Server 是两个不同项目。
+    - 原 PagedAttention/vLLM 论文报告 baseline 只有 20.4%～38.2% KV memory 存实际 token states，分页后接近零浪费。这是其特定
+      baseline/workload 的实验，不表示所有现代 allocator 都固定浪费 61.8%～79.6%。
+    - 收益：高 memory utilization、快速分配回收、支持更高 batch/长 context、prefix/beam block sharing。代价：block
+      table metadata、indirection、block-size 选择和 cache-aware kernel complexity。
+  - title: 3. Model Compression
+    source_heading: 3. Model Compression
+    paragraphs:
+    - E4M3 精度较高、range 较小，常用于 inference；E5M2 range 更大、精度更低。Scaling 仍常需要。原章说 FP8 不需要像
+      INT8 一样 calibration 是某些方法/实验的结论，不应泛化：Static FP8 scale、outlier handling 和准确度验证仍可能使用
+      calibration。
+    - Weight/activation quantization 默认不必然改变 KV dtype。KV 从 FP16 降到 FP8，ideal cache
+      减半，可容纳更多 active/prefix tokens，并减少 decode KV reads；但 attention 若需先 dequantize，收益依
+      kernel 和 context length。
+    - GGUF 是 llama.cpp 生态常用的模型文件/metadata 容器，可承载多种 CPU/Metal/GPU-offload 量化方案。它不是一种单独
+      quantization algorithm。适合本地、Apple Silicon、CPU 和资源受限部署；与 datacenter vLLM 的 GPTQ/AWQ/FP8
+      kernel 路线不同。
+    - 原章引用 Sparse Llama 3.1 声称 98% accuracy recovery、30% throughput 提升、20% latency
+      降低，属于特定模型/vLLM/硬件实验。Pruning 生产普及度低于 quantization，核心障碍是质量恢复和硬件/kernel 对 irregular
+      sparsity 的支持。
+  - title: 4. Prefix Caching
+    source_heading: 4. Prefix Caching
+    paragraphs:
+    - Exact response cache 的 key 可含 model/version、完整 inputs、shape/dtype 和 generation
+      params；hit 时直接返回最终 output，完全不执行模型。对 deterministic traditional model 很有效，对自由文本和随机
+      sampling hit 较低，还要处理 stale/version/safety。
+    - Cache key 至少应条件化：model/weights revision、tokenizer、adapter、KV dtype、position/attention
+      config、tenant/security domain 和 exact token blocks。Sampling 参数通常不影响前缀 KV，但可能影响最终
+      response cache。
+    - 4k、128k、1M context 中，共享文档/system prefix 的 prefill 很贵。预热一次并复用可大幅降低 TTFT。但 decode
+      仍需读取长 KV，cache 也占大量显存；prefix caching 消除重复计算，不消除长 context 的全部执行成本。
+    - 只追 cache hit 会把热门 prefix 流量压到单 replica，queue 延迟超过重算收益。Consistent hashing 提供稳定
+      affinity，但扩缩容仍会重映射一部分 keys；可做 prefix replication、fallback 到次优 replica 和目录 TTL。
+  - title: 5. 技术之间的组合与优化顺序
+    source_heading: 5. 技术之间的组合与优化顺序
+    paragraphs:
+    - 一个生产配置可同时使用：distilled GQA model + W8A8 + FP8 KV + continuous batching + chunked
+      prefill + FlashAttention + PagedAttention + prefix caching。
+    - 使用成熟 serving engine 默认 continuous batching/Paged KV/kernel；
+    - 再比较 alternate kernels、pruning 或自做 distillation/QAT；
+    - 每次复测 quality、TTFT、TPOT、goodput、memory、cost 和稳定性。
+  - title: 7. 从本章抽象出的通用优化方法
+    source_heading: 7. 从本章抽象出的通用优化方法
+    paragraphs:
+    - 记录 input/output 长度、concurrency、arrival、prefix locality、tenant mix；先定义 task quality、TTFT、ITL、goodput
+      和 memory SLO。
+    - 同时扫描 max sequences、batched tokens、model length、chunk size 和 memory utilization，绘制
+      TTFT-ITL-throughput Pareto frontier。
+    - 模型装不下/低 batch decode：先 W4A16；长 prefill/高 batch compute：评估 W8A8；KV capacity/长
+      context：再评估 KV + attention kernel。
+    - W4A16 消除 bandwidth 后可能 dequant/compute-bound；batch 提高后可能 compute/KV-bound；FlashAttention
+      后 FFN 占比上升；cache 命中后 decode 成为主成本。
+  - title: 8. 本章知识结构与核心结论
+    source_heading: 8. 本章知识结构与核心结论
+    paragraphs:
+    - MHA→GQA/MQA/MLA 从 architecture 层减少 KV bytes。 这同时改善 capacity 与 decode bandwidth，但质量和
+      kernel compatibility 必须在选模型时评估。
+    - Cache 的最终指标是 saved work。 Matched tokens、saved TTFT、memory opportunity cost 与
+      queue balance 比 request hit rate 更有意义。
+    - 水平扩展需要 cache-aware routing 与安全 namespace。 Locality、负载、replication 和 tenant timing
+      side channel 必须联合设计。
+    - 本章的总方法是：先让 scheduler 以 sequence/token budget 持续填满 GPU，并用 chunked prefill 控制长
+      prompt 对 stream 的干扰；再从 architecture、kernel 和 allocator 三层减少 KV bytes、HBM I/O
+      与碎片；随后按当前容量、带宽或计算瓶颈选择 W4A16、W8A8、KV quantization、distillation 或 sparsity；最后以
+      exact prefix cache 跳过可复用 prefill，并用版本、路由和 tenant namespace 把局部缓存扩展为安全的生产能力。
+  takeaways:
+  - Batching 的硬件本质是提高数据复用。 Decode 同一步服务更多 sequences，使一次 weight read 产生更多 tokens，提高
+    arithmetic intensity。
+  - Kernel fusion 减少中间 HBM 往返与 launch。 它不改变模型数学，但可能受 register pressure 和 shape 限制。
+  - W4A16 与 W8A8 的优势随 batch 交叉。 低 batch decode 偏爱更小 weights；高 batch/长 prefill 更能利用低位
+    activation compute。
+  - Prefix caching 跳过重复 prefill，不返回旧答案。 命中要求 exact token prefix 和兼容版本，最适合多轮 chat、稳定长
+    context 和重复模板。
+  - 本章的总方法是：先让 scheduler 以 sequence/token budget 持续填满 GPU，并用 chunked prefill 控制长 prompt
+    对 stream 的干扰；再从 architecture、kernel 和 allocator 三层减少 KV bytes、HBM I/O 与碎片；随后按当前容量、带宽或计算瓶颈选择
+    W4A16、W8A8、KV quantization、distillation 或 sparsity；最后以 exact prefix cache 跳过可复用
+    prefill，并用版本、路由和 tenant namespace 把局部缓存扩展为安全的生产能力。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念辨析
+  question: 原文如何解释「6.1 Batching = 同时收到多个 HTTP 请求」？
+  answer: 错误。请求并发只有被 scheduler 合成同一 model iteration 才形成设备 batch。
+  source_heading: 6.1 Batching = 同时收到多个 HTTP 请求
+- level: 概念辨析
+  question: 原文如何解释「6.8 MQA 必然比 GQA 质量差很多」？
+  answer: 不一定。共享更激进增加风险，但最终由模型规模、数据和训练 recipe 决定。
+  source_heading: 6.8 MQA 必然比 GQA 质量差很多
+- level: 概念辨析
+  question: 原文如何解释「6.15 PagedAttention = Prefix caching」？
+  answer: 错误。分页让 blocks 高效分配/共享；prefix caching 决定完成请求后哪些 blocks 保留并复用。
+  source_heading: 6.15 PagedAttention = Prefix caching
+- level: 概念辨析
+  question: 原文如何解释「6.22 PTQ 4-bit 一定不可用」？
+  answer: 错误。成熟 W4A16 GPTQ/AWQ 常可用；更激进 activation/full-path 4-bit 更依赖 QAT、model 和
+    hardware。
+  source_heading: 6.22 PTQ 4-bit 一定不可用
+- level: 概念辨析
+  question: 原文如何解释「6.29 Consistent hashing 只提高 hit、不影响均衡」？
+  answer: 错误。热门 prefix 会形成热点，router 必须在 locality 与 queue/load 间取舍。
+  source_heading: 6.29 Consistent hashing 只提高 hit、不影响均衡

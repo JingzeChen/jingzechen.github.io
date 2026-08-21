@@ -1,0 +1,132 @@
+source:
+  post: _posts/book-notes/software-architecture/system-design-interview-volume-2/2026-08-12-system-design-interview-volume-2-ch07.md
+  body_sha256: 3c9b0f71b0a3562730f0bbc78b8d628fb49d9440c6ee761df67472ec6f1ea6fb
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 8
+  question: 原文围绕「0. 本章真正要守住的不变量」建立了怎样的核心认识？
+  question_source: 0. 本章真正要守住的不变量
+  thesis: 按 Hotel Sharding 保持核心 Transaction 单分片。 Guest 全局查询需额外索引。
+  thesis_source: 12. 核心结论
+  concepts:
+  - term: 0. 本章真正要守住的不变量
+    meaning: C 是含超订政策的可销售上限。只要某一天不足，整笔预订都必须失败，不能出现前两晚成功、第三晚失败的部分预订。
+    source_heading: 0. 本章真正要守住的不变量
+  - term: 2.5 高层微服务架构
+    meaning: Reservation Service 要调用 Rate Service 计算总价；生产环境可用 gRPC 等 RPC 框架。架构图省略箭头不等于依赖不存在。
+    source_heading: 2.5 高层微服务架构
+  - term: 5.2 方案一：悲观锁
+    meaning: 作者不推荐作为本系统默认，因为平均争用低；但在极热门事件短窗口，悲观锁可能比反复乐观重试更稳定。
+    source_heading: 5.2 方案一：悲观锁
+  - term: 5.5 更直接的条件更新
+    meaning: 受影响行为 1 才成功。多晚预订仍必须在一个事务中逐行按序执行，任一行 0 则 Rollback 全部。
+    source_heading: 5.5 更直接的条件更新
+  - term: 7.4 Cache 更新方式
+    meaning: Debezium 读取数据库 Binlog/Change Log，把变更写 Redis。优点是所有写路径统一捕获；代价是异步延迟、重复事件、顺序和运维复杂度。
+    source_heading: 7.4 Cache 更新方式
+  - term: 13. 解决有限库存预订问题的一般思路
+    meaning: 本章最值得迁移的方法是：把预订正确性写成“对一组库存 Bucket 的原子条件更新”，再用幂等处理同一请求重放、用并发控制处理不同请求竞争；缓存、分片和微服务都必须服从这条不变量，而不能取代它。
+    source_heading: 13. 解决有限库存预订问题的一般思路
+  logic:
+  - 0. 本章真正要守住的不变量
+  - 2.5 高层微服务架构
+  - 3.6 扩展数据策略
+  - 5.5 更直接的条件更新
+  - 局限
+  - 8.5 Payment 与 Inventory 的现实闭环
+  - 13. 解决有限库存预订问题的一般思路
+  sections:
+  - title: 0. 本章真正要守住的不变量
+    source_heading: 0. 本章真正要守住的不变量
+    paragraphs:
+    - 酒店预订表面上是 CRUD，真正难点是：多个用户并发争抢同一酒店、同一房型、同一日期范围内的有限库存。
+    - C 是含超订政策的可销售上限。只要某一天不足，整笔预订都必须失败，不能出现前两晚成功、第三晚失败的部分预订。
+    - 用悲观锁、乐观锁或数据库约束解决不同用户并发抢库存；
+    - 用分片和缓存扩展读取，但让数据库继续做最终库存判定；
+  - title: 2.1 API 设计
+    source_heading: 2.1 API 设计
+    paragraphs:
+    - 管理写操作必须有 RBAC、审计和 Internal API/VPN 保护。
+    - 4 月 28 日入住、4 月 30 日退房，占用 28、29 两晚，不占用 30 日。
+  - title: 2.5 高层微服务架构
+    source_heading: 2.5 高层微服务架构
+    paragraphs:
+    - Internal API：员工专用，VPN/RBAC/审计；
+    - Payment Service：支付成功置 Paid，失败置 Rejected；
+    - Hotel Management Service：将管理员动作转发到数据 Owner。
+    - Reservation Service 要调用 Rate Service 计算总价；生产环境可用 gRPC 等 RPC 框架。架构图省略箭头不等于依赖不存在。
+  - title: 3.6 扩展数据策略
+    source_heading: 3.6 扩展数据策略
+    paragraphs:
+    - Online DB 只保留当前与未来 Reservation；
+    - 历史归档到 Archive/Cold Storage；
+    - 预订与查库存都先确定酒店，按 Hotel 共置能把日期范围事务留在单分片。
+    - 按 Guest 查全局历史会跨分片，可建立异步 Guest Reservation Index/查询服务。不能只说“Hotel ID 是所有查询的天然
+      Key”。
+  - title: 5.2 方案一：悲观锁
+    source_heading: 5.2 方案一：悲观锁
+    paragraphs:
+    - Transaction 1 锁住区间行；Transaction 2 等待。
+    - 热门房型吞吐受单行/区间串行限制。
+    - 作者不推荐作为本系统默认，因为平均争用低；但在极热门事件短窗口，悲观锁可能比反复乐观重试更稳定。
+  - title: 5.5 更直接的条件更新
+    source_heading: 5.5 更直接的条件更新
+    paragraphs:
+    - 受影响行为 1 才成功。多晚预订仍必须在一个事务中逐行按序执行，任一行 0 则 Rollback 全部。
+    - 这避免应用“先读再写”的竞态，但仍依赖 DB 行锁/事务隔离来实现原子条件更新。
+  - title: 局限
+    source_heading: 局限
+    paragraphs:
+    - 热门酒店形成 Hot Shard；
+    - Guest 跨酒店历史需 Secondary Index；
+    - Shard 数变化需要路由迁移；
+  - title: 7.4 Cache 更新方式
+    source_heading: 7.4 Cache 更新方式
+    paragraphs:
+    - DB 成功后应用更新 Cache。简单，但应用在 Commit 后崩溃会漏更新。
+    - Debezium 读取数据库 Binlog/Change Log，把变更写 Redis。优点是所有写路径统一捕获；代价是异步延迟、重复事件、顺序和运维复杂度。
+    - Cache Sink 应按 DB Version 只接受更新版本，避免 CDC 重排让 Cache 回退。
+  - title: 8.5 Payment 与 Inventory 的现实闭环
+    source_heading: 8.5 Payment 与 Inventory 的现实闭环
+    paragraphs:
+    - DB Transaction 创建 Pending Reservation 并扣/锁库存；
+    - 成功 -> Paid/Confirmed；
+    - 失败/超时 -> Rejected/Expired，幂等释放库存。
+    - 这超出原书主线，却解释为何 Reservation 状态机与 Saga 常一起出现。
+  - title: 13. 解决有限库存预订问题的一般思路
+    source_heading: 13. 解决有限库存预订问题的一般思路
+    paragraphs:
+    - 酒店按 Night，航班按 Flight，影院按 Showtime。为每个 Bucket 保存 Sell Limit 与 Reserved。
+    - Atomic Conditional Update/Optimistic/Pessimistic Control。
+    - Cache/CDN/Replica 服务详情和 Availability；权威主库完成最终承诺。明确陈旧读的 UX。
+    - 本章最值得迁移的方法是：把预订正确性写成“对一组库存 Bucket 的原子条件更新”，再用幂等处理同一请求重放、用并发控制处理不同请求竞争；缓存、分片和微服务都必须服从这条不变量，而不能取代它。
+  takeaways:
+  - 先建模业务承诺，再选并发技术。 酒店承诺的是某房型在每个 Night 的容量，不是具体房号。
+  - 超订是可配置 Sell Limit。 应用、条件更新与 DB Constraint 必须使用同一政策。
+  - 悲观锁、乐观锁、约束各有争用区间。 本章低平均争用适合 Optimistic/Constraint，热点时可能需 Pessimistic/Queue。
+  - Redis 只加速 Availability Query。 DB 继续做 Final Validation，缓存错误只能影响短暂体验。
+  - 拆库后需 2PC 或 Saga。 强原子和最终一致各有可用性/复杂度成本。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念辨析
+  question: 原文如何解释「10.1 酒店预订的是 Room Type，不是具体 Room」？
+  answer: 房号在 Check-in 分配；Airbnb Listing 才更接近具体资源预订。
+  source_heading: 10.1 酒店预订的是 Room Type，不是具体 Room
+- level: 概念辨析
+  question: 原文如何解释「10.12 Pessimistic Lock 不是永远最慢」？
+  answer: 高争用下等待一次可能比大量乐观 Retry 更稳定；低争用时锁开销才显得不划算。
+  source_heading: 10.12 Pessimistic Lock 不是永远最慢
+- level: 概念辨析
+  question: 原文如何解释「10.18 hash(hotel_id) % N 不利于在线扩容」？
+  answer: N 变化会大量重映射。可用 Virtual Shard/Directory 保持稳定路由。
+  source_heading: 10.18 hash(hotel_id) % N 不利于在线扩容
+- level: 概念辨析
+  question: 原文如何解释「10.22 CDC 通常是 At-least-once」？
+  answer: Cache Consumer 要按 Version 幂等，处理重复与乱序。
+  source_heading: 10.22 CDC 通常是 At-least-once
+- level: 概念辨析
+  question: 原文如何解释「10.27 Saga Compensation 不是真正回滚时间」？
+  answer: 支付退款、释放库存可能有费用、延迟和外部可见副作用，不能假设世界回到从未发生。
+  source_heading: 10.27 Saga Compensation 不是真正回滚时间

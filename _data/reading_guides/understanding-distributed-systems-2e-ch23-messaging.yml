@@ -1,0 +1,162 @@
+source:
+  post: _posts/book-notes/distributed-system/understanding-distributed-system/2026-08-16-understanding-distributed-systems-2e-ch23-messaging.md
+  body_sha256: fd69e4016ea134f4d71bb5f5f6fffdac4cdf80e1fcab11a893593926785677be
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 9
+  question: 原文围绕「0. 导读：把“调用一个在线服务”改成“持久提交一项待办工作”」建立了怎样的核心认识？
+  question_source: 0. 导读：把“调用一个在线服务”改成“持久提交一项待办工作”
+  thesis: Request-response 用 request ID 和 reply channel correlation；它仍需 timeout、late/duplicate
+    response 处理。
+  thesis_source: 24. 核心结论
+  concepts:
+  - term: 0. 导读：把“调用一个在线服务”改成“持久提交一项待办工作”
+    meaning: 发送 TCP/HTTP bytes 成功、receiver process 收到、任务持久化、任务处理完成，是四个不同事件。若 sender
+      在不知道 durable handoff 是否完成时就回复 client，receiver crash 会永久丢工作。
+    source_heading: 0. 导读：把“调用一个在线服务”改成“持久提交一项待办工作”
+  - term: 4.2 202 不表示完成
+    meaning: Retention/error visibility。
+    source_heading: 4.2 202 不表示完成
+  - term: 9. Broadcast messaging
+    meaning: 用于通知“某 event 已发生”。原章关联 Chapter 13 transactional outbox。
+    source_heading: 9. Broadcast messaging
+  - term: 11.2 Visibility timeout 不是 transaction
+    meaning: Consumer crash after effect。
+    source_heading: 11.2 Visibility timeout 不是 transaction
+  - term: 16. 23.5 Fault isolation
+    meaning: 如果从 main delete 前 slow enqueue 未持久成功，会丢消息；优先 broker-native atomic routing，或使用稳定
+      ID 与 reconciliation。
+    source_heading: 16. 23.5 Fault isolation
+  - term: 25. 一般化的解决问题方法
+    meaning: Main->DLQ、main->slow、outbox->broker 都有 write/delete dual-operation window；优先
+      native transaction，或 stable ID + write-before-delete + reconciliation。
+    source_heading: 25. 一般化的解决问题方法
+  logic:
+  - 0. 导读：把“调用一个在线服务”改成“持久提交一项待办工作”
+  - 4.2 202 不表示完成
+  - 6. Point-to-point 与 publish-subscribe
+  - 11.2 Visibility timeout 不是 transaction
+  - 13. 23.2 Exactly-once processing
+  - 21. 作者如何形成解决思路
+  - 25. 一般化的解决问题方法
+  sections:
+  - title: 0. 导读：把“调用一个在线服务”改成“持久提交一项待办工作”
+    source_heading: 0. 导读：把“调用一个在线服务”改成“持久提交一项待办工作”
+    paragraphs:
+    - Cruder 增加视频上传能力：用户上传一个视频，系统要编码成适配电视、手机、平板的多种格式与分辨率。编码可能持续数分钟，不适合让 API gateway
+      一直等待同步 response。
+    - 发送 TCP/HTTP bytes 成功、receiver process 收到、任务持久化、任务处理完成，是四个不同事件。若 sender 在不知道
+      durable handoff 是否完成时就回复 client，receiver crash 会永久丢工作。
+    - Producer 不直接要求某个 consumer instance 在线，只需要让 broker 按约定持久接受 message。Consumer 以后再读取并完成工作。
+    - 这把时间耦合从 producer/consumer 之间移到 channel retention、delivery 和 consumer processing
+      protocol。
+  - title: 2.2 Event
+    source_heading: 2.2 Event
+    paragraphs:
+    - Past tense/fact；
+    - Producer 不命令特定 receiver；
+    - 零个或多个 subscribers；
+    - Event 不应因当前没有 consumer 而改变历史事实。
+  - title: 4.2 202 不表示完成
+    source_heading: 4.2 202 不表示完成
+    paragraphs:
+    - Status endpoint or callback/event；
+    - Pending/succeeded/failed state；
+    - Cancellation semantics；
+    - Retention/error visibility。
+  - title: 6. Point-to-point 与 publish-subscribe
+    source_heading: 6. Point-to-point 与 publish-subscribe
+    paragraphs:
+    - "“Exactly one consumer instance receives”不是 exactly-once processing；同一 message
+      可因 timeout 被不同 instances 先后收到。"
+    - 原书简化说 each consumer instance receives a copy。现实 broker 通常按 subscription/consumer
+      group 广播，而同一 group 内可 competing consume。具体 fan-out unit 必须查产品语义。
+    - 一项工作只能执行一次 logical effect：point-to-point + idempotent consumer；
+    - Slow subscriber 不应阻塞其他 subscription。
+  - title: 9. Broadcast messaging
+    source_heading: 9. Broadcast messaging
+    paragraphs:
+    - 用于通知“某 event 已发生”。原章关联 Chapter 13 transactional outbox。
+    - Semantic meaning；
+    - Delivery contract；
+    - Privacy/data classification。
+  - title: 11.2 Visibility timeout 不是 transaction
+    source_heading: 11.2 Visibility timeout 不是 transaction
+    paragraphs:
+    - Consumer 处理超过 timeout；
+    - Ack/delete response 丢失；
+    - Lease extension 失败；
+    - Consumer crash after effect。
+  - title: 13. 23.2 Exactly-once processing
+    source_heading: 13. 23.2 Exactly-once processing
+    paragraphs:
+    - 得到 at-least-once delivery，effect 可能重复。
+    - 若 crash after DB commit/before delete，redelivery 看到 inbox，跳过 effect，再 delete。
+    - Inbox 与 business state 必须在同一 transaction/store consistency boundary。若先写 inbox
+      后业务失败，会永久跳过；若业务成功后 inbox 失败，会重复。
+    - Provider idempotency key = message ID；
+  - title: 16. 23.5 Fault isolation
+    source_heading: 16. 23.5 Fault isolation
+    paragraphs:
+    - 标识必须由 trusted producer/gateway 写入，不能让恶意用户伪造其他 tenant。
+    - 原章方案：某 user messages 持续失败时，consumer 将其写入 slow/low-priority channel，并从 main 删除，不在
+      main 继续处理。
+    - 这样把单个 bad user 的 damage 隔离，不拖累其他 users。
+    - 如果从 main delete 前 slow enqueue 未持久成功，会丢消息；优先 broker-native atomic routing，或使用稳定
+      ID 与 reconciliation。
+  - title: 21. 作者如何形成解决思路
+    source_heading: 21. 作者如何形成解决思路
+    paragraphs:
+    - Availability decoupling、consumer scale、load smoothing、batching，对应 broker 运维、额外
+      hop、backlog latency。
+    - Point-to-point 支撑 one-way/request-response；pub-sub 支撑 broadcast。Request ID/reply
+      channel 说明 async 也可表达 response。
+    - Broker 本身是 partitioned distributed system。Ordering 需要 coordination 并限制消费并行，因此
+      guarantee 是 tradeoff，不是默认。
+    - Delete before effect 会 loss，after effect 会 duplicate。由 impossibility 推出 idempotent
+      processing，而不是许诺 transport exactly-once。
+  - title: 25. 一般化的解决问题方法
+    source_heading: 25. 一般化的解决问题方法
+    paragraphs:
+    - 画出 effect commit 与 message delete 之间的 crash window；使用 stable ID、inbox/unique
+      constraint 和 provider idempotency。
+    - Transient backoff；permanent validation 早隔离；overload backpressure；unknown 有限
+      retry 后 DLQ。
+    - Main->DLQ、main->slow、outbox->broker 都有 write/delete dual-operation window；优先
+      native transaction，或 stable ID + write-before-delete + reconciliation。
+    - 组合 functional decomposition、partitioning、replication 和 managed primitives；cache/batch
+      等优化不能掩盖基础 capacity/failure 缺陷。
+  takeaways:
+  - Fire-and-forget 不提供 durable handoff；receiver crash 可静默丢工作。
+  - Point-to-point 每次把 message 交给一个 consumer；pub-sub 为各 subscription/group 提供 logical
+    copy。
+  - 本章后半采用 point-to-point、at-least-once、visibility timeout、成功后 delete 的模型。
+  - 永久失败 message 应有限 retry 后进 DLQ，不能无限污染 main channel。
+  - Managed compute/LB/file/data/messaging primitives 可构建 scalable core，cache/CDN
+    应作为后续优化。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念辨析
+  question: 原文如何解释「18.1 Asynchronous 与 durable」？
+  answer: 不等待 consumer 不等于 broker 已持久接受。Producer 应等待符合 durability contract 的 enqueue
+    ack。
+  source_heading: 18.1 Asynchronous 与 durable
+- level: 概念辨析
+  question: 原文如何解释「18.8 Ack/delete 与业务 commit」？
+  answer: Broker delete 和 DB effect 是不同系统的操作。顺序选择产生 loss 或 duplicate window。
+  source_heading: 18.8 Ack/delete 与业务 commit
+- level: 概念辨析
+  question: 原文如何解释「19.1 “放进 queue 就一定处理”」？
+  answer: 还受 retention、durability、consumer bug、DLQ、backlog、schema 和 operation visibility
+    影响。需要 completion/reconciliation。
+  source_heading: 19.1 “放进 queue 就一定处理”
+- level: 概念辨析
+  question: 原文如何解释「19.8 “Kafka topic 全局有序”」？
+  answer: 通常仅 partition 内有序；跨 partition 无 total order。
+  source_heading: 19.8 “Kafka topic 全局有序”
+- level: 概念辨析
+  question: 原文如何解释「19.18 “Broker timestamp 可精确测端到端时间”」？
+  answer: 跨 physical clocks 有 skew；适合 warning/trend，精确测量需统一时钟或 broker-side age。
+  source_heading: 19.18 “Broker timestamp 可精确测端到端时间”

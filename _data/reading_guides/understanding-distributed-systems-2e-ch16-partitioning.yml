@@ -1,0 +1,164 @@
+source:
+  post: _posts/book-notes/distributed-system/understanding-distributed-system/2026-08-16-understanding-distributed-systems-2e-ch16-partitioning.md
+  body_sha256: 95ba3e26f582aef6a2338b8cdf2dfdf1686639ec30688fbb5ee1fabf61304f81
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 11
+  question: 原文围绕「0. 导读：当一台机器装不下、也扛不住时」建立了怎样的核心认识？
+  question_source: 0. 导读：当一台机器装不下、也扛不住时
+  thesis: Range 与 Hash 的选择本质是 locality、ordered access、distribution 和 rebalance cost
+    的权衡。
+  thesis_source: 23. 核心结论
+  concepts:
+  - term: 0. 导读：当一台机器装不下、也扛不住时
+    meaning: 一个 node 可承载多个 partitions，一个 partition 也可有多个 replicas。原章为了突出映射逻辑，图中把 partition
+      server 画得较直接；生产系统通常还要叠加 replication。
+    source_heading: 0. 导读：当一台机器装不下、也扛不住时
+  - term: 6. 16.1 Range partitioning
+    meaning: 典型有序结构包括 B-tree/B+tree、LSM-tree 的 sorted runs/SSTables。具体 storage engine
+      不在原章范围，但“range layout + local sorted structure”共同提供 scan locality。
+    source_heading: 6. 16.1 Range partitioning
+  - term: 12. 16.2 Hash partitioning
+    meaning: Partitioning 通常不要求 cryptographic collision resistance，但若攻击者可控制 keys，弱
+      hash 可能被 adversarially 制造 collision/hotspot，需要 keyed hash 或安全防护。
+    source_heading: 12. 16.2 Hash partitioning
+  - term: 14.3 Shuffle 为何昂贵
+    meaning: 更长的 dual-ownership window。
+    source_heading: 14.3 Shuffle 为何昂贵
+  - term: 18.9 Hot partition 与 hot key
+    meaning: Hot key 是单一 key 过热，普通 partition split 不能拆开，需 replication、subkey 或业务重构。
+    source_heading: 18.9 Hot partition 与 hot key
+  - term: 24. 一般化的解决问题方法
+    meaning: Modulo reshuffle 的教训可推广为：小规模 membership change 不应触发全局 data movement、cache
+      invalidation 或 reconnect storm。选择支持局部变更的 mapping。
+    source_heading: 24. 一般化的解决问题方法
+  logic:
+  - 0. 导读：当一台机器装不下、也扛不住时
+  - 6. 16.1 Range partitioning
+  - 9. Rebalancing：扩缩容时如何保持服务
+  - 14.3 Shuffle 为何昂贵
+  - 17. 可运行 C11 实验：Modulo 与 Consistent Hashing 的迁移量
+  - 20. 如何设计一个 partitioned system
+  - 24. 一般化的解决问题方法
+  sections:
+  - title: 0. 导读：当一台机器装不下、也扛不住时
+    source_heading: 0. 导读：当一台机器装不下、也扛不住时
+    paragraphs:
+    - Chapter 15 的最后一句指出：一个 CDN cluster 的 content 太多，不可能由单台 server 全部保存，因此需要把 content
+      分散到多台 servers，每台只负责一个 subset。
+    - Throughput scaling：单机 CPU、disk、network 或 request concurrency 饱和。
+    - 一个 node 可承载多个 partitions，一个 partition 也可有多个 replicas。原章为了突出映射逻辑，图中把 partition
+      server 画得较直接；生产系统通常还要叠加 replication。
+    - 两者都必须面对 rebalancing、hot partition、routing metadata 与跨 partition 操作。
+  - title: 3. Partitioning 不是 free lunch
+    source_heading: 3. Partitioning 不是 free lunch
+    paragraphs:
+    - 也就是说，单 shard 99.9% 的成功率，在 100-way fan-out 下不足以给出 99.9% 的全局成功率。现实故障往往相关，独立假设甚至可能过于乐观。
+    - 如果一个业务 invariant 涉及多个 partitions，例如从 shard A 的账户扣款并向 shard B 加款，atomic update
+      需要 distributed transaction 或重构业务语义。
+    - 无法 co-locate 时再选择 2PC、Saga、escrow、reservation、outbox 或 eventual reconciliation，并明确
+      consistency tradeoff。
+    - 具体系统可能用 dual-write、change log、snapshot + WAL catch-up 或 replica promotion。原章只强调最小化
+      disruption 和 transfer amount；上述状态机是工程展开。
+  - title: 6. 16.1 Range partitioning
+    source_heading: 6. 16.1 Range partitioning
+    paragraphs:
+    - 若业务想按数值排序，必须使用保持数值 order 的 encoding，而不是随意把 integer 转成 decimal string。
+    - 作者指出，为了快速 range scan，每个 partition 通常在 disk 上保持 sorted order。
+    - 典型有序结构包括 B-tree/B+tree、LSM-tree 的 sorted runs/SSTables。具体 storage engine 不在原章范围，但“range
+      layout + local sorted structure”共同提供 scan locality。
+    - Range partitioning 的优势不是 point lookup 一定比 hash 快，而是邻近 keys 保持邻近，能顺序遍历和做 ordered
+      merge。
+  - title: 9. Rebalancing：扩缩容时如何保持服务
+    source_heading: 9. Rebalancing：扩缩容时如何保持服务
+    paragraphs:
+    - 作者把增删 nodes、重新平衡系统 load 的过程称为 rebalancing。
+    - maintenance 或 zone evacuation。
+    - system continues serving requests；
+    - 这还没计入 replication、protocol overhead、concurrent writes、checksum 和 retry。移动比例从
+      25% 变为 75%，迁移窗口大约扩大三倍，并长期干扰前台 workload。
+  - title: 12. 16.2 Hash partitioning
+    source_heading: 12. 16.2 Hash partitioning
+    paragraphs:
+    - Uniform enough：业务 key pattern 不应集中到 hash space 小区域；
+    - Stable specification：不同 clients/nodes 对 encoding、seed、version 一致；
+    - Partitioning 通常不要求 cryptographic collision resistance，但若攻击者可控制 keys，弱 hash 可能被
+      adversarially 制造 collision/hotspot，需要 keyed hash 或安全防护。
+    - "“Hash guarantees uniform”应理解为：在合适 hash function 和 input assumptions 下，输出近似均匀；没有任何函数能让一个反复出现的相同
+      key 变成多个不同 owners。"
+  - title: 14.3 Shuffle 为何昂贵
+    source_heading: 14.3 Shuffle 为何昂贵
+    paragraphs:
+    - source disk read 和 target disk write；
+    - cache invalidation/cold miss；
+    - foreground request contention；
+    - 更长的 dual-ownership window。
+  - title: 17. 可运行 C11 实验：Modulo 与 Consistent Hashing 的迁移量
+    source_heading: 17. 可运行 C11 实验：Modulo 与 Consistent Hashing 的迁移量
+    paragraphs:
+    - 检查 consistent hashing 中所有 changed hashes 是否只从 new token 的旧 successor 移给 new
+      owner；
+    - 这不是在模拟随机 token distribution，而是在验证 successor rule 与最小迁移性质。
+    - 这故意暴露 basic ring 的限制：consistent hashing 能减少 remapping，却不自动均衡。新增恰当位置的 P4 后，四份才各占
+      16,384。
+    - 因此程序验证的是最小 remapping 和 clockwise ownership，不是完整 distributed store。
+  - title: 18.9 Hot partition 与 hot key
+    source_heading: 18.9 Hot partition 与 hot key
+    paragraphs:
+    - Hot partition 可能由许多 moderately hot keys 聚集，可通过 split/rebalance 缓解；
+    - Hot key 是单一 key 过热，普通 partition split 不能拆开，需 replication、subkey 或业务重构。
+  - title: 20. 如何设计一个 partitioned system
+    source_heading: 20. 如何设计一个 partitioned system
+    paragraphs:
+    - 用 max/mean、percentiles 和 headroom 衡量，不能只看平均 partition size。
+    - 决定由 gateway、smart client 还是 any-node routing，并为 stale map 设计 redirect 与 bounded
+      retry。
+    - 对 global operations 使用 local partial aggregation、materialized view、asynchronous
+      pipeline 或 approximate algorithm，避免把 OLTP 变成全量 scatter-gather。
+    - 演练 node add/remove、hot key、stale gateway、迁移中断、partial copy、coordinator failover
+      和 rollback。
+  - title: 24. 一般化的解决问题方法
+    source_heading: 24. 一般化的解决问题方法
+    paragraphs:
+    - 量化 data、QPS、bytes、CPU、IOPS 与 growth，确认瓶颈是否真的需要 partitioning。Vertical scaling、index、cache
+      或 archive 可能先解决问题。
+    - Modulo reshuffle 的教训可推广为：小规模 membership change 不应触发全局 data movement、cache invalidation
+      或 reconnect storm。选择支持局部变更的 mapping。
+    - 前者可能用 split/rebalance 解决；后者需要 replication、subkeys、aggregation 或业务 invariant
+      重构。诊断层级错了，扩容只会移动热点而不会消除热点。
+    - 正常状态均衡不够。Node failure、rebalance、cache cold start 和 retry 会同时增加 surviving nodes
+      load，必须限速、留 headroom 并演练。
+  takeaways:
+  - Partitioning 将一个逻辑 dataset 拆成多个 key subsets，以突破单机容量并提供并行吞吐。
+  - Scatter-gather latency 受最慢 partition 控制，fan-out 还会放大 failure probability。
+  - 按递增 date/time 分区会产生当前 range 热点；random/hash prefix 用 read fan-out 换 write balance。
+  - Hash partitioning 在适当假设下均匀 distinct key count，却不保证 bytes、QPS 或 hot-key load 均匀。
+  - Range 与 Hash 的选择本质是 locality、ordered access、distribution 和 rebalance cost 的权衡。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念辨析
+  question: 原文如何解释「18.1 Partition 与 replica」？
+  answer: Partitioning 提升总 capacity；replication 提升 availability/read capacity。只分区不复制，任一
+    node 故障会让其 key subset 不可用；只复制不分区，每份 replica 仍必须装下全量数据。
+  source_heading: 18.1 Partition 与 replica
+- level: 概念辨析
+  question: 原文如何解释「18.6 Consistent hashing 与 consistency model」？
+  answer: Consistent hashing 的 consistent 指 membership 变化时 mapping 稳定；它不提供 linearizability、serializability
+    或 causal consistency。
+  source_heading: 18.6 Consistent hashing 与 consistency model
+- level: 概念辨析
+  question: 原文如何解释「19.1 “数据超过单机后再临时加 sharding”」？
+  answer: Partition key、global ID、transaction boundary、query pattern 和 migration tooling
+    都需要提前设计。等单机已满再切分，迁移空间和性能余量最小，风险最高。
+  source_heading: 19.1 “数据超过单机后再临时加 sharding”
+- level: 概念辨析
+  question: 原文如何解释「19.5 “Dual write 足以保证迁移正确”」？
+  answer: Dual write 可能部分成功、乱序或重试。仍需 authoritative owner、change ordering、deduplication、checkpoint
+    和 reconciliation。
+  source_heading: 19.5 “Dual write 足以保证迁移正确”
+- level: 概念辨析
+  question: 原文如何解释「19.11 “只监控 node CPU 即可发现 skew”」？
+  answer: 必须有 per-partition/per-key heavy-hitter telemetry。
+  source_heading: 19.11 “只监控 node CPU 即可发现 skew”

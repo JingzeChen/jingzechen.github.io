@@ -1,0 +1,155 @@
+source:
+  post: _posts/book-notes/distributed-system/understanding-distributed-system/2026-08-16-understanding-distributed-systems-2e-ch15-content-delivery-networks.md
+  body_sha256: df68fa15996428bd2411b437809eafd99fa54666e089649c2f32ce47017d4bb8
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 10
+  question: 原文围绕「0. 导读与本章定位：把“离用户更近”从缓存策略扩展为网络架构」建立了怎样的核心认识？
+  question_source: 0. 导读与本章定位：把“离用户更近”从缓存策略扩展为网络架构
+  thesis: Request hit ratio、byte hit ratio和 latency 是不同指标，应按 origin CPU、egress 和 user
+    experience 分别优化。
+  thesis_source: 11. 核心结论
+  concepts:
+  - term: 0. 导读与本章定位：把“离用户更近”从缓存策略扩展为网络架构
+    meaning: 人们容易认为 CDN 的首要价值是 cache。作者明确指出，更基础的价值其实是它的 underlying network substrate，即覆盖在公共互联网之上的网络能力。
+    source_heading: 0. 导读与本章定位：把“离用户更近”从缓存策略扩展为网络架构
+  - term: 3. 15.2 Caching
+    meaning: 为缓解 edge fragmentation，CDN 可在较少的地理位置部署一层或多层 intermediary cache，也常称 regional
+      cache、parent cache 或 origin shield。
+    source_heading: 3. 15.2 Caching
+  - term: 6.4 DNS load balancing 与 Anycast
+    meaning: DNS mapping： 不同查询可获得不同 endpoint，受 resolver location 和 TTL 影响。
+    source_heading: 6.4 DNS load balancing 与 Anycast
+  - term: 6.5 Edge cluster、PoP 与 cache server
+    meaning: 把它们都叫“edge”会隐藏 capacity 和 failure-domain 分析。
+    source_heading: 6.5 Edge cluster、PoP 与 cache server
+  - term: 8. 如何设计和评估 CDN：一套可复用方法
+    meaning: 测试 global purge、rollback 和 partial propagation，而不只测试正常 hit。
+    source_heading: 8. 如何设计和评估 CDN：一套可复用方法
+  - term: 12. 一般化的解决问题思路
+    meaning: 问清：cache 全冷、批量 purge、一个 region down、origin slow、attack 到来时会怎样？很多 CDN
+      事故不是 steady-state hit ratio 不够高，而是 failure transition 没有边界。
+    source_heading: 12. 一般化的解决问题思路
+  logic:
+  - 0. 导读与本章定位：把“离用户更近”从缓存策略扩展为网络架构
+  - 3. 15.2 Caching
+  - 4. 把 Overlay 与 Caching 放进同一个性能模型
+  - 6.5 Edge cluster、PoP 与 cache server
+  - 7.3 “低 hit ratio 一定是缓存太小”
+  - 11. 核心结论
+  - 12. 一般化的解决问题思路
+  sections:
+  - title: 0. 导读与本章定位：把“离用户更近”从缓存策略扩展为网络架构
+    source_heading: 0. 导读与本章定位：把“离用户更近”从缓存策略扩展为网络架构
+    paragraphs:
+    - Network problem：如何降低全球用户到服务的 RTT，并提高跨地域传输的有效带宽与可靠性？
+    - Cache topology problem：边缘节点越来越多时，如何避免缓存被过度分散、origin load 反而升高？
+    - 人们容易认为 CDN 的首要价值是 cache。作者明确指出，更基础的价值其实是它的 underlying network substrate，即覆盖在公共互联网之上的网络能力。
+    - 本章结尾自然引出 Chapter 16：CDN cluster 内不能让每台服务器保存全部数据，必须 partition content。
+  - title: 1. Content delivery network 是什么
+    source_heading: 1. Content delivery network 是什么
+    paragraphs:
+    - CDN 是一个由地理分布式 caching servers，也就是 reverse proxies，组成的 overlay network。它围绕互联网底层协议的设计限制构建。
+    - Geographically distributed：节点部署在多个地理位置，不只在 origin data center；
+    - Overlay network：节点之间形成一层由 CDN 控制的逻辑网络，但底层仍使用公共互联网、专线、互联点等物理链路。
+    - "“有 key”不必然等于可直接返回：对象可能 expired、被 purge、validator 不匹配，或 policy 要求 bypass。不同厂商对
+      revalidated hit、stale hit 的指标命名也可能不同，所以观察指标前必须先读定义。"
+  - title: 3. 15.2 Caching
+    source_heading: 3. 15.2 Caching
+    paragraphs:
+    - 若每次 edge miss 都直达 origin，edge 数量越多，冷 cache 越多，origin 可能承受大量重复 fill。原章由此引出 intermediary
+      caching clusters。
+    - 这个结论不是“增加 edge 必然降低所有对象 hit ratio”。超热门内容在所有 edge 仍可持续命中；下降最明显的是 long-tail content，并且结果还受
+      cache capacity、TTL、prefetch 和 request routing 影响。
+    - 为缓解 edge fragmentation，CDN 可在较少的地理位置部署一层或多层 intermediary cache，也常称 regional
+      cache、parent cache 或 origin shield。
+    - 该公式假设请求沿固定层级向下，并把 bypass/error 暂时视为 miss。生产指标还要单列 stale serve、revalidation、uncacheable
+      和 error。
+  - title: 4. 把 Overlay 与 Caching 放进同一个性能模型
+    source_heading: 4. 把 Overlay 与 Caching 放进同一个性能模型
+    paragraphs:
+    - 大量小 API response 命中，可使 request hit ratio 高但节省 bytes 少；
+    - Origin CPU 更关心 request/work offload，network egress 更关心 byte offload。
+    - 这个式子忽略 header、compression、range、revalidation 304 和 request collapsing，但能说明：应优先提高“大对象、高频对象”的
+      hit ratio，而不是只追求一个无权平均指标。
+    - latency/availability 对 conversion 或 user retention 的影响；
+  - title: 6.4 DNS load balancing 与 Anycast
+    source_heading: 6.4 DNS load balancing 与 Anycast
+    paragraphs:
+    - DNS mapping： 不同查询可获得不同 endpoint，受 resolver location 和 TTL 影响。
+    - Anycast： 多个地点宣告同一 IP，由 routing 把 client 引到一个入口。
+    - 二者可组合，但原章这里讲 global DNS load balancing，不能互相替换概念。
+  - title: 6.5 Edge cluster、PoP 与 cache server
+    source_heading: 6.5 Edge cluster、PoP 与 cache server
+    paragraphs:
+    - edge cluster 是该位置的一组服务节点；
+    - content partition 是 server 负责的 key subset。
+    - 把它们都叫“edge”会隐藏 capacity 和 failure-domain 分析。
+  - title: 7.3 “低 hit ratio 一定是缓存太小”
+    source_heading: 7.3 “低 hit ratio 一定是缓存太小”
+    paragraphs:
+    - cache key 包含高基数无关参数；
+    - Cookie/Authorization 导致 bypass；
+    - query normalization 不一致；
+    - 对象本身属于 one-hit long tail。
+  - title: 8. 如何设计和评估 CDN：一套可复用方法
+    source_heading: 8. 如何设计和评估 CDN：一套可复用方法
+    paragraphs:
+    - CDN 到 origin 走 public internet、private backbone 还是 direct connect；
+    - Retry 必须有界，否则 CDN failure/timeout 会放大 origin load。
+    - 测试 global purge、rollback 和 partial propagation，而不只测试正常 hit。
+    - 同时核算 redirect traffic、miss egress 和 attack traffic 的账单上界。
+  - title: 11. 核心结论
+    source_heading: 11. 核心结论
+    paragraphs:
+    - 更多 edge clusters 降低 client RTT，却会 fragment request locality，可能降低 long-tail hit
+      ratio。
+    - Origin capacity 必须按 cold cache、purge、failure 和 attack 的 miss burst 规划，不能只看平均
+      hit ratio。
+    - Request hit ratio、byte hit ratio和 latency 是不同指标，应按 origin CPU、egress 和 user
+      experience 分别优化。
+    - Cluster 内 content 必须 partition；partitioning 突破容量，replication 提升 availability，两者通常组合。
+  - title: 12. 一般化的解决问题思路
+    source_heading: 12. 一般化的解决问题思路
+    paragraphs:
+    - 先问：瓶颈是 code、machine，还是 propagation、coordination、capacity 等结构性下界？若是光速导致的 RTT，就不能只优化
+      origin handler。
+    - 增加 nodes/locations 常带来 fragmentation、coordination、duplication 和 control-plane
+      complexity。Scale-out 不是单调收益。
+    - 问清：cache 全冷、批量 purge、一个 region down、origin slow、attack 到来时会怎样？很多 CDN 事故不是 steady-state
+      hit ratio 不够高，而是 failure transition 没有边界。
+    - 本章把 cluster 看成 cache；当发现单机放不下全部对象时，再打开 cluster 内部讨论 partitioning。好的系统分析会逐层暴露限制，而不是一开始把所有复杂度混在一起。
+  takeaways:
+  - CDN 是地理分布式 caching reverse proxies 构成的 overlay network。
+  - 全球距离带来不可消除的传播时延；server CPU 再快也不能突破光速。
+  - Dynamic uncacheable resources 仍可受益于 nearby frontend 和 optimized origin path。
+  - Intermediary cache/origin shield 聚合 edge misses，在地理分散与缓存 locality 之间折中。
+  - Cluster 内 content 必须 partition；partitioning 突破容量，replication 提升 availability，两者通常组合。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念辨析
+  question: 原文如何解释「6.1 CDN 与 cache」？
+  answer: 正确： CDN 是 geographically distributed overlay network；cache 是它的重要能力之一。Dynamic
+    cache miss 也能受益于网络和 connection optimization。
+  source_heading: 6.1 CDN 与 cache
+- level: 概念辨析
+  question: 原文如何解释「6.5 Edge cluster、PoP 与 cache server」？
+  answer: 把它们都叫“edge”会隐藏 capacity 和 failure-domain 分析。
+  source_heading: 6.5 Edge cluster、PoP 与 cache server
+- level: 概念辨析
+  question: 原文如何解释「7.1 “PoP 越多一定越好”」？
+  answer: PoP 越多通常降低 access RTT，但也 fragment request locality、增加 duplicated storage/fill
+    和运维成本。需要用 regional cache/shield、capacity 和 workload 分布共同权衡。
+  source_heading: 7.1 “PoP 越多一定越好”
+- level: 概念辨析
+  question: 原文如何解释「7.5 “所有 dynamic content 都不能 cache”」？
+  answer: Dynamic 只表示生成方式，不直接决定 cacheability。公开、可版本化、具有明确 freshness 的 API response
+    也可共享缓存；personalized response 则必须正确隔离。
+  source_heading: 7.5 “所有 dynamic content 都不能 cache”
+- level: 概念辨析
+  question: 原文如何解释「7.9 “缓存副本越多，可用性必然越高”」？
+  answer: 副本只有在 routing、metadata、purge 和 dependency 正常时才有用。Control plane 故障、错误 purge
+    或 poisoned response 可能全局传播。
+  source_heading: 7.9 “缓存副本越多，可用性必然越高”

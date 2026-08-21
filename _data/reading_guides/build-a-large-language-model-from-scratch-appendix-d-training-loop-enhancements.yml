@@ -1,0 +1,165 @@
+source:
+  post: _posts/book-notes/deep-learning/build-a-large-language-model-from-scratch/2026-08-08-build-a-large-language-model-from-scratch-appendix-d-training-loop-enhancements.md
+  body_sha256: 9bf5f773f27b54aed8a1481729eeaecc110beca2a820adaba7b97aeb4b74619d
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 11
+  question: 0.1 “Bells and whistles”解决什么？
+  question_source: 0.1 “Bells and whistles”解决什么
+  thesis: 因此，设计训练循环的一般方法是：先建立正确 baseline，把每个增强单独变成可观察、可测试的机制；再按明确顺序整合，记录所有状态，并通过 held-out
+    data、gradient statistics 和复现实验判断它究竟改善了稳定性、效率，还是泛化能力。
+  thesis_source: 14. 最终总结
+  concepts:
+  - term: 0.1 “Bells and whistles”解决什么
+    meaning: 异常 batch/深层反传：gradient norm 可能突然很大，使单步更新不稳定。
+    source_heading: 0.1 “Bells and whistles”解决什么
+  - term: D.3 Gradient Clipping（梯度裁剪）
+    meaning: 有人可能疑惑：0.0411 已小于 max norm 1，为什么还会缩小？因为 threshold 作用于全局 L2 norm，而不是最大
+      coordinate。所有 parameter tensors 合并后的 norm 可以大于 1，于是每个 coordinate 都乘同一小于 1 的
+      factor，0.0411 也变成 0.0185。
+    source_heading: D.3 Gradient Clipping（梯度裁剪）
+  - term: 6. 核心公式速查
+    meaning: 该式忽略 momentum、adaptive moments 和 weight decay，不应直接当 AdamW 的严格 parameter
+      displacement bound。
+    source_heading: 6. 核心公式速查
+  - term: 7. 原书实验的精确计数
+    meaning: 前者用于画清楚曲线，后者用于 124M-config model training。不能从 D.1 的图读取 D.4 实际 LR。
+    source_heading: 7. 原书实验的精确计数
+  - term: 10.4 Checkpoint 内容
+    meaning: Config/data/tokenizer/code identifiers。
+    source_heading: 10.4 Checkpoint 内容
+  - term: 14. 最终总结
+    meaning: 更重要的学习成果是理解它们的边界：scheduler 是离散协议，必须检查 step 0、phase boundary 和最后一步；gradient
+      clipping 操作的是全局 gradient norm，不是最大元素；稳定 optimization 与良好 generalization 是两件事。原实验把
+      training loss 降到 0.041，同时 validation loss 保持 6.915，恰好说明一个训练循环可以技术上完全正常，却因数据过小而严重过拟合。
+    source_heading: 14. 最终总结
+  logic:
+  - 0.1 “Bells and whistles”解决什么
+  - D.3 Gradient Clipping（梯度裁剪）
+  - 5.1 三个控制层
+  - 7. 原书实验的精确计数
+  - 10.1 启动前
+  - 12. 自测题与参考答案
+  - 14. 最终总结
+  sections:
+  - title: 0.1 “Bells and whistles”解决什么
+    source_heading: 0.1 “Bells and whistles”解决什么
+    paragraphs:
+    - 早期：parameters 随机、optimizer moments 尚未形成，过大更新容易破坏表示；
+    - 后期：需要更小步长细化，减少在低-loss 区域附近振荡；
+    - 异常 batch/深层反传：gradient norm 可能突然很大，使单步更新不稳定。
+    - 它们都不改变 GPT architecture、next-token target 或 cross-entropy objective，只改变 optimization
+      dynamics。
+  - title: D.1 Learning Rate Warmup（学习率预热）
+    source_heading: D.1 Learning Rate Warmup（学习率预热）
+    paragraphs:
+    - Warmup fraction 常见范围被原书概括为总 updates 的 0.1%–20%，这是经验区间，不是理论定律。更大 global batch、不同
+      optimizer、模型深度和 pretraining/fine-tuning 都可能要求不同长度。
+    - 有 gradient accumulation K 时，K 个 microbatches 才执行一次 optimizer step，warmup 应按
+      optimizer updates 前进，不应每个 microbatch 前进，否则预热缩短 K 倍。
+    - 较大 global batch 通常减少每 epoch update 数，并改变 gradient noise；若只写“warmup 1 epoch”，换
+      batch 后 update 数会变化。使用固定 warmup updates 或 warmup token count 更可比较。
+    - DistributedDataParallel 中所有 ranks 同步执行一个 global optimizer update，不能将 global
+      step 再乘 world size。World size 会改变 global batch/token throughput，而不是每 rank schedule
+      index。
+  - title: D.3 Gradient Clipping（梯度裁剪）
+    source_heading: D.3 Gradient Clipping（梯度裁剪）
+    paragraphs:
+    - 有人可能疑惑：0.0411 已小于 max norm 1，为什么还会缩小？因为 threshold 作用于全局 L2 norm，而不是最大 coordinate。所有
+      parameter tensors 合并后的 norm 可以大于 1，于是每个 coordinate 都乘同一小于 1 的 factor，0.0411
+      也变成 0.0185。
+    - 对 AdamW 不能直接使用同一严格上界，因为 moments 做 coordinate-wise normalization，且还有 decoupled
+      weight decay。不过 clipping 仍限制写入 moments 的 raw gradient magnitude，并抑制 outlier
+      batches。
+    - 一种直觉是 warmup 期 LR 很小，parameter displacement 已受限制；达到 peak 后 clipping 更重要。这是作者的
+      training recipe choice，不是 clipping 的通用规则。
+    - DDP 在 backward 中 all-reduce/average gradients。正常 backward 完成后，各 ranks gradients
+      相同，再各自 global-norm clip 会得到相同结果。
+  - title: 5.1 三个控制层
+    source_heading: 5.1 三个控制层
+    paragraphs:
+    - Warmup/cosine 决定计划 update scale；
+    - Clipping 对异常 gradient 加上限；
+    - Evaluation 判断 training progress 是否转化为 held-out performance。
+    - 这些层不能互相替代。Scheduler 不改变目标，clipping 不选择正确目标，training loss 不等于 generalization。
+  - title: 6. 核心公式速查
+    source_heading: 6. 核心公式速查
+    paragraphs:
+    - 该式忽略 momentum、adaptive moments 和 weight decay，不应直接当 AdamW 的严格 parameter displacement
+      bound。
+    - 只有相同 tokenizer、data 和 masking 下才适合直接比较。
+  - title: 7. 原书实验的精确计数
+    source_heading: 7. 原书实验的精确计数
+    paragraphs:
+    - 前者用于画清楚曲线，后者用于 124M-config model training。不能从 D.1 的图读取 D.4 实际 LR。
+    - 这不影响 scheduler 机制，却影响 memory、gradient norm distribution 和 training speed。
+  - title: 10.1 启动前
+    source_heading: 10.1 启动前
+    paragraphs:
+    - 统计 actual parameter count 与 trainable count；
+    - 验证 batch input/target shape 和 ignore mask；
+    - 计算 total optimizer updates，不是 microbatches；
+    - 检查 initial/peak/min LR 和 parameter-group scales；
+  - title: 10.4 Checkpoint 内容
+    source_heading: 10.4 Checkpoint 内容
+    paragraphs:
+    - Scheduler state/config；
+    - Global step/epoch/tokens seen；
+    - Gradient accumulation phase；
+    - Config/data/tokenizer/code identifiers。
+  - title: 12. 自测题与参考答案
+    source_heading: 12. 自测题与参考答案
+    paragraphs:
+    - 模型几乎记忆 training windows，但 held-out distribution loss 很高；optimization pipeline
+      有效，generalization 很差。
+    - LR 缩放最终 parameter update，但 raw gradient 仍进入 first/second moment estimates。Clipping
+      在 moments 更新前限制 raw magnitude。
+    - 更激进 schedule 可能更快 memorization。应比较 validation、stability、tokens-to-quality、gradient
+      events 和最终任务 behavior。
+    - 不同 ranks 同步形成一次 global optimizer update，step 不乘 8。Global batch/tokens per update
+      增大，schedule hyperparameters可能需要重新调。
+  - title: 14. 最终总结
+    source_heading: 14. 最终总结
+    paragraphs:
+    - 本附录展示了从“能训练”到“更可控地训练”的关键一步。Linear warmup 负责谨慎启动，cosine decay 负责逐渐收敛，gradient
+      clipping 负责应对异常 gradient；三者通过 global optimizer step 在同一个训练状态机中协作。
+    - 更重要的学习成果是理解它们的边界：scheduler 是离散协议，必须检查 step 0、phase boundary 和最后一步；gradient clipping
+      操作的是全局 gradient norm，不是最大元素；稳定 optimization 与良好 generalization 是两件事。原实验把 training
+      loss 降到 0.041，同时 validation loss 保持 6.915，恰好说明一个训练循环可以技术上完全正常，却因数据过小而严重过拟合。
+    - 因此，设计训练循环的一般方法是：先建立正确 baseline，把每个增强单独变成可观察、可测试的机制；再按明确顺序整合，记录所有状态，并通过 held-out
+      data、gradient statistics 和复现实验判断它究竟改善了稳定性、效率，还是泛化能力。
+  takeaways:
+  - Objective 决定希望降低什么；
+  - Classification 每 batch target 数是 examples；
+  - Cosine decay 用半余弦从 peak 平滑降到 minimum，起终点 slope 为零。
+  - Warmup 后才 clip 是原书 recipe，不是普遍要求。
+  - 因此，设计训练循环的一般方法是：先建立正确 baseline，把每个增强单独变成可观察、可测试的机制；再按明确顺序整合，记录所有状态，并通过 held-out
+    data、gradient statistics 和复现实验判断它究竟改善了稳定性、效率，还是泛化能力。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念复述
+  question: 0.1 “Bells and whistles”解决什么？
+  answer: 异常 batch/深层反传：gradient norm 可能突然很大，使单步更新不稳定。
+  source_heading: 0.1 “Bells and whistles”解决什么
+- level: 边界判断
+  question: 原文如何解释「D.3 Gradient Clipping（梯度裁剪）」？
+  answer: 有人可能疑惑：0.0411 已小于 max norm 1，为什么还会缩小？因为 threshold 作用于全局 L2 norm，而不是最大 coordinate。所有
+    parameter tensors 合并后的 norm 可以大于 1，于是每个 coordinate 都乘同一小于 1 的 factor，0.0411 也变成
+    0.0185。
+  source_heading: D.3 Gradient Clipping（梯度裁剪）
+- level: 边界判断
+  question: 原文如何解释「7. 原书实验的精确计数」？
+  answer: 前者用于画清楚曲线，后者用于 124M-config model training。不能从 D.1 的图读取 D.4 实际 LR。
+  source_heading: 7. 原书实验的精确计数
+- level: 关系解释
+  question: 原文如何解释「10.4 Checkpoint 内容」？
+  answer: Config/data/tokenizer/code identifiers。
+  source_heading: 10.4 Checkpoint 内容
+- level: 概念复述
+  question: 原文如何解释「14. 最终总结」？
+  answer: 更重要的学习成果是理解它们的边界：scheduler 是离散协议，必须检查 step 0、phase boundary 和最后一步；gradient
+    clipping 操作的是全局 gradient norm，不是最大元素；稳定 optimization 与良好 generalization 是两件事。原实验把
+    training loss 降到 0.041，同时 validation loss 保持 6.915，恰好说明一个训练循环可以技术上完全正常，却因数据过小而严重过拟合。
+  source_heading: 14. 最终总结

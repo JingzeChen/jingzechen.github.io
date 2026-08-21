@@ -1,0 +1,206 @@
+source:
+  post: _posts/book-notes/distributed-system/design-data-intensive-application/2026-08-05-ddia-2e-ch11-batch-processing.md
+  body_sha256: 884c60b635787ee362282e0659e086d71df8a1ec00c07e0f6c90de261b1698c8
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 21
+  question: 原文围绕「0. 本章定位：把大量 immutable data 可靠地变成 derived data」建立了怎样的核心认识？
+  question_source: 0. 本章定位：把大量 immutable data 可靠地变成 derived data
+  thesis: narrow dependency：one output partition只依赖少数/一个 parent partition，可local pipeline/recompute。wide
+    dependency：output partition依赖many/all parent partitions，需要shuffle。
+  thesis_source: 7. 知识结构与证据地图
+  concepts:
+  - term: 0. 本章定位：把大量 immutable data 可靠地变成 derived data
+    meaning: batch frameworks可扫描 columnar files、顺序读大对象、并行占用 idle capacity，并按 task重试。若把同样工作拆成数十亿次
+      OLTP/API requests，会产生 connection、transaction、index maintenance和per-request scheduling
+      overhead。
+    source_heading: 0. 本章定位：把大量 immutable data 可靠地变成 derived data
+  - term: 2. Batch Processing in Distributed Systems
+    meaning: traditional KV store优化 KB-scale values与frequent low-latency updates；DFS/object
+      store优化 MB-to-GB objects与large sequential transfers。S3 Express等正在缩小 latency/size边界，但pricing、throughput和operation
+      model仍不同。
+    source_heading: 2. Batch Processing in Distributed Systems
+  - term: 5. Summary：批处理是可重放的数据变换系统
+    meaning: whole-input recomputation、periodic freshness lag、blocking stages与long
+      completion time是batch代价。input变化一个byte可能触发large rerun；unbounded/low-latency changes更适合stream/incremental
+      processing。
+    source_heading: 5. Summary：批处理是可重放的数据变换系统
+  - term: 6.38 误区的统一根源
+    meaning: 多数误区把一层的property外推到另一层：API形状不等于storage semantics，task retry不等于external
+      exactly-once，transport log不等于atomic visibility，declarative language不等于low-latency
+      system。
+    source_heading: 6.38 误区的统一根源
+  - term: 9. 核心结论
+    meaning: 可靠batch system从input manifest到serving generation都要记录lineage/evidence，并以bytes、partitions、commit
+      boundary与failure recovery推理。
+    source_heading: 9. 核心结论
+  - term: 11. References
+    meaning: 'Paris Carbone, Stephan Ewen, Seif Haridi, Asterios Katsifodimos, Volker
+      Markl, and Kostas Tzoumas. “Apache Flink: Stream and Batch Processing in a Single
+      Engine.” IEEE Data Engineering Bulletin, 38(4):28–38, December 2015.'
+    source_heading: 11. References
+  logic:
+  - 0. 本章定位：把大量 immutable data 可靠地变成 derived data
+  - 2. Batch Processing in Distributed Systems
+  - 4. Batch Use Cases
+  - 6.38 误区的统一根源
+  - 7. 知识结构与证据地图
+  - 10. 设计批处理系统的一般方法
+  - 11. References
+  sections:
+  - title: 0. 本章定位：把大量 immutable data 可靠地变成 derived data
+    source_heading: 0. 本章定位：把大量 immutable data 可靠地变成 derived data
+    paragraphs:
+    - Agile iteration希望小步试验、快速反馈。若每次 deployment都可能不可逆地破坏 system of record，开发会变慢。batch模式通过
+      immutable inputs、versioned outputs和 late publication降低 irreversible consequences。
+    - batch frameworks可扫描 columnar files、顺序读大对象、并行占用 idle capacity，并按 task重试。若把同样工作拆成数十亿次
+      OLTP/API requests，会产生 connection、transaction、index maintenance和per-request scheduling
+      overhead。
+    - stream job不在读完 bounded input后结束，而是持续观察 changes并尽快处理。batch强调完整 snapshot、recompute和high
+      throughput；stream强调incremental updates与low latency。第 12 章将展开 stream processing。
+    - Google于 2004 年公开 MapReduce。Hadoop、CouchDB、MongoDB等曾实现该 model。它让 commodity machines上的大规模
+      fault-tolerant processing变得普及，却比成熟 parallel database query engine低层。
+  - title: 1. Batch Processing with Unix Tools
+    source_heading: 1. Batch Processing with Unix Tools
+    paragraphs:
+    - Unix pipeline在 single machine上已经具备 batch engine的缩影：filesystem保存 input/output，OS
+      scheduler运行 processes，pipes连接 stages，工具各自完成一种 transformation。
+    - 第 7 个 whitespace-separated field恰好是 requested URL。真实 production log应使用明确 parser/schema；这里用field
+      extraction专注讨论 execution model。
+    - 复杂 parsing、multi-field state、domain validation与特殊 error handling通常更适合 code/library。pipeline不是“永远比program好”，关键是选
+      execution strategy与interface。
+    - Unix tools受单机 local disk capacity、I/O bandwidth、CPU与failure domain限制。dataset装不下
+      local disk、deadline要求更多 parallelism，或单机故障不能从 partial progress恢复时，需要 distributed
+      storage与execution framework。
+  - title: 2. Batch Processing in Distributed Systems
+    source_heading: 2. Batch Processing in Distributed Systems
+    paragraphs:
+    - distributed filesystem（DFS）把一个 logical file切成 blocks，分散到 many machines，并以统一
+      protocol暴露 read/write。它要解决 capacity aggregation、parallel I/O、metadata lookup和machine/disk
+      failures。
+    - Amazon S3 API被 MinIO、Cloudflare R2、Tigris、Backblaze B2等采用。支持 S3的 batch engine可切换
+      provider，但 portability只覆盖 API surface；rate limits、consistency、cost和atomic operations仍可能不同。
+    - traditional KV store优化 KB-scale values与frequent low-latency updates；DFS/object
+      store优化 MB-to-GB objects与large sequential transfers。S3 Express等正在缩小 latency/size边界，但pricing、throughput和operation
+      model仍不同。
+    - generic scheduler不理解所有 domain policy。YARN ApplicationMaster、Kubernetes operator等subscheduler/controller可处理
+      autoscaling、framework-specific task graph与custom recovery，再与central scheduler协作。
+  - title: 4. Batch Use Cases
+    source_heading: 4. Batch Use Cases
+    paragraphs:
+    - data contract明确producer/consumer间 schema、semantics、quality、compatibility、freshness与ownership。schema
+      registry只覆盖结构，contract还应说明units、null meaning、key stability和breaking-change process。
+    - SparkSQL、Trino、DuckDB等既运行pipeline transformations，也运行analytical queries。application
+      engineering、data engineering、analytics engineering与business analysis边界随共同SQL/DataFrame
+      tooling变模糊。
+    - data lakehouse把low-cost object storage/data lake与warehouse table semantics结合。Apache
+      Iceberg等 open table format维护 snapshots/manifests/schema evolution；Unity等 catalog管理names、types、permissions与table-to-file
+      mappings。
+    - derived files保持pure/replayable很容易；把它们送入live system时，必须显式设计capacity buffer、dedup、generation
+      visibility与atomic activation。stream解决transport/rate decoupling，但不自动解决all-or-nothing
+      publication。
+  - title: 5. Summary：批处理是可重放的数据变换系统
+    source_heading: 5. Summary：批处理是可重放的数据变换系统
+    paragraphs:
+    - executor、resource manager、scheduler共同处理placement、isolation、fairness与failure。exact
+      optimization是NP-hard，因此production scheduler使用FIFO、DRF、priority、quota和bin-packing
+      heuristics。
+    - MapReduce定义 stateless mapper、framework shuffle/sort和grouped reducer。它让commodity
+      cluster上的large-scale processing普及，但固定barrier、frequent materialization与low-level
+      API使其被modern engines取代。
+    - framework能控制file/object output的all-or-nothing visibility，却不能自动控制task直接产生的external
+      side effects。进入production sink时必须设计rate buffering、dedup、generation marker与atomic
+      activation。
+    - whole-input recomputation、periodic freshness lag、blocking stages与long completion
+      time是batch代价。input变化一个byte可能触发large rerun；unbounded/low-latency changes更适合stream/incremental
+      processing。
+  - title: 6.38 误区的统一根源
+    source_heading: 6.38 误区的统一根源
+    paragraphs:
+    - 多数误区把一层的property外推到另一层：API形状不等于storage semantics，task retry不等于external exactly-once，transport
+      log不等于atomic visibility，declarative language不等于low-latency system。
+    - 正确做法是逐层写清 input boundary、state location、partitioning、commit boundary、failure
+      recovery与consumer-visible guarantee。
+  - title: 7. 知识结构与证据地图
+    source_heading: 7. 知识结构与证据地图
+    paragraphs:
+    - narrow dependency：one output partition只依赖少数/一个 parent partition，可local pipeline/recompute。wide
+      dependency：output partition依赖many/all parent partitions，需要shuffle。
+    - 早filter/project降低所有downstream bytes；bad join cardinality与skew会放大shuffle/output。distributed
+      performance常先由data volume与movement决定。
+    - incident中先定位责任层，避免用Airflow retry掩盖Spark skew，或用Kubernetes restart修复non-idempotent
+      sink。
+    - 上层提高productivity/optimizer visibility；下层决定resource behavior。debugging需要能沿ladder向下解释。
+  - title: 9. 核心结论
+    source_heading: 9. 核心结论
+    paragraphs:
+    - dataflow engine通过whole operator DAG、fusion、pipelining和local intermediate state消除MapReduce多余barriers/I/O。
+    - framework的all-or-nothing guarantee只覆盖它控制的output；external task side effects会泄漏partial/duplicate
+      state。
+    - Kafka提供sequential buffer、rate decoupling、fan-out和security boundary，不自动提供whole-generation
+      atomic visibility。
+    - 可靠batch system从input manifest到serving generation都要记录lineage/evidence，并以bytes、partitions、commit
+      boundary与failure recovery推理。
+  - title: 10. 设计批处理系统的一般方法
+    source_heading: 10. 设计批处理系统的一般方法
+    paragraphs:
+    - 选择DFS/object store/table format，并明确 block/object size、listing、overwrite、rename、consistency、retention、replication/EC与compute
+      locality。按真实API设计commit，不模拟不存在的POSIX atomicity。
+    - 选择input/output partition keys、target partition size与file count。避免millions small
+      files、one giant partition和hot-key concentration。output layout应支持downstream pruning与serving
+      import。
+    - 固定 input/code/config/schema/library versions与random seeds；把clock/API response作为explicit
+      data。每attempt写unique path，stable logical IDs支持dedup，speculative/late attempts不能覆盖winner。
+    - 记录source-to-output counts、null/unique/range、distribution drift、unmatched joins、checksums与business
+      reconciliation。manifest连接source snapshots、code/config、plan与output files。
+  - title: 11. References
+    source_heading: 11. References
+    paragraphs:
+    - Michael Ovsiannikov, Silvius Rus, Damian Reeves, Paul Sutter, Sriram Rao, and
+      Jim Kelly. “The Quantcast File System.” PVLDB, 6(11):1092–1101, August 2013.
+      doi:10.14778/2536222.2536234
+    - 'Paris Carbone, Stephan Ewen, Seif Haridi, Asterios Katsifodimos, Volker Markl,
+      and Kostas Tzoumas. “Apache Flink: Stream and Batch Processing in a Single Engine.”
+      IEEE Data Engineering Bulletin, 38(4):28–38, December 2015.'
+    - 'Michael Isard, Mihai Budiu, Yuan Yu, Andrew Birrell, and Dennis Fetterly. “Dryad:
+      Distributed Data-Parallel Programs from Sequential Building Blocks.” EuroSys,
+      March 2007. doi:10.1145/1272996.1273005'
+    - 'Michael Armbrust, Ali Ghodsi, Reynold Xin, and Matei Zaharia. “Lakehouse: A
+      New Generation of Open Platforms That Unify Data Warehousing and Advanced Analytics.”
+      CIDR, January 2021.'
+  takeaways:
+  - 每层有独立 contract；end-to-end reliability要求这些 contracts在边界处衔接。
+  - quality gates passed；
+  - write attempt-scoped/versioned output；
+  - large parallel job遇到task failure几乎必然，所以retry/recovery是normal execution path。
+  - 可靠batch system从input manifest到serving generation都要记录lineage/evidence，并以bytes、partitions、commit
+    boundary与failure recovery推理。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念辨析
+  question: 原文如何解释「6.1 “batch 就是凌晨定时脚本”」？
+  answer: 错误。batch的定义性特征是bounded input与whole-result computation；它可以ad hoc触发、连续backfill，也可在minutes内完成。daily
+    schedule只是常见部署方式。
+  source_heading: 6.1 “batch 就是凌晨定时脚本”
+- level: 概念辨析
+  question: 原文如何解释「6.10 “DFS 只是更大的本地磁盘”」？
+  answer: 错误。每个read涉及metadata lookup、network、replica placement与remote failure。POSIX-looking
+    mount不能消除distributed latency/partial failure。
+  source_heading: 6.10 “DFS 只是更大的本地磁盘”
+- level: 概念辨析
+  question: 原文如何解释「6.19 “workflow scheduler 与 cluster scheduler 是同一层”」？
+  answer: 错误。Airflow/Dagster/Prefect管理job DAG与run lifecycle；YARN/Kubernetes/Spark
+    scheduler管理tasks/resources/placement。二者协作但不能互换。
+  source_heading: 6.19 “workflow scheduler 与 cluster scheduler 是同一层”
+- level: 概念辨析
+  question: 原文如何解释「6.29 “distributed DataFrame 保留 Pandas index/order”」？
+  answer: 错误。distributed partitions通常无global stable order/index；显式order需要shuffle/sort。lazy
+    actions还可能重复执行lineage。
+  source_heading: 6.29 “distributed DataFrame 保留 Pandas index/order”
+- level: 概念辨析
+  question: 原文如何解释「6.38 误区的统一根源」？
+  answer: 多数误区把一层的property外推到另一层：API形状不等于storage semantics，task retry不等于external exactly-once，transport
+    log不等于atomic visibility，declarative language不等于low-latency system。
+  source_heading: 6.38 误区的统一根源

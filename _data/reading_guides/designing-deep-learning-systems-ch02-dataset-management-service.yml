@@ -1,0 +1,126 @@
+source:
+  post: _posts/book-notes/ai-system/design-deep-learning-system/2026-08-08-designing-deep-learning-systems-ch02-dataset-management-service.md
+  body_sha256: cec2fb6e9ebf7b6ec86a9af75ac6711f32dff9dd922c079ee0800445fdd2f313
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 8
+  question: 原文围绕「本章要回答的核心问题」建立了怎样的核心认识？
+  question_source: 本章要回答的核心问题
+  thesis: 五项原则比某个实现更持久。 可复现、统一 API、强 schema、内部扩展和数据持久性可用于评价自建或第三方方案。
+  thesis_source: 核心结论
+  concepts:
+  - term: 本章要回答的核心问题
+    meaning: 本章以数据系统设计、API 和代码实现为主，没有需要推导的机器学习目标函数。本文会把版本、快照、复杂度和一致性等工程逻辑形式化，以帮助理解作者的设计选择；这些补充表达用于解释原理，不应误认为是原章提出的新算法。
+    source_heading: 本章要回答的核心问题
+  - term: 2.1 理解数据集管理服务
+    meaning: 样例服务只在 commit 粒度过滤，不支持逐样本谓词。这使实现和版本计算简单，但若一个 commit 内混有训练、验证和应排除样本，就无法精细选择。实际系统需要在摄取时合理划分
+      commit，或增加样本级索引与查询能力。
+    source_heading: 2.1 理解数据集管理服务
+  - term: 2.2 漫游样例数据集管理服务
+    meaning: 实现的关键不是 Java 语法，而是操作顺序与原子性。样例先完成摄取，再把 metadata 放入内存。生产系统若文件已保存而元数据写入失败，会产生孤儿对象；若元数据先提交而文件上传失败，会产生悬空引用。常见处理是
+      staging 状态、事务型元数据、幂等请求 ID 和定期垃圾回收。
+    source_heading: 2.2 漫游样例数据集管理服务
+  - term: 核心结论
+    meaning: Delta Lake 路线适合已有 Spark 的表型数据平台。 它提供 ACID、time travel 和 schema，Petastorm负责训练框架接入。
+    source_heading: 核心结论
+  - term: 从本章提炼出的通用解题方法
+    meaning: 小数据和大数据使用相同外部协议；内部按需引入分片、并行、缓存、compaction 和分布式计算。用真实数据量压测，而不是用“对象存储无限”代替容量分析。
+    source_heading: 从本章提炼出的通用解题方法
+  - term: 复习与自测
+    meaning: 对一个已有 Spark 的大团队和一个已有 Kubernetes 的小型图像团队，你会分别优先评估哪条路线？为什么？
+    source_heading: 复习与自测
+  logic:
+  - 本章要回答的核心问题
+  - 2.1 理解数据集管理服务
+  - 2.2 漫游样例数据集管理服务
+  - 2.3 开源实现路线
+  - 核心结论
+  - 从本章提炼出的通用解题方法
+  - 复习与自测
+  sections:
+  - title: 本章要回答的核心问题
+    source_heading: 本章要回答的核心问题
+    paragraphs:
+    - 为什么有 ETL 和对象存储之后，仍然需要专门的数据集管理服务？
+    - 如何用统一 API 同时管理文本、图像和无 schema 数据？
+    - Delta Lake + Petastorm 与 Pachyderm 分别适合什么技术环境？
+    - 本章以数据系统设计、API 和代码实现为主，没有需要推导的机器学习目标函数。本文会把版本、快照、复杂度和一致性等工程逻辑形式化，以帮助理解作者的设计选择；这些补充表达用于解释原理，不应误认为是原章提出的新算法。
+  - title: 2.1 理解数据集管理服务
+    source_heading: 2.1 理解数据集管理服务
+    paragraphs:
+    - 数据集管理服务（dataset management service，简称 DM）是一个面向模型训练和性能排障的专用数据存储与管理组件。它接收上游原始数据，以内部格式组织数据，再按明确且稳定的训练格式输出数据集。
+    - "“已经有 S3，所以不需要 DM”混淆了字节存储和数据集语义。对象存储知道某个 key 对应一组字节，却通常不知道它属于哪个训练数据集、满足何种 schema、由哪次更新产生、可否与其他批次组合以及哪个模型用过它。"
+    - 因此“dataset ID = 1”只标识一个持续演进的逻辑容器；真正可复现的训练输入必须写成“dataset 1 的 snapshot v”。若训练日志只记
+      dataset ID，不记 snapshot 版本，复现信息仍然不足。
+    - 样例服务只在 commit 粒度过滤，不支持逐样本谓词。这使实现和版本计算简单，但若一个 commit 内混有训练、验证和应排除样本，就无法精细选择。实际系统需要在摄取时合理划分
+      commit，或增加样本级索引与查询能力。
+  - title: 2.2 漫游样例数据集管理服务
+    source_heading: 2.2 漫游样例数据集管理服务
+    paragraphs:
+    - 样例为了减少依赖，把数据集元数据放在进程内存中。因此重启 DM 后所有元数据丢失，即使 MinIO 中的文件还在，也无法通过服务找到它们。这是演示简化，违反生产环境的持久性要求；正式实现应使用数据库或其他持久元数据存储。
+    - 若文件大小为 B，经 DM 中转通常会产生至少一次客户端到 DM 和一次 DM 到存储的数据传输；直传对象存储再传引用可避免 DM 成为中心数据通道。真实系统通常用短期预签名
+      URL，而不是暴露永久凭据。
+    - 实现的关键不是 Java 语法，而是操作顺序与原子性。样例先完成摄取，再把 metadata 放入内存。生产系统若文件已保存而元数据写入失败，会产生孤儿对象；若元数据先提交而文件上传失败，会产生悬空引用。常见处理是
+      staging 状态、事务型元数据、幂等请求 ID 和定期垃圾回收。
+    - 追加式设计也有成本：小文件数量可能持续增长，读取多个 commit 的代价上升，需要快照压缩、compaction 和生命周期策略。不可变不是不做整理，而是整理后仍要保留旧版本的可解析映射。
+  - title: 2.3 开源实现路线
+    source_heading: 2.3 开源实现路线
+    paragraphs:
+    - Delta 表由 Parquet 数据文件、事务日志及相关元数据共同组成，客户端必须理解 Delta 协议，不能把它当普通 Parquet 目录随意读写。迁移时不仅要复制文件，还要重建版本、事务和
+      schema 语义。
+    - 更准确地说，锁定对象是 Delta 表协议与兼容工具生态，不只是某一家公司。原章成书时把可读写环境概括为 Delta cluster；无论具体生态如何演进，设计时都应验证目标引擎对所需协议版本和功能的兼容性。
+    - 底层对象操作和每次事务的日志 / 索引维护会引入延迟，难以把表创建与持久提交做到毫秒级。作者认为秒级摄取对多数深度学习数据准备不是问题，但实时风控等低延迟场景可能需要先写消息系统或在线存储，再异步落
+      Delta。
+    - Pachyderm 是运行在 Kubernetes 上、以对象存储为底座的数据版本控制与流水线平台。用户把抓取、摄取、清洗、标注或训练逻辑封装成 Docker
+      镜像，再由 Pachyderm 连接、调度和扩展这些步骤。
+  - title: 核心结论
+    source_heading: 核心结论
+    paragraphs:
+    - 数据集同时动态与静态。 dataset / commits 表达持续增长，versioned snapshot 表达一次固定训练输入。
+    - 版本哈希兼具身份和缓存价值，但必须覆盖所有影响输出的输入。 commit 内容、过滤、schema、转换器与配置都可能属于版本材料。
+    - Delta Lake 路线适合已有 Spark 的表型数据平台。 它提供 ACID、time travel 和 schema，Petastorm负责训练框架接入。
+    - Pachyderm 路线适合已有 Kubernetes 的文件型工作流。 它提供 Git 风格版本与 provenance，但 schema 保护需要自行补足。
+  - title: 从本章提炼出的通用解题方法
+    source_heading: 从本章提炼出的通用解题方法
+    paragraphs:
+    - 与数据工程师定义允许提交的结构，与数据科学家定义稳定输出；把转换责任放在清楚的中间边界。对每个 schema 规定兼容演进规则。
+    - 小数据和大数据使用相同外部协议；内部按需引入分片、并行、缓存、compaction 和分布式计算。用真实数据量压测，而不是用“对象存储无限”代替容量分析。
+    - 实验阶段记录实际出现的数据结构和错误；业务价值确认后，冻结训练契约，编写 transformer，迁移历史数据，并同时验证旧、新快照。
+    - 记录样本与标签统计、处理时间、失败原因、所有者、来源、校验和和访问审计。为法规删除设计反向索引，能从数据对象找到受影响快照和模型。
+  - title: 复习与自测
+    source_heading: 复习与自测
+    paragraphs:
+    - 为什么一个 dataset 既动态又静态？commit 和 snapshot 怎样表达这两面？
+    - Petastorm 在 Delta Lake 与 PyTorch / TensorFlow 之间承担什么职责？
+    - Pachyderm 的 repo、commit、pipeline 和 job 分别是什么？
+    - 对一个已有 Spark 的大团队和一个已有 Kubernetes 的小型图像团队，你会分别优先评估哪条路线？为什么？
+  takeaways:
+  - 数据集管理不是文件存储的别名。 它为训练提供类型、版本、历史、统计和统一访问语义。
+  - 只记录逻辑 dataset ID 不能复现。 训练运行必须绑定不可变版本及其来源关系。
+  - commit 应追加且默认不可变。 原地合并会丢失来源和回滚能力；合规硬删除是必须显式处理的例外。
+  - 它适合早期实验，稳定项目应迁移到强类型契约。
+  - 工具选择应服从现有生态和缺口。 不应为了一个小数据集引入超出团队能力的大型平台，也不应为成熟通用能力重复自建。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念辨析
+  question: 原文如何解释「1. 有 ETL 就不需要数据集管理」？
+  answer: 错误。ETL 解决怎样转换数据，DM 还要解决训练契约、版本快照、统一访问、历史重取和数据集生命周期。一个脚本可以产出数据，却未必能回答哪个模型用了哪一版数据。
+  source_heading: 1. 有 ETL 就不需要数据集管理
+- level: 概念辨析
+  question: 原文如何解释「6. 版本哈希天然保证内容正确」？
+  answer: 错误。哈希只对进入计算的规范化材料负责。若没包含 transformer、schema 或文件 digest，相同哈希仍可能映射到不同输出；弱哈希还可能碰撞。
+  source_heading: 6. 版本哈希天然保证内容正确
+- level: 概念辨析
+  question: 原文如何解释「11. 统一 API 意味着所有数据使用同一格式」？
+  answer: 错误。统一的是创建、更新、准备和获取等生命周期语义；文本、图像与音频内部仍可采用不同格式和 transformer。
+  source_heading: 11. 统一 API 意味着所有数据使用同一格式
+- level: 概念辨析
+  question: 原文如何解释「15. Delta Lake 只能管理结构化文本」？
+  answer: 错误。图片和音频可作为 binary 列或对象引用，与路径、标签和尺寸等结构化元数据共同形成表。是否适合内嵌字节仍取决于文件规模和访问模式。
+  source_heading: 15. Delta Lake 只能管理结构化文本
+- level: 概念辨析
+  question: 原文如何解释「20. 样例服务可直接用于生产」？
+  answer: 错误。它把 metadata 放内存、用单机后台线程，且省略鉴权、删除、事务、幂等、备份和灾难恢复。样例用于解释抽象，不是生产发行版。
+  source_heading: 20. 样例服务可直接用于生产

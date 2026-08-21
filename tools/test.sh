@@ -61,6 +61,8 @@ main() {
 
   read_baseurl
 
+  bundle exec ruby tools/generate-reading-guides.rb --check
+
   # build
   JEKYLL_ENV=production bundle exec jekyll b \
     -d "$SITE_DIR$_baseurl" -c "$_config"

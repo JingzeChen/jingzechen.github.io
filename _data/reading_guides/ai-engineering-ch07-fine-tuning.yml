@@ -1,0 +1,158 @@
+source:
+  post: _posts/book-notes/ai-system/ai-engineering/2026-08-04-ai-engineering-ch07-fine-tuning.md
+  body_sha256: d0988dd741f2464e4f37ab9a04f5a079a1eaaadd66c0a2036f5c2e344d911b47
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 12
+  question: 原文围绕「0. 学习目标与全章因果主线」建立了怎样的核心认识？
+  question_source: 0. 学习目标与全章因果主线
+  thesis: 最终难点是数据与维护。 训练 API 可以自动化，但高质量数据、回归评价、部署、监控与基础模型升级不能自动消失。
+  thesis_source: 19. 本章总结
+  concepts:
+  - term: 0. 学习目标与全章因果主线
+    meaning: 前两章讨论的是 prompt-based adaptation（基于提示的适配）：通过指令、上下文、检索结果和工具改变模型本次推理看到的输入，但不改变模型参数。第七章转向另一条路线：通过继续训练改变模型权重，使某种能力或行为成为模型本身的一部分。
+    source_heading: 0. 学习目标与全章因果主线
+  - term: 4. Finetuning and RAG（微调还是 RAG）
+    meaning: 同一研究在 MMLU 各类别上的比较还显示：相对只使用 RAG，在微调模型上再加 RAG 只有 43% 的情况取得提升，57% 的情况没有提升。这进一步说明“RAG
+      + 微调”必须作为独立方案评价，不能由两个组件各自有效推出组合必然更强；43%/57% 也只适用于该实验设置。
+    source_heading: 4. Finetuning and RAG（微调还是 RAG）
+  - term: 9. Quantization（量化）
+    meaning: 广义量化是把高精度值映射到较低 bit 表示，以减少内存和带宽。严格说，从浮点转整数才是 quantization；工程文献常把 FP32
+      到 FP16/BF16 等 precision reduction 也称量化，本章沿用广义用法。
+    source_heading: 9. Quantization（量化）
+  - term: 11. PEFT Techniques（PEFT 技术分类）
+    meaning: 原书以 2024 年 Hugging Face PEFT 仓库 issue 数作为使用热度代理，LoRA 明显占主导。issue 数会受
+      bug、文档和用户群影响，只能说明社区活跃度，不能直接表示方法质量。
+    source_heading: 11. PEFT Techniques（PEFT 技术分类）
+  - term: 16. Finetuning Tactics（微调实践策略）
+    meaning: 多机训练还需要 DeepSpeed、PyTorch Distributed、ColossalAI 等分布式能力。分布式训练不会消除总计算，只是把参数、数据或
+      pipeline 分到多设备，还会引入通信和一致性问题。
+    source_heading: 16. Finetuning Tactics（微调实践策略）
+  - term: 21. 一页速记
+    meaning: 本章最值得保留的判断框架是：事实问题先改上下文，行为问题才改权重；显存问题先拆成权重、激活、梯度和优化器状态，再针对对应项使用 PEFT、量化、checkpointing
+      或 offloading；任何训练收益都必须用独立评价和部署成本验证。
+    source_heading: 21. 一页速记
+  logic:
+  - 0. 学习目标与全章因果主线
+  - 4. Finetuning and RAG（微调还是 RAG）
+  - 7. Memory Math（显存估算）
+  - 11. PEFT Techniques（PEFT 技术分类）
+  - 13. Quantized LoRA（量化 LoRA 与 QLoRA）
+  - 18. 从实验到部署的完整微调流程
+  - 21. 一页速记
+  sections:
+  - title: 0. 学习目标与全章因果主线
+    source_heading: 0. 学习目标与全章因果主线
+    paragraphs:
+    - 前两章讨论的是 prompt-based adaptation（基于提示的适配）：通过指令、上下文、检索结果和工具改变模型本次推理看到的输入，但不改变模型参数。第七章转向另一条路线：通过继续训练改变模型权重，使某种能力或行为成为模型本身的一部分。
+    - 微调（finetuning）是从一个已有能力但尚未完全满足任务需求的基础模型出发，用新的训练过程更新其全部或部分参数，使它更适合目标任务。
+    - 为什么微调昂贵？ 训练比推理多保存哪些张量，参数量、可训练参数量和数值精度怎样决定显存？
+    - 怎样把技术变成可靠实践？ 如何选择基础模型、方法、框架和学习率、批大小、epoch 等超参数？
+  - title: 2. 微调发生在训练流程的哪个位置
+    source_heading: 2. 微调发生在训练流程的哪个位置
+    paragraphs:
+    - 高质量 instruction data 难在“目标答案”本身：事实一致性、领域专业性、风格、安全和政治敏感性都需要清晰标注规范与质检。训练 API 容易调用，不意味着数据容易得到。
+    - 实现可以基于强化学习，也可以使用直接偏好优化类目标。具体算法不同，但数据语义相同：比较信号表达“哪个更好”。它适合有多个合理答案、难以定义唯一 ground
+      truth，却能比较帮助性、安全性或风格的任务。
+    - Code Llama 从 Llama 2 出发，通过不同后训练路线产生基础、Python、instruction 与长上下文版本；长上下文路线把上限从
+      4096 扩到 16384 token。
+    - 模型开发者通常先预训练，再做 continued pre-training、SFT、偏好微调和安全后训练，然后发布多个版本。应用开发者大多不会从原始 base
+      model 开始，而会选择已经 post-trained 的模型继续适配。
+  - title: 4. Finetuning and RAG（微调还是 RAG）
+    source_heading: 4. Finetuning and RAG（微调还是 RAG）
+    paragraphs:
+    - 模型不知道私有事实，或者知识截止日期早于新事件，因而回答错误、过时或幻觉。解决方向是把当前、授权、可引用的信息在推理时交给模型，即 RAG。
+    - 在这些设定中，基础模型加 RAG 不但超过单独微调，也超过“微调模型加 RAG”。结果说明微调可能改善目标行为，同时损害其他能力；它不是 RAG 的必然增强器。数字只代表该论文模型、数据和方法，不应外推为所有任务定律。
+    - 同一研究在 MMLU 各类别上的比较还显示：相对只使用 RAG，在微调模型上再加 RAG 只有 43% 的情况取得提升，57% 的情况没有提升。这进一步说明“RAG
+      + 微调”必须作为独立方案评价，不能由两个组件各自有效推出组合必然更强；43%/57% 也只适用于该实验设置。
+    - 高级 RAG 增加的是推理链路复杂度；微调增加的是模型开发和维护复杂度。选择时不只比较离线质量，还要比较延迟、算力、迭代速度、数据新鲜度、可解释性和组织能力。
+  - title: 7. Memory Math（显存估算）
+    source_heading: 7. Memory Math（显存估算）
+    paragraphs:
+    - 即把激活与 KV 等暂估为权重的 20%。这只适合普通序列和 batch 的粗估。长上下文、大 batch、多并发时 KV cache 可以远超 20%。不同注意力实现、GQA/MQA、量化
+      KV 和 paged attention 也会改变结果。
+    - 若仅 1B 参数可训练，则为 6 GB。权重 26 GB 没变，下降的是 72 GB 的训练附加状态。
+    - 它用更多计算换更少显存，不减少参数、梯度或优化器状态。重算开销取决于切分策略，不能简单说“显存减半、时间翻倍”。
+    - 示例没有计 mixed-precision 主权重副本、临时张量、长上下文和内存碎片，因此只能用于相对比较和硬件初筛。
+  - title: 9. Quantization（量化）
+    source_heading: 9. Quantization（量化）
+    paragraphs:
+    - 广义量化是把高精度值映射到较低 bit 表示，以减少内存和带宽。严格说，从浮点转整数才是 quantization；工程文献常把 FP32 到 FP16/BF16
+      等 precision reduction 也称量化，本章沿用广义用法。
+    - 它实现简单、零点精确，但若正负范围高度不对称，会浪费一侧码值。per-tensor 为整个张量用一个 scale；per-channel/per-group
+      为更小分组使用 scale，通常误差更低，但元数据和 kernel 更复杂。
+    - 模型训练完成后再转低精度。它便宜、通用，是应用开发者最常见方式。通常用 calibration data 估计范围、scale 或哪些通道含 outlier。校准数据若不代表线上分布，量化误差会被低估。
+    - 原书列出的实验显示 BitNet b1.58 在最高 3.9B 参数范围内可接近 16-bit Llama 类模型，但这不证明任意现成模型都能无损 PTQ
+      到 1.58 bit；这类模型通常需要从训练阶段适配。
+  - title: 11. PEFT Techniques（PEFT 技术分类）
+    source_heading: 11. PEFT Techniques（PEFT 技术分类）
+    paragraphs:
+    - 这些方法的差别不只在参数量，还在 adapter 插入位置、是否改变前向深度、能否合并、支持怎样的多任务 batch，以及训练/推理 kernel 是否成熟。
+    - prefix-tuning：在每个 Transformer 层的 attention key/value 前加入可训练 prefix；
+    - 在输入层加 prompt 最简单；在每层加 prefix 表达力更强，参数和运行开销也更高。实际使用应按框架文档确认名称与实现，不能只凭术语猜位置。
+    - 原书以 2024 年 Hugging Face PEFT 仓库 issue 数作为使用热度代理，LoRA 明显占主导。issue 数会受 bug、文档和用户群影响，只能说明社区活跃度，不能直接表示方法质量。
+  - title: 13. Quantized LoRA（量化 LoRA 与 QLoRA）
+    source_heading: 13. Quantized LoRA（量化 LoRA 与 QLoRA）
+    paragraphs:
+    - 即使 adapter 再缩小一半，对总显存影响也很小；把 26 GB 基础权重从 16 bit 变成 4 bit，理论静态权重约降到 6.5 GB，收益大得多。
+    - NF4（NormalFloat-4）针对预训练权重近似零均值正态分布的特点选择 16 个表示区间，使这些码值在该分布下比均匀量化更有效。若权重分布严重偏离假设，优势可能下降。
+    - 这些技术让论文作者在单张 48 GB GPU 上微调 65B 模型。该结论依赖其序列长度、batch、checkpointing、实现和硬件，不能仅凭“65B
+      + QLoRA”保证任意配置都能放入 48 GB。
+    - QLoRA 的 Guanaco 系列在论文当时的 benchmark/比较评价中很有竞争力，65B 常被 GPT-4 裁判偏好于当时 ChatGPT，但没有超过
+      GPT-4。模型裁判、提示和 2023 年模型版本都会影响该结果。
+  - title: 16. Finetuning Tactics（微调实践策略）
+    source_heading: 16. Finetuning Tactics（微调实践策略）
+    paragraphs:
+    - 强基础模型通常用更少数据就能达到高质量，因此适合先做 teacher。风险是 student 会复制 teacher 的错误、偏差和固定措辞；合成数据还可能让分布变窄。第八章专门讨论数据工程与蒸馏。
+    - 原书建议新手先尝试 LoRA，再根据质量差距考虑全量微调。全量微调通常至少需要数千样本，很多任务需要更多；PEFT 可能用更少数据见效。数字是经验范围，不能替代
+      learning curve。
+    - 原书列举 LLaMA-Factory、Unsloth、Hugging Face PEFT、Axolotl、LitGPT 等。它们支持多种 adapter
+      与量化方式。全量微调也可使用模型仓库的训练代码。
+    - 多机训练还需要 DeepSpeed、PyTorch Distributed、ColossalAI 等分布式能力。分布式训练不会消除总计算，只是把参数、数据或
+      pipeline 分到多设备，还会引入通信和一致性问题。
+  - title: 18. 从实验到部署的完整微调流程
+    source_heading: 18. 从实验到部署的完整微调流程
+    paragraphs:
+    - 这样可以在分钟内发现 label 全被 mask、checkpoint 目录不存在、模型处于 eval mode 或 scheduler 步数错误，而不是训练数小时后才发现。
+    - 测不同 decoding、prompt 和 RAG 组合，微调模型仍需要推理配置；
+    - 保存 base revision、adapter、merge 配置、tokenizer 和数据血缘；
+    - 微调不是一次性产物。新的基础模型可能在目标任务上直接超过旧微调模型。团队应预设迁移阈值：质量提升、成本下降或新能力达到什么程度才重训/切换，避免每次发布都凭感觉决策。
+  - title: 21. 一页速记
+    source_heading: 21. 一页速记
+    paragraphs:
+    - train/validation/test 是否无泄漏并覆盖回归与安全；
+    - tokenization、packing、labels 和 loss mask 是否人工检查；
+    - 显存估算是否包含激活、梯度、optimizer 与峰值；
+    - 本章最值得保留的判断框架是：事实问题先改上下文，行为问题才改权重；显存问题先拆成权重、激活、梯度和优化器状态，再针对对应项使用 PEFT、量化、checkpointing
+      或 offloading；任何训练收益都必须用独立评价和部署成本验证。
+  takeaways:
+  - 微调通过训练改变参数。 它从已有模型参数出发，在目标数据上继续优化，属于迁移学习；提示和 RAG 只改变输入。
+  - 领域专用不等于领域更强。 更强通用模型可能零样本超过昂贵领域模型，必须在真实分布比较。
+  - 量化不只有 bit 数。 还要决定量化权重/激活/KV/梯度、per-tensor/per-group、PTQ/QAT/低精度训练，并验证硬件 kernel
+    与质量。
+  - 模型合并是实验性组合。 同源 checkpoint 最适合线性/task-vector 合并；SLERP、TIES/DARE、层堆叠和拼接各有兼容条件。
+  - 本章从“是否微调”的产品决策进入显存和数值表示，再用 PEFT/LoRA/量化解决资源约束，继而讨论多任务合并，最后回到实验工程。作者的思路始终是：先识别瓶颈，再确认哪个量造成瓶颈，最后选择只改变那个量的技术。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念辨析
+  question: 原文如何解释「误解 1：模型答错，就应该微调」？
+  answer: 答错可能来自缺信息、坏检索、提示不清、评价错误或工具故障。只有明确是行为/能力问题，且更简单方法不足时，微调才是合理下一步。
+  source_heading: 误解 1：模型答错，就应该微调
+- level: 概念辨析
+  question: 原文如何解释「误解 6：LoRA rank 越高越好」？
+  answer: 高 rank 提高表达能力，也增加参数与过拟合风险。很多任务在较小 rank 已饱和，最优值依赖 target modules、数据和任务。
+  source_heading: 误解 6：LoRA rank 越高越好
+- level: 概念辨析
+  question: 原文如何解释「误解 10：QAT 会降低训练成本」？
+  answer: QAT 主要让模型适应低精度推理，训练常仍用高精度并额外模拟量化，可能更慢。直接低精度训练才以降低训练成本为目标之一。
+  source_heading: 误解 10：QAT 会降低训练成本
+- level: 概念辨析
+  question: 原文如何解释「误解 14：train loss 越低，模型越好」？
+  answer: train loss 可以通过记忆数据继续下降，同时 validation 和真实任务变差。选择 checkpoint 要看独立任务指标与回归指标。
+  source_heading: 误解 14：train loss 越低，模型越好
+- level: 概念辨析
+  question: 原文如何解释「误解 18：训练跑通就表示微调完成」？
+  answer: 还要验证 checkpoint 恢复、量化后质量、服务延迟、安全回归、数据血缘、许可证和上线回滚。
+  source_heading: 误解 18：训练跑通就表示微调完成

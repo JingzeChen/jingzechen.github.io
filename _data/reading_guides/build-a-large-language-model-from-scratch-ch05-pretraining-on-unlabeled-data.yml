@@ -1,0 +1,151 @@
+source:
+  post: _posts/book-notes/deep-learning/build-a-large-language-model-from-scratch/2026-08-08-build-a-large-language-model-from-scratch-ch05-pretraining-on-unlabeled-data.md
+  body_sha256: 6150bf0d2abeebe5a52f4da3dee28712e45f9bd28b319d7ad2cdc5a356a98960
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 9
+  question: 原文围绕「0. 本章定位、学习目标与闭环主线」建立了怎样的核心认识？
+  question_source: 0. 本章定位、学习目标与闭环主线
+  thesis: Epoch、global step 与 tokens seen 衡量不同进度；tokens seen 会重复计算多 epoch 数据。
+  thesis_source: 12. 核心结论
+  concepts:
+  - term: 0. 本章定位、学习目标与闭环主线
+    meaning: 第 5 章进入全书第二阶段：把文本自身提供的下一 token 目标转化为损失，用反向传播更新所有权重；同时建立评估、解码、检查点和公开预训练权重迁移的完整闭环。
+    source_heading: 0. 本章定位、学习目标与闭环主线
+  - term: 5.2 Training an LLM（训练 LLM）
+    meaning: 教学代码对所有参数统一 weight decay；大型训练常用参数组，让 bias 与 LayerNorm scale/shift 不衰减。原书把
+      warmup、cosine annealing 和 gradient clipping 放到附录 D。
+    source_heading: 5.2 Training an LLM（训练 LLM）
+  - term: 5.4.4 “精确续训”还缺哪些状态
+    meaning: 当前累积梯度（若在 accumulation 中途保存）。
+    source_heading: 5.4.4 “精确续训”还缺哪些状态
+  - term: 5.4.6 Checkpoint 安全与兼容性
+    meaning: Checkpoint 来自外部时应视为不可信输入。某些 PyTorch 序列化格式可能触发对象反序列化；优先使用可信来源、校验哈希，并在版本支持时使用限制性加载选项（如仅
+      weights）。
+    source_heading: 5.4.6 Checkpoint 安全与兼容性
+  - term: 9. 作者分析与解决问题的一般思路
+    meaning: Train 与 validation 同降说明共享规律；train 继续降而 validation 停滞说明模型开始记忆训练特例。作者进一步搜索生成片段是否在原文中，形成“曲线假设
+      → 文本证据”的验证链。
+    source_heading: 9. 作者分析与解决问题的一般思路
+  - term: 14. 自测题与参考答案
+    meaning: Dropout、shuffle、scheduler、mixed-precision scaler 和数据位置也有状态；未恢复它们，下一批与随机
+      mask 不同。
+    source_heading: 14. 自测题与参考答案
+  logic:
+  - 0. 本章定位、学习目标与闭环主线
+  - 5.2 Training an LLM（训练 LLM）
+  - 5.3 Decoding Strategies to Control Randomness（控制随机性的解码策略）
+  - 5.4.6 Checkpoint 安全与兼容性
+  - 5.5 Loading Pretrained Weights from OpenAI（加载 OpenAI 预训练权重）
+  - 12. 核心结论
+  - 14. 自测题与参考答案
+  sections:
+  - title: 0. 本章定位、学习目标与闭环主线
+    source_heading: 0. 本章定位、学习目标与闭环主线
+    paragraphs:
+    - 第 5 章进入全书第二阶段：把文本自身提供的下一 token 目标转化为损失，用反向传播更新所有权重；同时建立评估、解码、检查点和公开预训练权重迁移的完整闭环。
+    - 5.3 解码：训练后的同一概率分布如何在确定性与多样性之间取舍？
+    - 5.4 检查点：怎样保存推理权重，或完整恢复 AdamW 续训状态？
+    - 5.5 权重迁移：怎样把 OpenAI TensorFlow GPT-2 参数准确装入自写 PyTorch 架构？
+  - title: 5.1 Evaluating Generative Text Models（评估生成式文本模型）
+    source_heading: 5.1 Evaluating Generative Text Models（评估生成式文本模型）
+    paragraphs:
+    - 反向传播需要一个标量目标回答“参数向哪个方向调整”。直接比较生成字符串是否“好看”不可微、主观且稀疏；下一 token 交叉熵则为每个位置提供密集、精确的训练信号。
+    - 这主要降低 attention 部分的开销；参数量只因位置 embedding 少了行而略减，FFN 等计算仍存在。后面加载 OpenAI 权重时必须恢复
+      1,024，因为位置 embedding 形状和原模型配置要匹配。
+    - 它忽略“差一点”和“完全确信地答错”的区别，并且对 logits 的绝大多数小变化梯度为 0/不可导。交叉熵使用目标概率的连续变化，能给所有参数提供优化方向。
+    - 要让不同评估点可比较，应尽量固定验证 batch；训练 loader 开启 shuffle 时，对训练 loss 取“前 5 批”可能每次样本不同。最终报告应在完整、固定验证集上计算。
+  - title: 5.2 Training an LLM（训练 LLM）
+    source_heading: 5.2 Training an LLM（训练 LLM）
+    paragraphs:
+    - 固定 prompt 和 greedy decoding 便于跨 epoch 比较。样本能发现重复、乱码和记忆片段，却只覆盖一条路径；不能替代完整验证 loss，也不能单独证明事实性或泛化。
+    - 教学代码对所有参数统一 weight decay；大型训练常用参数组，让 bias 与 LayerNorm scale/shift 不衰减。原书把 warmup、cosine
+      annealing 和 gradient clipping 放到附录 D。
+    - 早期两者同时下降：模型学到可迁移的局部语言规律。第二个 epoch 后训练 loss 继续下降、验证 loss 停滞/回升：泛化差距扩大，出现过拟合。
+    - 上轴用累计处理 token 对齐同一 loss 点。Epoch 适合同一数据集内沟通，tokens seen 更适合比较 batch/epoch 方案和不同数据规模。
+  - title: 5.3 Decoding Strategies to Control Randomness（控制随机性的解码策略）
+    source_heading: 5.3 Decoding Strategies to Control Randomness（控制随机性的解码策略）
+    paragraphs:
+    - 最高概率 token 最常出现，但其他非零概率 token 也可能被选。固定 seed 只让伪随机序列可复现，不会把采样数学变成 argmax。
+    - 低温指数级放大偏好，高温压平偏好。它不会改变 logit 排名，所以 temperature 后再 argmax 与原 greedy 相同；只有结合随机
+      sampling 才改变输出路径。
+    - 补充边界：硬件上的某些算子可能非确定，且 dropout 必须关闭；严格复现还需固定模型、tokenizer、seed/后端确定性。概念上的 token
+      选择则在上述条件下确定。
+    - 本章只实现 top-k：每步固定最多约 k 个候选。Top-p（nucleus）则取累计概率达到阈值 p 的最小候选集合，集合大小随分布尖锐度变化。二者都截断低概率尾部，但控制量不同。
+  - title: 5.4.4 “精确续训”还缺哪些状态
+    source_heading: 5.4.4 “精确续训”还缺哪些状态
+    paragraphs:
+    - epoch、global step、tokens seen；
+    - Python/NumPy/PyTorch CPU/GPU RNG state；
+    - DataLoader sampler/shuffle 位置；
+    - 当前累积梯度（若在 accumulation 中途保存）。
+  - title: 5.4.6 Checkpoint 安全与兼容性
+    source_heading: 5.4.6 Checkpoint 安全与兼容性
+    paragraphs:
+    - Checkpoint 来自外部时应视为不可信输入。某些 PyTorch 序列化格式可能触发对象反序列化；优先使用可信来源、校验哈希，并在版本支持时使用限制性加载选项（如仅
+      weights）。
+    - PyTorch 与代码 commit；
+    - tokenizer 名称/版本；
+  - title: 5.5 Loading Pretrained Weights from OpenAI（加载 OpenAI 预训练权重）
+    source_heading: 5.5 Loading Pretrained Weights from OpenAI（加载 OpenAI 预训练权重）
+    paragraphs:
+    - 下载代码可能因服务器、网络或发布方式变化而失效，应以书的在线仓库更新为准。执行下载的 Python 模块前应检查来源与内容，不盲目运行网络脚本。
+    - 这里名称沿 OpenAI 下载接口的 124M/355M/774M/1558M；第 4 章也出现 345M/762M/1542M 等另一统计口径。不要仅凭名称比较参数，应核对实际配置与共享方式。
+    - Bias 是一维向量，直接映射。是否转置不能靠“矩阵是方的看不出来”判断，应理解两边 forward 的乘法约定，并用输出行为验证。
+    - 代码改动小不等于资源成本小。XL 参数、内存和计算显著增加；比较生成时应固定 prompt、解码设置和 seed，不能把采样随机差异误归因于模型尺寸。
+  - title: 9. 作者分析与解决问题的一般思路
+    source_heading: 9. 作者分析与解决问题的一般思路
+    paragraphs:
+    - "“生成高质量文本”无法直接求梯度。作者利用下一 token 自监督，把每个 token 位置变成一个 V 类分类问题，再用 NLL 聚合。这同时解决标签获取、数值评估和参数优化。"
+    - Train 与 validation 同降说明共享规律；train 继续降而 validation 停滞说明模型开始记忆训练特例。作者进一步搜索生成片段是否在原文中，形成“曲线假设
+      → 文本证据”的验证链。
+    - 同一 logits 可以 greedy、temperature 或 top-k。先固定已训练模型，再改变选择规则，能把“模型学到了什么”与“输出路径怎样抽样”分开分析。
+    - 推理只需模型参数；续训增加 optimizer；逐步精确恢复再增加 scheduler、RNG 和数据位置。按需求分层保存，避免把“能继续跑”误称为“完全相同续训”。
+  - title: 12. 核心结论
+    source_heading: 12. 核心结论
+    paragraphs:
+    - Perplexity 是平均 NLL 的指数，可解释等效不确定性，但只在相同 tokenization/数据口径下可比。
+    - Epoch、global step 与 tokens seen 衡量不同进度；tokens seen 会重复计算多 epoch 数据。
+    - 推理 checkpoint 保存 model state；可靠续训还应保存 optimizer 和进度/RNG 等状态。
+    - 数值复制 embedding 到 output head 不等于永久 weight tying；对象共享才是严格 tying。
+  - title: 14. 自测题与参考答案
+    source_heading: 14. 自测题与参考答案
+    paragraphs:
+    - Dropout、shuffle、scheduler、mixed-precision scaler 和数据位置也有状态；未恢复它们，下一批与随机 mask
+      不同。
+    - Q、K 都为同形矩阵，交换后维度完全合法，但 attention score 语义改变；需 reference 输出或明确名称映射。
+    - 不证明。小验证集可能更易或有随机噪声；还可能两段都曾在预训练数据中。需更大独立数据和不确定性分析。
+  takeaways:
+  - 无标签文本通过右移一位自动产生下一 token targets，形成自监督预训练。
+  - 本章 loader 有 9 个训练 batch、1 个验证 batch，短篇数据只适合教学。
+  - Temperature 调整概率尖锐度，top-k 删除低排名尾部；两者只改变解码，不改变模型权重。
+  - OpenAI GPT-2 权重迁移要求上下文、维度、层数、头数、QKV bias 全部匹配。
+  - 预训练公开权重把昂贵通用学习作为可复用起点，后续仍需任务微调与独立评估。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念复述
+  question: 原文如何解释「0. 本章定位、学习目标与闭环主线」？
+  answer: 第 5 章进入全书第二阶段：把文本自身提供的下一 token 目标转化为损失，用反向传播更新所有权重；同时建立评估、解码、检查点和公开预训练权重迁移的完整闭环。
+  source_heading: 0. 本章定位、学习目标与闭环主线
+- level: 边界判断
+  question: 原文如何解释「5.2 Training an LLM（训练 LLM）」？
+  answer: 教学代码对所有参数统一 weight decay；大型训练常用参数组，让 bias 与 LayerNorm scale/shift 不衰减。原书把
+    warmup、cosine annealing 和 gradient clipping 放到附录 D。
+  source_heading: 5.2 Training an LLM（训练 LLM）
+- level: 边界判断
+  question: 原文如何解释「5.4.6 Checkpoint 安全与兼容性」？
+  answer: Checkpoint 来自外部时应视为不可信输入。某些 PyTorch 序列化格式可能触发对象反序列化；优先使用可信来源、校验哈希，并在版本支持时使用限制性加载选项（如仅
+    weights）。
+  source_heading: 5.4.6 Checkpoint 安全与兼容性
+- level: 关系解释
+  question: 原文如何解释「9. 作者分析与解决问题的一般思路」？
+  answer: Train 与 validation 同降说明共享规律；train 继续降而 validation 停滞说明模型开始记忆训练特例。作者进一步搜索生成片段是否在原文中，形成“曲线假设
+    → 文本证据”的验证链。
+  source_heading: 9. 作者分析与解决问题的一般思路
+- level: 概念复述
+  question: 原文如何解释「14. 自测题与参考答案」？
+  answer: Dropout、shuffle、scheduler、mixed-precision scaler 和数据位置也有状态；未恢复它们，下一批与随机
+    mask 不同。
+  source_heading: 14. 自测题与参考答案

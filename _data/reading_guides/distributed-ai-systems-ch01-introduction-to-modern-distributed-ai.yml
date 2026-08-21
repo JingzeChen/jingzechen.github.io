@@ -1,0 +1,161 @@
+source:
+  post: _posts/book-notes/ai-system/distributed-ai-system/2026-08-08-distributed-ai-systems-ch01-introduction-to-modern-distributed-ai.md
+  body_sha256: 61982aa97280d98325ec62557285accfc8a246307c9acaf7f38ce7416f19f12d
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 12
+  question: 原文围绕「0. 本章要回答的核心问题」建立了怎样的核心认识？
+  question_source: 0. 本章要回答的核心问题
+  thesis: Global batch 随 local batch、DP degree 和 accumulation 共同变化。 扩卡会改变优化语义。
+  thesis_source: 19. 核心结论
+  concepts:
+  - term: 0. 本章要回答的核心问题
+    meaning: PyTorch 的 rank、process group、backend 和八类 collective 怎样连接到 DDP、FSDP 与高级并行？
+    source_heading: 0. 本章要回答的核心问题
+  - term: 5. The modern AI model lifecycle：现代模型生命周期
+    meaning: 若端到端利用率为 40%，约需 487 天。不同架构、计算公式、稀疏性和硬件会改变数字，但 8 张 A100 两周不足以完成这一稠密训练量。两周目标在理论
+      100% 峰值下也约需 111 张 A100，在 40% 利用率下约需 278 张。
+    source_heading: 5. The modern AI model lifecycle：现代模型生命周期
+  - term: 11. DistributedDataParallel：从 AllReduce 到同步数据并行
+    meaning: DDP reducer 会为需要梯度的 parameters 注册 autograd hook，并把梯度组织成 buckets。Backward
+      从模型输出侧向输入侧推进，某个 bucket 的所有 gradients ready 后，DDP 就能发起该 bucket 的 collective，而不必等整个
+      backward 完成。
+    source_heading: 11. DistributedDataParallel：从 AllReduce 到同步数据并行
+  - term: 13. Launching distributed jobs：把进程、rank 与设备真正启动起来
+    meaning: 为什么先设置 device 再创建 GPU tensor/model：如果先在默认 GPU 0 分配模型，之后再切 device，可能造成
+      GPU 0 被所有进程占用或留下无用 allocation。
+    source_heading: 13. Launching distributed jobs：把进程、rank 与设备真正启动起来
+  - term: 17.14 Strong scaling 与 weak scaling 不能混报
+    meaning: 二者回答不同问题。把 weak-scaling 吞吐增长写成 fixed-workload 加速会夸大收益。
+    source_heading: 17.14 Strong scaling 与 weak scaling 不能混报
+  - term: 21. 复习与自测
+    meaning: 8 个 DDP ranks，每 rank local batch 为 32，每次 optimizer step 累积 2 个 microbatches，global
+      batch 是多少？
+    source_heading: 21. 复习与自测
+  logic:
+  - 0. 本章要回答的核心问题
+  - 5. The modern AI model lifecycle：现代模型生命周期
+  - 8. Distributed AI fundamentals with PyTorch
+  - 13. Launching distributed jobs：把进程、rank 与设备真正启动起来
+  - 16. 随章 PDF 权益说明
+  - 18. 本章知识结构
+  - 21. 复习与自测
+  sections:
+  - title: 0. 本章要回答的核心问题
+    source_heading: 0. 本章要回答的核心问题
+    paragraphs:
+    - 给定参数量、精度、优化器、batch 和序列长度，如何估算训练或推理显存？
+    - 什么情况下必须使用分布式，什么情况下单 GPU 加优化引擎反而更合适？
+    - PyTorch 的 rank、process group、backend 和八类 collective 怎样连接到 DDP、FSDP 与高级并行？
+    - 先把逻辑规模换算成字节、FLOPs 和请求负载，分清容量约束与性能约束，再引入刚好足够的分布式复杂度。
+  - title: 3. Estimating model resource requirements：资源估算
+    source_heading: 3. Estimating model resource requirements：资源估算
+    paragraphs:
+    - BF16 常被优先用于训练，是因为梯度和激活的数量级变化很大，8 位指数降低了溢出/下溢风险。FP16 不是不能训练，而是常需 loss scaling
+      等机制。FP8、MXFP8、NVFP4 则不能只看“每值几位”：它们依赖 block scale、校准、硬件代际和特定 kernel，实际精度与内存都由“数值
+      + 元数据 + 执行策略”共同决定。
+    - 原章用“backward 时 activation 与 gradient 重叠”解释峰值，这是常见情况，但不是普遍定律。fused optimizer
+      可能在 step 时产生临时峰值，gradient accumulation 会让梯度跨 microbatch 常驻，checkpoint 保存和大型临时
+      kernel 也可能创造更高峰值。应实测峰值所在阶段。
+    - 若再保留 FP32 master weight，则再加 28 GB，固定状态达到约 112 GB。不同 AMP、fused optimizer、分片和框架版本会改变布局，因此“BF16+Adam
+      每参数多少字节”必须先列 ledger，不能只背 8、12 或 16 bytes/parameter。
+    - 例如 13B BF16 权重是 26 GB。原章一处写“加 Adam 状态约 78 GB”，这只等于 26 GB 权重 + 两份 BF16 Adam 状态，遗漏了至少
+      26 GB 梯度；按原章全 BF16 ledger 应为约 104 GB 再加 activation。原章另一处给 13B BF16+Adam 训练约
+      110～130 GB，才与这一口径较接近。决策时不能把 78 GB 当作完整峰值塞进 80 GB A100。
+  - title: 5. The modern AI model lifecycle：现代模型生命周期
+    source_heading: 5. The modern AI model lifecycle：现代模型生命周期
+    paragraphs:
+    - 训练常用指标是 samples/s、tokens/s、step time、time-to-train、MFU、收敛质量和总成本。单步更快但收敛步数显著增加，不一定缩短
+      time-to-quality。
+    - 若端到端利用率为 40%，约需 487 天。不同架构、计算公式、稀疏性和硬件会改变数字，但 8 张 A100 两周不足以完成这一稠密训练量。两周目标在理论
+      100% 峰值下也约需 111 张 A100，在 40% 利用率下约需 278 张。
+    - 服务还要处理多模型、多租户、canary、A/B test、熔断、重试、故障转移和成本归属。它的“可用”不能只定义为进程存活，还应包含延迟与输出质量约束。
+    - 原章表中把 serving latency 简写为毫秒，把 inference latency 写为毫秒到秒。真实 LLM 长生成可能持续数十秒或更久；指标必须按
+      prefill/decode 和请求长度分解。
+  - title: 8. Distributed AI fundamentals with PyTorch
+    source_heading: 8. Distributed AI fundamentals with PyTorch
+    paragraphs:
+    - 用户编写模型、loss、optimizer 和训练循环，并选择 DDP/FSDP 等并行抽象。PyTorch autograd 知道参数梯度何时 ready，DDP
+      才能在 backward 中插入同步。
+    - DDP 通常把许多小参数梯度组合成 bucket。这样做是因为一次网络/collective 调用有固定启动成本：发送 1000 个小 tensor 往往比发送同总字节的若干大
+      bucket 更慢。梯度 bucket ready 后可在后续 backward 计算同时发起通信。
+    - 这一层只规定“谁贡献什么、谁得到什么”：AllReduce 让所有 rank 获得 reduction，Gather 只让 root 获得所有输入。它不固定采用
+      ring 还是 tree，也不指定走哪块 NIC。
+    - ring、tree 是 collective 的逻辑调度算法；fat-tree、mesh、torus、NVLink fabric 是网络或互连的物理/逻辑拓扑。NCCL
+      可以在非物理环形的机器上构造逻辑 ring，也可以对节点内与节点间采用层次化算法。
+  - title: 11. DistributedDataParallel：从 AllReduce 到同步数据并行
+    source_heading: 11. DistributedDataParallel：从 AllReduce 到同步数据并行
+    paragraphs:
+    - Adam 虽然还维护一阶矩和二阶矩，但如果各 rank 的初始 optimizer state 相同、每步看到相同聚合梯度并按相同顺序更新，optimizer
+      state 也会保持相同。DDP 通常不在每一步额外同步完整 Adam state；这种一致性来自确定性的相同状态转移。
+    - 这张表说明为什么 DDP 显存并不会除以 world size：参数、optimizer 与 local activation 都存在于每个 rank。增加
+      rank 甚至会增加整个集群的状态总副本数。
+    - DDP reducer 会为需要梯度的 parameters 注册 autograd hook，并把梯度组织成 buckets。Backward 从模型输出侧向输入侧推进，某个
+      bucket 的所有 gradients ready 后，DDP 就能发起该 bucket 的 collective，而不必等整个 backward 完成。
+    - 因此，“DDP 与单卡 loss 曲线不同”不自动表示实现错误；先检查比较是否保持了 global batch、数据顺序、学习率 schedule 和随机性条件。
+  - title: 13. Launching distributed jobs：把进程、rank 与设备真正启动起来
+    source_heading: 13. Launching distributed jobs：把进程、rank 与设备真正启动起来
+    paragraphs:
+    - 为各 process 注入 global/local rank 与 world size；
+    - 为什么先设置 device 再创建 GPU tensor/model：如果先在默认 GPU 0 分配模型，之后再切 device，可能造成 GPU 0
+      被所有进程占用或留下无用 allocation。
+    - 下面示例使用合成数据，重点验证 process group、sampler、DDP backward 和 cleanup。它会在有 NCCL GPU 时使用
+      CUDA，否则使用 Gloo + CPU。
+    - sampler indices 的 overlap/coverage 正确；
+  - title: 16. 随章 PDF 权益说明
+    source_heading: 16. 随章 PDF 权益说明
+    paragraphs:
+    - 原章最后提供 Packt 的 PDF/随书权益解锁二维码，也可访问 packtpub.com/unlock，按书名搜索并确认版本。它属于出版配套信息，不是本章技术论证的一部分。
+    - 确认 edition 很重要：框架 API、代码仓库和勘误可能随版次更新。复现实验时仍应记录代码 commit 与依赖版本，不能用“来自官方配套”替代版本说明。
+  - title: 17.14 Strong scaling 与 weak scaling 不能混报
+    source_heading: 17.14 Strong scaling 与 weak scaling 不能混报
+    paragraphs:
+    - Strong scaling 固定总工作量，设备增加后每设备工作变少；
+    - Weak scaling 随设备数增加总工作量，保持每设备工作量近似不变。
+    - 二者回答不同问题。把 weak-scaling 吞吐增长写成 fixed-workload 加速会夸大收益。
+  - title: 18. 本章知识结构
+    source_heading: 18. 本章知识结构
+    paragraphs:
+    - 约束线：规模增长 -> 容量/时间/流量边界 -> 是否分布式。
+    - 状态线：权重、训练状态、activation、KV cache -> 复制还是分片。
+    - 数据流线：local batch -> gradient -> collective -> 一致参数。
+    - 证据线：估算 -> 单设备基线 -> 扩展实验 -> profiler/指标 -> 决策。
+  - title: 21. 复习与自测
+    source_heading: 21. 复习与自测
+    paragraphs:
+    - 13B 模型使用 2 字节权重，仅权重约多少十进制 GB？若采用每参数总计 16 字节的混合精度 Adam 粗估，模型训练状态约多少 GB？
+    - 8 个 DDP ranks，每 rank local batch 为 32，每次 optimizer step 累积 2 个 microbatches，global
+      batch 是多少？
+    - 列出权重、gradient、optimizer、activation 和 runtime overhead 的估算。
+    - 完成这份报告后，应能从“程序可以多进程运行”前进到“能解释它为什么正确、为什么快或慢、以及失败如何传播”。这正是本章为后续 GPU 硬件、网络拓扑和并行策略章节建立的基础。
+  takeaways:
+  - 约束线：规模增长 -> 容量/时间/流量边界 -> 是否分布式。
+  - 参数量只是一阶入口。 训练和推理必须分别建立状态清单与峰值模型。
+  - 分布式栈必须从 API 追到 backend、algorithm、topology 和物理链路。
+  - DistributedSampler 与 DDP 缺一不可：前者保证数据不同，后者保证更新一致。
+  - 框架会更新，但状态布局、数据流、同步边界与测量方法更持久。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念辨析
+  question: 原文如何解释「17.1 “现代 AI 很大”不等于每个 AI 任务都要分布式」？
+  answer: 分布式是对容量、时限或吞吐约束的回答。一个能在单卡满足显存、训练期限和服务 SLO 的任务，增加多进程只会引入通信、故障和运维成本。正确顺序是先估算和测量，再决定是否分布式。
+  source_heading: 17.1 “现代 AI 很大”不等于每个 AI 任务都要分布式
+- level: 概念辨析
+  question: 原文如何解释「17.8 模型能放下不等于训练时间可接受」？
+  answer: 容量可行与性能可行是两个问题。CPU/NVMe offload 可能让模型运行，却因传输使训练极慢；单卡可以容纳也可能需要数月。反过来，小模型即使能多卡运行，也可能因同步开销更慢。
+  source_heading: 17.8 模型能放下不等于训练时间可接受
+- level: 概念辨析
+  question: 原文如何解释「17.16 Process、rank、GPU 与 node 不是同一个对象」？
+  answer: 一个 node 可有多个 ranks/GPUs，一个 GPU 也可能被多个 process 错误或有意共享。
+  source_heading: 17.16 Process、rank、GPU 与 node 不是同一个对象
+- level: 概念辨析
+  question: 原文如何解释「17.24 Reduce 后非 root buffer 不应当作全局结果」？
+  answer: Reduce 的契约只保证 root 获得 reduction。即使某个版本/后端上非 root buffer 看似保留本地值，也不应依赖这种非目标语义。
+  source_heading: 17.24 Reduce 后非 root buffer 不应当作全局结果
+- level: 概念辨析
+  question: 原文如何解释「17.32 闭源模型参数估计不等于公开事实」？
+  answer: 对 closed model 的参数量、MoE experts 或训练成本，必须标注来源、日期和 estimated/disclosed。总参数、active
+    parameters 与每 token FLOPs 也不能混为一个“模型大小”。
+  source_heading: 17.32 闭源模型参数估计不等于公开事实

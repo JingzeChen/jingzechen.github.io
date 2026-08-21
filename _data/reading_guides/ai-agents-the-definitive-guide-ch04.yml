@@ -1,0 +1,177 @@
+source:
+  post: _posts/book-notes/ai-system/ai-agents-the-definitive-guide/2026-08-12-ai-agents-the-definitive-guide-ch04.md
+  body_sha256: 4ef1f4188af72bfc6a7482dc1fdbaf1b5130af29bf5a7cd7b140a7e76b532bf1
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 14
+  question: 原文围绕「0. 本章定位与阅读主线」建立了怎样的核心认识？
+  question_source: 0. 本章定位与阅读主线
+  thesis: 最佳方案通常是渐进且混合的：cheap-first model routing、按需 reasoning、managed/self-host 组合、量化底座加可切换
+    adapter。
+  thesis_source: 16. 本章知识结构与核心结论
+  concepts:
+  - term: 0. 本章定位与阅读主线
+    meaning: 前三章先讨论 Agent 的控制结构、推理模式与学习方法，本章才回到模型本身。作者有意采用“先设计团队，再招聘成员”的顺序：只有明确工作流里需要生成、检索、过滤、推理、路由还是写文件，模型的参数量和架构才有评价依据。
+    source_heading: 0. 本章定位与阅读主线
+  - term: 3. KV Cache 与 GQA：以显存换解码速度
+    meaning: 但真实 attention logits 并非“每个分数大体不变”，softmax 也能在很长序列上保持尖锐。Lost-in-the-middle/haystack
+      还与训练长度、位置编码、内容干扰、查询—证据匹配、层间信息传递和模型数据分布有关。因此 trimming 是一种上下文治理手段，不是由 Softmax
+      公式直接推出的万能修复。
+    source_heading: 3. KV Cache 与 GQA：以显存换解码速度
+  - term: 7. Putting It All Together：设计一个模型专家团队
+    meaning: 0.956 是该 encoder/tool 定义下的相关性分数，不是“95.6% 事实正确概率”，也不证明无 hallucination。Encoder
+      能检查 query—document semantic relevance；它通常不能独立验证网页真实性、引用是否支持 claim、时效性或推理结论。
+    source_heading: 7. Putting It All Together：设计一个模型专家团队
+  - term: 8. Open vs. Closed：模型选择也是组织战略
+    meaning: 闭源 frontier models 常受益于专有数据和大规模训练；Qwen、Kimi 等开放/开放权重模型缩小差距。排行榜不是 Agent
+      节点表现：tool calling、JSON adherence、目标语言、context recall、延迟和 quantized quality 都要在自己的
+      workflow 上测。
+    source_heading: 8. Open vs. Closed：模型选择也是组织战略
+  - term: 12. Quantization：降低数值精度以换取容量和速度
+    meaning: 4-bit weight-only 往往显著省显存，使更大模型或更多并发可运行；端到端 tokens/s 是否上升必须 benchmark。Quantization
+      还可能影响 tool-call JSON、数学、长上下文和小概率 token，不应只测 perplexity。
+    source_heading: 12. Quantization：降低数值精度以换取容量和速度
+  - term: 16. 本章知识结构与核心结论
+    meaning: 最佳方案通常是渐进且混合的：cheap-first model routing、按需 reasoning、managed/self-host
+      组合、量化底座加可切换 adapter。
+    source_heading: 16. 本章知识结构与核心结论
+  logic:
+  - 0. 本章定位与阅读主线
+  - 3. KV Cache 与 GQA：以显存换解码速度
+  - 5. Mixture of Experts：用条件计算扩展容量
+  - 8. Open vs. Closed：模型选择也是组织战略
+  - 10. LoRA 与 Adapters：冻结底座，学习小增量
+  - 14. 从本章抽象出的模型选型与优化方法
+  - 16. 本章知识结构与核心结论
+  sections:
+  - title: 0. 本章定位与阅读主线
+    source_heading: 0. 本章定位与阅读主线
+    paragraphs:
+    - 前三章先讨论 Agent 的控制结构、推理模式与学习方法，本章才回到模型本身。作者有意采用“先设计团队，再招聘成员”的顺序：只有明确工作流里需要生成、检索、过滤、推理、路由还是写文件，模型的参数量和架构才有评价依据。
+    - 架构能力：decoder-only、encoder-only、encoder–decoder、embedding、MoE 与 reasoning model
+      分别擅长什么。
+    - 系统组合：把快速 decoder、深度 reasoning controller、encoder verifier 与 supervisor 组合成研究写作团队。
+    - 所有权与优化：开放权重和闭源 API 怎样改变成本、合规和锁定风险；LoRA、adapter、LoRAX 与 quantization 怎样降低适配和服务成本。
+  - title: 2. Decoder-Only：生成型 Agent 的基础
+    source_heading: 2. Decoder-Only：生成型 Agent 的基础
+    paragraphs:
+    - decoder-only 模型没有独立 encoder 和 encoder–decoder cross-attention。
+    - 模型“回看自己的输出”是上下文条件递归，不是参数在解码期间更新。早期错误也会成为后续条件，所以长生成需要验证和反馈回路。
+    - Prefill：并行处理整个输入 prompt，计算各层 hidden states 和 K/V；计算密集。
+    - Decode：每轮只生成一个新 token，读取历史 K/V；内存带宽和 cache 容量常成为瓶颈。
+  - title: 3. KV Cache 与 GQA：以显存换解码速度
+    source_heading: 3. KV Cache 与 GQA：以显存换解码速度
+    paragraphs:
+    - 因子 2 对应 K 与 V。该式省略 block metadata、padding、allocator fragmentation 和其他 runtime
+      buffer，因此是下界式容量估算。
+    - KV cache 主要减少 K/V projection 的重复计算；attention score 仍需让新 query 读取历史 keys，标准全注意力下每个
+      decode step 对历史长度仍近似线性。
+    - cache 错配会导致输出异常，但“hallucination”不是专门诊断码；还应排查 tokenizer、position IDs、adapter、模型版本和
+      sampling config。
+    - 但真实 attention logits 并非“每个分数大体不变”，softmax 也能在很长序列上保持尖锐。Lost-in-the-middle/haystack
+      还与训练长度、位置编码、内容干扰、查询—证据匹配、层间信息传递和模型数据分布有关。因此 trimming 是一种上下文治理手段，不是由 Softmax
+      公式直接推出的万能修复。
+  - title: 5. Mixture of Experts：用条件计算扩展容量
+    source_heading: 5. Mixture of Experts：用条件计算扩展容量
+    paragraphs:
+    - Attention 和其他 dense 部分仍会运行，只有 MoE 层中的专家 FFN 稀疏激活。
+    - 但所有权重通常仍要驻留 GPU/CPU 集群，通信、router、attention 和内存带宽成本不会按同一比例缩小。
+    - 训练常加 load-balancing auxiliary loss，使 expert 使用更均衡，并设 capacity factor。若一个 expert
+      接收过多 token，可能排队、drop token 或路由到备选 expert。
+    - "“专家像团队成员”是帮助理解 conditional computation 的比喻，不能据此把模型内部 expert 解释成拥有可审计自然语言职责的
+      Agent。"
+  - title: 7. Putting It All Together：设计一个模型专家团队
+    source_heading: 7. Putting It All Together：设计一个模型专家团队
+    paragraphs:
+    - 作者因此把“模型选型”落到一个研究写作 MAS：高频、低风险节点使用 fast decoder；关键证据分析由 thinker 驱动，并用 encoder
+      做语义过滤；supervisor 使用另一个高能力模型路由和判断完成。
+    - 这和第 2 章的 helper 相同，变化的是传入的模型。由此可见，Agent abstraction 把控制协议与模型实现分离：同一个 worker
+      factory 可以承载 fast decoder 或 reasoning model。
+    - 0.956 是该 encoder/tool 定义下的相关性分数，不是“95.6% 事实正确概率”，也不证明无 hallucination。Encoder
+      能检查 query—document semantic relevance；它通常不能独立验证网页真实性、引用是否支持 claim、时效性或推理结论。
+    - 所谓 self-auditing 更准确地说是异构交叉检查：generator/reasoner 与 encoder scorer 使用不同模型和目标，减少部分相关错误。但仍需来源验证、claim–evidence
+      alignment 和业务验收。
+  - title: 8. Open vs. Closed：模型选择也是组织战略
+    source_heading: 8. Open vs. Closed：模型选择也是组织战略
+    paragraphs:
+    - 开放生态能快速吸收 Hugging Face、vLLM、Ollama 等工具和新架构；闭源能力按 vendor 发布节奏变化。但启动速度可能相反：闭源
+      API 和 managed open endpoint 几分钟即可使用，自托管需要容量、监控和安全工程。
+    - 闭源 frontier models 常受益于专有数据和大规模训练；Qwen、Kimi 等开放/开放权重模型缩小差距。排行榜不是 Agent 节点表现：tool
+      calling、JSON adherence、目标语言、context recall、延迟和 quantized quality 都要在自己的 workflow
+      上测。
+    - 原章给出截至 2026 年初的示例性 token 价格：某些闭源高端模型可达每百万 input $150、output $600，而低价 managed
+      open model 约 input $0.3、output $3。价格高度时效、受缓存/批处理/region/tier 影响，只能说明数量级差异，不能当永久报价。
+    - 混合策略不是无代价：要维护多个 tokenizer、prompt template、tool schema、质量基线和 fallback，数据也必须在路由前分类。用统一
+      gateway 和 capability registry 隔离 provider 差异。
+  - title: 10. LoRA 与 Adapters：冻结底座，学习小增量
+    source_heading: 10. LoRA 与 Adapters：冻结底座，学习小增量
+    paragraphs:
+    - 这是单个方阵层的比例；实际模型要看 LoRA 注入哪些 Q/K/V/O 和 FFN 层、各层维度与是否训练 bias。
+    - 冻结 base 降低 catastrophic forgetting 风险，但 adapter 仍可改变输出行为和安全性；
+    - dynamic：保留共享 base，请求时选择 adapter，支持多租户/多任务，但 runtime 需加载、缓存和批处理 adapter。
+    - merge 后可在数学上恢复 base+adapter，前提是保留原权重和 adapter；对量化 merge 还要注意反量化、重重量化和误差。
+  - title: 12. Quantization：降低数值精度以换取容量和速度
+    source_heading: 12. Quantization：降低数值精度以换取容量和速度
+    paragraphs:
+    - Per-channel/group-wise quantization 为不同通道/组使用独立 scale，通常比全 tensor 一个 scale 更准确，但
+      metadata 和 kernel 更复杂。
+    - 4-bit weight-only 往往显著省显存，使更大模型或更多并发可运行；端到端 tokens/s 是否上升必须 benchmark。Quantization
+      还可能影响 tool-call JSON、数学、长上下文和小概率 token，不应只测 perplexity。
+    - 原章把 bitsandbytes、Unsloth 作为简化量化与训练的工具，并指出许多模型提供官方 quantized variants。官方变体仍需检查格式、group
+      size、校准数据、许可证和 serving engine compatibility。
+    - 顺序和 merge 需谨慎：在高精度 base 上 merge LoRA 后再量化，与量化 base 上动态应用 adapter，误差和 runtime
+      行为可能不同。
+  - title: 14. 从本章抽象出的模型选型与优化方法
+    source_heading: 14. 从本章抽象出的模型选型与优化方法
+    paragraphs:
+    - 先用 fast model；若 hard verifier 失败、置信度低、候选冲突或风险高，则升级 thinker/闭源 frontier/human
+      review。升级必须由结构化信号触发，不能让 fast model 自报“我很有信心”作为唯一依据。
+    - 固定 system prefix、分离 retrieval segment、记录 token hash 和模型/adapter/RoPE version；定义
+      trim/summarize 策略与不可删除控制状态。
+    - 用真实流量算 API 与 self-host TCO，加入员工、idle capacity、HA、安全和迁移成本。敏感数据先做治理，不以“开放”或“认证”代替
+      threat model。
+    - 先选择合适 base，再量化 benchmark；有稳定领域数据和可验证收益时做 LoRA/adapter；需要多 specialization 时才引入
+      multi-adapter serving。每步保留未优化 baseline，防止成本下降但业务成功率下降。
+  - title: 16. 本章知识结构与核心结论
+    source_heading: 16. 本章知识结构与核心结论
+    paragraphs:
+    - Decoder-only 是生成和工具调用主力；encoder-only 适合并行理解、retrieval、classification 和 verification。
+    - RoPE 让 query/key dot product依赖相对距离，但 scaling 配置不能替代长上下文训练和 workload evaluation。
+    - 最佳方案通常是渐进且混合的：cheap-first model routing、按需 reasoning、managed/self-host 组合、量化底座加可切换
+      adapter。
+    - 可迁移的一般方法是：先定义工作，再定义能力；先测基础模型，再调运行时；先做真实容量和成功成本模型，再决定所有权；最后用最小可逆优化逐步压缩成本，并始终保留质量回归。
+  takeaways:
+  - 模型选型应从 Agent 节点职责和约束出发，而非只看通用 benchmark 或参数量。
+  - RoPE 让 query/key dot product依赖相对距离，但 scaling 配置不能替代长上下文训练和 workload evaluation。
+  - LoRA 用低秩增量大幅减少可训练参数；adapter 用新增 bottleneck 模块隔离 specialization。
+  - 再补上 encoder 的双向理解、RoPE 和检索验证价值；
+  - 可迁移的一般方法是：先定义工作，再定义能力；先测基础模型，再调运行时；先做真实容量和成功成本模型，再决定所有权；最后用最小可逆优化逐步压缩成本，并始终保留质量回归。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念复述
+  question: 原文如何解释「0. 本章定位与阅读主线」？
+  answer: 前三章先讨论 Agent 的控制结构、推理模式与学习方法，本章才回到模型本身。作者有意采用“先设计团队，再招聘成员”的顺序：只有明确工作流里需要生成、检索、过滤、推理、路由还是写文件，模型的参数量和架构才有评价依据。
+  source_heading: 0. 本章定位与阅读主线
+- level: 边界判断
+  question: 原文如何解释「3. KV Cache 与 GQA：以显存换解码速度」？
+  answer: 但真实 attention logits 并非“每个分数大体不变”，softmax 也能在很长序列上保持尖锐。Lost-in-the-middle/haystack
+    还与训练长度、位置编码、内容干扰、查询—证据匹配、层间信息传递和模型数据分布有关。因此 trimming 是一种上下文治理手段，不是由 Softmax 公式直接推出的万能修复。
+  source_heading: 3. KV Cache 与 GQA：以显存换解码速度
+- level: 边界判断
+  question: 原文如何解释「8. Open vs. Closed：模型选择也是组织战略」？
+  answer: 闭源 frontier models 常受益于专有数据和大规模训练；Qwen、Kimi 等开放/开放权重模型缩小差距。排行榜不是 Agent 节点表现：tool
+    calling、JSON adherence、目标语言、context recall、延迟和 quantized quality 都要在自己的 workflow
+    上测。
+  source_heading: 8. Open vs. Closed：模型选择也是组织战略
+- level: 关系解释
+  question: 原文如何解释「12. Quantization：降低数值精度以换取容量和速度」？
+  answer: 4-bit weight-only 往往显著省显存，使更大模型或更多并发可运行；端到端 tokens/s 是否上升必须 benchmark。Quantization
+    还可能影响 tool-call JSON、数学、长上下文和小概率 token，不应只测 perplexity。
+  source_heading: 12. Quantization：降低数值精度以换取容量和速度
+- level: 概念复述
+  question: 原文如何解释「16. 本章知识结构与核心结论」？
+  answer: 最佳方案通常是渐进且混合的：cheap-first model routing、按需 reasoning、managed/self-host 组合、量化底座加可切换
+    adapter。
+  source_heading: 16. 本章知识结构与核心结论

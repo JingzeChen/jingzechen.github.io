@@ -1,0 +1,148 @@
+source:
+  post: _posts/book-notes/distributed-system/understanding-distributed-system/2026-08-16-understanding-distributed-systems-2e-ch11-coordination-avoidance.md
+  body_sha256: 07daaaae19d67b849ed65d9c10ec681dadf89bd3dcf960e3bf6f064205040097
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 8
+  question: 原文围绕「0. 本章定位：不是所有正确性都需要全局总序」建立了怎样的核心认识？
+  question_source: 0. 本章定位：不是所有正确性都需要全局总序
+  thesis: Quorum 不保证所有 replicas 最终收到 write。 Read repair 修热门 key，background sync/Merkle
+    anti-entropy 修冷数据。
+  thesis_source: 21. 核心结论
+  concepts:
+  - term: 0. 本章定位：不是所有正确性都需要全局总序
+    meaning: 如果放弃所有 updates 的全局 total order，能否仍获得有用、可证明的 consistency？
+    source_heading: 0. 本章定位：不是所有正确性都需要全局总序
+  - term: 5. Reliable broadcast 与 total-order broadcast
+    meaning: Fault-tolerant total-order broadcast 需要 consensus，因此代价更高，partition 下可能停止。
+    source_heading: 5. Reliable broadcast 与 total-order broadcast
+  - term: 10.4 冲突交给应用
+    meaning: 写入新 version 覆盖已解析 siblings。
+    source_heading: 10.4 冲突交给应用
+  - term: 12.1 示例目标
+    meaning: Figure 11.6 的 44/48 并发 merge。
+    source_heading: 12.1 示例目标
+  - term: 17. Causal+ 与 COPS
+    meaning: 纯 causal consistency 允许 replicas 对 unrelated concurrent operations 顺序不同，可能使最终状态分歧。Causal+
+      加 conflict convergence；原章用 LWW register 让 concurrent writes deterministic winner。
+    source_heading: 17. Causal+ 与 COPS
+  - term: 22. 从本章提炼出的通用解题方法
+    meaning: 本章最重要的方法论是：协调不是越少越好，而应只用于无法通过单调性、可交换操作和确定性 merge 解决的地方；先改变 operation
+      abstraction，往往比优化 consensus 更能提高可用性与性能。
+    source_heading: 22. 从本章提炼出的通用解题方法
+  logic:
+  - 0. 本章定位：不是所有正确性都需要全局总序
+  - 5. Reliable broadcast 与 total-order broadcast
+  - 9.2 Figure 11.5
+  - 12.1 示例目标
+  - 14. Anti-entropy
+  - 19.3 Eventual 与 strong eventual consistency
+  - 22. 从本章提炼出的通用解题方法
+  sections:
+  - title: 0. 本章定位：不是所有正确性都需要全局总序
+    source_heading: 0. 本章定位：不是所有正确性都需要全局总序
+    paragraphs:
+    - fault-tolerant total-order broadcast：所有副本以相同顺序收到相同 updates；
+    - deterministic state transition：每个副本对同一 update 得到同一结果。
+    - fault-tolerant total-order broadcast 与 consensus 等价；
+    - 如果放弃所有 updates 的全局 total order，能否仍获得有用、可证明的 consistency？
+  - title: 3. Eager reliable broadcast
+    source_heading: 3. Eager reliable broadcast
+    paragraphs:
+    - 即使原 sender 在只发出一部分后 crash，只要某个 non-faulty process 首次收到消息，消息最终传播给所有 non-faulty
+      processes。
+    - 经典 reliable broadcast 还包含 validity、agreement、integrity/no-duplication 等性质；原章聚焦
+      sender crash 下的 group-wide eventual delivery。
+    - 对应 Figure 11.2：P1 只发到 P2 就 crash，P2 再向其余节点 retransmit。
+  - title: 5. Reliable broadcast 与 total-order broadcast
+    source_heading: 5. Reliable broadcast 与 total-order broadcast
+    paragraphs:
+    - reliable broadcast 仍可成立，因为它只保证 delivery，不保证同序。
+    - Fault-tolerant total-order broadcast 需要 consensus，因此代价更高，partition 下可能停止。
+  - title: 9.2 Figure 11.5
+    source_heading: 9.2 Figure 11.5
+    paragraphs:
+    - 依据 total order，B timestamp 更大；
+    - 传播后两边都保留 48，丢弃 44。
+    - 原图以逻辑 timestamp 排序。若用 wall clock，skew 可能让较旧写错误获胜。
+  - title: 10.4 冲突交给应用
+    source_heading: 10.4 冲突交给应用
+    paragraphs:
+    - union shopping cart；
+    - 写入新 version 覆盖已解析 siblings。
+  - title: 12.1 示例目标
+    source_heading: 12.1 示例目标
+    paragraphs:
+    - max-register 的 commutative/associative/idempotent merge；
+    - 两分量 version vector 偏序；
+    - MV register 删除 dominated versions、保留 concurrent siblings；
+    - Figure 11.6 的 44/48 并发 merge。
+  - title: 14. Anti-entropy
+    source_heading: 14. Anti-entropy
+    paragraphs:
+    - write 只等待 W；其余请求可能永久丢失。若之后没有机制补写，落后 replica 永远不会收敛。
+    - 局限：冷 key 永远不读，就永远不 repair；所以不能单独保证 convergence。
+    - 后台 replicas 周期比较 key ranges，发现 X 的 K 比 Y 旧，就拉取新 version。
+    - 若 root 相同，树覆盖数据相同（在 hash collision 可忽略前提下）；若不同，递归比较只传输/修复不同 subtree，避免发送全量数据。
+  - title: 17. Causal+ 与 COPS
+    source_heading: 17. Causal+ 与 COPS
+    paragraphs:
+    - 纯 causal consistency 允许 replicas 对 unrelated concurrent operations 顺序不同，可能使最终状态分歧。Causal+
+      加 conflict convergence；原章用 LWW register 让 concurrent writes deterministic winner。
+    - client 先前 reads 和 writes 得到的 versions 都成为未来 writes 的 dependencies；remote replica
+      在 dependencies 满足前不暴露 effect。传递依赖由 context 带上，因此 happened-before closure 被保护。
+    - local replica 可立即接受 read/write，不等待跨地域 remote ACK。partition 后各 cluster 继续服务；恢复后
+      async replication 和 dependency checks 收敛。
+    - 原章明确指出：local replica 可能在本地 commit 后、broadcast 前 crash，导致 update 丢失。COPS 接受该风险，以避免
+      client write 等待长距离 remote replication。
+  - title: 19.3 Eventual 与 strong eventual consistency
+    source_heading: 19.3 Eventual 与 strong eventual consistency
+    paragraphs:
+    - eventual：停止写后最终收敛；
+    - SEC：相同 update 集合立即决定相同 state，并要求 eventual delivery。
+    - SEC 不是 linearizability，也不提供 real-time reads。
+  - title: 22. 从本章提炼出的通用解题方法
+    source_heading: 22. 从本章提炼出的通用解题方法
+    paragraphs:
+    - sender crash 是否必须全送达？能否接受概率 miss？是否已有 anti-entropy？不要默认所有消息都需要 total-order broadcast。
+    - 逐一检查 partial write、failed write residue、version comparison、read/write overlap、sloppy
+      quorum 和 read repair。
+    - 说明 ACK 在几副本后返回、partition 时何处可写、何时 causal effect 可见、local crash 是否丢已 ACK write。不要用一个“最终一致”标签掩盖全部语义。
+    - 本章最重要的方法论是：协调不是越少越好，而应只用于无法通过单调性、可交换操作和确定性 merge 解决的地方；先改变 operation abstraction，往往比优化
+      consensus 更能提高可用性与性能。
+  takeaways:
+  - State machine replication 的 total-order broadcast 需要 consensus，并形成顺序瓶颈。 Coordination
+    avoidance 的目标是只协调真正需要排序的操作。
+  - Strong eventual consistency 要求 eventual delivery 与 strong convergence。 拥有相同 updates
+    的 replicas 必须得到相同 state。
+  - Partial write、concurrency 和 sloppy quorum 仍需处理。
+  - Causal consistency 保持 happened-before partial order。 Concurrent operations 不必由所有
+    replicas 同序观察。
+  - Consistency、availability、performance 是连续权衡。 产品 knobs 只能有意识地选择语义，不能消灭基本约束。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念辨析
+  question: 原文如何解释「19.1 Broadcast、multicast、replication」？
+  answer: broadcast 是 group delivery abstraction；replication 用 broadcast/anti-entropy
+    传播 state，但还需 merge、durability 和 read semantics。
+  source_heading: 19.1 Broadcast、multicast、replication
+- level: 概念辨析
+  question: 原文如何解释「19.4 CRDT 与“无冲突”」？
+  answer: conflict-free 指 merge 按定义 deterministic、无需 consensus；业务上仍可能出现多个 concurrent
+    intentions，LWW 甚至会丢一个。
+  source_heading: 19.4 CRDT 与“无冲突”
+- level: 概念辨析
+  question: 原文如何解释「19.6 W+R>N 与 linearizability」？
+  answer: 交集只保证读集合碰到写集合，不保证 partial write 原子性、最新版本选择、并发顺序或 real-time history。
+  source_heading: 19.6 W+R>N 与 linearizability
+- level: 概念辨析
+  question: 原文如何解释「19.9 Monotonic program 与 monotonic read」？
+  answer: CALM monotonicity 指新 inputs 不撤回 outputs；monotonic reads 是 client session
+    不读回更旧 version。名字相似，概念不同。
+  source_heading: 19.9 Monotonic program 与 monotonic read
+- level: 概念辨析
+  question: 原文如何解释「19.11 Available 与 durable」？
+  answer: COPS local write 可快速 ACK 并保持 availability，但 broadcast 前 crash 可能丢数据。响应成功、可继续服务和数据耐久是不同性质。
+  source_heading: 19.11 Available 与 durable

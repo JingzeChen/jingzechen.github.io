@@ -1,0 +1,161 @@
+source:
+  post: _posts/book-notes/deep-learning/build-a-large-language-model-from-scratch/2026-08-08-build-a-large-language-model-from-scratch-ch06-fine-tuning-for-classification.md
+  body_sha256: e014744162614c2dde13fe32442103189e0e17532aae14da41334c713f47b819
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 11
+  question: 原文围绕「0. 本章定位、学习目标与迁移主线」建立了怎样的核心认识？
+  question_source: 0. 本章定位、学习目标与迁移主线
+  thesis: 模型 accuracy、softmax 概率和阈值都依赖评估分布。平衡 test 上 95.67% 不直接等于线上 precision/recall。
+  thesis_source: 7. 全章知识结构
+  concepts:
+  - term: 0. 本章定位、学习目标与迁移主线
+    meaning: 第 5 章得到的 GPT-2 基础模型已经通过下一 token 预训练学到通用语言表示，但它的输出头仍回答“词表中哪个 token 最可能接在后面”。
+    source_heading: 0. 本章定位、学习目标与迁移主线
+  - term: 6.3 Creating Data Loaders（创建 DataLoader）
+    meaning: 数据在主进程读取，兼容 Windows/Jupyter 且调试简单。大数据可增加 workers 并使用 pinned memory/persistent
+      workers，但必须处理进程启动、随机种子和内存复制；workers 不改变样本语义。
+    source_heading: 6.3 Creating Data Loaders（创建 DataLoader）
+  - term: 6.6 Calculating the Classification Loss and Accuracy（计算分类损失与准确率）
+    meaning: 平衡数据上 50% 是朴素基线。真实不平衡部署中 accuracy 可能掩盖 spam recall，应补 precision、recall、F1、ROC/PR
+      和 confusion matrix。
+    source_heading: 6.6 Calculating the Classification Loss and Accuracy（计算分类损失与准确率）
+  - term: 6.7 Fine-Tuning the Model on Supervised Data（在监督数据上微调模型）
+    meaning: Validation 略高于 train/test 不表示它本质更容易泛化；开发过程中超参数根据 validation 选择，会给 validation
+      带来轻微适配偏差。Test 95.67% 是更接近最终未见数据估计。
+    source_heading: 6.7 Fine-Tuning the Model on Supervised Data（在监督数据上微调模型）
+  - term: 10. 作者分析与解决问题的一般思路
+    meaning: 不是凭惯例选最后 token，而是从 causal mask 推导：最后位置看过全部前缀，第一位置看不到后文。练习 6.3 用 75% vs
+      95.67% 的反例验证该假设。
+    source_heading: 10. 作者分析与解决问题的一般思路
+  - term: 15. 自测题与参考答案
+    meaning: 该位置在 causal mask 下可读取所有前序真实 token 和 padding；多层 attention 可把前文信息汇聚到其 hidden
+      state。但 padding 仍会影响表示，并非被忽略。
+    source_heading: 15. 自测题与参考答案
+  logic:
+  - 0. 本章定位、学习目标与迁移主线
+  - 6.3 Creating Data Loaders（创建 DataLoader）
+  - 6.4 Initializing a Model with Pretrained Weights（用预训练权重初始化模型）
+  - 6.7 Fine-Tuning the Model on Supervised Data（在监督数据上微调模型）
+  - 7. 全章知识结构
+  - 13. 核心结论
+  - 15. 自测题与参考答案
+  sections:
+  - title: 0. 本章定位、学习目标与迁移主线
+    source_heading: 0. 本章定位、学习目标与迁移主线
+    paragraphs:
+    - 第 5 章得到的 GPT-2 基础模型已经通过下一 token 预训练学到通用语言表示，但它的输出头仍回答“词表中哪个 token 最可能接在后面”。
+    - 6.3 构造 DataLoader：变长文本怎样 padding/truncation 后组成 batch？
+    - 6.6 定义指标：为什么 accuracy 用于报告，而 cross-entropy 用于训练？
+    - 因果位置不变量：使用最后位置时，该位置可通过 causal attention 读取所有此前位置；使用第一位置则只能读取自身。
+  - title: 6.1 Different Categories of Fine-Tuning（不同微调类别）
+    source_heading: 6.1 Different Categories of Fine-Tuning（不同微调类别）
+    paragraphs:
+    - 或者翻译、摘要、问答等开放任务。输出仍是一串 token，训练通常继续使用生成式 token-level loss。优势是一个模型可根据自然语言指令处理多种任务；代价是需要更广、更高质量的演示数据和更多计算，并且输出格式、事实性与指令遵循都要评估。
+    - 模型无需每次在输入中附带“请判断是否垃圾短信”的指令，直接输出固定类别 logits。它更专用、数据与计算要求通常更低、决策接口更容易约束，但不能自由回答类别集合之外的问题。
+    - 如果产品需要同一模型同时翻译、解释、摘要和分类，则指令微调更合适；下一章会实现该路线。
+    - 反过来，分类器也不能回答“为什么这是 spam”。选择应由输出契约、数据量、延迟、可解释需求和任务范围共同决定。
+  - title: 6.3 Creating Data Loaders（创建 DataLoader）
+    source_heading: 6.3 Creating Data Loaders（创建 DataLoader）
+    paragraphs:
+    - 预训练从一条长 token 流切固定窗口，每个窗口的 target 是右移 token 序列。短信分类中，每条消息是一个不可随意跨越的样本，长度不同，target
+      是单个 class label。
+    - 优点是 embedding 行已有预训练值，不必扩词表和随机初始化新 token。缺点是模型没有专门 padding mask，本章会实际处理这些 padding
+      token；它们不是完全“无影响”。
+    - 由于 GPT causal attention，位置 119 可以读取位置 0..119，包含整条真实消息和此前 padding，因而可作为固定位置的汇总表示。
+    - 数据在主进程读取，兼容 Windows/Jupyter 且调试简单。大数据可增加 workers 并使用 pinned memory/persistent
+      workers，但必须处理进程启动、随机种子和内存复制；workers 不改变样本语义。
+  - title: 6.4 Initializing a Model with Pretrained Weights（用预训练权重初始化模型）
+    source_heading: 6.4 Initializing a Model with Pretrained Weights（用预训练权重初始化模型）
+    paragraphs:
+    - 若随机初始化 124M GPT 再用约 1,045 条训练短信学习，它既要从零学语言，又要学 spam 边界，数据远远不足。OpenAI GPT-2 已学到通用语言表示，分类数据只需教会高层把这些表示映射到
+      0/1。
+    - 顺序是：先用匹配配置构造架构，再覆盖随机参数，最后 eval。若在替换 Parameter 前已经创建 optimizer，optimizer 可能仍引用旧参数；分类
+      optimizer 应在全部加载、冻结和换头之后创建。
+    - 连贯生成是权重映射成功的强集成检查。若 Q/K/V 转置或层映射错误，输出通常退化。仍应注意，单个 prompt 不是完备验证；更严谨可比较参考 logits/loss。
+    - 原书提示要求回答 yes/no，基础 GPT-2 却复述提示。原因是它只做过互联网文本的 next-token pretraining，最自然行为是续写，不是把用户文本解释为命令并遵循格式。
+  - title: 6.6 Calculating the Classification Loss and Accuracy（计算分类损失与准确率）
+    source_heading: 6.6 Calculating the Classification Loss and Accuracy（计算分类损失与准确率）
+    paragraphs:
+    - Softmax 对 argmax 保序，所以推断类别不需要先算概率。若要显示置信度或调整阈值，才计算 softmax；raw softmax 还可能需要校准。
+    - 平衡数据上 50% 是朴素基线。真实不平衡部署中 accuracy 可能掩盖 spam recall，应补 precision、recall、F1、ROC/PR
+      和 confusion matrix。
+    - 它连续地提高正确类 logit、压低错误类；当正确类超过其他类时 accuracy 才发生离散变化。Cross-entropy 提供比 0/1 accuracy
+      更密集的学习信号。
+    - 两个模型 accuracy 都 95%，一个对正确类概率 0.51，另一个 0.99，cross-entropy 会显著不同；反之 loss 小幅改善未必立刻改变
+      argmax accuracy。
+  - title: 6.7 Fine-Tuning the Model on Supervised Data（在监督数据上微调模型）
+    source_heading: 6.7 Fine-Tuning the Model on Supervised Data（在监督数据上微调模型）
+    paragraphs:
+    - 虽然每条输入有 120 token，但监督信号不是 120 个独立标签。比较不同 padding 长度时，也应区分 examples seen 与实际计算
+      token 数。
+    - 两者同步快速下降且差距小，说明在该 split 上学习与泛化同时改善。Validation loss 偶尔低于 train 可能来自小样本、batch
+      选择和数据难度，不必视为异常。
+    - Validation 略高于 train/test 不表示它本质更容易泛化；开发过程中超参数根据 validation 选择，会给 validation
+      带来轻微适配偏差。Test 95.67% 是更接近最终未见数据估计。
+    - 支持过拟合较小，但数据仅 300 条 test，且可能有模板相似/随机波动。95.67% 约为 287/300（具体取决于实际预测），少数样本即可改变约
+      0.33 个百分点。
+  - title: 7. 全章知识结构
+    source_heading: 7. 全章知识结构
+    paragraphs:
+    - 原始 UCI 分布：spam 约 13.4%。
+    - 平衡训练/当前评估分布：人为接近 50/50。
+    - 真实部署分布：随地区、时间、渠道变化，可能远低于或高于 13.4%。
+    - 模型 accuracy、softmax 概率和阈值都依赖评估分布。平衡 test 上 95.67% 不直接等于线上 precision/recall。
+  - title: 10. 作者分析与解决问题的一般思路
+    source_heading: 10. 作者分析与解决问题的一般思路
+    paragraphs:
+    - 该原则也适用于词表、归一化统计、阈值调节和特征选择：评估数据不能参与拟合预处理。
+    - 不是凭惯例选最后 token，而是从 causal mask 推导：最后位置看过全部前缀，第一位置看不到后文。练习 6.3 用 75% vs 95.67%
+      的反例验证该假设。
+    - 先冻结全部、训练新头；再解冻最后 block 和 norm；练习再对比全模型。这个顺序使性能/资源变化可归因，而不是一开始全量更新后无法知道哪些层必要。
+    - Cross-entropy 可微，适合优化；accuracy 直观，适合报告。作者训练时同时看 loss 与 accuracy，避免只看离散平台期或只看置信度。
+  - title: 13. 核心结论
+    source_heading: 13. 核心结论
+    paragraphs:
+    - Tokenizer、标签映射、max length 和 padding 规则只能由训练流程确定，validation/test 必须复用。
+    - 本章冻结 embeddings 和前 11 blocks，只训练最后 block、final norm 与新头。
+    - Decoder-only causal GPT 的最后位置能读取整个此前序列，适合分类；第一位置实验仅 75%。
+    - 最终完整 loader accuracy 为 train 97.21%、validation 97.32%、test 95.67%。
+  - title: 15. 自测题与参考答案
+    source_heading: 15. 自测题与参考答案
+    paragraphs:
+    - 训练先验被改成 50%，现实原数据约 13.4%，且神经网络本身可能未校准。后验概率受先验和训练目标影响，需要真实分布校准。
+    - 训练输入协议固定为 120，使所有 split/服务 shape 和分类位置一致；代价是超长评估文本尾部信息丢失，应统计截断率。
+    - 该位置在 causal mask 下可读取所有前序真实 token 和 padding；多层 attention 可把前文信息汇聚到其 hidden state。但
+      padding 仍会影响表示，并非被忽略。
+    - State dict 只有 tensor；改变 padding 长度会改变最后位置表示，交换 0/1 映射会把预测名称反转，因此它们都是模型接口的一部分。
+  takeaways:
+  - 原始 UCI 分布：spam 约 13.4%。
+  - UCI SMS 原始数据有 4,825 ham、747 spam，accuracy 必须结合不平衡基线解释。
+  - 补到 1,024 使测试 accuracy 降至 78.33%，说明最大支持长度不等于最佳输入长度。
+  - 分类 accuracy 用于报告，cross-entropy 提供可微训练信号。
+  - 平衡训练下的 softmax 未必是现实 spam 概率，线上需按真实先验校准阈值并监控漂移。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念复述
+  question: 原文如何解释「0. 本章定位、学习目标与迁移主线」？
+  answer: 第 5 章得到的 GPT-2 基础模型已经通过下一 token 预训练学到通用语言表示，但它的输出头仍回答“词表中哪个 token 最可能接在后面”。
+  source_heading: 0. 本章定位、学习目标与迁移主线
+- level: 边界判断
+  question: 原文如何解释「6.3 Creating Data Loaders（创建 DataLoader）」？
+  answer: 数据在主进程读取，兼容 Windows/Jupyter 且调试简单。大数据可增加 workers 并使用 pinned memory/persistent
+    workers，但必须处理进程启动、随机种子和内存复制；workers 不改变样本语义。
+  source_heading: 6.3 Creating Data Loaders（创建 DataLoader）
+- level: 边界判断
+  question: 原文如何解释「6.7 Fine-Tuning the Model on Supervised Data（在监督数据上微调模型）」？
+  answer: Validation 略高于 train/test 不表示它本质更容易泛化；开发过程中超参数根据 validation 选择，会给 validation
+    带来轻微适配偏差。Test 95.67% 是更接近最终未见数据估计。
+  source_heading: 6.7 Fine-Tuning the Model on Supervised Data（在监督数据上微调模型）
+- level: 关系解释
+  question: 原文如何解释「10. 作者分析与解决问题的一般思路」？
+  answer: 不是凭惯例选最后 token，而是从 causal mask 推导：最后位置看过全部前缀，第一位置看不到后文。练习 6.3 用 75% vs 95.67%
+    的反例验证该假设。
+  source_heading: 10. 作者分析与解决问题的一般思路
+- level: 概念复述
+  question: 原文如何解释「15. 自测题与参考答案」？
+  answer: 该位置在 causal mask 下可读取所有前序真实 token 和 padding；多层 attention 可把前文信息汇聚到其 hidden
+    state。但 padding 仍会影响表示，并非被忽略。
+  source_heading: 15. 自测题与参考答案

@@ -1,0 +1,196 @@
+source:
+  post: _posts/book-notes/machine-learning/hands-on-machine-learning/2026-08-02-homl-ch16-vision-multimodal-transformers.md
+  body_sha256: dedaac29688a72de3da65354a769f6ee19095bab5a336858c13288c27ed17f9b
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 18
+  question: 原文围绕「阅读导引」建立了怎样的核心认识？
+  question_source: 阅读导引
+  thesis: 多模态学习的两个核心问题是 fusion 与 alignment；tokenization + self/cross-attention 提供统一工具，但目标和数据决定是否真正对齐。
+  thesis_source: 24. 本章总结
+  concepts:
+  - term: 阅读导引
+    meaning: 上一章的 Transformer 处理离散文本 token。本章追问：图像、视频、音频和传感器信号既连续又高分辨率，怎样把它们变成 Transformer
+      可处理的 token？多种模态又怎样组合并对齐？
+    source_heading: 阅读导引
+  - term: 4. Fine-Tuning a Pretrained ViT
+    meaning: 从 scratch 训练 ViT 数据和算力成本很高。常规流程是加载与目标域接近的 checkpoint，替换 classification
+      head，使用较小 learning rate fine-tune；小数据时可先冻结 backbone。
+    source_heading: 4. Fine-Tuning a Pretrained ViT
+  - term: 9. Other Major Vision Models and Techniques
+    meaning: Token merging 合并相似 tokens，pruning 删除低价值 tokens，early exiting 让部分 tokens
+      提前停止，patch selection 在入口只选信息量高的区域。它们以 speed 换 approximation error，必须分别评估 accuracy、latency、hardware
+      utilization，而不能只报告理论 FLOPs。
+    source_heading: 9. Other Major Vision Models and Techniques
+  - term: 12. ViLBERT：Dual-Stream 与 Co-Attention
+    meaning: Text tokens 需要多层处理才能形成语义；Faster R-CNN region features 已经很 high-level。Single-stream
+      强迫两者使用相同 processing schedule，可能破坏 pretrained BERT representation。ViLBERT 因而先使用两个
+      specialized streams，再在高层交换信息。
+    source_heading: 12. ViLBERT：Dual-Stream 与 Co-Attention
+  - term: 17. Flamingo：冻结大模型之间的轻量桥梁
+    meaning: Flamingo 不从头训练全部网络，而复用 frozen CLIP-like vision encoder 和 frozen Chinchilla
+      decoder-only LLM。Image features 经 Perceiver-style Resampler 压成固定数量 visual latents，再由插入
+      LLM blocks 前的 gated cross-attention-dense modules 让 text 读取 visual latents。
+    source_heading: 17. Flamingo：冻结大模型之间的轻量桥梁
+  - term: 24. 本章总结
+    meaning: DINO 用 multi-crop self-distillation、EMA teacher、centering 和 sharpening
+      学无标签表示；MAE、BEiT、JEPA 则选择不同 reconstruction/prediction space。
+    source_heading: 24. 本章总结
+  logic:
+  - 阅读导引
+  - 4. Fine-Tuning a Pretrained ViT
+  - 7. Swin Transformer
+  - 12. ViLBERT：Dual-Stream 与 Co-Attention
+  - 14. DALL·E：从文本生成图像
+  - 19. Other Multimodal Models
+  - 24. 本章总结
+  sections:
+  - title: 阅读导引
+    source_heading: 阅读导引
+    paragraphs:
+    - 上一章的 Transformer 处理离散文本 token。本章追问：图像、视频、音频和传感器信号既连续又高分辨率，怎样把它们变成 Transformer
+      可处理的 token？多种模态又怎样组合并对齐？
+    - 视觉 Transformer：从 CNN + attention 过渡到纯 ViT，再解决数据效率、高分辨率、密集预测与无标签预训练；
+    - 多模态 Transformer：解决异构模态的 fusion 和 alignment，并发展出检索、生成、视觉对话与通用输入输出架构。
+    - Multimodal fusion 不自动产生正确 alignment，网络可能利用数据偏差；
+  - title: 2. DETR：CNN-Transformer 混合目标检测器
+    source_heading: 2. DETR：CNN-Transformer 混合目标检测器
+    paragraphs:
+    - 传统 detector 常依赖 anchors、proposal generation、IoU threshold 和 non-maximum suppression（NMS）。这些模块有效，却引入大量手工规则。DETR
+      将 detection 改写成集合预测：固定输出 M 个 object slots，每个 slot 直接预测一个 class 和一个 box，未使用的
+      slot 预测 “no object”。
+    - Decoder 接收 M 个可学习 object queries，通过 cross-attention 读取图像；
+    - 一一匹配迫使不同 queries 负责不同 objects，因此无需 NMS。Hungarian matching 本身是离散的，但只用来确定 target
+      assignment；选定 assignment 后，各 prediction loss 对网络参数仍可微。
+    - Self-attention 看全局场景，object queries 可协同避免重复预测；end-to-end objective 减少手工 components。原始
+      DETR 的局限是训练收敛慢、小目标表现较弱、仍依赖 CNN backbone，并且 encoder 对高分辨率 feature tokens 仍有二次复杂度。Deformable
+      DETR 等后续方法只采样少量 reference points，改善了训练速度和小目标检测。
+  - title: 4. Fine-Tuning a Pretrained ViT
+    source_heading: 4. Fine-Tuning a Pretrained ViT
+    paragraphs:
+    - 从 scratch 训练 ViT 数据和算力成本很高。常规流程是加载与目标域接近的 checkpoint，替换 classification head，使用较小
+      learning rate fine-tune；小数据时可先冻结 backbone。
+    - 书中 3 epochs 约 91.8% accuracy；augmentation 和更久训练可到约 93%–95%。
+    - 严格实验不应反复用 test set 选模型，应从 train 划 validation，最终只在 test 评一次。
+    - Image processor、resize/crop、normalization、label mapping 与 checkpoint 是一个整体 contract，不能随意替换。
+  - title: 7. Swin Transformer
+    source_heading: 7. Swin Transformer
+    paragraphs:
+    - 高宽都加倍时，W-MSA 成本约 4 倍，而 global MSA 约 16 倍。
+    - 原本处于相邻窗口的 patches 在 shifted layer 进入同一个 window，从而交换信息。多层后信息逐步扩散；patch merging
+      又让高层 token 覆盖更大 receptive field。
+    - 示例只验证 partition/shift；真实 SW-MSA 还必须构造上述 wrap-around mask。
+    - Swin v2 主要改善大模型和高 resolution transfer 的稳定性，包括 scaled cosine attention、continuous
+      relative position bias 和 normalization placement 等调整。Swin 实现复杂于 PVT，但线性 spatial
+      scaling 和多尺度输出使它长期适合作为 detection/segmentation backbone。
+  - title: 9. Other Major Vision Models and Techniques
+    source_heading: 9. Other Major Vision Models and Techniques
+    paragraphs:
+    - MAE 直接回归 normalized pixels，却通过非对称 architecture 降低成本：mask 约 75% patches，large
+      encoder 只处理可见 patches，small decoder 接收 encoded visible tokens 和 mask tokens，重建所有/被
+      mask patches。
+    - 若 solutions 位于相连的低损失 basin，weight average 可像 ensemble 一样改善 generalization，却只保留一个
+      model 的 inference cost。若 models 来自不同 permutations、不同 architectures 或遥远 basins，直接
+      averaging 会破坏功能。
+    - JEPA 不生成精确 pixels，也不是 generative likelihood model；优势是忽略不可预测细节、提高 semantic efficiency，局限是
+      representation collapse 仍需 architecture/EMA/masking recipe 防范，且 embedding prediction
+      难以直接可视化审计。
+    - Token merging 合并相似 tokens，pruning 删除低价值 tokens，early exiting 让部分 tokens 提前停止，patch
+      selection 在入口只选信息量高的区域。它们以 speed 换 approximation error，必须分别评估 accuracy、latency、hardware
+      utilization，而不能只报告理论 FLOPs。
+  - title: 12. ViLBERT：Dual-Stream 与 Co-Attention
+    source_heading: 12. ViLBERT：Dual-Stream 与 Co-Attention
+    paragraphs:
+    - Text tokens 需要多层处理才能形成语义；Faster R-CNN region features 已经很 high-level。Single-stream
+      强迫两者使用相同 processing schedule，可能破坏 pretrained BERT representation。ViLBERT 因而先使用两个
+      specialized streams，再在高层交换信息。
+    - Text stream 的低 12 层初始化自 BERT-base；vision stream 输入冻结 Faster R-CNN 提取的 10–36
+      个 region vectors。上层包含 6 对 co-attention layers。
+    - Masked region modeling：不回归 pixels，而拟合 Faster R-CNN 对该 region 的 soft class distribution；
+    - ViLBERT 在 visual grounding、image retrieval、VQA 和 visual commonsense reasoning
+      上表现强，但 region proposal bottleneck 会漏掉 detector 不认识的 objects，双流 co-attention
+      也比 CLIP dual encoder 更难缓存和扩展。
+  - title: 14. DALL·E：从文本生成图像
+    source_heading: 14. DALL·E：从文本生成图像
+    paragraphs:
+    - 生成结束后 dVAE decoder 将 tokens 还原成 pixels。优势是 text/image 统一为离散 sequence，训练仍是 NTP；局限是
+      image token sequence 长、generation 串行，dVAE quantization 限制细节，autoregressive sampling
+      慢。
+    - DALL·E 2 architecture 与第一代不同：CLIP text encoder 得 text representation，prior 学习从
+      text representation 预测 CLIP image representation，diffusion decoder 再以该 image
+      representation 为条件生成图像，并用 upsamplers 提高 resolution。它不再逐 dVAE token 生成。
+    - Diffusion 的核心直觉是从 noise 逐步 denoise；详细公式在第 18 章。CLIP space 提供 semantic target，但
+      image details 和 composition 仍由 diffusion process 建模。
+    - 公开信息显示 DALL·E 3 是 diffusion-based，并由 GPT-4 重写/扩展 prompt，显著改善 compositional instruction
+      following；完整 architecture、weights 和 data 未公开，不能对内部机制做超出证据的断言。
+  - title: 17. Flamingo：冻结大模型之间的轻量桥梁
+    source_heading: 17. Flamingo：冻结大模型之间的轻量桥梁
+    paragraphs:
+    - Flamingo 不从头训练全部网络，而复用 frozen CLIP-like vision encoder 和 frozen Chinchilla decoder-only
+      LLM。Image features 经 Perceiver-style Resampler 压成固定数量 visual latents，再由插入 LLM
+      blocks 前的 gated cross-attention-dense modules 让 text 读取 visual latents。
+    - 输入可交替包含多张 images 和 texts。每个 text token 只直接 cross-attend 它前面最近一张 image 的 visual
+      tokens，防止 pair assignment 混乱；更早 images 的信息可通过 previous text states 和 LLM self-attention
+      间接传播。Special image/end-of-chunk tokens 标记边界。
+    - Flamingo 凭少量 in-context examples 可做 caption、VQA、图像比较、视频帧描述等开放式任务。局限是 bases 的偏见仍保留、训练桥梁仍需海量
+      interleaved data，nearest-image mask 对复杂跨图 reasoning 是限制。
+    - OpenFlamingo、IDEFICS、AudioFlamingo 和 Med-Flamingo 提供开放或领域 variants；“open source”要分别检查
+      code、weights、base model license 和 training data license。
+  - title: 19. Other Multimodal Models
+    source_heading: 19. Other Multimodal Models
+    paragraphs:
+    - 目录具有时效性，选型应看 task、license、model card、evaluation、latency 和 deployment，而不是年份或参数量。原书还列出未公开完整
+      architecture 的商业模型，如 GPT-4.1、Sora、Gemini 2.5 Pro、Veo-3 和 Claude 4 Opus；API 能力不能当作其内部结构证据。
+    - Production 还需处理 data retention、regional compliance、rate limits、model version
+      drift、structured validation、cost 和 fallback。
+  - title: 24. 本章总结
+    source_heading: 24. 本章总结
+    paragraphs:
+    - DeiT 用 CNN teacher 蒸馏提升数据效率；PVT 用 spatial reduction，Swin 用 shifted local windows
+      支撑 dense/high-resolution vision。
+    - DINO 用 multi-crop self-distillation、EMA teacher、centering 和 sharpening 学无标签表示；MAE、BEiT、JEPA
+      则选择不同 reconstruction/prediction space。
+    - VideoBERT 把视频离散化后复用 BERT；ViLBERT 用双流 co-attention；CLIP 用大批量双向 contrastive learning
+      建共同 embedding space。
+    - Perceiver 用固定 latent bottleneck 将输入/输出复杂度降为线性；Flamingo 与 BLIP-2 则用小桥梁连接 frozen
+      vision/language foundation models。
+  takeaways:
+  - 视觉 attention 让生成模型动态读取图像区域，但 attention weight 不是完整因果解释。
+  - ViT 将 patches 当 tokens；灵活性来自弱 inductive bias，代价是 data hunger 和 quadratic attention。
+  - DINO 用 multi-crop self-distillation、EMA teacher、centering 和 sharpening 学无标签表示；MAE、BEiT、JEPA
+    则选择不同 reconstruction/prediction space。
+  - VideoBERT 把视频离散化后复用 BERT；ViLBERT 用双流 co-attention；CLIP 用大批量双向 contrastive learning
+    建共同 embedding space。
+  - Perceiver 用固定 latent bottleneck 将输入/输出复杂度降为线性；Flamingo 与 BLIP-2 则用小桥梁连接 frozen
+    vision/language foundation models。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念辨析
+  question: 原文如何解释「22. 易混概念与常见误解」？
+  answer: "“ViT 天生 translation invariant。” Learned absolute positions 反而对位置敏感；invariance
+    需 data augmentation/architecture 学得。"
+  source_heading: 22. 易混概念与常见误解
+- level: 边界判断
+  question: 原文如何解释「4. Fine-Tuning a Pretrained ViT」？
+  answer: 从 scratch 训练 ViT 数据和算力成本很高。常规流程是加载与目标域接近的 checkpoint，替换 classification head，使用较小
+    learning rate fine-tune；小数据时可先冻结 backbone。
+  source_heading: 4. Fine-Tuning a Pretrained ViT
+- level: 关系解释
+  question: 原文如何解释「9. Other Major Vision Models and Techniques」？
+  answer: Token merging 合并相似 tokens，pruning 删除低价值 tokens，early exiting 让部分 tokens
+    提前停止，patch selection 在入口只选信息量高的区域。它们以 speed 换 approximation error，必须分别评估 accuracy、latency、hardware
+    utilization，而不能只报告理论 FLOPs。
+  source_heading: 9. Other Major Vision Models and Techniques
+- level: 关系解释
+  question: 原文如何解释「17. Flamingo：冻结大模型之间的轻量桥梁」？
+  answer: Flamingo 不从头训练全部网络，而复用 frozen CLIP-like vision encoder 和 frozen Chinchilla
+    decoder-only LLM。Image features 经 Perceiver-style Resampler 压成固定数量 visual latents，再由插入
+    LLM blocks 前的 gated cross-attention-dense modules 让 text 读取 visual latents。
+  source_heading: 17. Flamingo：冻结大模型之间的轻量桥梁
+- level: 概念复述
+  question: 原文如何解释「24. 本章总结」？
+  answer: DINO 用 multi-crop self-distillation、EMA teacher、centering 和 sharpening 学无标签表示；MAE、BEiT、JEPA
+    则选择不同 reconstruction/prediction space。
+  source_heading: 24. 本章总结

@@ -1,0 +1,200 @@
+source:
+  post: _posts/book-notes/ai-system/hands-on-llm-serving-and-optimization/2026-08-12-hands-on-llm-serving-and-optimization-ch08.md
+  body_sha256: ec7a9ddbc378c84edbb4ed8533585be759393f16fc3c274981ef70d1549e7a04
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 19
+  question: 原文围绕「0. 本章定位、学习目标与框架地图」建立了怎样的核心认识？
+  question_source: 0. 本章定位、学习目标与框架地图
+  thesis: LLM framework 的核心抽象是有状态 token execution。 长序列、逐 token decode、KV、stream/cancel
+    让固定 request batch 不再足够。
+  thesis_source: 9. 本章知识结构与核心结论
+  concepts:
+  - term: 0. 本章定位、学习目标与框架地图
+    meaning: 第 5～7 章讨论“优化技术本身”，第 8 章讨论“谁在什么时间、什么层次应用这些技术”。单个 kernel 再快，如果 scheduler
+      让 GPU 空闲；cache 再大，如果 request 没有被路由到它；量化再激进，如果 runtime 没有对应 kernel，最终都不会形成生产收益。
+    source_heading: 0. 本章定位、学习目标与框架地图
+  - term: 2. vLLM
+    meaning: Scheduler 选择 token shape，影响 kernel efficiency；quantized model 改变 KV/weight
+      capacity，影响 admission；speculation 增加 tokens，影响 token budget；remote cache load
+      影响 request readiness。分层不是隔绝，而是通过清晰 metadata 契约协作。
+    source_heading: 2. vLLM
+  - term: 3. TensorRT-LLM
+    meaning: TensorRT-LLM 是 NVIDIA 面向 NVIDIA GPU 的高性能 LLM inference library/runtime。它从
+      checkpoint 构建或选择高度优化的 TensorRT execution engine，并提供 Python/C++ runtime、in-flight
+      batching、paged KV、speculation、FP8/FP4/INT4/INT8、TP/PP 等。
+    source_heading: 3. TensorRT-LLM
+  - term: 5. Llama.cpp
+    meaning: Wildcard 可能匹配多个 artifacts，生产应选择精确 filename/revision/hash。Q8_0 对 8B 模型仍需约
+      8 GB 级权重外加 KV/runtime；CPU latency 取决于 memory bandwidth、threads、NUMA、BLAS/backend
+      和 context。
+    source_heading: 5. Llama.cpp
+  - term: 6. Selecting the Right Framework
+    meaning: 评估：metrics/traces/logs、request IDs、per-tenant fairness、health/readiness、graceful
+      drain、rolling/canary、autoscaling signal、distributed failure、artifact security、CVEs、support/community、release
+      cadence 和 backward compatibility。
+    source_heading: 6. Selecting the Right Framework
+  - term: 9. 本章知识结构与核心结论
+    meaning: 本章的总方法是：先把 LLM 请求视为携带 KV 状态、跨越多轮 forward 的 token 状态机，再检查框架是否把 request
+      priority、token/KV allocation、distributed execution、model architecture 和 hardware
+      kernel 放在正确层；随后在同一模型、同一 workload、同一硬件和同一质量门槛下比较 vLLM、TensorRT-LLM、SGLang 与 llama.cpp
+      的 tail latency、goodput、成本和运维；最后用稳定内部 contract、capability negotiation、replay
+      workload 和退出计划应对框架持续变化。
+    source_heading: 9. 本章知识结构与核心结论
+  logic:
+  - 0. 本章定位、学习目标与框架地图
+  - 1. Why We Need Specialized LLM Serving Frameworks
+  - 3. TensorRT-LLM
+  - 4. SGLang
+  - 5. Llama.cpp
+  - 8. 从本章抽象出的框架分析方法
+  - 9. 本章知识结构与核心结论
+  sections:
+  - title: 0. 本章定位、学习目标与框架地图
+    source_heading: 0. 本章定位、学习目标与框架地图
+    paragraphs:
+    - 第 5～7 章讨论“优化技术本身”，第 8 章讨论“谁在什么时间、什么层次应用这些技术”。单个 kernel 再快，如果 scheduler 让 GPU
+      空闲；cache 再大，如果 request 没有被路由到它；量化再激进，如果 runtime 没有对应 kernel，最终都不会形成生产收益。
+    - "“Serving framework”与 Web API、model server、distributed platform、kernel library
+      分别是什么关系？"
+    - Token budget、KV blocks、encoder budget、LoRA、prefix hit 和 preemption 如何共同约束一个
+      schedule step？
+    - 版本边界说明：本章描述的是原书写作时的框架架构和 API。vLLM、TensorRT-LLM、SGLang 与 llama.cpp 都高速迭代，内部类名、消息队列、模型实现、默认
+      kernel 和参数可能变化。这里应学习稳定职责和数据流，不应把内部符号当永久公共 API。
+  - title: 1. Why We Need Specialized LLM Serving Frameworks
+    source_heading: 1. Why We Need Specialized LLM Serving Frameworks
+    paragraphs:
+    - TensorFlow Serving、TorchServe、通用 Triton 等不是“不能运行 LLM”，而是其原始核心抽象主要针对一次调用完成、shape
+      较稳定的模型。要高效服务 LLM，还需专门的 token scheduler、KV allocator、stream/cancel 和模型感知 kernel。
+    - 低 TTFT 只是模型侧条件；Framework 还要增量输出、取消、backpressure、stop/grammar、错误和 request ID。原章“数百毫秒
+      TTFT”是产品目标示例，不是所有模型/上下文的通用门槛。
+    - 性能损失来自 GPU idle、低 arithmetic intensity、KV fragmentation、排队和通信。专用框架把 Paged KV、continuous
+      batching、quantization、speculation 与 parallelism 放在统一 runtime 中，目标是在 latency/quality
+      SLO 下最大化 goodput，而不只是裸 FLOPS。
+    - Framework 通常不替代企业 gateway、tenant billing、RAG、全局 model routing、Kubernetes node
+      provisioning 和业务治理。它是高性能 model execution backend，有时附带 HTTP server。生产平台仍需在外层处理身份、配额、跨
+      replica routing、发布和 observability。
+  - title: 2. vLLM
+    source_heading: 2. vLLM
+    paragraphs:
+    - Plan 至少包含 scheduled request IDs、每请求 token 数、总 token 数、KV block mapping、encoder
+      input、speculative/adapter metadata。它是 policy/mechanism 边界：可记录/trace 这个 plan
+      来解释为什么某请求被调度或 preempt。
+    - Runner 将不同请求的 scheduled tokens flatten/pack 成 GPU tensors，调用 attention/model
+      layers。TP workers 执行 collective；model output 可能包含 hidden states/logits/sampled
+      IDs 与 updated metadata。
+    - 更新 token sequence、stop/EOS、detokenize、structured output state、usage 和 stream
+      event；完成/取消后释放 KV blocks。客户端 cancel 若不传播到 Scheduler，只停止网络发送而不会节省 GPU。
+    - Scheduler 选择 token shape，影响 kernel efficiency；quantized model 改变 KV/weight capacity，影响
+      admission；speculation 增加 tokens，影响 token budget；remote cache load 影响 request
+      readiness。分层不是隔绝，而是通过清晰 metadata 契约协作。
+  - title: 3. TensorRT-LLM
+    source_heading: 3. TensorRT-LLM
+    paragraphs:
+    - TensorRT-LLM 是 NVIDIA 面向 NVIDIA GPU 的高性能 LLM inference library/runtime。它从 checkpoint
+      构建或选择高度优化的 TensorRT execution engine，并提供 Python/C++ runtime、in-flight batching、paged
+      KV、speculation、FP8/FP4/INT4/INT8、TP/PP 等。
+    - TensorRT（优化/编译 runtime）、TensorRT-LLM（LLM library/runtime）和 Triton Inference
+      Server（model server）不是同一组件。
+    - 适合：NVIDIA-only fleet、模型相对稳定、团队愿意为 peak tokens/$投入编译/调优、需要 C++/Triton/Dynamo
+      集成。
+    - 局限：Vendor/hardware lock-in 更强，新 architecture 到支持完成可能有时间差；build/profile/engine
+      管理比“直接加载 HF checkpoint”复杂。是否最快必须按 model、precision、GPU 和 workload 测，不能由品牌推断。
+  - title: 4. SGLang
+    source_heading: 4. SGLang
+    paragraphs:
+    - SGLang 将高性能 runtime 与用于结构化、多步生成的 frontend/API 共同设计，支持 LLM/VLM、OpenAI-compatible
+      API、RadixAttention、continuous batching、paged KV、EAGLE speculation、chunked prefill、JSON/regex/EBNF、multi-LoRA
+      和多种 parallelism。
+    - Agent 会在多次调用间复用 system/tool/schema/history prefix，并要求严格 JSON/grammar。RadixAttention
+      通过 longest-prefix KV reuse 减少重复 prefill；grammar-constrained decoding 在每步限制合法
+      tokens，提高结构正确率；frontend/runtime 协同减少多步 orchestration overhead。
+    - 原章列出 NVIDIA、AMD、CPU、TPU、Jetson、Ascend 等文档/部署覆盖。广泛 backend 支持不等于每个 feature、model、kernel
+      在所有硬件等价：EAGLE、FP8、FlashAttention、quantization 和 distributed modes 仍有 backend-specific
+      matrix。必须逐项验证目标组合。
+    - 二者是功能重叠的 peers，不是 SGLang frontend 调 vLLM backend 的固定层级。vLLM 通常拥有更大社区/生态和广泛 baseline；SGLang
+      对 agentic prefix reuse、structured generation 和某些 workload 可能更有优势。结论需定期重测。
+  - title: 5. Llama.cpp
+    source_heading: 5. Llama.cpp
+    paragraphs:
+    - llama.cpp 是轻量 C/C++ inference stack，以 GGUF、CPU SIMD、Metal、CUDA/ROCm、Vulkan 等
+      backend 实现“在尽可能多设备上运行开放权重 LLM”。
+    - Wildcard 可能匹配多个 artifacts，生产应选择精确 filename/revision/hash。Q8_0 对 8B 模型仍需约 8 GB
+      级权重外加 KV/runtime；CPU latency 取决于 memory bandwidth、threads、NUMA、BLAS/backend
+      和 context。
+    - Ollama 是更高层 local model packaging/management/API 工具，常使用 llama.cpp，也可能集成其他 runners。它简化模型下载、Modelfile、进程与
+      REST API，但不是 llama.cpp 的同义词，也不改变底层硬件限制。
+    - 局限：同硬件条件外无法与 datacenter GPU framework 简单比较；低并发下复杂 continuous scheduler 价值小，但大模型
+      CPU TPOT 可能高。Local “无 per-token 云费”仍有设备、电力、维护和机会成本。
+  - title: 6. Selecting the Right Framework
+    source_heading: 6. Selecting the Right Framework
+    paragraphs:
+    - Peak throughput benchmark 若使用不同 output length、prefix warm state 或失败率就没有比较意义。
+    - 评估：metrics/traces/logs、request IDs、per-tenant fairness、health/readiness、graceful
+      drain、rolling/canary、autoscaling signal、distributed failure、artifact security、CVEs、support/community、release
+      cadence 和 backward compatibility。
+    - 一个 benchmark 快 10% 但频繁 OOM、升级需长停机、缺少关键 model feature，整体 goodput/TCO 可能更差。
+    - Adapter 将其映射到各 framework；capability negotiation 避免为了可移植性放弃所有高级特性。保存 replay workload、quality
+      set 和 deployment manifests，3～6 个月重评一次是原章经验，不是硬性周期。
+  - title: 8. 从本章抽象出的框架分析方法
+    source_heading: 8. 从本章抽象出的框架分析方法
+    paragraphs:
+    - 列出 preprocess、WAITING/RUNNING、prefill/decode、KV allocate、sample/stream、cancel/free。检查
+      framework 是否为每个状态提供正确机制。
+    - Priority/token/resource policy 应在 scheduler；model architecture 在 runner/layer；hardware
+      specialization 在 CustomOp/kernel。边界混乱会妨碍新模型与新硬件。
+    - 追踪 config→process group→device/rank→registry→weights→warm-up→ready，并测试 partial
+      rank failure、OOM、download corruption 和 shutdown。
+    - 不是问“支持 Qwen/FP8/TP 吗”，而是问“这个 exact revision + quantization + GPU + TP + grammar
+      + prefix cache 组合是否支持并通过质量测试”。
+  - title: 9. 本章知识结构与核心结论
+    source_heading: 9. 本章知识结构与核心结论
+    paragraphs:
+    - vLLM 的关键是 policy/mechanism 分层。 Engine 管生命周期，Scheduler 分配 requests/tokens/KV，Executor
+      管 workers，Runner/model/kernel 执行硬件路径。
+    - Scheduler 是模型无关优化的 integration hub。 Chunked prefill、prefix local/remote、speculation
+      和 preemption 通过 token/KV metadata 组合。
+    - SGLang 强调 agent/structured workload 的 frontend-runtime co-design。 Radix prefix
+      reuse 与 grammar 是主要差异化，但硬件 feature 需逐项核验。
+    - 本章的总方法是：先把 LLM 请求视为携带 KV 状态、跨越多轮 forward 的 token 状态机，再检查框架是否把 request priority、token/KV
+      allocation、distributed execution、model architecture 和 hardware kernel 放在正确层；随后在同一模型、同一
+      workload、同一硬件和同一质量门槛下比较 vLLM、TensorRT-LLM、SGLang 与 llama.cpp 的 tail latency、goodput、成本和运维；最后用稳定内部
+      contract、capability negotiation、replay workload 和退出计划应对框架持续变化。
+  takeaways:
+  - LLM framework 的核心抽象是有状态 token execution。 长序列、逐 token decode、KV、stream/cancel 让固定
+    request batch 不再足够。
+  - 一次 generation 是多轮闭环。 Processor、Scheduler、Worker、Output processor 反复推进 computed-token
+    frontier，直到 EOS/limit/cancel。
+  - Preemption 是有成本的最后手段。 Recompute/swap 会伤 goodput 和 tail latency，必须监控而非隐形发生。
+  - llama.cpp 用 portability 和小 footprint 换 datacenter peak throughput。 GGUF、多量化和 CPU/Metal
+    backend 适合本地、隐私与 edge。
+  - 本章的总方法是：先把 LLM 请求视为携带 KV 状态、跨越多轮 forward 的 token 状态机，再检查框架是否把 request priority、token/KV
+    allocation、distributed execution、model architecture 和 hardware kernel 放在正确层；随后在同一模型、同一
+    workload、同一硬件和同一质量门槛下比较 vLLM、TensorRT-LLM、SGLang 与 llama.cpp 的 tail latency、goodput、成本和运维；最后用稳定内部
+    contract、capability negotiation、replay workload 和退出计划应对框架持续变化。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念辨析
+  question: 原文如何解释「7.1 通用 ML framework 完全不能服务 LLM」？
+  answer: 错误。它们可以运行某些 LLM，但原始 abstraction 往往缺少高效 token scheduling、KV management 和
+    streaming lifecycle。
+  source_heading: 7.1 通用 ML framework 完全不能服务 LLM
+- level: 概念辨析
+  question: 原文如何解释「7.7 Scheduler 决定 CUDA kernel 具体 tile」？
+  answer: 错误。Scheduler 决定 request/token/resource plan；ModelRunner/CustomOp 选择执行机制。
+  source_heading: 7.7 Scheduler 决定 CUDA kernel 具体 tile
+- level: 概念辨析
+  question: 原文如何解释「7.13 Preemption 免费释放资源」？
+  answer: 错误。Recompute/swap 产生计算或 I/O，并伤害 tail latency。
+  source_heading: 7.13 Preemption 免费释放资源
+- level: 概念辨析
+  question: 原文如何解释「7.18 SGLang 支持某硬件 = 所有 feature 等价可用」？
+  answer: 错误。Kernel、quantization、speculation 和 parallelism 有 backend-specific support
+    matrix。
+  source_heading: 7.18 SGLang 支持某硬件 = 所有 feature 等价可用
+- level: 概念辨析
+  question: 原文如何解释「7.24 为可移植性只能使用最低公分母」？
+  answer: 错误。稳定核心 contract + optional capabilities 可兼顾 portability 与高级优化。
+  source_heading: 7.24 为可移植性只能使用最低公分母

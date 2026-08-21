@@ -1,0 +1,150 @@
+source:
+  post: _posts/book-notes/distributed-system/understanding-distributed-system/2026-08-16-understanding-distributed-systems-2e-ch12-transactions.md
+  body_sha256: a4f4b8d0c9f5e03ccf2e76ed76936adf63b1bc522e63e6188297e9040aba9b0f
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 8
+  question: 原文围绕「0. 本章定位：把一组可能部分失败的操作包装成一个可靠整体」建立了怎样的核心认识？
+  question_source: 0. 本章定位：把一组可能部分失败的操作包装成一个可靠整体
+  thesis: 2PL 用 shared/exclusive locks 和 growing/shrinking phases 保证 conflict serializability。
+    Strict 2PL 持锁到结束，避免 cascading abort。
+  thesis_source: 28. 核心结论
+  concepts:
+  - term: 0. 本章定位：把一组可能部分失败的操作包装成一个可靠整体
+    meaning: NewSQL 再把这些层与 partitioning、state machine replication 和分布式时间组合。
+    source_heading: 0. 本章定位：把一组可能部分失败的操作包装成一个可靠整体
+  - term: 6. Two-phase locking（2PL）
+    meaning: 遵守 2PL 可保证 conflict serializability。原章把它概括为 strict serializability；更精确地说，普通
+      2PL 主要保证 conflict serializability，是否满足 strict schedule 和 real-time external
+      order还取决于锁释放规则与系统语义。
+    source_heading: 6. Two-phase locking（2PL）
+  - term: 13.2 Phase 1：prepare / voting
+    meaning: 检查 constraints/locks/resources；
+    source_heading: 13.2 Phase 1：prepare / voting
+  - term: 14.2 Coordinator decision
+    meaning: coordinator durable 写下 COMMIT/ABORT 后不能改变。即使某 participant 暂时 down，也必须持续重发同一
+      decision。
+    source_heading: 14.2 Coordinator decision
+  - term: 21. Replicated coordinator 与 participants
+    meaning: participant 同样把 PREPARED/decision 写进本组 replicated log。新 leader 恢复本 participant
+      职责。
+    source_heading: 21. Replicated coordinator 与 participants
+  - term: 29. 从本章提炼出的通用解题方法
+    meaning: 计算 lock hold time、prepare/decision RTT、WAL fsync、quorum replication、abort
+      rate 与 commit wait；跨地域事务尤需控制参与 partitions。
+    source_heading: 29. 从本章提炼出的通用解题方法
+  logic:
+  - 0. 本章定位：把一组可能部分失败的操作包装成一个可靠整体
+  - 6. Two-phase locking（2PL）
+  - 9. 对象级 OCC：version + CAS
+  - 14.2 Coordinator decision
+  - 17. Replication 如何改善 2PC 可恢复性
+  - 23. TrueTime uncertainty interval
+  - 29. 从本章提炼出的通用解题方法
+  sections:
+  - title: 0. 本章定位：把一组可能部分失败的操作包装成一个可靠整体
+    source_heading: 0. 本章定位：把一组可能部分失败的操作包装成一个可靠整体
+    paragraphs:
+    - 这不是说数据库内部真的瞬间完成所有步骤，而是通过日志、并发控制和恢复协议，限制外部能观察到的结果。
+    - 一个 concurrency-control domain；
+    - commit decision 必须传播且不可反悔。
+    - NewSQL 再把这些层与 partitioning、state machine replication 和分布式时间组合。
+  - title: 3. 四类并发异常
+    source_heading: 3. 四类并发异常
+    paragraphs:
+    - 问题：rollback X 可能误删 Y 的更新，恢复语义混乱。最低隔离层通常也应禁止 dirty write。
+    - 若 Y 已进一步写数据，X abort 可能迫使 Y 也 abort，形成 cascading abort。
+    - Y 删除一名 department A employee 后，X 第二次 query 的 row set 改变，像出现/消失“phantom”。
+    - fuzzy read：同一已读 object 的 value 改变；
+  - title: 6. Two-phase locking（2PL）
+    source_heading: 6. Two-phase locking（2PL）
+    paragraphs:
+    - 遵守 2PL 可保证 conflict serializability。原章把它概括为 strict serializability；更精确地说，普通
+      2PL 主要保证 conflict serializability，是否满足 strict schedule 和 real-time external
+      order还取决于锁释放规则与系统语义。
+    - 实际常至少把 write locks 持有到 commit/abort；更强实现把所有 locks 持有到结束。
+    - 还可用 lock timeout 或预防策略，但 timeout 不能精确区分 deadlock 与慢事务。
+    - 冲突多、abort 后重做成本高时，提前阻塞可避免大量 wasted work。代价是 lock 管理、等待、deadlock 与 convoy。
+  - title: 9. 对象级 OCC：version + CAS
+    source_heading: 9. 对象级 OCC：version + CAS
+    paragraphs:
+    - 比较与写入必须原子。否则 read-check-write 仍有 race。
+    - 或向用户返回 conflict。
+    - 只比较 value 可能经历 A→B→A，误以为没变化。单调 version 42→43→44 能发现中间更新，即使最终 value 又回 A。
+  - title: 13.2 Phase 1：prepare / voting
+    source_heading: 13.2 Phase 1：prepare / voting
+    paragraphs:
+    - 执行本地 transaction 到可提交点；
+    - 检查 constraints/locks/resources；
+    - durable 记录 PREPARED；
+    - 保留 commit 所需 locks/state；
+  - title: 14.2 Coordinator decision
+    source_heading: 14.2 Coordinator decision
+    paragraphs:
+    - coordinator durable 写下 COMMIT/ABORT 后不能改变。即使某 participant 暂时 down，也必须持续重发同一
+      decision。
+    - 若 coordinator 在决定持久化前 crash，可以按日志恢复并重新收集/选择允许决定；若决定已持久化，恢复后只能继续传播。
+  - title: 17. Replication 如何改善 2PC 可恢复性
+    source_heading: 17. Replication 如何改善 2PC 可恢复性
+    paragraphs:
+    - 新 leader 从 replicated log 恢复并继续发送同一 decision。
+    - participants 也可各自复制 PREPARED/COMMITTED/ABORTED 状态。这样单节点故障不等于 participant 故障。
+    - 复制并不移除 2PC 的同步 round 和 lock duration，只减少单节点崩溃造成的不可恢复/长阻塞。
+  - title: 21. Replicated coordinator 与 participants
+    source_heading: 21. Replicated coordinator 与 participants
+    paragraphs:
+    - participant 同样把 PREPARED/decision 写进本组 replicated log。新 leader 恢复本 participant
+      职责。
+    - 这把“process failure”转化为“replication group 仍有 quorum 时角色切换”，显著降低基础 2PC 的单节点阻塞风险。
+  - title: 23. TrueTime uncertainty interval
+    source_heading: 23. TrueTime uncertainty interval
+    paragraphs:
+    - 原章指出 clock uncertainty 通常小于 10 ms；引用具体数值时必须先确认采用半宽还是总宽口径。
+    - 所有 transaction 依赖一个服务；
+    - TrueTime 用各数据中心 GPS/atomic clocks 和频繁同步，让节点本地获得有界 uncertainty。
+  - title: 29. 从本章提炼出的通用解题方法
+    source_heading: 29. 从本章提炼出的通用解题方法
+    paragraphs:
+    - WAL 是否先 durable？commit record 是否 durable 后才回复？recovery 应 undo 还是 redo？用崩溃点验证
+      atomicity。
+    - 标出 PREPARED 与 global decision 的 durable point，列出 coordinator/participant crash、消息丢失和恢复动作。
+    - 2PL/OCC 管并发，2PC 管 atomic decision，Paxos/Raft 管 participant durability，MVCC 管
+      snapshot reads。逐层验证，不用一个缩写概括全部正确性。
+    - 计算 lock hold time、prepare/decision RTT、WAL fsync、quorum replication、abort rate
+      与 commit wait；跨地域事务尤需控制参与 partitions。
+  takeaways:
+  - Transaction 把多步操作包装成 commit-all 或 abort-all 的逻辑单元。 跨独立 stores 时实现显著更难。
+  - 2PL 可能 deadlock。 需检测 wait-for cycle 并 abort victim。
+  - WAL 要求 data page 落盘前对应日志先 durable，commit 回复前 commit record durable。 它提供单 database
+    atomicity/durability 恢复基础。
+  - 2PC 不提供 isolation。 实际分布式事务常用 2PL 隔离、2PC 原子提交。
+  - NewSQL 的复杂性来自多机制组合。 Partitioning、replication、isolation、atomic commit 和 time ordering
+    各自解决不同问题。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念辨析
+  question: 原文如何解释「26.1 Atomicity 与 isolation」？
+  answer: Atomicity 解决 partial failure；isolation 解决 concurrent interference。一个事务可
+    atomic 但与另一个产生 write skew。
+  source_heading: 26.1 Atomicity 与 isolation
+- level: 概念辨析
+  question: 原文如何解释「26.4 Serializability 与 strict serializability」？
+  answer: Serializable 只需等价某串行顺序；strict 还尊重事务实际完成/开始的 real-time order。
+  source_heading: 26.4 Serializability 与 strict serializability
+- level: 概念辨析
+  question: 原文如何解释「26.7 MVCC 与 serializability」？
+  answer: MVCC 是多版本框架，不自动保证 serializability。Snapshot isolation 可能允许 write skew；writers
+    仍需 2PL/OCC/SSI 等。
+  source_heading: 26.7 MVCC 与 serializability
+- level: 概念辨析
+  question: 原文如何解释「26.9 Prepare success 与 commit success」？
+  answer: YES 只表示 participant 已 durable prepared、承诺服从未来决定；transaction 尚未 commit，locks
+    通常仍持有。
+  source_heading: 26.9 Prepare success 与 commit success
+- level: 概念辨析
+  question: 原文如何解释「26.12 TrueTime 与精确时钟」？
+  answer: TrueTime 的价值是显式返回 uncertainty interval，而不是假装时钟无误差；commit wait 把时间不确定性转化为
+    latency。
+  source_heading: 26.12 TrueTime 与精确时钟

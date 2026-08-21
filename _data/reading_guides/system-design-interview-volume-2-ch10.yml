@@ -1,0 +1,141 @@
+source:
+  post: _posts/book-notes/software-architecture/system-design-interview-volume-2/2026-08-12-system-design-interview-volume-2-ch10.md
+  body_sha256: 2a8d43b444e800e89e0be38daaf5df21fae946fbb466fb5f407389d8dc6d24c0
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 8
+  question: 原文围绕「0. 排行榜的本质：动态有序集合」建立了怎样的核心认识？
+  question_source: 0. 排行榜的本质：动态有序集合
+  thesis: 展示榜可最终一致，最终奖励榜必须 Freeze + Reconcile。
+  thesis_source: 14. 核心结论
+  concepts:
+  - term: 0. 排行榜的本质：动态有序集合
+    meaning: 本章先否决每次查询临时排序关系表，再使用 Redis Sorted Set 让“更新时维护顺序、查询时直接取排名”；规模扩大后比较 Score
+      Range Fixed Partition、Redis Hash Slot 和 DynamoDB Write Sharding。
+    source_heading: 0. 排行榜的本质：动态有序集合
+  - term: 2.4 高层架构
+    meaning: Client 直接查询 Top/Rank。
+    source_heading: 2.4 高层架构
+  - term: 6.3 Serverless 的隐藏约束
+    meaning: Serverless 只自动扩 Compute，不会自动扩 Redis/DB，也不会自动提供 Score Event Idempotency。
+    source_heading: 6.3 Serverless 的隐藏约束
+  - term: 7.1 Fixed Score-range Partition
+    meaning: 三个动作跨 Redis Key/Node，必须幂等/原子协调。可由 Durable Score Event 驱动，Lua 只在同 Node/Slot
+      内原子；跨 Shard 要 Saga/Retry/Reconciliation。
+    source_heading: 7.1 Fixed Score-range Partition
+  - term: 9. 可运行示例：三种排名与固定分片
+    meaning: Top-K Scatter-Gather。
+    source_heading: 9. 可运行示例：三种排名与固定分片
+  - term: 15. 解决实时排名问题的一般思路
+    meaning: 本章最值得迁移的方法是：不要只问“怎样快速取 Top 10”，而要把更新幂等、任意 Rank、Tie 语义、分片后的全局顺序和故障重建放进同一个
+      Ranking Contract；Redis Sorted Set 解决的是有序索引，持久事实与业务正确性仍需独立闭环。
+    source_heading: 15. 解决实时排名问题的一般思路
+  logic:
+  - 0. 排行榜的本质：动态有序集合
+  - 2.4 高层架构
+  - 5.1 内存粗估
+  - 7.1 Fixed Score-range Partition
+  - 7.4 Redis Node Sizing
+  - 10.4 双写一致性
+  - 15. 解决实时排名问题的一般思路
+  sections:
+  - title: 0. 排行榜的本质：动态有序集合
+    source_heading: 0. 排行榜的本质：动态有序集合
+    paragraphs:
+    - 这不是普通 Key-value 查询，因为一次 Score Update 会改变玩家在全体成员中的位置；Top-K、任意用户排名和附近玩家都依赖同一个动态排序结构。
+    - 本章先否决每次查询临时排序关系表，再使用 Redis Sorted Set 让“更新时维护顺序、查询时直接取排名”；规模扩大后比较 Score Range
+      Fixed Partition、Redis Hash Slot 和 DynamoDB Write Sharding。
+  - title: 1.5 Tie 语义
+    source_heading: 1.5 Tie 语义
+    paragraphs:
+    - 初始要求：同分同名次。作者在收尾又给出可选 Tie-breaker：先达到该分数者排名更高。
+    - 同分同名次：只比较 Score；
+    - 若采用 Tie-break，就不再满足“同分同名次”，应与面试官明确变更。
+  - title: 2.4 高层架构
+    source_heading: 2.4 高层架构
+    paragraphs:
+    - Client 发比赛行为/胜利请求到 Game Service；
+    - Game Service 验证结果并调用 Leaderboard；
+    - Leaderboard 原子更新 Score；
+    - Client 直接查询 Top/Rank。
+  - title: 5.1 内存粗估
+    source_heading: 5.1 内存粗估
+    paragraphs:
+    - User ID 24 bytes；
+    - 最小原始数据 26 bytes/Entry。
+    - 作者将 Skip List/Hash Overhead 粗略翻倍，约 1.3 GB，单现代 Redis 足够。
+    - 实际 Redis Member、Dict Entry、Skiplist Node、Pointer、Allocator Fragmentation 往往远高于
+      2 倍，必须用真实 ID/版本压测。还要为 Fork Snapshot/Replication Buffer 预留内存。
+  - title: 6.3 Serverless 的隐藏约束
+    source_heading: 6.3 Serverless 的隐藏约束
+    paragraphs:
+    - VPC/Redis Connection 数；
+    - Connection Pool 不能像常驻进程自然复用；
+    - Timeout/Retry 可能重复 Increment；
+    - Serverless 只自动扩 Compute，不会自动扩 Redis/DB，也不会自动提供 Score Event Idempotency。
+  - title: 7.1 Fixed Score-range Partition
+    source_heading: 7.1 Fixed Score-range Partition
+    paragraphs:
+    - Score Distribution 要相对均匀，否则高分/低分段热点。Range Boundary 需按历史 Quantile 调整，而非等宽一定均衡。
+    - 三个动作跨 Redis Key/Node，必须幂等/原子协调。可由 Durable Score Event 驱动，Lua 只在同 Node/Slot 内原子；跨
+      Shard 要 Saga/Retry/Reconciliation。
+    - 从最高 Score Shard 开始取；若该 Shard 不足 10 人，继续向下 Shard，直到凑足。原书简单说最高 Shard 包含 Top 10，实际依赖人数。
+    - 若 Unique Ordinal 跨 Shard 边界，要从当前 Shard 取附近，不足时向相邻 Range 补；Competition Rank 同分组可能返回超过
+      9 人。
+  - title: 7.4 Redis Node Sizing
+    source_heading: 7.4 Redis Node Sizing
+    paragraphs:
+    - 写密集应用要为 RDB Fork Copy-on-write、AOF Rewrite、Replication Buffer 和 Failover 留余量。
+    - 通用 Benchmark 数字不能替代自己的 Sorted Set、Persistence 和 Tail Latency 测试。
+  - title: 9. 可运行示例：三种排名与固定分片
+    source_heading: 9. 可运行示例：三种排名与固定分片
+    paragraphs:
+    - Competition Rank；
+    - 固定 Score Range 下的 Competition Rank 公式；
+    - Top-K Scatter-Gather。
+  - title: 10.4 双写一致性
+    source_heading: 10.4 双写一致性
+    paragraphs:
+    - Redis 成功、DB 失败：榜有分但无法恢复/审计；
+    - Point Event DB/Kafka 是 Source of Truth；
+    - Consumer 用 Event ID/Sequence 幂等；
+    - 若强制同步“赢后立即可见”，可在 DB Commit 后同步更新 Redis并异步修复，但不能宣称跨系统原子。
+  - title: 15. 解决实时排名问题的一般思路
+    source_heading: 15. 解决实时排名问题的一般思路
+    paragraphs:
+    - 小规模可 RDB；百万级 Top/Rank/Range 用 Sorted Set/Order-statistics Tree；只需 Top-K 可考虑
+      Heap + DB。
+    - 榜只存 User ID/Score/Tie Metadata，Profile 批量读取/缓存，避免大对象放 Sorted Set。
+    - Replica/AOF、灾难重建、月榜预创建/冻结/归档、晚到 Event 和 Final Reward Snapshot。
+    - 本章最值得迁移的方法是：不要只问“怎样快速取 Top 10”，而要把更新幂等、任意 Rank、Tie 语义、分片后的全局顺序和故障重建放进同一个 Ranking
+      Contract；Redis Sorted Set 解决的是有序索引，持久事实与业务正确性仍需独立闭环。
+  takeaways:
+  - 实时排行榜是动态有序集合，不是普通 Counter 表。 更新、Top-K、Rank 和 Neighborhood 共享顺序统计结构。
+  - RDB 可做事实日志和小榜，但不适合百万成员高频任意 Rank。
+  - Fixed Score Partition 更容易算 Exact Rank。 高分 Shard 人数 + 当前 Shard 严格高分数。
+  - Redis Cluster 按 Key 而非 Sorted Set Member 分片。 应用必须显式拆多个榜 Key。
+  - 展示榜可最终一致，最终奖励榜必须 Freeze + Reconcile。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念辨析
+  question: 原文如何解释「12.1 Score 与 Rank 不同」？
+  answer: Score 是累计值；Rank 是相对全体的顺序统计。更新一个 Score 可能改变许多人的 Rank。
+  source_heading: 12.1 Score 与 Rank 不同
+- level: 概念辨析
+  question: 原文如何解释「12.8 Client 不能决定 Score」？
+  answer: TLS 也不能让恶意 Client 可信；Game Server 必须验证结果。
+  source_heading: 12.8 Client 不能决定 Score
+- level: 概念辨析
+  question: 原文如何解释「12.11 650 MB 只是 Payload 下界」？
+  answer: Redis Object/Dict/Skiplist/Pointer/Fragmentation 和 Snapshot Headroom 会大幅放大。
+  source_heading: 12.11 650 MB 只是 Payload 下界
+- level: 概念辨析
+  question: 原文如何解释「12.16 跨 Fixed Shard 移动不是单命令原子」？
+  answer: 旧删、新加、Mapping 更新会部分失败，需要 Event-driven Idempotency/Reconciliation。
+  source_heading: 12.16 跨 Fixed Shard 移动不是单命令原子
+- level: 概念辨析
+  question: 原文如何解释「12.23 Profile Cache 与 Score Store 生命周期不同」？
+  answer: Avatar/Name 可陈旧几分钟；Score/Rank 实时性更严格，不应绑在同 Value 更新。
+  source_heading: 12.23 Profile Cache 与 Score Store 生命周期不同

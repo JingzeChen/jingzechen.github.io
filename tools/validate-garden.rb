@@ -69,6 +69,15 @@ assert.call(featured.all? { |_, data| !data["why_start_here"].to_s.empty? }, "fe
 
 reading_data = JSON.parse(read.call("assets/js/data/reading.json"))
 search_data = JSON.parse(read.call("assets/js/data/search.json"))
+reading_guides_by_uid = Dir.glob(File.join(source_dir, "_data", "reading_guides", "*.yml")).to_h do |path|
+  [File.basename(path, ".yml"), YAML.safe_load_file(path, aliases: true)]
+end
+reading_guide_uids = reading_guides_by_uid.keys
+reading_post_uids = reading_posts.map { |_, data| data["uid"] }
+assert.call(
+  reading_guide_uids.sort == reading_post_uids.sort,
+  "every Reading post must have exactly one reading guide"
+)
 assert.call(reading_data.size == reading_posts.size, "reading.json count must match reading posts")
 assert.call(reading_data.all? { |item| !item["contentLang"].to_s.empty? }, "reading.json language mismatch")
 assert.call(reading_data.all? { |item| !item["status"].to_s.empty? }, "reading.json status mismatch")
@@ -79,6 +88,13 @@ assert.call(
 assert.call(reading_data.none? { |item| item["seriesOrder"].nil? }, "reading.json requires seriesOrder")
 reading_source_by_uid = reading_posts.to_h { |_, data| [data["uid"], data] }
 search_by_uid = search_data.to_h { |item| [item["uid"], item] }
+reading_guide_uid_by_url = reading_data.filter_map do |item|
+  [item["url"], item["uid"]] if reading_guide_uids.include?(item["uid"])
+end.to_h
+assert.call(
+  reading_guide_uid_by_url.size == reading_guide_uids.size,
+  "every reading guide filename must resolve to a published reading uid"
+)
 reading_data.each do |item|
   source = reading_source_by_uid[item["uid"]]
   assert.call(!source.nil?, "reading.json uid '#{item['uid']}' must resolve to a source post")
@@ -317,8 +333,53 @@ core_files.each do |path|
 end
 
 overview_count = 0
+reading_guide_count = 0
 Dir.glob(File.join(site_dir, "posts", "*", "index.html")).each do |path|
   document = Nokogiri::HTML(File.read(path, encoding: "UTF-8"))
+  normalized_path = path.tr("\\", "/")
+  public_url = "/#{normalized_path.delete_prefix("#{site_dir}/").delete_suffix("index.html")}"
+  expected_guide_uid = reading_guide_uid_by_url[public_url]
+  guided_article = document.at_css('article[data-learning-guide="true"]')
+  if expected_guide_uid
+    reading_guide_count += 1
+    assert.call(!guided_article.nil?, "#{path} must enable its reading guide")
+    guide = reading_guides_by_uid.fetch(expected_guide_uid)
+    tabs = document.css(".learning-mode-tabs [data-learning-mode]")
+    panels = document.css("[data-learning-panel]")
+    expected_modes = %w[overview detail check]
+    assert.call(tabs.map { |tab| tab["data-learning-mode"] } == expected_modes, "#{path} learning tabs mismatch")
+    assert.call(panels.map { |panel| panel["data-learning-panel"] } == expected_modes, "#{path} learning panels mismatch")
+    tabs.zip(panels).each do |tab, panel|
+      assert.call(tab["aria-controls"] == panel["id"], "#{path} learning tab controls mismatch")
+      assert.call(panel["aria-labelledby"] == tab["id"], "#{path} learning panel label mismatch")
+    end
+    assert.call(tabs.first["aria-selected"] == "true", "#{path} overview tab must be selected initially")
+    assert.call(panels.first["hidden"].nil?, "#{path} overview panel must be visible initially")
+    assert.call(panels.drop(1).all? { |panel| panel.key?("hidden") }, "#{path} inactive learning panels must be hidden")
+    guide_kind = guide.dig("overview", "kind") || "summary"
+    expected_sections = guide.dig("overview", "sections")
+    summary_sections = document.css(".learning-summary-section")
+    assert.call(summary_sections.size == expected_sections.size, "#{path} learning summary section count mismatch")
+    summary_sections.zip(expected_sections).each do |section, expected_section|
+      assert.call(section.at_css("h4")&.text&.strip == expected_section["title"], "#{path} learning summary title mismatch")
+      assert.call(
+        section.css("p").map { |paragraph| paragraph.text.strip } == expected_section["paragraphs"],
+        "#{path} learning summary paragraphs mismatch"
+      )
+    end
+    check_range = guide_kind == "index" ? (2..5) : (3..8)
+    assert.call(check_range.cover?(document.css(".learning-check-list > li").size), "#{path} learning checks mismatch")
+    if guide_kind == "index"
+      assert.call(document.at_css("#learning-summary-title")&.text&.strip == "页面摘要", "#{path} index summary label mismatch")
+      assert.call(document.at_css(".learning-concepts").nil?, "#{path} index guide must not invent concepts")
+      assert.call(document.at_css(".learning-logic").nil?, "#{path} index guide must not invent a logic outline")
+      assert.call(document.at_css(".learning-takeaways").nil?, "#{path} index guide must not invent takeaways")
+    end
+  else
+    assert.call(guided_article.nil?, "#{path} enables a reading guide without sidecar data")
+    assert.call(document.at_css(".learning-mode-picker").nil?, "#{path} must keep the standard reading layout")
+  end
+
   %w[garden-related-title garden-backlinks-title].each do |heading_id|
     section = document.at_css("##{heading_id}")&.parent
     next if section.nil?
@@ -341,6 +402,7 @@ Dir.glob(File.join(site_dir, "posts", "*", "index.html")).each do |path|
   assert.call(overview_ids == content_ids, "#{path} chapter overview anchors do not match H2 headings")
 end
 assert.call(overview_count.positive?, "expected at least one ultra-long chapter overview")
+assert.call(reading_guide_count == reading_guide_uids.size, "rendered reading guide count mismatch")
 
 javascript_files = Dir.glob(File.join(source_dir, "_javascript", "**", "*.js")) +
   Dir.glob(File.join(source_dir, "*.js"))
@@ -372,4 +434,4 @@ unless failures.empty?
   exit 1
 end
 
-puts "Garden validation passed: #{posts.size} posts, #{series_registry.size} series, #{topic_registry.size} topics, #{overview_count} chapter overviews, #{inline_scripts.size} inline scripts"
+puts "Garden validation passed: #{posts.size} posts, #{series_registry.size} series, #{topic_registry.size} topics, #{overview_count} chapter overviews, #{reading_guide_count} reading guides, #{inline_scripts.size} inline scripts"

@@ -1,0 +1,155 @@
+source:
+  post: _posts/book-notes/ai-system/design-deep-learning-system/2026-08-08-designing-deep-learning-systems-ch05-hyperparameter-optimization-service.md
+  body_sha256: f1e8396650cc6eef5ec718358bb09decc29949b43c6c066213999cf90a4ebe52
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 13
+  question: 原文围绕「本章要回答的核心问题」建立了怎样的核心认识？
+  question_source: 本章要回答的核心问题
+  thesis: HPO service 的三个核心组件是 API、HPO Job Manager 和 HP Suggestion Maker。 Trial history
+    连接执行反馈与下一次建议。
+  thesis_source: 核心结论
+  concepts:
+  - term: 本章要回答的核心问题
+    meaning: 原章以 HPO 工程为主，对搜索算法只做高层介绍。本文会补充笛卡尔积、概率、代理模型、采集函数、低保真资源和并行度等形式化表达，帮助理解算法为何有效及何时失效；这些推导不是原章新增算法。原章对库功能和推荐结论具有成书时点，实际选型应按目标版本、团队技术栈和当前维护状态重新验证。
+    source_heading: 本章要回答的核心问题
+  - term: 5.1 理解超参数
+    meaning: 原章建议在 TensorFlow Playground 直观观察学习率、正则、activation、层数和神经元数怎样改变决策边界与学习曲线。针对螺旋数据，书中给出
+      6 个 hidden layers、每层 5 neurons、ReLU、batch size 10、L1，并在约 500 epoch 后得到较好分类。
+    source_heading: 5.1 理解超参数
+  - term: 5.3 设计 HPO 服务
+    meaning: 原章没有再实现一个 sample HPO service，而推荐附录 C 的 Kubeflow Katib。理由是 HPO workflow
+      标准、开源实现成熟，自建 suggestion adapters、trial controller、metrics collector、恢复和 Kubernetes
+      集成很昂贵且少有差异化价值。
+    source_heading: 5.3 设计 HPO 服务
+  - term: 5.4 开源 HPO 库
+    meaning: 原章列举其框架适配包括 PyTorch、TensorFlow / Keras、XGBoost、MXNet 等；搜索与调度能力包括 Population
+      Based Training、BayesOptSearch、HyperBand / ASHA，并可接入 Hyperopt 等外部 search algorithm。其主要差异不是某一种搜索数学必然更强，而是
+      Ray 提供代码分发、资源调度、容错和多节点执行 substrate。
+    source_heading: 5.4 开源 HPO 库
+  - term: 从本章提炼出的通用解题方法
+    meaning: 设置 experiment / trial 并发、GPU quota、priority、namespace、RBAC、secret、network
+      policy、预算告警和 chargeback。Pruning 与 autoscaling 也要可观测。
+    source_heading: 从本章提炼出的通用解题方法
+  - term: 复习与自测
+    meaning: Infrastructure failure、invalid candidate、pruned 和 low score 应怎样区分？
+    source_heading: 复习与自测
+  logic:
+  - 本章要回答的核心问题
+  - 5.1 理解超参数
+  - 5.2 理解超参数优化
+  - 5.4 开源 HPO 库
+  - 核心结论
+  - 从本章提炼出的通用解题方法
+  - 复习与自测
+  sections:
+  - title: 本章要回答的核心问题
+    source_heading: 本章要回答的核心问题
+    paragraphs:
+    - Trial、experiment、search space、objective、budget 和 stopping criterion 分别是什么？
+    - Library approach 与 service approach 的职责边界和适用规模是什么？
+    - Hyperopt、Optuna 与 Ray Tune 的编程模型、并行方式和局限分别是什么？
+    - 原章以 HPO 工程为主，对搜索算法只做高层介绍。本文会补充笛卡尔积、概率、代理模型、采集函数、低保真资源和并行度等形式化表达，帮助理解算法为何有效及何时失效；这些推导不是原章新增算法。原章对库功能和推荐结论具有成书时点，实际选型应按目标版本、团队技术栈和当前维护状态重新验证。
+  - title: 5.1 理解超参数
+    source_heading: 5.1 理解超参数
+    paragraphs:
+    - 原章把超参数描述为训练前设置且静态，这对 API 边界很实用。但实践中学习率 schedule、Population Based Training 等会在训练中改变超参数。它们仍不是普通反向传播直接学出的模型参数，而是由预设策略或外层控制器调整。
+    - 原章引用词嵌入研究说明，一些被归因于算法的改进，实际很大部分来自系统设计和超参数选择。这提醒我们：比较算法时必须给每种算法合理调参，否则结论不公平。
+    - 原章建议在 TensorFlow Playground 直观观察学习率、正则、activation、层数和神经元数怎样改变决策边界与学习曲线。针对螺旋数据，书中给出
+      6 个 hidden layers、每层 5 neurons、ReLU、batch size 10、L1，并在约 500 epoch 后得到较好分类。
+    - 这个组合只是演示，不是螺旋任务的普遍最优解。Playground 的随机初始化、数据噪声和划分都会改变结果；正确结论是复杂数据模式对容量和优化配置敏感。
+  - title: 5.2 理解超参数优化
+    source_heading: 5.2 理解超参数优化
+    paragraphs:
+    - 原章用“在给定数据集上最小化预定义 loss”定义 optimal。更严格地说，每个 trial 应使用相同训练 / 验证协议，最终泛化只在独立 test
+      set 检验。反复用 test set 选超参数会造成 test leakage。
+    - 原章把方法分成三类：model-free、model-based Bayesian optimization、multifidelity。分类边界并非绝对，例如
+      TPE 的归类在不同资料中不同；工程上更重要的是它是否依赖历史、怎样处理预算和并行。
+    - 代理模型可用 Gaussian Process；TPE 则以不同密度建模好 / 差超参数区域。原章用“Bayesian-like”宽泛指代会参考历史结果生成下一建议的方法，并列举
+      GP、TPE、Hyperband、CMA-ES。严格地说 Hyperband 是多保真资源分配方法，CMA-ES 是进化策略，不应都视为标准贝叶斯算法；共同点是候选不再完全忽略历史或资源反馈。
+    - 风险是 low-fidelity 排名与 full-fidelity 排名不一致：慢热配置可能早期差、最终好，却被过早剪枝。因此 objective 曲线、最小
+      grace period、不同 trial 可比 step 和噪声都要设计。
+  - title: 5.3 设计 HPO 服务
+    source_heading: 5.3 设计 HPO 服务
+    paragraphs:
+    - 一致性不等于抹平所有差异。Grid 可预生成全部候选，Bayesian 依赖历史，ASHA 需要中间 step / resource；服务应在统一生命周期内表达这些
+      capability，而不是假装所有算法有完全相同语义。
+    - 对 random / grid，候选独立，适合大并发；对 Bayesian / TPE，系统可能采用 batch suggestions、fantasy
+      / constant liar 等机制处理 pending trials，或限制并发以保留反馈价值。
+    - 建议把 Trial execution backend 复用第 3、4 章 Training Service / Training Operator，而不是在
+      HPO Manager 内再次实现 GPU 调度。
+    - 原章没有再实现一个 sample HPO service，而推荐附录 C 的 Kubeflow Katib。理由是 HPO workflow 标准、开源实现成熟，自建
+      suggestion adapters、trial controller、metrics collector、恢复和 Kubernetes 集成很昂贵且少有差异化价值。
+  - title: 5.4 开源 HPO 库
+    source_heading: 5.4 开源 HPO 库
+    paragraphs:
+    - 对个人或小团队，部署完整 HPO service 可能超过收益。若模型主要在本机或团队直接管理的少量服务器上训练，library approach 更灵活。原章依次介绍
+      Hyperopt、Optuna 和 Ray Tune，目的不是宣布永久排名，而是展示从轻量搜索库到分布式执行框架的能力梯度。
+    - 原章还强调 Optuna 的 visualization、文档和社区：参数重要性、parallel coordinate 等交互图可帮助理解哪些超参数真正影响
+      objective。作者把它称为 Hyperopt 的“高级版本”，这是成书时经验判断，不代表两者存在继承关系或 Optuna 在所有任务中必然更好。
+    - 原章列举其框架适配包括 PyTorch、TensorFlow / Keras、XGBoost、MXNet 等；搜索与调度能力包括 Population
+      Based Training、BayesOptSearch、HyperBand / ASHA，并可接入 Hyperopt 等外部 search algorithm。其主要差异不是某一种搜索数学必然更强，而是
+      Ray 提供代码分发、资源调度、容错和多节点执行 substrate。
+    - Ray Tune 还可表达每 trial 的 CPU / GPU 请求、单 trial 分布式训练、checkpoint、retry 和 TensorBoard
+      logging。若同时运行 4 个 trials、每个 trial 需要 2 GPU，峰值需求是 8 GPU；Ray 调度这些资源，但团队仍要治理 cluster、storage、身份和成本。
+  - title: 核心结论
+    source_heading: 核心结论
+    paragraphs:
+    - HPO 应优化固定 validation protocol，而不是训练 loss 或反复查看 test set。 数据、split 和 metric 不一致会让
+      trial 无法公平比较。
+    - HPO service 的三个核心组件是 API、HPO Job Manager 和 HP Suggestion Maker。 Trial history
+      连接执行反馈与下一次建议。
+    - Job Manager 管理 experiment lifecycle，Suggestion Maker 封装算法，Training Service 执行
+      trial。 职责分离避免重复建设算力调度。
+    - Hyperopt、Optuna 和 Ray Tune 共享 objective → search → trial → result 模式，但 execution
+      substrate 不同。
+  - title: 从本章提炼出的通用解题方法
+    source_heading: 从本章提炼出的通用解题方法
+    paragraphs:
+    - 明确 metric、direction、validation split、约束和最终产品要求。若有 accuracy / latency / cost
+      冲突，使用 constraints 或 multi-objective，而不是隐藏在含糊分数里。
+    - 明确 max trials、time、cost、per-trial resource、parallel slots、inside-trial workers、failed
+      / pruned 计数和停止后 drain / cancel 行为。
+    - 保存 candidates、pending、intermediate metrics、terminal result、algorithm / RNG state、budget
+      和 best。恢复后不应重复候选或漏计 trial。
+    - 设置 experiment / trial 并发、GPU quota、priority、namespace、RBAC、secret、network policy、预算告警和
+      chargeback。Pruning 与 autoscaling 也要可观测。
+  - title: 复习与自测
+    source_heading: 复习与自测
+    paragraphs:
+    - TPE、Hyperband 和 CMA-ES 为什么不能都叫 GP Bayesian optimization？
+    - Trial-level parallelism 与 inside-trial distributed training 怎样相乘？
+    - Infrastructure failure、invalid candidate、pruned 和 low score 应怎样区分？
+    - API Interface、Job Manager、Suggestion Maker 和 History Store 各负责什么？
+  takeaways:
+  - 模型参数由内层训练学习，超参数由外层过程选择。 HPO 是一个嵌套优化问题，而不是普通梯度更新的一部分。
+  - Random search 是高并行、任意预算的强基线。 在少数维度重要时，它常比同预算 grid 探索更多有效值。
+  - HPO service 的三个核心组件是 API、HPO Job Manager 和 HP Suggestion Maker。 Trial history
+    连接执行反馈与下一次建议。
+  - 多租户要限制并发、总预算、GPU、权限和成本。 单个 experiment 可产生大量训练任务。
+  - 最佳配置还需完整预算重训和独立测试确认。 搜索结束不是模型治理结束。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念辨析
+  question: 原文如何解释「1. 模型参数与超参数都由反向传播学习」？
+  answer: 错误。权重、偏置等模型参数由内层训练更新；学习率、层数、batch size 等超参数由人、规则或外层 HPO 选择。
+  source_heading: 1. 模型参数与超参数都由反向传播学习
+- level: 概念辨析
+  question: 原文如何解释「12. Random search 只是随便试，所以不会优于 grid」？
+  answer: 错误。在只有少数重要维度时，同预算随机搜索会在重要维度尝试更多不同值，并自然支持任意预算与并行。
+  source_heading: 12. Random search 只是随便试，所以不会优于 grid
+- level: 概念辨析
+  question: 原文如何解释「21. Early pruning 永远不会错杀最佳配置」？
+  answer: 错误。慢热配置早期指标差、最终可能更好。Grace period、同 step 可比性和噪声处理至关重要。
+  source_heading: 21. Early pruning 永远不会错杀最佳配置
+- level: 概念辨析
+  question: 原文如何解释「31. Autoscaling 能保证没有资源空闲或等待」？
+  answer: 错误。节点启动延迟、GPU 稀缺、配额、最小容量和作业形状都会造成空闲或排队。Autoscaling 只是控制手段。
+  source_heading: 31. Autoscaling 能保证没有资源空闲或等待
+- level: 概念辨析
+  question: 原文如何解释「41. 找到 best hyperparameters 后可以直接部署该 trial 模型」？
+  answer: 不一定。最佳 trial 可能是低 fidelity、幸运 seed 或验证过拟合。常见做法是固定配置，用完整训练预算和明确 train / validation
+    数据重训，再用 untouched test / 产品门禁确认。
+  source_heading: 41. 找到 best hyperparameters 后可以直接部署该 trial 模型

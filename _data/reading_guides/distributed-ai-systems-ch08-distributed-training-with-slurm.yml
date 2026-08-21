@@ -1,0 +1,146 @@
+source:
+  post: _posts/book-notes/ai-system/distributed-ai-system/2026-08-08-distributed-ai-systems-ch08-distributed-training-with-slurm.md
+  body_sha256: 6d9f3d64cae3b2a693cb58e51e149f111c76dc63ca1eadefb5bbd139268dc466
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 8
+  question: 原文围绕「0. 本章要回答的核心问题」建立了怎样的核心认识？
+  question_source: 0. 本章要回答的核心问题
+  thesis: 证据线：job state → resource telemetry → rank progress → collective trace →
+    resume test。
+  thesis_source: 28. 本章知识结构
+  concepts:
+  - term: 0. 本章要回答的核心问题
+    meaning: DDP rank-0 checkpoint与FSDP/ZeRO/Megatron sharded checkpoint有何不同？
+    source_heading: 0. 本章要回答的核心问题
+  - term: 5. Quick setup and verification
+    meaning: 若改为one-agent-per-node，SLURM tasks只有2，PyTorch children/world仍是8，必须分别记账。
+    source_heading: 5. Quick setup and verification
+  - term: 13. FSDP with SLURM
+    meaning: DDP：每rank完整weights/gradients/optimizer。FSDP：persistent state分片，forward/backward按unit
+      AllGather/ReduceScatter。
+    source_heading: 13. FSDP with SLURM
+  - term: 16.1 Job arrays是什么
+    meaning: 独立job state/exit/log/resource allocation。
+    source_heading: 16.1 Job arrays是什么
+  - term: 23. Troubleshooting common issues
+    meaning: 不要优先SSH并猜。收集每ranklast log、step state、processes和timeout exception。找最早失败rank，不是最后报NCCL
+      timeout的rank。
+    source_heading: 23. Troubleshooting common issues
+  - term: 31. 复习与自测
+    meaning: 完成这些检查后，应能把“提交一个多节点训练作业”转化为可证伪的运行协议：SLURM分配了哪些资源、哪一层派生多少进程、每个rank为何选择这张GPU并连接同一rendezvous、framework
+      state由谁持有和保存、信号到来时怎样原子提交并恢复，以及性能/故障结论由哪些跨层证据支持。
+    source_heading: 31. 复习与自测
+  logic:
+  - 0. 本章要回答的核心问题
+  - 5. Quick setup and verification
+  - 9. SLURM environment variables
+  - 16.1 Job arrays是什么
+  - 19. Checkpointing and job resumption
+  - 26. 统一公式与术语速查
+  - 31. 复习与自测
+  sections:
+  - title: 0. 本章要回答的核心问题
+    source_heading: 0. 本章要回答的核心问题
+    paragraphs:
+    - Resource manager、scheduler、launcher和training framework各负责什么？
+    - DDP rank-0 checkpoint与FSDP/ZeRO/Megatron sharded checkpoint有何不同？
+    - Atomic publish、commit marker、latest pointer和resume test分别解决什么？
+    - 如何从job state、pending reason、step exit和accounting定位失败？
+  - title: 2.5 可扩展性与可移植性边界
+    source_heading: 2.5 可扩展性与可移植性边界
+    paragraphs:
+    - Partition/QOS/account；
+    - Internet和shared storage；
+    - Requeue/preemption policy；
+    - Accounting availability。
+  - title: 5. Quick setup and verification
+    source_heading: 5. Quick setup and verification
+    paragraphs:
+    - GPU flags和binding支持依SLURM/site版本；若管理员规定不同语法，以site文档为准。
+    - 若改为one-agent-per-node，SLURM tasks只有2，PyTorch children/world仍是8，必须分别记账。
+  - title: 9. SLURM environment variables
+    source_heading: 9. SLURM environment variables
+    paragraphs:
+    - Megatron某些CPU算子可能需要更多OpenMP threads，不能一概为1。
+    - cgroup OOM会kill process，日志未必显示Python MemoryError。
+    - Pinned memory、datasets cache、CPU offload和checkpoint gathering都可能让host RAM成为瓶颈。
+  - title: 13. FSDP with SLURM
+    source_heading: 13. FSDP with SLURM
+    paragraphs:
+    - FSDP改变model state ownership和collectives，不改变“每GPU一framework rank”的基本要求。因此可复用模式A或B。
+    - DDP：每rank完整weights/gradients/optimizer。FSDP：persistent state分片，forward/backward按unit
+      AllGather/ReduceScatter。
+    - Transformer优先按block class wrap，而非纯size threshold。
+    - 恢复模板依current mesh/layout，world-size变更是否支持由checkpoint API与state类型决定。Scheduler/RNG/data
+      cursor仍需单独保存。
+  - title: 16.1 Job arrays是什么
+    source_heading: 16.1 Job arrays是什么
+    paragraphs:
+    - 独立job state/exit/log/resource allocation。
+    - 它不是一个distributed world；不同array elements默认不通信，适合超参/seed/data shards。
+  - title: 19. Checkpointing and job resumption
+    source_heading: 19. Checkpointing and job resumption
+    paragraphs:
+    - 只有部分情况会给足grace signal。Node hard failure、SIGKILL无法执行handler，因此必须有周期性checkpoint，而非只靠结束前90秒。
+    - 若signal在microstep中到达，先完成当前safe unit，再checkpoint；grace period必须覆盖worst step +
+      save + cleanup。
+    - 使用monotonic测duration，checkpoint保存累计值；不要跨restart保存旧process的monotonic timestamp。
+    - 再测试：time-limit signal、rank failure during save、partial directory、same/different
+      world-size（若支持）、storage满和requeue attempt limit。
+  - title: 23. Troubleshooting common issues
+    source_heading: 23. Troubleshooting common issues
+    paragraphs:
+    - 检查request是否矛盾：GPU type、features、memory、partition、node count、reservation。
+    - 不要优先SSH并猜。收集每ranklast log、step state、processes和timeout exception。找最早失败rank，不是最后报NCCL
+      timeout的rank。
+    - 检查symlink、relative paths、current directory和dataset shards。
+    - 每级做known-answer collective和one-step training。这个顺序最大化故障归因能力。
+  - title: 26. 统一公式与术语速查
+    source_heading: 26. 统一公式与术语速查
+    paragraphs:
+    - 非均匀tasks-per-node时不能套这个简式，应使用launcher实际rank assignment。
+    - 只保存训练恢复所需项；不同optimizer/precision/framework口径不同。Sharding改变per-rank file，不应凭空改变理想aggregate
+      bytes。
+    - 需固定model、global batch/tokens、precision、quality和checkpoint/profile设置。
+    - 高util可能运行低效kernels/重复数据；低util可能处于checkpoint/eval或小模型本就不饱和。
+  - title: 31. 复习与自测
+    source_heading: 31. 复习与自测
+    paragraphs:
+    - Megatron checkpoint为什么可能包含FP32 master weights？
+    - 每30分钟checkpoint，故障均匀：平均lost work约15分钟，最坏接近30分钟。
+    - Implement temporary/manifest/commit/latest protocol。
+    - 完成这些检查后，应能把“提交一个多节点训练作业”转化为可证伪的运行协议：SLURM分配了哪些资源、哪一层派生多少进程、每个rank为何选择这张GPU并连接同一rendezvous、framework
+      state由谁持有和保存、信号到来时怎样原子提交并恢复，以及性能/故障结论由哪些跨层证据支持。
+  takeaways:
+  - 资源线：request → queue → allocation → cgroup/binding → accounting。
+  - Rendezvous要求所有ranks共享endpoint/world且rank唯一。
+  - Job arrays是独立experiments，不是一个distributed process group。
+  - 单次util阈值不足以告警，应结合rolling window和训练phase。
+  - 生产完成标准是正确、可监控、可恢复且资源效率可解释，而非一次跑通。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念复述
+  question: 原文如何解释「0. 本章要回答的核心问题」？
+  answer: DDP rank-0 checkpoint与FSDP/ZeRO/Megatron sharded checkpoint有何不同？
+  source_heading: 0. 本章要回答的核心问题
+- level: 边界判断
+  question: 原文如何解释「5. Quick setup and verification」？
+  answer: 若改为one-agent-per-node，SLURM tasks只有2，PyTorch children/world仍是8，必须分别记账。
+  source_heading: 5. Quick setup and verification
+- level: 边界判断
+  question: 16.1 Job arrays是什么？
+  answer: 独立job state/exit/log/resource allocation。
+  source_heading: 16.1 Job arrays是什么
+- level: 关系解释
+  question: 原文如何解释「23. Troubleshooting common issues」？
+  answer: 不要优先SSH并猜。收集每ranklast log、step state、processes和timeout exception。找最早失败rank，不是最后报NCCL
+    timeout的rank。
+  source_heading: 23. Troubleshooting common issues
+- level: 概念复述
+  question: 原文如何解释「31. 复习与自测」？
+  answer: 完成这些检查后，应能把“提交一个多节点训练作业”转化为可证伪的运行协议：SLURM分配了哪些资源、哪一层派生多少进程、每个rank为何选择这张GPU并连接同一rendezvous、framework
+    state由谁持有和保存、信号到来时怎样原子提交并恢复，以及性能/故障结论由哪些跨层证据支持。
+  source_heading: 31. 复习与自测

@@ -1,0 +1,172 @@
+source:
+  post: _posts/book-notes/ai-system/design-deep-learning-system/2026-08-08-designing-deep-learning-systems-ch08-metadata-and-artifact-store.md
+  body_sha256: 1f109e1e7fd8faab7dc308ad4798a37740342819deb542c07fcaec68f1a85a36
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 14
+  question: 原文围绕「本章要回答的核心问题」建立了怎样的核心认识？
+  question_source: 本章要回答的核心问题
+  thesis: Training tracking / comparison 是 metadata system 的核心用户场景。 它要求 parameters、metrics、artifacts
+    和 runs 有统一组织。
+  thesis_source: 核心结论
+  concepts:
+  - term: 本章要回答的核心问题
+    meaning: 原章以概念、数据模型和工具用法为主，没有复杂数学算法。本文会补充图关系、复现函数、基数、时间序列和一致性等形式化表达，用来解释设计依据与局限；这些是工程推导，不是原章另行提出的算法。MLMD
+      与 MLflow 的 API、组件和产品状态具有成书时点，实际采用时应按目标版本重新验证。
+    source_heading: 本章要回答的核心问题
+  - term: 8.1 Artifact：深度学习活动的输入与输出
+    meaning: Artifact 可以是目录、对象存储 key、数据库 snapshot、容器镜像、Git commit 所指代码，甚至逻辑 dataset
+      version。关键不是物理形态，而是它是否作为某项 ML 活动的可识别输入或输出。
+    source_heading: 8.1 Artifact：深度学习活动的输入与输出
+  - term: 8.3 设计 Metadata 与 Artifact Store
+    meaning: 数据库以 unique constraint 防重复。Terminal execution status 和 output artifact
+      registration 应尽可能在同一 metadata transaction 提交；artifact bytes 则用 staging + publication
+      协调。
+    source_heading: 8.3 设计 Metadata 与 Artifact Store
+  - term: 8.4 开源方案
+    meaning: MLflow Model Registry 可把 registered model version 关联到 run artifact。Serving
+      system 可程序化解析 URI / flavor，再部署。Model Registry stages 自 MLflow 2.9.0 起已弃用，较新工作流优先使用
+      model aliases / tags；approval 和 registry semantics 仍须按目标版本确认，不能把原章 UI 状态机当作永久
+      API。
+    source_heading: 8.4 开源方案
+  - term: 从本章提炼出的通用解题方法
+    meaning: 定义 RBAC / tenant isolation、PII / secret filtering、audit、encryption、legal
+      hold、backup / restore、schema evolution、retention、tombstone 和 artifact garbage
+      collection。为 metadata freshness / completeness 建 SLO。
+    source_heading: 从本章提炼出的通用解题方法
+  - term: 复习与自测
+    meaning: Client SDK、REST / Web Interface、Data Aggregator、Metadata Store、Artifact
+      Repository 和 UI 各负责什么？
+    source_heading: 复习与自测
+  logic:
+  - 本章要回答的核心问题
+  - 8.1 Artifact：深度学习活动的输入与输出
+  - 8.2 深度学习语境中的 Metadata
+  - 8.4 开源方案
+  - 核心结论
+  - 从本章提炼出的通用解题方法
+  - 复习与自测
+  sections:
+  - title: 本章要回答的核心问题
+    source_heading: 本章要回答的核心问题
+    paragraphs:
+    - Client SDK、Web Server、Data Aggregator、Storage Adapter 与 UI 怎样协作？
+    - ML Metadata（MLMD）的 Artifact、Execution、Event、Context 如何构成 lineage graph？
+    - MLflow 的 Tracking、Projects、Models、Registry 分别解决什么问题？
+    - 原章以概念、数据模型和工具用法为主，没有复杂数学算法。本文会补充图关系、复现函数、基数、时间序列和一致性等形式化表达，用来解释设计依据与局限；这些是工程推导，不是原章另行提出的算法。MLMD
+      与 MLflow 的 API、组件和产品状态具有成书时点，实际采用时应按目标版本重新验证。
+  - title: 8.1 Artifact：深度学习活动的输入与输出
+    source_heading: 8.1 Artifact：深度学习活动的输入与输出
+    paragraphs:
+    - 人们常把 artifact（制品）只理解为训练输出的 model file。原章强调更宽的定义：深度学习组件使用或产生的文件、对象和数据，都可以是 artifact。
+    - Artifact 可以是目录、对象存储 key、数据库 snapshot、容器镜像、Git commit 所指代码，甚至逻辑 dataset version。关键不是物理形态，而是它是否作为某项
+      ML 活动的可识别输入或输出。
+    - Artifact 是被使用或产生的对象；metadata 是描述 artifact、execution 或它们之间关系的数据。
+    - 从 model v17 反向遍历可回答“怎样产生”；从 dataset v12 正向遍历可回答“哪些模型受它影响”。这分别是故障排查和影响分析的基础。
+  - title: 8.2 深度学习语境中的 Metadata
+    source_heading: 8.2 深度学习语境中的 Metadata
+    paragraphs:
+    - 普通分布式系统也有 logs / metrics，例如 CPU utilization、active users 和 failed requests。ML
+      metadata 则服务于另一组问题：模型比较、复现、lineage、部署和质量退化。它可视为系统 telemetry 中具有领域结构和长期关系的一部分。
+    - Metadata store 必须保存右侧所有引用及其完整性信息。即使如此，GPU 非确定性也可能使 weights 不逐位相同，因此 reproducibility
+      标准应明确为 bitwise、prediction-equivalent 或 metric within tolerance。
+    - Metadata store 则围绕持久 domain identities 与 relationships 组织，并提供一致 API / UI。它不替代
+      observability system；logs 保留细节，metadata 提供长期结构与索引，两者通过 run / trace ID 互链。
+    - 实验 pipeline 验证成功后，Ravi 把算法提升到 production training pipeline；该 pipeline 使用 customer
+      data 训练并自动部署模型。几周后 BestFood Inc. 报告：采用新 dataset 后，intent accuracy 下降 10%。
+  - title: 8.3 设计 Metadata 与 Artifact Store
+    source_heading: 8.3 设计 Metadata 与 Artifact Store
+    paragraphs:
+    - Metadata and artifact store 的目标不是“把所有日志复制进数据库”，而是围绕模型与产生它的 executions 建立长期、可查询的事实图，让用户能够比较
+      experiments、下载 artifacts、遍历 lineage 并重建训练上下文。
+    - 抽象层不应只追求“可换数据库”而退化到最低公共能力。Lineage traversal、unique constraints、transactions
+      和 metric queries 是领域必需；若 backend 不支持，adapter 要明确实现代价。
+    - 一年约 365 GB（未算索引 / replication），单库仍可能需要 partition、retention 和 downsampling。决定规模的常常是
+      metric points、prediction metadata 和 lineage edges，而不只是 run 数。
+    - 数据库以 unique constraint 防重复。Terminal execution status 和 output artifact registration
+      应尽可能在同一 metadata transaction 提交；artifact bytes 则用 staging + publication 协调。
+  - title: 8.4 开源方案
+    source_heading: 8.4 开源方案
+    paragraphs:
+    - MLMD 是记录和查询 ML workflow metadata 的轻量 library，是 TensorFlow Extended（TFX）的组成部分，但可独立使用。原章还以
+      Kubeflow Pipelines / Notebook metadata 集成为例说明它适合作为已有系统的 metadata engine。
+    - MLMD 通常先登记 ArtifactType、ExecutionType、ContextType，再创建 instances。Type 定义属性 schema，使
+      metadata 不只是任意 JSON。Properties 受 type schema 约束；custom properties 提供灵活扩展。
+    - Proxy 的主要好处是客户端无需拿到底层 object-store credentials / direct path，由 server 统一授权与转发。原章“end
+      users can have a direct path … without credentials”措辞容易误解；图示与本意是通过 proxy 隐藏直接访问。
+    - MLflow Model Registry 可把 registered model version 关联到 run artifact。Serving system
+      可程序化解析 URI / flavor，再部署。Model Registry stages 自 MLflow 2.9.0 起已弃用，较新工作流优先使用
+      model aliases / tags；approval 和 registry semantics 仍须按目标版本确认，不能把原章 UI 状态机当作永久
+      API。
+  - title: 核心结论
+    source_heading: 核心结论
+    paragraphs:
+    - Machine-learning metadata 可分为 training run、general artifact、model artifact 和
+      pipeline 四类。 这四类共同描述从数据到模型的开发过程。
+    - Prediction service 应能方便取得 packaged models。 因此 artifact repository、metadata query
+      与 serving integration 必须共同设计。
+    - 通用架构分离 client、web interface、data aggregator、abstract metadata store、abstract
+      artifact repository 与 UI。 抽象层允许替换具体 storage。
+    - Open-source capability 与 recommendation 都有版本边界。 应用 representative workflow 做
+      POC，并评估 operation、migration 和 TCO。
+  - title: 从本章提炼出的通用解题方法
+    source_heading: 从本章提炼出的通用解题方法
+    paragraphs:
+    - 用 Artifact、Execution、Event 作为最小因果骨架，再用 Context 组织 experiment / pipeline / project。明确
+      input / output role 与 producing execution，避免只做目录式分组。
+    - Metadata store 优化 typed relations / query，artifact repository 优化大对象吞吐 / durability。定义
+      URI、digest、encryption、authorization、signed access 和 regional placement。
+    - 提供 model view、pipeline view、experiment comparison、impact analysis 和 reproducibility
+      export。UI 只消费 canonical APIs，不另造事实源；serving / release workflow 使用 immutable
+      model reference。
+    - 定义 RBAC / tenant isolation、PII / secret filtering、audit、encryption、legal hold、backup
+      / restore、schema evolution、retention、tombstone 和 artifact garbage collection。为
+      metadata freshness / completeness 建 SLO。
+  - title: 复习与自测
+    source_heading: 复习与自测
+    paragraphs:
+    - General-artifact metadata 为什么要包含 type、version、location、creator 和 timestamps？
+    - Client SDK、REST / Web Interface、Data Aggregator、Metadata Store、Artifact Repository
+      和 UI 各负责什么？
+    - MLMD 与 MLflow 在定位、lineage model、UI、artifact management、autolog 和 registry 上有何差异？
+    - 请估算每天 2,000 个 runs、每 run 5,000 metric points、每点 120 bytes 的纯 metric storage
+      量，并说明还漏了哪些开销。
+  takeaways:
+  - Machine-learning metadata 可分为 training run、general artifact、model artifact 和 pipeline
+    四类。 这四类共同描述从数据到模型的开发过程。
+  - Training tracking / comparison 是 metadata system 的核心用户场景。 它要求 parameters、metrics、artifacts
+    和 runs 有统一组织。
+  - Lineage 最自然的模型是 typed property graph。 Artifacts 是对象，Executions 是变换，Events 是输入
+    / 输出边，Contexts 提供多个查询视图。
+  - Workflow retry 要有 stable IDs 与 idempotency。 否则 metadata 会复制而非反映真实重试关系。
+  - Open-source capability 与 recommendation 都有版本边界。 应用 representative workflow 做 POC，并评估
+    operation、migration 和 TCO。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念辨析
+  question: 原文如何解释「1. Artifact 就是模型文件」？
+  answer: Artifact 是 ML activity 的输入 / 输出对象，dataset、code snapshot、configuration、evaluation
+    report、feature schema 和 model package 都可以是 Artifact。模型只是其中一种。
+  source_heading: 1. Artifact 就是模型文件
+- level: 概念辨析
+  question: 原文如何解释「10. 设置 Random Seed 就保证 Bitwise Reproducibility」？
+  answer: 并行调度、GPU kernels、library versions 和 floating-point reduction order 都可能改变结果。应明确目标是
+    exact replay 还是 statistically equivalent result。
+  source_heading: 10. 设置 Random Seed 就保证 Bitwise Reproducibility
+- level: 概念辨析
+  question: 原文如何解释「18. Workflow Retry 天然是幂等的」？
+  answer: 若无 stable external execution ID / idempotency key，重试会复制 runs、metrics 和 artifacts。系统必须定义
+    duplicate detection 与 retry ownership。
+  source_heading: 18. Workflow Retry 天然是幂等的
+- level: 概念辨析
+  question: 原文如何解释「27. MLMD 无 UI，所以不适合生产」？
+  answer: 它适合做嵌入式 lineage engine，但产品层需自行建设。是否适合取决于已有 UI、artifact registry、orchestrator
+    和团队能力。
+  source_heading: 27. MLMD 无 UI，所以不适合生产
+- level: 概念辨析
+  question: 原文如何解释「35. Lineage 只用于从模型向前追溯训练输入」？
+  answer: 同一个 graph 也支持 forward impact analysis：某 dataset / code / image 有问题时，找出受影响
+    models、deployments 和 decisions。
+  source_heading: 35. Lineage 只用于从模型向前追溯训练输入

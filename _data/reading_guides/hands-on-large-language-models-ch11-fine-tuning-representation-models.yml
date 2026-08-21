@@ -1,0 +1,158 @@
+source:
+  post: _posts/book-notes/deep-learning/hands-on-large-language-model/2026-08-08-hands-on-large-language-models-ch11-fine-tuning-representation-models.md
+  body_sha256: 05ceb794dd63ffb2908cdb9139d2a5050fe880920dd77ab04b09aa1a4bc25555
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 10
+  question: 原文围绕「0. 本章路线：同一个 Encoder，四种监督强度」建立了怎样的核心认识？
+  question_source: 0. 本章路线：同一个 Encoder，四种监督强度
+  thesis: 根据 label names 生成 synthetic examples，再训练 SetFit，严格说使用了 label semantics 与生成模型先验，并非没有监督信号。Synthetic
+    data 可能刻板、过于简单或泄漏 label words，应以真实 target examples 验证。
+  thesis_source: 6. 面向少样本分类的微调（Fine-Tuning for Few-Shot Classification）
+  concepts:
+  - term: 0. 本章路线：同一个 Encoder，四种监督强度
+    meaning: Validation：选 epoch、learning rate、冻结层数和 threshold。
+    source_heading: 0. 本章路线：同一个 Encoder，四种监督强度
+  - term: 2. 微调预训练 BERT（Fine-Tuning a Pretrained BERT Model）
+    meaning: BERT backbone 读取预训练权重，classification head 因 checkpoint 没有这项任务参数而随机初始化。加载时出现
+      “newly initialized” warning 是预期行为，head 必须训练后才可用。
+    source_heading: 2. 微调预训练 BERT（Fine-Tuning a Pretrained BERT Model）
+  - term: 4. 少样本分类（Few-Shot Classification）
+    meaning: Few-shot supervised classification 假设每类只有少量高质量 labeled examples。
+    source_heading: 4. 少样本分类（Few-Shot Classification）
+  - term: 6. 面向少样本分类的微调（Fine-Tuning for Few-Shot Classification）
+    meaning: 根据 label names 生成 synthetic examples，再训练 SetFit，严格说使用了 label semantics
+      与生成模型先验，并非没有监督信号。Synthetic data 可能刻板、过于简单或泄漏 label words，应以真实 target examples
+      验证。
+    source_heading: 6. 面向少样本分类的微调（Fine-Tuning for Few-Shot Classification）
+  - term: 9. 准备 NER 数据（Preparing Data for Named-Entity Recognition）
+    meaning: "“Dean Palmer” 是一个 span：Dean=B-PER，Palmer=I-PER。I 表示 inside，不是 end；BIO
+      本身没有显式 E tag。"
+    source_heading: 9. 准备 NER 数据（Preparing Data for Named-Entity Recognition）
+  - term: 12. 总结（Summary）
+    meaning: NER 与 sequence classification 的关键差别是逐 token logits、word-to-subtoken 标签对齐和
+      span-level 评测。
+    source_heading: 12. 总结（Summary）
+  logic:
+  - 0. 本章路线：同一个 Encoder，四种监督强度
+  - 2. 微调预训练 BERT（Fine-Tuning a Pretrained BERT Model）
+  - 3. 冻结层（Freezing Layers）
+  - 6. 面向少样本分类的微调（Fine-Tuning for Few-Shot Classification）
+  - 7. 使用掩码语言建模继续预训练（Continued Pretraining with Masked Language Modeling）
+  - 10. 面向 NER 的微调（Fine-Tuning for Named-Entity Recognition）
+  - 12. 总结（Summary）
+  sections:
+  - title: 0. 本章路线：同一个 Encoder，四种监督强度
+    source_heading: 0. 本章路线：同一个 Encoder，四种监督强度
+    paragraphs:
+    - Validation：选 epoch、learning rate、冻结层数和 threshold。
+    - Test：所有选择冻结后只报告一次最终结果。
+  - title: 1. 监督分类（Supervised Classification）
+    source_heading: 1. 监督分类（Supervised Classification）
+    paragraphs:
+    - 第 4 章中的现成 task model 完全冻结；embedding 路线只训练独立逻辑回归。本章改为端到端训练：classification loss
+      的梯度穿过 head，继续进入 BERT。
+    - 端到端性能常更强，但也更容易过拟合、遗忘通用能力，并要求为每个任务保存一份模型或 adapter。
+    - 指标是 binary F1、macro F1 还是 weighted F1。
+    - 至少建立 TF-IDF + logistic regression 和 frozen embedding baseline。
+  - title: 2. 微调预训练 BERT（Fine-Tuning a Pretrained BERT Model）
+    source_heading: 2. 微调预训练 BERT（Fine-Tuning a Pretrained BERT Model）
+    paragraphs:
+    - BERT backbone 读取预训练权重，classification head 因 checkpoint 没有这项任务参数而随机初始化。加载时出现
+      “newly initialized” warning 是预期行为，head 必须训练后才可用。
+    - Dynamic padding 只补到当前 batch 最长序列，比把整个数据集都 pad 到模型上限省计算。Collator 不会做“数据增强”；它在本例的职责是组
+      batch 与 padding。
+    - 本数据平衡，binary 与 macro 往往接近；生产数据不平衡时必须报告每类 precision/recall、confusion matrix 和
+      calibration。
+    - 原章 1 epoch 报告约 0.849 F1，高于跨域现成 Twitter model 的 0.80。比较说明目标域训练有价值，不证明任意自训练模型都优于任意
+      task checkpoint。
+  - title: 3. 冻结层（Freezing Layers）
+    source_heading: 3. 冻结层（Freezing Layers）
+    paragraphs:
+    - 优化器应在冻结后创建，否则可能保留不必要参数引用。冻结策略改变后应重新初始化 model、optimizer 和 trainer，避免继承上一实验权重。
+    - 原章只训练顶层 block 左右得到约 0.80，head-only 约 0.63，full 约 0.85。
+    - 图中合理解释应是“训练顶部若干 blocks”，不是从 embedding 端开始训练最底部 blocks。Frozen layers 应先于 trainable
+      layers，梯度适配集中在高层。
+    - Freeze 不是典型 parameter-efficient fine-tuning（PEFT）的全部含义。Adapters/LoRA 在冻结 base
+      weights 时增加小型 trainable modules，往往比只训练 random head 更有表达力。
+  - title: 4. 少样本分类（Few-Shot Classification）
+    source_heading: 4. 少样本分类（Few-Shot Classification）
+    paragraphs:
+    - Few-shot supervised classification 假设每类只有少量高质量 labeled examples。
+    - 类边界与 hard cases 是否出现。
+    - 模型可能依赖 label artifacts。
+    - 报告 few-shot 性能应多次 stratified sampling，给出均值、标准差或置信区间，而不是单次幸运抽样。
+  - title: 6. 面向少样本分类的微调（Fine-Tuning for Few-Shot Classification）
+    source_heading: 6. 面向少样本分类的微调（Fine-Tuning for Few-Shot Classification）
+    paragraphs:
+    - 每类 16 条，共 32 条。不能从 test 抽样；还应运行多个 seeds，并检查每个样本是否重复或异常。
+    - 原章单次抽样得 F1 0.8364，正文四舍五入写 0.85；更准确应说约 0.84。它展示方法潜力，不应与 8,530 条训练集的结果做无方差、无同
+      seed 的严格等价比较。
+    - Logistic regression 训练稳定、CPU 友好；differentiable head 可和 body 端到端优化，但少样本更容易过拟合。选择应由
+      validation、多 seed 和 latency 决定。
+    - 根据 label names 生成 synthetic examples，再训练 SetFit，严格说使用了 label semantics 与生成模型先验，并非没有监督信号。Synthetic
+      data 可能刻板、过于简单或泄漏 label words，应以真实 target examples 验证。
+  - title: 7. 使用掩码语言建模继续预训练（Continued Pretraining with Masked Language Modeling）
+    source_heading: 7. 使用掩码语言建模继续预训练（Continued Pretraining with Masked Language Modeling）
+    paragraphs:
+    - 在宽泛目标域语料继续训练称 domain-adaptive pretraining（DAPT）；在具体任务的无标签文本继续训练常称 task-adaptive
+      pretraining（TAPT）。
+    - Whole-word masking 会同时选中一个词的全部 subtokens，通常任务更难；“一定更好”不是普遍结论，取决于语言、tokenizer、数据和训练预算。
+    - 这即使删除 label，也让模型看到了最终 test 文本，属于 transductive adaptation，不能当作严格 inductive benchmark。
+    - 若业务场景明确允许 unlabeled test-time adaptation，应单独命名并和 inductive baseline 区分。
+  - title: 9. 准备 NER 数据（Preparing Data for Named-Entity Recognition）
+    source_heading: 9. 准备 NER 数据（Preparing Data for Named-Entity Recognition）
+    paragraphs:
+    - "“Dean Palmer” 是一个 span：Dean=B-PER，Palmer=I-PER。I 表示 inside，不是 end；BIO 本身没有显式
+      E tag。"
+    - Label first subtoken only：后续 subtokens 设 -100，避免长词被重复加权。
+    - 三个 person subtokens 得 B-PER、I-PER、I-PER，而特殊 tokens 被忽略。
+    - Entity-level F1 要求 span 边界与类型正确。Token accuracy 常被大量 O 标签支配，不应作为唯一指标。
+  - title: 10. 面向 NER 的微调（Fine-Tuning for Named-Entity Recognition）
+    source_heading: 10. 面向 NER 的微调（Fine-Tuning for Named-Entity Recognition）
+    paragraphs:
+    - Offset mapping 仍需针对 Unicode、normalization 和原始文本做测试。
+    - Nested entity：BIO flat scheme 无法表达嵌套。
+    - Domain shift：新闻 NER 不等于医疗/合同 NER。
+    - 高风险匿名化应以 recall 为优先，结合正则、词典、第二模型和人工复核；模型置信度也需校准。
+  - title: 12. 总结（Summary）
+    source_heading: 12. 总结（Summary）
+    paragraphs:
+    - Task-specific representation model 是 pretrained encoder 与 classification head
+      的联合系统。
+    - Continued MLM 在目标域无标签语料上更新 encoder，再做 task fine-tuning，可缓解 domain shift。
+    - NER 与 sequence classification 的关键差别是逐 token logits、word-to-subtoken 标签对齐和 span-level
+      评测。
+    - 本章最重要的方法论是：先确定监督发生在哪个粒度，再决定让梯度进入模型多深。数据切分、标签对齐和评测协议若有错误，再复杂的 fine-tuning 也只会更高效地优化错误目标。
+  takeaways:
+  - Test：所有选择冻结后只报告一次最终结果。
+  - 原章 1 epoch 报告约 0.849 F1，高于跨域现成 Twitter model 的 0.80。比较说明目标域训练有价值，不证明任意自训练模型都优于任意
+    task checkpoint。
+  - 根据 label names 生成 synthetic examples，再训练 SetFit，严格说使用了 label semantics 与生成模型先验，并非没有监督信号。Synthetic
+    data 可能刻板、过于简单或泄漏 label words，应以真实 target examples 验证。
+  - Entity-level F1 要求 span 边界与类型正确。Token accuracy 常被大量 O 标签支配，不应作为唯一指标。
+  - 本章最重要的方法论是：先确定监督发生在哪个粒度，再决定让梯度进入模型多深。数据切分、标签对齐和评测协议若有错误，再复杂的 fine-tuning 也只会更高效地优化错误目标。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念辨析
+  question: 原文如何解释「11.1 Fine-tuning 不等于只训练分类头」？
+  answer: 只训练 head 时 encoder frozen；full fine-tuning 会更新 encoder。两者成本和能力不同。
+  source_heading: 11.1 Fine-tuning 不等于只训练分类头
+- level: 概念辨析
+  question: 原文如何解释「11.4 冻结参数不等于跳过 forward computation」？
+  answer: Frozen layers 仍计算激活；节省主要来自不存梯度和 optimizer states。
+  source_heading: 11.4 冻结参数不等于跳过 forward computation
+- level: 概念辨析
+  question: 原文如何解释「11.10 Continued MLM 不更新 Tokenizer 词表」？
+  answer: 它更新 subword embeddings 和 encoder weights；领域新词仍由原 tokenizer 切分。
+  source_heading: 11.10 Continued MLM 不更新 Tokenizer 词表
+- level: 概念辨析
+  question: 原文如何解释「11.13 Fill-mask 变化不等于下游提升」？
+  answer: 它只证明分布适配。最终证据来自同 protocol 的 classification/NER test。
+  source_heading: 11.13 Fill-mask 变化不等于下游提升
+- level: 概念辨析
+  question: 原文如何解释「11.17 Pipeline 默认 Subtoken 输出不是最终实体」？
+  answer: 使用 aggregation strategy 或自定义 span merger，且检查 offsets。
+  source_heading: 11.17 Pipeline 默认 Subtoken 输出不是最终实体

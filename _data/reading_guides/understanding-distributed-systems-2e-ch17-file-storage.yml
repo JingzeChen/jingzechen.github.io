@@ -1,0 +1,167 @@
+source:
+  post: _posts/book-notes/distributed-system/understanding-distributed-system/2026-08-16-understanding-distributed-systems-2e-ch17-file-storage.md
+  body_sha256: 53b0bb1b4e84ad6c4cf6964651bc55a1a19657fce571ab89686743b8735b0c75
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 12
+  question: 原文围绕「0. 导读：把大文件从应用服务器的本地磁盘中拆出去」建立了怎样的核心认识？
+  question_source: 0. 导读：把大文件从应用服务器的本地磁盘中拆出去
+  thesis: Front-end service 是 stateless reverse proxy，统一 authentication 和 routing，因此可
+    horizontal scale。
+  thesis_source: 24. 核心结论
+  concepts:
+  - term: 0. 导读：把大文件从应用服务器的本地磁盘中拆出去
+    meaning: Application server 不再承担文件 bytes 的主要 storage 和 serving，CDN 可以直接以 blob
+      store 为 origin。
+    source_heading: 0. 导读：把大文件从应用服务器的本地磁盘中拆出去
+  - term: 6. Location Service：全球 control plane
+    meaning: 在满足 region 和 policy 约束的 healthy clusters 中选较低 score。真实 Azure 策略并非原章公开内容，此式仅解释
+      multi-resource placement。
+    source_heading: 6. Location Service：全球 control plane
+  - term: 12. Partition Manager：索引的 control plane
+    meaning: 若 key order 以 account name 开头，同一 account 的 files 连续。好处是 account listing/locality；风险是单
+      account 可能大到跨 range 或成为 hotspot。
+    source_heading: 12. Partition Manager：索引的 control plane
+  - term: 15. 三层端到端工作流
+    meaning: 立即擦除每个物理 copy 可能昂贵，且与 versioning/retention/legal hold 冲突。安全性与合规要求必须由产品语义明确。
+    source_heading: 15. 三层端到端工作流
+  - term: 19.4 Partition server 与 storage server
+    meaning: 把它们合称“存储节点”会看不清 metadata 与 bulk data 的独立扩展和故障。
+    source_heading: 19.4 Partition server 与 storage server
+  - term: 25. 一般化的解决问题方法
+    meaning: 三个 replicas 若共享 rack/power/software fate，不等于三个独立 copies。逐层枚举 disk、node、rack、cluster、region
+      和 operator/software failure。
+    source_heading: 25. 一般化的解决问题方法
+  logic:
+  - 0. 导读：把大文件从应用服务器的本地磁盘中拆出去
+  - 6. Location Service：全球 control plane
+  - 9. 同步 chain replication
+  - 15. 三层端到端工作流
+  - 18. Strong consistency 的历史注释
+  - 21. 如何设计 managed blob storage 的应用接入
+  - 25. 一般化的解决问题方法
+  sections:
+  - title: 0. 导读：把大文件从应用服务器的本地磁盘中拆出去
+    source_heading: 0. 导读：把大文件从应用服务器的本地磁盘中拆出去
+    paragraphs:
+    - Application server 不再承担文件 bytes 的主要 storage 和 serving，CDN 可以直接以 blob store 为
+      origin。
+    - Local routing：cluster 如何定位文件 metadata 和 data extents；
+    - 不提供任意 in-place byte mutation，常以 whole-object PUT 或 append/block API 为主；
+    - 本章原文用 file/blob 作为简化抽象，不应据此推断 Azure Blob API 与 POSIX 完全等价。
+  - title: 3. 17.1 Blob storage architecture：为什么看 Azure Storage
+    source_heading: 3. 17.1 Blob storage architecture：为什么看 Azure Storage
+    paragraphs:
+    - 原章以 Azure Storage（AS）为例。AS 是 scalable cloud storage system，并提供 strong consistency。历史系统支持
+      file/blob、queue、table 等 abstractions；为简化，本章只讨论 blob/file abstraction。
+    - 这意味着后面的 stream/partition/front-end 三层是底层共享架构视角，不应把每个细节机械映射成今天 Azure Blob 的公开产品术语。
+    - 不能只把 bytes 异步发送到多台机器就宣称 strong consistency。后文的同步 chain replication 与 partition
+      ownership 是重要基础。
+    - 一个系统可以读到最新版本但只有一份 copy，consistency 强而 durability 弱；也可以有很多异步副本但短时间读到旧值。多个概念不能用“有三副本”一并替代。
+  - title: 6. Location Service：全球 control plane
+    source_heading: 6. Location Service：全球 control plane
+    paragraphs:
+    - 创建 DNS record，把 account name 映射到 cluster public IP。
+    - 顺序体现一个重要原则：先让 destination ready，再公布 route。若先发布 DNS，client 可能在 cluster 尚不认识 account
+      时得到错误。
+    - Control plane outage 仍可能阻止新 account、迁移和 topology change，但已有 cached mapping/data
+      path 应尽可能继续工作。
+    - 在满足 region 和 policy 约束的 healthy clusters 中选较低 score。真实 Azure 策略并非原章公开内容，此式仅解释
+      multi-resource placement。
+  - title: 9. 同步 chain replication
+    source_heading: 9. 同步 chain replication
+    paragraphs:
+    - Extent writes 使用 chain replication 同步复制。Chapter 10 已介绍 chain replication：replicas
+      排成 chain，write 沿 chain 传播，通常由 tail 确认完成；read policy 取决于实现。
+    - 原章 Figure 17.2 画出了 partition layer 的 append/write、stream manager 分配 extent replicas，以及三个
+      storage servers 的 chain。
+    - 真实 chain 可 pipeline 多个 writes，steady-state throughput 与单次 latency 的关系不同：pipeline
+      能提高并发吞吐，却不能让一条 write 的物理传播和持久化延迟消失。
+    - 原章说 client 缓存 storage-server list，未来 writes 发给 primary server。这里的 client 是 stream
+      service 的内部使用方（例如 partition layer），不是最终浏览器用户直接持有 extent topology。
+  - title: 12. Partition Manager：索引的 control plane
+    source_heading: 12. Partition Manager：索引的 control plane
+    paragraphs:
+    - Partition Manager 对 file index 做 range partitioning，并把每个 range 映射给 partition
+      server。
+    - 代价与 Chapter 16 一致：large/hot account 可能集中，顺序名称可能热点，range scan 会跨多个 partitions。
+    - 虚线代表 control/metadata interaction，实线代表 data requests。这种区分是阅读原图的关键。
+    - 若 key order 以 account name 开头，同一 account 的 files 连续。好处是 account listing/locality；风险是单
+      account 可能大到跨 range 或成为 hotspot。
+  - title: 15. 三层端到端工作流
+    source_heading: 15. 三层端到端工作流
+    paragraphs:
+    - 这里将 chain 中间 replicas 省略，并用“publish after bytes”表达安全不变量；不是 Azure 论文中全部细节。
+    - 若实际 API 使用 ETag/version ID，其作用类似；原章未展开公开 API 条件写。
+    - 立即擦除每个物理 copy 可能昂贵，且与 versioning/retention/legal hold 冲突。安全性与合规要求必须由产品语义明确。
+  - title: 18. Strong consistency 的历史注释
+    source_heading: 18. Strong consistency 的历史注释
+    paragraphs:
+    - 作者总结：Azure Storage 从头构建时就提供 strong consistency；AWS S3 后来也提供同类 guarantee。原书正文写“in
+      2021”，引用的是 2021 年的深度解析文章；AWS 实际在 2020 年 12 月公开宣布 S3 对 PUT/DELETE 后的 GET、LIST
+      等提供 strong read-after-write consistency。
+    - 强 consistency 可以与高 scale 共存，但底层要投入 partition ownership、replication 和 metadata
+      coordination；
+    - "“Strong”仍需明确 operation scope、region scope、conditional updates 和 multi-object
+      atomicity。"
+    - 单对象 strong consistency 不自动提供跨多个 objects 的 transaction。例如先上传 image 再更新 manifest，两者的原子发布仍需
+      versioned names、indirection 或业务 transaction protocol。
+  - title: 19.4 Partition server 与 storage server
+    source_heading: 19.4 Partition server 与 storage server
+    paragraphs:
+    - Partition server 处理 file metadata/high-level operation；
+    - Storage server 保存 extent bytes。
+    - 把它们合称“存储节点”会看不清 metadata 与 bulk data 的独立扩展和故障。
+  - title: 21. 如何设计 managed blob storage 的应用接入
+    source_heading: 21. 如何设计 managed blob storage 的应用接入
+    paragraphs:
+    - 不要只看“11 个 9 durability”一类汇总数字，需理解 failure scope 和操作语义。
+    - Large object 使用 multipart 时还要记录 part IDs/checksums，complete operation 应幂等。
+    - Periodic orphan/dangling-reference reconciliation；
+    - Checksum mismatch 应隔离坏 copy，而不是把 corruption 复制给其他 replicas。
+  - title: 25. 一般化的解决问题方法
+    source_heading: 25. 一般化的解决问题方法
+    paragraphs:
+    - CDN 解决 delivery，不拥有 authoritative durability；cache 解决重复读取，不扩大 origin storage。每引入一层都要问：谁仍是
+      source of truth，谁仍承担容量和恢复？
+    - 让 client identity 不随 node、partition 或 extent migration 变化。这一模式也适用于 database
+      shard、message partition 和 compute task。
+    - Metadata 小但决定 data 可达性、版本和权限。它需要 partition、replication、consistency、backup 和
+      corruption detection，不能只保护 bulk bytes。
+    - 三个 replicas 若共享 rack/power/software fate，不等于三个独立 copies。逐层枚举 disk、node、rack、cluster、region
+      和 operator/software failure。
+  takeaways:
+  - CDN 降低 origin request，却不解决 application local disk 的容量、durability 和共享问题。
+  - Storage clusters 跨 regions 分布；cluster 内 racks 是应被 placement 感知的故障域。
+  - Stream Manager 将 extent 分配给 storage-server chain，并在副本故障时 repair/reconfigure。
+  - Front-end service 是 stateless reverse proxy，统一 authentication 和 routing，因此可 horizontal
+    scale。
+  - Azure Storage 展示了 partitioning、replication、functional decomposition、reverse proxy
+    与 control-plane separation 的组合。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念辨析
+  question: 原文如何解释「19.1 File/blob 与 extent」？
+  answer: Extent：stream layer 的 internal allocation/replication unit。
+  source_heading: 19.1 File/blob 与 extent
+- level: 概念辨析
+  question: 原文如何解释「19.6 Strong consistency 与 multi-object transaction」？
+  answer: 单 object 的读写一致性不等于多个 objects 原子更新。Manifest、database row 和 blob 之间仍可能出现 partial
+    success。
+  source_heading: 19.6 Strong consistency 与 multi-object transaction
+- level: 概念辨析
+  question: 原文如何解释「20.2 “CDN 中有副本，所以 blob origin 不必 durable”」？
+  answer: CDN cache 会 eviction、expire、purge，也不承诺作为 authoritative backup。Origin 必须独立
+    durable。
+  source_heading: 20.2 “CDN 中有副本，所以 blob origin 不必 durable”
+- level: 概念辨析
+  question: 原文如何解释「20.7 “Metadata 很小，不会成为瓶颈”」？
+  answer: 海量小 files 使 metadata entry 数、QPS、listing、partition split 和 memory/index
+    成本巨大。Small-object workload 常由 metadata/request cost 主导。
+  source_heading: 20.7 “Metadata 很小，不会成为瓶颈”
+- level: 概念辨析
+  question: 原文如何解释「20.12 “Front end 无状态就不会单点故障”」？
+  answer: 还需要多个 instances、load balancing、health checks、capacity 和 mapping cache fallback。架构属性不替代部署冗余。
+  source_heading: 20.12 “Front end 无状态就不会单点故障”

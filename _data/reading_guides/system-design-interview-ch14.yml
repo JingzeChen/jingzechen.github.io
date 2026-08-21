@@ -1,0 +1,147 @@
+source:
+  post: _posts/book-notes/software-architecture/system-design-interview/2026-08-12-system-design-interview-ch14.md
+  body_sha256: f87a97fb0a2e04a18f80b42fd5461a4e31fc558f3491ecdc35ed2346d2e13d59
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 8
+  question: 原文围绕「0. 学习目标、边界与全章路线」建立了怎样的核心认识？
+  question_source: 0. 学习目标、边界与全章路线
+  thesis: 如果这些问题都能回答，就不只是知道“视频放 CDN”，而是理解了本章的核心方法：把不可预测的大对象上传、昂贵的媒体处理和全球播放拆成由状态机连接的独立数据面；用
+    GOP 与 DAG 将重计算变成可并行、可重试的不可变任务，再由热度、地域、设备能力和错误类别决定哪些制品提前计算、保存和分发。
+  thesis_source: 29. 核心结论与一般设计方法
+  concepts:
+  - term: 0. 学习目标、边界与全章路线
+    meaning: 本文严格沿原书顺序展开。补充的状态机、码率/存储推导、关键路径、分块上传协议、幂等任务、ABR 缓冲、内容安全和可运行 DAG 示例属于工程背景，不是作者逐式给出的原文。
+    source_heading: 0. 学习目标、边界与全章路线
+  - term: 8. 视频播放：Streaming 与 Downloading
+    meaning: 播放器维持 buffer，持续下载 segment。若 segment 下载速度低于播放消耗，buffer 下降并卡顿。
+    source_heading: 8. 视频播放：Streaming 与 Downloading
+  - term: 14. 速度优化一：并行/可恢复上传
+    meaning: GOP 对齐便于边上传边转码和独立处理；若客户端不支持，原书让服务端接收整片后切分。上传协议 part 不一定必须等于播放 segment，但对齐可减少重切分。
+    source_heading: 14. 速度优化一：并行/可恢复上传
+  - term: 19. 成本优化：长尾分布
+    meaning: 规模巨大时在 ISP 附近部署 Open Connect 类节点可降低出口费和延迟。代价是硬件、调度、运维、容量预测和多 ISP 合作，只有超大平台合理。
+    source_heading: 19. 成本优化：长尾分布
+  - term: 26.2 转码
+    meaning: critical path/stage duration；
+    source_heading: 26.2 转码
+  - term: 29. 核心结论与一般设计方法
+    meaning: 对象持久后 Preprocessor 按 GOP 切分并生成 DAG，Scheduler 只释放依赖就绪任务，Resource Manager
+      按 codec/GPU/负载匹配 Worker，Worker 把不可变 artifact 写临时/转码存储。全部必需 rendition/manifest
+      校验后才发 completion 并条件更新 READY。播放器从 CDN 读 HLS/DASH manifest 和 segment，按带宽/buffer
+      自适应码率。上传用 multipart、就近中心；安全用短时受限预签名、扫描、DRM/AES/水印。
+    source_heading: 29. 核心结论与一般设计方法
+  logic:
+  - 0. 学习目标、边界与全章路线
+  - 8. 视频播放：Streaming 与 Downloading
+  - 12.1 Preprocessor
+  - 19. 成本优化：长尾分布
+  - 23. Step 4：API Tier 与 Database 扩展
+  - 28.2 控制面与数据面
+  - 29. 核心结论与一般设计方法
+  sections:
+  - title: 0. 学习目标、边界与全章路线
+    source_heading: 0. 学习目标、边界与全章路线
+    paragraphs:
+    - 为什么视频二进制绕过 API Server 直传对象存储，而 metadata 走 API？
+    - Container、codec、resolution、bitrate 与流媒体协议有什么区别？
+    - Preprocessor、DAG Scheduler、Resource Manager 与 Task Worker 的职责为何不能混在一起？
+    - 本文严格沿原书顺序展开。补充的状态机、码率/存储推导、关键路径、分块上传协议、幂等任务、ABR 缓冲、内容安全和可运行 DAG 示例属于工程背景，不是作者逐式给出的原文。
+  - title: 4. Step 2：复用云基础设施
+    source_heading: 4. Step 2：复用云基础设施
+    paragraphs:
+    - 面试重在选择合适技术，不必深挖对象存储/CDN 内部；
+    - 自建全球 Blob Storage/CDN 极其复杂昂贵；
+    - Netflix 使用 AWS，Facebook 使用 Akamai 等外部能力。
+    - API 处理上传 URL、metadata、用户、推荐等；视频播放数据不穿过 API Server。
+  - title: 8. 视频播放：Streaming 与 Downloading
+    source_heading: 8. 视频播放：Streaming 与 Downloading
+    paragraphs:
+    - Download：完整文件复制到设备后使用；
+    - Streaming：边接收小块边播放，无需等待全片。
+    - 播放器维持 buffer，持续下载 segment。若 segment 下载速度低于播放消耗，buffer 下降并卡顿。
+  - title: 12.1 Preprocessor
+    source_heading: 12.1 Preprocessor
+    paragraphs:
+    - 为不能客户端切分的旧设备在服务端切分；
+    - 缓存 segmented video，并把 GOP/metadata 持久到临时存储以便重试。
+  - title: 14. 速度优化一：并行/可恢复上传
+    source_heading: 14. 速度优化一：并行/可恢复上传
+    paragraphs:
+    - 完成时验证所有 part、顺序、总大小和 hash，再原子 commit。失败只重传缺失 part。
+    - GOP 对齐便于边上传边转码和独立处理；若客户端不支持，原书让服务端接收整片后切分。上传协议 part 不一定必须等于播放 segment，但对齐可减少重切分。
+  - title: 19. 成本优化：长尾分布
+    source_heading: 19. 成本优化：长尾分布
+    paragraphs:
+    - 冷视频由高容量 origin/video server 提供，或首次请求回源后缓存。
+    - 规模巨大时在 ISP 附近部署 Open Connect 类节点可降低出口费和延迟。代价是硬件、调度、运维、容量预测和多 ISP 合作，只有超大平台合理。
+    - view count/velocity；
+    - encoding/storage cost。
+  - title: 23. Step 4：API Tier 与 Database 扩展
+    source_heading: 23. Step 4：API Tier 与 Database 扩展
+    paragraphs:
+    - 无状态水平扩展，LB 路由。认证/session 外置；大文件不经过 API；热点 metadata 缓存。
+    - Read replica 延迟不能返回错误 READY；
+    - Search/analytics 走派生系统。
+    - 对象存储按 video/artifact key 分布，多副本/纠删码，生命周期迁移冷层。DB 只存引用和校验和。
+  - title: 26.2 转码
+    source_heading: 26.2 转码
+    paragraphs:
+    - queue depth/oldest age；
+    - time-to-ready P50/P99；
+    - critical path/stage duration；
+    - Worker CPU/GPU utilization；
+  - title: 28.2 控制面与数据面
+    source_heading: 28.2 控制面与数据面
+    paragraphs:
+    - API/Metadata 是控制面；
+    - Original/Transcoded Storage、CDN 是媒体数据面；
+    - 视频 bytes 绕过 API；
+  - title: 29. 核心结论与一般设计方法
+    source_heading: 29. 核心结论与一般设计方法
+    paragraphs:
+    - 需求是 5M DAU、上传/观看、多终端、全球、多格式、1GB、加密和低成本。 10% 用户日传 300MB，约 500k uploads/day、150TB/day
+      原片和 1.736GB/s 平均 ingress；每天 25M 次观看、若每次 0.3GB 则 7.5PB egress，按 $0.02/GB 是 $150k/day。
+      API 只做认证、metadata、upload session 和预签名 URL，客户端分块直传 Original Storage；Metadata
+      与 bytes 并行，以 video ID 状态机关联。
+    - 对象持久后 Preprocessor 按 GOP 切分并生成 DAG，Scheduler 只释放依赖就绪任务，Resource Manager 按 codec/GPU/负载匹配
+      Worker，Worker 把不可变 artifact 写临时/转码存储。全部必需 rendition/manifest 校验后才发 completion
+      并条件更新 READY。播放器从 CDN 读 HLS/DASH manifest 和 segment，按带宽/buffer 自适应码率。上传用 multipart、就近中心；安全用短时受限预签名、扫描、DRM/AES/水印。
+    - 热门视频完整预转码并全球 CDN，冷视频少版本、区域缓存或 singleflight 按需转码。队列至少一次，所以 task/artifact/metadata
+      更新幂等；瞬时错误退避重试，坏格式停止，Worker 用 lease/fencing，后台 reconciler 修复孤儿状态。监控 time-to-ready、关键路径、队列
+      age、CDN hit/egress、startup、rebuffer、成本和下架延迟。
+    - 如果这些问题都能回答，就不只是知道“视频放 CDN”，而是理解了本章的核心方法：把不可预测的大对象上传、昂贵的媒体处理和全球播放拆成由状态机连接的独立数据面；用
+      GOP 与 DAG 将重计算变成可并行、可重试的不可变任务，再由热度、地域、设备能力和错误类别决定哪些制品提前计算、保存和分发。
+  takeaways:
+  - 500k uploads/day、150 TB/day；
+  - Reconciler/garbage collection；
+  - 错误要按可恢复性分类。 重试必须有界，坏输入立即终止，状态和制品由 reconciler 对账。
+  - 能否说明 Preprocessor 的四项职责？
+  - 如果这些问题都能回答，就不只是知道“视频放 CDN”，而是理解了本章的核心方法：把不可预测的大对象上传、昂贵的媒体处理和全球播放拆成由状态机连接的独立数据面；用
+    GOP 与 DAG 将重计算变成可并行、可重试的不可变任务，再由热度、地域、设备能力和错误类别决定哪些制品提前计算、保存和分发。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念辨析
+  question: 原文如何解释「27.1 Upload complete 与 Ready」？
+  answer: Upload complete 只表示原片持久化；Ready 要所有必需转码制品、manifest、CDN/Origin 可读且 metadata
+    已切换。
+  source_heading: 27.1 Upload complete 与 Ready
+- level: 概念辨析
+  question: 原文如何解释「27.6 GOP 与任意 Chunk」？
+  answer: GOP 从关键帧开始、可独立解码；任意字节 chunk 未必可播放或独立转码。
+  source_heading: 27.6 GOP 与任意 Chunk
+- level: 概念辨析
+  question: 原文如何解释「27.11 Blob Storage 与数据库 BLOB 列」？
+  answer: 原书借 BLOB 定义说明大二进制对象；系统设计中的云 Blob/Object Storage 通常是独立对象服务，不应把视频塞进 Metadata
+    DB 的 BLOB 列。
+  source_heading: 27.11 Blob Storage 与数据库 BLOB 列
+- level: 概念辨析
+  question: 原文如何解释「27.16 On-demand encoding 总是省钱」？
+  answer: 冷视频省预计算，但首播慢、突发并发可能重复计算，需要 singleflight 和最小基础版本。
+  source_heading: 27.16 On-demand encoding 总是省钱
+- level: 概念辨析
+  question: 原文如何解释「27.20 Live 是点播加更短 segment」？
+  answer: 直播还改变 ingest、调度、错误预算、延迟和状态；不能仅改 segment 时长。
+  source_heading: 27.20 Live 是点播加更短 segment

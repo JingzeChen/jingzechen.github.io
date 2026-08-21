@@ -1,0 +1,152 @@
+source:
+  post: _posts/book-notes/distributed-system/understanding-distributed-system/2026-08-16-understanding-distributed-systems-2e-ch32-observability.md
+  body_sha256: 3703976f0efb0a6147e80f057277c35e29e6a805c3d58f179daad6564b86a347
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 8
+  question: 0. 本章定位：Monitoring 发现“坏了”，Observability 帮助回答“为什么”？
+  question_source: 0. 本章定位：Monitoring 发现“坏了”，Observability 帮助回答“为什么”
+  thesis: Fleet 扩大和 logging bug 仍可压垮后端，因此 collector 必须 rate-limit。
+  thesis_source: 38. 核心结论
+  concepts:
+  - term: 0. 本章定位：Monitoring 发现“坏了”，Observability 帮助回答“为什么”
+    meaning: 作者的答案不是“预先为每种故障建一个 dashboard”，而是保留足够细粒度、上下文丰富且可关联的 telemetry，使未知问题发生后仍能查询。
+    source_heading: 0. 本章定位：Monitoring 发现“坏了”，Observability 帮助回答“为什么”
+  - term: 8. Logs 对 debugging 的价值
+    meaning: 例如 service instance crash：从 crash event 找 instance/version/request，查询之前的
+      resource、dependency 和 error context。
+    source_heading: 8. Logs 对 debugging 的价值
+  - term: 15.3 风险
+    meaning: Knob 应 scoped、TTL、audited，并受 volume budget 限制。
+    source_heading: 15.3 风险
+  - term: 18.4 分层保留
+    meaning: Incident 时临时提高 verbosity。
+    source_heading: 18.4 分层保留
+  - term: 27. Metrics 是跨事件聚合的 derived views
+    meaning: 原章说“可以从 events 派生”，某些系统确实如此；production instrumentation 也可直接同时 emit metric
+      和 event，避免全量 raw retention。逻辑关系比物理实现更重要。
+    source_heading: 27. Metrics 是跨事件聚合的 derived views
+  - term: 39. 解决问题的一般思路
+    meaning: Async bounded buffers、levels、priority/tail sampling、retention tiers、collector
+      rate limits 和 drop counters。
+    source_heading: 39. 解决问题的一般思路
+  logic:
+  - 0. 本章定位：Monitoring 发现“坏了”，Observability 帮助回答“为什么”
+  - 8. Logs 对 debugging 的价值
+  - 12. Work-unit event 应包含什么
+  - 18.4 分层保留
+  - 23. Traces 能解决哪些问题
+  - 32. 可运行 Python 示例：Wide event、Trace 与派生 Metrics
+  - 39. 解决问题的一般思路
+  sections:
+  - title: 0. 本章定位：Monitoring 发现“坏了”，Observability 帮助回答“为什么”
+    source_heading: 0. 本章定位：Monitoring 发现“坏了”，Observability 帮助回答“为什么”
+    paragraphs:
+    - 它能告诉 operator：用户是否受影响、影响多大、是否需要行动。但 alert 与 dashboard 往往只能暴露 symptom，例如 latency
+      variance 上升，不能自动解释具体哪个请求、哪条调用链、哪个内部状态导致问题。
+    - 当生产系统出现无法预先穷举的行为时，如何快速提出并验证 root-cause hypothesis？
+    - 作者的答案不是“预先为每种故障建一个 dashboard”，而是保留足够细粒度、上下文丰富且可关联的 telemetry，使未知问题发生后仍能查询。
+    - 这比“收集了多少 GB 日志”更接近目的。数据很多但不能关联、搜索或解释，仍然不可观测。
+  - title: 3.3 Observability 不是“自动理解一切”
+    source_heading: 3.3 Observability 不是“自动理解一切”
+    paragraphs:
+    - 未 instrument 的事实不可查询；
+    - Context propagation 可能断裂；
+    - Sensitive data 不可任意保留；
+    - Operator 仍需 domain knowledge。
+  - title: 8. Logs 对 debugging 的价值
+    source_heading: 8. Logs 对 debugging 的价值
+    paragraphs:
+    - 例如 service instance crash：从 crash event 找 instance/version/request，查询之前的 resource、dependency
+      和 error context。
+    - Downstream status；
+    - Feature flag/version。
+    - 价值依赖 proper instrumentation。若只写“error happened”，缺少 request/dependency/context，日志量再大也无法验证
+      hypothesis。
+  - title: 12. Work-unit event 应包含什么
+    source_heading: 12. Work-unit event 应包含什么
+    paragraphs:
+    - Specific operations took how long；
+    - 每个 network call 的 response time and status code。
+    - 本文代码中的 context 自身只保证 at most once（不能重复 finish），并不自动保证 caller 一定发出事件。
+    - Duration 使用 monotonic clock；event timestamp 使用 wall clock。
+  - title: 15.3 风险
+    source_heading: 15.3 风险
+    paragraphs:
+    - 全 fleet 开 debug 造成 volume spike；
+    - 低 level 可能包含敏感数据；
+    - Issue 发生前上下文已未记录；
+    - Knob 应 scoped、TTL、audited，并受 volume budget 限制。
+  - title: 18.4 分层保留
+    source_heading: 18.4 分层保留
+    paragraphs:
+    - Sampled rich events；
+    - Errors/slow traces 高保留；
+    - 短期 raw、长期 aggregate；
+    - Incident 时临时提高 verbosity。
+  - title: 23. Traces 能解决哪些问题
+    source_heading: 23. Traces 能解决哪些问题
+    paragraphs:
+    - 按 trace/request ID 找到 customers 在 support tickets 中报告的 failed request，查看完整路径。
+    - 找出高 latency requests 的共同点，例如都命中特定 subset of service instances。
+    - 比较 spans duration/等待关系，identify bottlenecks in the end-to-end request path。注意最长
+      span 不必然是可优化 root cause；还要区分 queue、network、child/self time。
+    - 用于 billing 时需更严格 completeness、anti-tampering 和审计，普通 sampled traces 通常不足以作为财务账本。
+  - title: 27. Metrics 是跨事件聚合的 derived views
+    source_heading: 27. Metrics 是跨事件聚合的 derived views
+    paragraphs:
+    - Metric 是 time series of summary statistics，由多个 events 中的 counters/observations
+      聚合得到。
+    - Failure rate 是否升高？
+    - 哪个 region/version 异常？
+    - 原章说“可以从 events 派生”，某些系统确实如此；production instrumentation 也可直接同时 emit metric 和
+      event，避免全量 raw retention。逻辑关系比物理实现更重要。
+  - title: 32. 可运行 Python 示例：Wide event、Trace 与派生 Metrics
+    source_heading: 32. 可运行 Python 示例：Wide event、Trace 与派生 Metrics
+    paragraphs:
+    - 它是 deterministic educational model，不是完整 OpenTelemetry/Zipkin implementation。
+    - Trace 强制一个 root、child interval 在 parent 内，不覆盖 links、async detached work、multiple
+      roots；
+    - Sampling 是 deterministic illustrative policy，未携带 inclusion weights；
+    - Collector limit 只返回 boolean，production 需 dropped counters/backpressure；
+  - title: 39. 解决问题的一般思路
+    source_heading: 39. 解决问题的一般思路
+    paragraphs:
+    - Metrics 发现 population trend，events 解释单 work unit，traces 还原 cross-service flow。
+    - Async bounded buffers、levels、priority/tail sampling、retention tiers、collector
+      rate limits 和 drop counters。
+    - 传播 sampling decision，记录 inclusion probability；debug 优先采 failure，统计估计用权重校正。
+    - Telemetry 缺失本身是 failure mode；观测 drop、lag、schema rejection、trace completeness、query
+      latency 和 cost。
+  takeaways:
+  - 分布式系统永不 100% healthy；resiliency mechanisms 也增加 emergent behavior 的复杂性。
+  - Logs 可解释 crash 和个体 long-tail，但价值依赖 proper instrumentation。
+  - Fleet 扩大和 logging bug 仍可压垮后端，因此 collector 必须 rate-limit。
+  - Traces 可调试特定 request、rare issue、共同 cohort、端到端 bottleneck 和 resource attribution。
+  - Observability pipeline 自身必须 bounded、可监控且不能成为业务 hard dependency。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念辨析
+  question: 原文如何解释「33.1 Monitoring 与 observability」？
+  answer: Monitoring 跟踪 health/known conditions；observability 还支持用 rich telemetry
+    调试未知行为。Monitoring 是其子集。
+  source_heading: 33.1 Monitoring 与 observability
+- level: 概念辨析
+  question: 原文如何解释「33.7 Span duration 与 self time」？
+  answer: Span duration 包含 child/wait；self time 要扣除 child overlap。最长 span 不一定是 CPU
+    bottleneck。
+  source_heading: 33.7 Span duration 与 self time
+- level: 概念辨析
+  question: 原文如何解释「34.3 “Logs 可以替代 metrics”」？
+  answer: 每次 dashboard/alert 扫描海量 events 昂贵；派生 time-series view。
+  source_heading: 34.3 “Logs 可以替代 metrics”
+- level: 概念辨析
+  question: 原文如何解释「34.9 “动态打开 debug 没风险”」？
+  answer: 全 fleet volume spike 可压垮 disk/collector。Scope + TTL + audit + rate limit。
+  source_heading: 34.9 “动态打开 debug 没风险”
+- level: 概念辨析
+  question: 原文如何解释「34.16 “没有 logs 表示没有错误”」？
+  answer: 可能 telemetry pipeline 断裂。监测 freshness、drop 和 ingestion lag。
+  source_heading: 34.16 “没有 logs 表示没有错误”

@@ -1,0 +1,144 @@
+source:
+  post: _posts/book-notes/software-architecture/system-design-interview/2026-08-12-system-design-interview-ch07.md
+  body_sha256: 3a15559ad34a17235f857d2af7baf55902f3ef1d77c7992b7d17159aed0c203e
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 8
+  question: 原文围绕「0. 学习目标、阅读边界与全章路线」建立了怎样的核心认识？
+  question_source: 0. 学习目标、阅读边界与全章路线
+  thesis: 如果这些问题都能回答，就不只是记住一个 64-bit 图，而是理解了本章的核心方法：把全局唯一这份看似必须中心协调的状态，拆成共享时间、互斥节点身份和节点内序列三部分，让绝大多数生成操作变成本地计算，再把真正需要协调的工作收缩到低频的节点身份管理与时钟治理。
+  thesis_source: 19. 核心结论与一般设计方法
+  concepts:
+  - term: 0. 学习目标、阅读边界与全章路线
+    meaning: 分布式环境中却同时存在多个写入节点。若每台机器都从 1 开始自增，就会生成相同 ID；若所有机器都访问一个数据库序列，唯一性恢复了，但吞吐、延迟和可用性又受中心节点限制。
+    source_heading: 0. 学习目标、阅读边界与全章路线
+  - term: 5. 方案二：UUID
+    meaning: UUID v4 有 122 个随机 bit，碰撞概率在正常规模下极低。原书引用的直觉是：每秒生成 10 亿个，持续约 100 年，发生一次重复的概率才接近
+      50%。具体数字取决于 UUID 版本和有效随机位，重点是空间巨大。
+    source_heading: 5. 方案二：UUID
+  - term: 8.2 节点 ID 分配
+    meaning: 旧节点失去租约后必须停止生成。回收 ID 前要等待旧进程确定退出和最大时钟偏差，否则旧、新持有者可能重叠。
+    source_heading: 8.2 节点 ID 分配
+  - term: 11. 编码与解码的可运行实现
+    meaning: 业务取得 ID 后事务可能失败，ID 就形成空洞。Snowflake 不回收旧 ID，因为回收需要判断全局是否曾被观察或持久化，会引入昂贵协调。唯一
+      ID 不等于连续票据。
+    source_heading: 11. 编码与解码的可运行实现
+  - term: 14.4 时间单位也可以调整
+    meaning: 微秒：时间精细，但寿命大幅缩短。
+    source_heading: 14.4 时间单位也可以调整
+  - term: 19. 核心结论与一般设计方法
+    meaning: 如果这些问题都能回答，就不只是记住一个 64-bit 图，而是理解了本章的核心方法：把全局唯一这份看似必须中心协调的状态，拆成共享时间、互斥节点身份和节点内序列三部分，让绝大多数生成操作变成本地计算，再把真正需要协调的工作收缩到低频的节点身份管理与时钟治理。
+    source_heading: 19. 核心结论与一般设计方法
+  logic:
+  - 0. 学习目标、阅读边界与全章路线
+  - 5. 方案二：UUID
+  - 7. 方案四：Twitter Snowflake
+  - 11. 编码与解码的可运行实现
+  - 13. Step 4：时钟同步与时钟回拨
+  - 15.5 状态持久化与进程重启
+  - 19. 核心结论与一般设计方法
+  sections:
+  - title: 0. 学习目标、阅读边界与全章路线
+    source_heading: 0. 学习目标、阅读边界与全章路线
+    paragraphs:
+    - 分布式环境中却同时存在多个写入节点。若每台机器都从 1 开始自增，就会生成相同 ID；若所有机器都访问一个数据库序列，唯一性恢复了，但吞吐、延迟和可用性又受中心节点限制。
+    - 在多数据中心、多机器并发生成 ID 时，不进行每次全局协调，仍生成满足业务格式、顺序、容量和可用性要求的唯一 ID。
+    - UUID 为什么易扩展，却不满足本章的 64-bit 数字与时间顺序要求？
+    - 本文严格沿原书顺序展开。原章没有给出完整实现，本文补充的编码/解码公式、可运行生成器、生日悖论、时钟回拨策略、节点租约与容量模型属于标准工程背景，不是作者逐式给出的原文。
+  - title: 2. Step 1：理解问题并确定设计范围
+    source_heading: 2. Step 1：理解问题并确定设计范围
+    paragraphs:
+    - 分布式系统中，连续无空洞通常需要知道哪些预留 ID 最终提交，故障回滚会使它很昂贵。多数主键只需要唯一和可索引，不需要无空洞。
+    - 这项澄清直接排除“必须中心序列”的必要性。只要高位编码时间，较晚毫秒生成的 ID 自然更大；同一毫秒内再由节点与序列字段打破重复。
+    - 这个目标本身并不高，单数据库序列也可能达到；但结合多数据中心、低延迟和高可用，中心方案不够稳健。
+    - Snowflake 的 sequence 约束的是第三项。即使全局只有 10,000/s，若流量全在同一毫秒到达同一节点，也会短时消耗多个序列值。
+  - title: 5. 方案二：UUID
+    source_heading: 5. 方案二：UUID
+    paragraphs:
+    - UUID v4 有 122 个随机 bit，碰撞概率在正常规模下极低。原书引用的直觉是：每秒生成 10 亿个，持续约 100 年，发生一次重复的概率才接近
+      50%。具体数字取决于 UUID 版本和有效随机位，重点是空间巨大。
+    - 常用字符串表示包含十六进制字符和连字符，不满足“纯十进制数字”的展示要求。
+    - 严格地说，UUID 本质是 128-bit 数，也可转成十进制；UUID v1/v6/v7 等具有时间成分。原书是在其需求和当时常见通用 UUID 方案下做比较。即便使用时间有序
+      UUID，长度仍不满足 64-bit。
+    - 随机 UUID 插入 B-tree 聚簇索引时会分散到不同页，可能增加页分裂和缓存局部性问题。时间有序 UUID/ULID 改善局部性，但 ID 更长。
+  - title: 7. 方案四：Twitter Snowflake
+    source_heading: 7. 方案四：Twitter Snowflake
+    paragraphs:
+    - 前三种方案分别缺少某项需求：多主难动态扩展，UUID 过长且原题顺序/格式不符，Ticket Server 是中心单点。Snowflake 使用 divide
+      and conquer：把一个 64-bit 整数拆成多个字段。
+    - 同毫秒但数据中心不同，datacenter 不同；
+    - 同中心同毫秒但机器不同，machine 不同；
+    - 这意味着 Snowflake ID 可被反推出大致生成时间和节点拓扑。若这些信息敏感，需要外层不透明映射、加密/置换或选择随机 ID。
+  - title: 8.2 节点 ID 分配
+    source_heading: 8.2 节点 ID 分配
+    paragraphs:
+    - ZooKeeper/etcd 租约；
+    - Kubernetes StatefulSet 稳定 ordinal；
+    - 从机架/地域元数据映射，但必须防重。
+    - 旧节点失去租约后必须停止生成。回收 ID 前要等待旧进程确定退出和最大时钟偏差，否则旧、新持有者可能重叠。
+  - title: 11. 编码与解码的可运行实现
+    source_heading: 11. 编码与解码的可运行实现
+    paragraphs:
+    - sequence 溢出等待下一毫秒。
+    - 记录 sequence exhaustion 指标；
+    - 对高峰增加节点或 sequence bit。
+    - 业务取得 ID 后事务可能失败，ID 就形成空洞。Snowflake 不回收旧 ID，因为回收需要判断全局是否曾被观察或持久化，会引入昂贵协调。唯一 ID
+      不等于连续票据。
+  - title: 13. Step 4：时钟同步与时钟回拨
+    source_heading: 13. Step 4：时钟同步与时钟回拨
+    paragraphs:
+    - 原书把 clock synchronization 列为首要延伸话题，并指出多核与多机场景都可能存在时钟问题，NTP 是常用方案。
+    - 时钟回到同一 t，进程若把 sequence 重置，再生成 sequence 0，就复制了旧四元组。
+    - 用额外 bit 表示时钟世代，回拨时切换世代。代价是减少时间、节点或 sequence 位；世代 bit 用完仍需处理。
+    - 并消耗 sequence。若真实时钟长期落后，sequence 可能持续溢出；ID 中时间也暂时领先真实时间。需要限制最大逻辑漂移。
+  - title: 14.4 时间单位也可以调整
+    source_heading: 14.4 时间单位也可以调整
+    paragraphs:
+    - 毫秒：约 69.7 年，单时间格粒度高；
+    - 10 毫秒：相同时间 bit 寿命增加 10 倍，但每格需要更多 sequence；
+    - 秒：寿命极长，但单秒 sequence 字段巨大；
+    - 微秒：时间精细，但寿命大幅缩短。
+  - title: 15.5 状态持久化与进程重启
+    source_heading: 15.5 状态持久化与进程重启
+    paragraphs:
+    - 启动后等待时钟超过持久化的最后时间；
+    - 重启获取新的 machine ID；
+    - machine ID 租约回收前等待安全窗口；
+    - 时钟精度为毫秒时，正常进程启动通常已跨毫秒，但不能只依赖概率。
+  - title: 19. 核心结论与一般设计方法
+    source_heading: 19. 核心结论与一般设计方法
+    paragraphs:
+    - 多主步长在节点增删时难协调；UUID 无协调但 128 bit 且不符合格式；Ticket Server 简单但中心依赖。
+    - 选择 Snowflake：1 sign + 41 timestamp + 5 datacenter + 5 machine + 12 sequence。
+    - ID 对外用字符串，避免 JavaScript 53-bit 精度问题；监控时钟 offset、回拨、序列耗尽、租约冲突和 epoch 剩余寿命。
+    - 如果这些问题都能回答，就不只是记住一个 64-bit 图，而是理解了本章的核心方法：把全局唯一这份看似必须中心协调的状态，拆成共享时间、互斥节点身份和节点内序列三部分，让绝大多数生成操作变成本地计算，再把真正需要协调的工作收缩到低频的节点身份管理与时钟治理。
+  takeaways:
+  - 超过 10,000 IDs/s；
+  - Ticket Server 用中心化换简单和严格唯一。 号段可提高吞吐，但中心权威仍需高可用。
+  - 节点身份由带租约和 fencing 的高可用控制面分配，失租节点停止生成。
+  - 能否证明不同毫秒的 ID 数值不会被低 22 bit 反超？
+  - 如果这些问题都能回答，就不只是记住一个 64-bit 图，而是理解了本章的核心方法：把全局唯一这份看似必须中心协调的状态，拆成共享时间、互斥节点身份和节点内序列三部分，让绝大多数生成操作变成本地计算，再把真正需要协调的工作收缩到低频的节点身份管理与时钟治理。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念辨析
+  question: 原文如何解释「17.1 唯一与连续」？
+  answer: 唯一只要求不重复；连续要求没有空洞。Snowflake 允许业务失败、节点字段和时间跳跃造成大空洞。
+  source_heading: 17.1 唯一与连续
+- level: 概念辨析
+  question: 原文如何解释「17.6 UUID 是“非数字”」？
+  answer: UUID 本质是 128-bit 数，常见文本采用十六进制和连字符。原书的“non-numeric”针对表示与需求，不是说其底层没有数值。
+  source_heading: 17.6 UUID 是“非数字”
+- level: 概念辨析
+  question: 原文如何解释「17.11 32×32 只支持 64 台机器」？
+  answer: 5-bit datacenter 支持 32 个中心，每中心 5-bit machine 支持 32 台，总共 1024 个唯一节点组合。
+  source_heading: 17.11 32×32 只支持 64 台机器
+- level: 概念辨析
+  question: 原文如何解释「17.15 ID 可解码只是优点」？
+  answer: 便于排障，也会泄露创建时间、数据中心和机器信息，并允许估计业务量。公开资源 ID 可能需要不透明化。
+  source_heading: 17.15 ID 可解码只是优点
+- level: 概念辨析
+  question: 原文如何解释「17.19 Machine ID 可立即复用」？
+  answer: 旧进程、网络分区或时钟区间可能仍在生成。必须通过租约 fencing、确认退出和安全等待避免重叠。
+  source_heading: 17.19 Machine ID 可立即复用

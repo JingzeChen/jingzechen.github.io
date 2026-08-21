@@ -1,0 +1,176 @@
+source:
+  post: _posts/book-notes/ai-system/design-machine-learning-system/2026-08-08-designing-machine-learning-systems-ch07-model-deployment-and-prediction-service.md
+  body_sha256: 524414caf70e5b533d5019ed1a8f058d21838d2e5fdee24355d6ff0a7f9143ed
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 15
+  question: 原文围绕「0. 本章要回答的核心问题」建立了怎样的核心认识？
+  question_source: 0. 本章要回答的核心问题
+  thesis: 模型压缩通过 low-rank、distillation、pruning 和 quantization 减少存储或计算；实际加速必须由目标硬件和
+    runtime 验证。编译器用 IR 把框架图 lower 到硬件代码，再通过 vectorization、parallelization、tiling、fusion
+    与 schedule search 优化。
+  thesis_source: 7. 原章总结的完整还原
+  concepts:
+  - term: 0. 本章要回答的核心问题
+    meaning: Batch、online、synchronous、asynchronous 与 streaming prediction 各指什么，哪些不是严格同义词？
+    source_heading: 0. 本章要回答的核心问题
+  - term: 2. Machine Learning Deployment Myths：部署误区
+    meaning: Netflix 图 7-2 展示的代表任务包括 content valuation、制作排期优化、剧本 NLP、网络质量预测、机器翻译、欺诈检测、流失预测、客服工单分类、内容标签、title
+      portfolio optimization 和 CDN caching 等；图中并未直接列出推荐或搜索。原章历史数字：Uber 有数千生产模型；Google
+      同时训练数千模型，所述并发训练规模涉及数千亿（hundreds of billions）参数，不能读成某一个模型必然有如此规模；Booking.com
+      有 150+ 模型；Algorithmia 2021 调查中，超过 25,000 员工的组织有 41% 运行 100 个以上模型。
+    source_heading: 2. Machine Learning Deployment Myths：部署误区
+  - term: 4. Model Compression：模型压缩
+    meaning: 若实数范围包含 0，上式可让实数 0 近似精确映射到整数 zero-point；若范围不含 0，未裁剪的 zero-point 可能越界，因此必须裁剪或使用对称/其他量化约定。误差来自
+      rounding 和 clipping。Per-channel scale 通常比全 tensor scale 精细，但 metadata 和 kernel
+      更复杂。
+    source_heading: 4. Model Compression：模型压缩
+  - term: 6. Compiling and Optimizing Models for Edge Devices：编译与优化
+    meaning: 原章把 CPU/GPU/TPU primitive 简化为 scalar/vector/tensor。脚注已说明现代 CPU 有 SIMD/vector、GPU
+      有 tensor cores；真实差异是 ISA、parallel hierarchy、memory/cache 和专用单元，不能按一维/二维永久分类。
+    source_heading: 6. Compiling and Optimizing Models for Edge Devices：编译与优化
+  - term: 9. 本章知识结构
+    meaning: 用户动作期限决定 batch、online 或 hybrid prediction。
+    source_heading: 9. 本章知识结构
+  - term: 11. 从本章提炼出的通用部署与预测服务设计方法
+    meaning: 建立 FP32 baseline；分别评估 distillation、structured/unstructured pruning、PTQ/QAT。每次记录总体与
+      slice 质量、校准、artifact size、RAM、latency、throughput 和能耗。
+    source_heading: 11. 从本章提炼出的通用部署与预测服务设计方法
+  logic:
+  - 0. 本章要回答的核心问题
+  - 2. Machine Learning Deployment Myths：部署误区
+  - 3. Batch Prediction Versus Online Prediction：批量与在线预测
+  - 6. Compiling and Optimizing Models for Edge Devices：编译与优化
+  - 7. 原章总结的完整还原
+  - 10. 核心结论
+  - 11. 从本章提炼出的通用部署与预测服务设计方法
+  sections:
+  - title: 0. 本章要回答的核心问题
+    source_heading: 0. 本章要回答的核心问题
+    paragraphs:
+    - Batch、online、synchronous、asynchronous 与 streaming prediction 各指什么，哪些不是严格同义词？
+    - 训练 batch pipeline 与线上 stream pipeline 为什么容易产生 training-serving skew，怎样统一语义？
+    - Low-rank / separable convolution、distillation、pruning、quantization 分别减少什么？
+    - 一句话概括：部署不是把模型文件放到服务器，而是把模型、特征、运行时和业务请求组成一个可扩展、低延迟、可观测、可更新并能在目标硬件上稳定运行的预测系统。
+  - title: 1. 开篇：部署把模型逻辑变成生产能力
+    source_heading: 1. 开篇：部署把模型逻辑变成生产能力
+    paragraphs:
+    - 这需要 ML 与领域知识。部署则负责让这套逻辑离开开发环境，在 staging 或 production 中被真实应用调用。
+    - 对某些团队，production 只是 notebook 中生成业务图表；对另一些团队，它意味着每天服务数百万用户。前者环境接近开发，本章的大规模服务细节影响较小；后者必须把模型视为长期在线系统。
+    - 成熟度应与风险和规模匹配，不应把大型公司的全部平台复制给小项目，也不能用 demo 标准支撑关键业务。
+    - 解决方向不是所有人做所有事，而是共同契约、端到端 ownership、可自助平台和跨团队观测。
+  - title: 2. Machine Learning Deployment Myths：部署误区
+    source_heading: 2. Machine Learning Deployment Myths：部署误区
+    paragraphs:
+    - Netflix 图 7-2 展示的代表任务包括 content valuation、制作排期优化、剧本 NLP、网络质量预测、机器翻译、欺诈检测、流失预测、客服工单分类、内容标签、title
+      portfolio optimization 和 CDN caching 等；图中并未直接列出推荐或搜索。原章历史数字：Uber 有数千生产模型；Google
+      同时训练数千模型，所述并发训练规模涉及数千亿（hundreds of billions）参数，不能读成某一个模型必然有如此规模；Booking.com
+      有 150+ 模型；Algorithmia 2021 调查中，超过 25,000 员工的组织有 41% 运行 100 个以上模型。
+    - 模型刚训练完往往最贴近近期数据，但“必然单调下降”也不是定律：季节回归或偶然变化可能短暂改善。正确做法是监控、取标签和设更新门禁，而不是仅按模型年龄推断质量。
+    - 作者把“How often should?”改问“How often can?”，强调更新能力是竞争优势。原章历史部署频率：Etsy 50 次/天、Netflix
+      数千次/天、AWS 每 11.7 秒；Weibo 某些模型迭代 10 分钟，作者听到 Alibaba、ByteDance 有相似量级。
+    - 规模可指每秒数百请求、每月数百万用户、数百模型或大 artifact。原章引用 Stack Overflow 2019 调查：超过半数受访开发者在至少
+      100 人公司工作；作者 Twitter 小调查得到类似模式。
+  - title: 3. Batch Prediction Versus Online Prediction：批量与在线预测
+    source_heading: 3. Batch Prediction Versus Online Prediction：批量与在线预测
+    paragraphs:
+    - 在原章讨论的 serving 语境中，online features 泛指在线预测使用的特征，其中既可以有批量预计算的特征，也可以有流式增量计算的特征；streaming
+      features 则按计算来源命名。Item embedding 可批量预计算、在线读取，因此属于在线预测使用的 batch feature，而不是 streaming
+      feature。
+    - 图 7-8 给出更完整的生产闭环：streaming data 先经过 control、process 和 store；一条路径进入 data warehouse，构成
+      Research 框中的 ingest、离线 feature engineering、label、模型开发和训练；另一条路径由线上 feature engineer
+      直接为 inference 计算特征。图中 “Should be equal” 明确要求离线与线上特征语义相等。部署后的 ML model 产生 predictions
+      供 application 使用。
+    - 反馈有两条独立支路：ML model 产生的 logs 回流为 streaming data；application 收到的用户 inputs 也直接回流为
+      streaming data，而不是先变成 logs。研究框只是循环中的一部分，不是系统终点。
+    - Uber、Weibo 使用 Apache Flink 等流处理器改造批流统一；一些公司使用 feature store 保证训练批特征与预测特征一致。Feature
+      store 不是自动正确性：错误定义会被更一致地复用。
+  - title: 4. Model Compression：模型压缩
+    source_heading: 4. Model Compression：模型压缩
+    paragraphs:
+    - 若实数范围包含 0，上式可让实数 0 近似精确映射到整数 zero-point；若范围不含 0，未裁剪的 zero-point 可能越界，因此必须裁剪或使用对称/其他量化约定。误差来自
+      rounding 和 clipping。Per-channel scale 通常比全 tensor scale 精细，但 metadata 和 kernel
+      更复杂。
+    - 低精度可减少内存带宽、cache 占用并使用更高吞吐硬件指令，也可能允许更大 batch。原章“逐 bit 加法 32x vs 16x”用于直觉；现代
+      vector/tensor hardware 的加速不简单等于位宽比，取决于 kernel、accumulator、转换和是否 memory-bound。
+    - FP16、BF16 是浮点低精度，不等同 INT8 fixed-point。BF16 保留较大 exponent range、牺牲 mantissa precision。Mixed
+      precision 常用低精度乘法、高精度 accumulation。
+    - 原章写作时还指出，fixed-point inference 已成为行业常用方案，一些 edge devices 只支持固定点推理；TensorFlow
+      Lite、PyTorch Mobile、TensorRT 当时均提供少量代码即可使用的 PTQ。具体工具状态和支持矩阵会随版本变化。
+  - title: 6. Compiling and Optimizing Models for Edge Devices：编译与优化
+    source_heading: 6. Compiling and Optimizing Models for Edge Devices：编译与优化
+    paragraphs:
+    - 原章把 CPU/GPU/TPU primitive 简化为 scalar/vector/tensor。脚注已说明现代 CPU 有 SIMD/vector、GPU
+      有 tensor cores；真实差异是 ISA、parallel hierarchy、memory/cache 和专用单元，不能按一维/二维永久分类。
+    - High-level IR 保留 computation graph 和算子；low-level IR 更接近 loops、memory 和 ISA。图
+      7-12 举 XLA HLO、TensorFlow Lite、TensorRT、LLVM、NVCC 等不同层例子；产品分类会随版本变化。
+    - 图 7-14 展示 CNN vertical fusion（串行 CBR 组合）与 horizontal fusion（并行 branch 合并）；CBR
+      是 convolution、bias、ReLU。全图优化可跨 operator 选择更好 dataflow，但搜索空间组合爆炸。
+    - Runtime 数据让 cost model 适应目标硬件，但 warm-up 搜索耗时。图 7-15 的 ResNet-50 / TITAN X 实验中，ML-based
+      TVM 约 70 trials 后超过 cuDNN，最终相对 speedup 约 1.6；具体结果不泛化到其他模型/硬件。
+  - title: 7. 原章总结的完整还原
+    source_heading: 7. 原章总结的完整还原
+    paragraphs:
+    - Online 能快速响应偏好与事件，却必须控制端到端 latency 和 availability；batch 在模型过慢或结果不紧急时以预计算隐藏推理成本，却降低灵活性、新鲜度，并要求提前枚举请求。两者常组成
+      hybrid。
+    - Cloud 易起步、集中运行，但受 network latency、成本与集中隐私风险限制；edge 可离线、低 round-trip、让数据留本地，却受
+      compute、memory、battery、异构、更新和物理攻击限制。
+    - 模型压缩通过 low-rank、distillation、pruning 和 quantization 减少存储或计算；实际加速必须由目标硬件和 runtime
+      验证。编译器用 IR 把框架图 lower 到硬件代码，再通过 vectorization、parallelization、tiling、fusion
+      与 schedule search 优化。
+    - 作者在写作时预测，硬件更强后系统会向 online + on-device 迁移。它是趋势判断，不排除 batch/cloud 长期服务全量分析、重模型和集中更新。
+  - title: 9. 本章知识结构
+    source_heading: 9. 本章知识结构
+    paragraphs:
+    - 用户动作期限决定 batch、online 或 hybrid prediction。
+    - Prediction mode 决定特征新鲜度、容量和关键路径。
+    - 双数据管道会制造 training-serving skew，必须统一时间语义。
+    - IR 降低框架与硬件的组合成本，compiler 决定实际性能。
+  - title: 10. 核心结论
+    source_heading: 10. 核心结论
+    paragraphs:
+    - Online 与 streaming 是不同分类轴。 在线预测可使用批量预计算或流式增量特征；streaming prediction 是原章对其中一种在线架构的称呼。
+    - Distillation 转移 teacher 行为，pruning 利用稀疏，quantization 降低位宽。 三者压缩对象和风险不同。
+    - 很多推理瓶颈来自内存和 framework 边界，而不只是 FLOPs。 Fusion、tiling 和 layout 很关键。
+    - Autotuning 用实际测量和 cost model 搜索 schedule。 结果绑定模型 shape、runtime 和硬件。
+  - title: 11. 从本章提炼出的通用部署与预测服务设计方法
+    source_heading: 11. 从本章提炼出的通用部署与预测服务设计方法
+    paragraphs:
+    - 记录 event time、available time、window、late-event policy、default 和 freshness。对同一历史事件回放
+      offline/online 代码并比较输出。
+    - 建立 FP32 baseline；分别评估 distillation、structured/unstructured pruning、PTQ/QAT。每次记录总体与
+      slice 质量、校准、artifact size、RAM、latency、throughput 和能耗。
+    - 固定模型 shape/dtype 与硬件版本，执行 graph lowering、fusion、layout 和 schedule search；缓存
+      artifact，并在目标设备真实 workload 上 benchmark。
+    - 本章最值得迁移的原则是：部署决策必须从用户何时需要什么预测出发，再反推特征新鲜度、计算位置、模型表示、运行时和硬件；任何只优化模型文件大小或单次 kernel
+      latency、却不测端到端质量与成本的方案，都还没有完成部署设计。
+  takeaways:
+  - 部署是工程挑战，而不仅是 ML 算法挑战。本章比较 batch 与 online prediction，以及 cloud 与 edge execution。
+  - 双数据管道会制造 training-serving skew，必须统一时间语义。
+  - Batch 与 online 的核心区别是预测何时相对请求生成。 不要与 tensor batching 或协议同步性混淆。
+  - Distillation 转移 teacher 行为，pruning 利用稀疏，quantization 降低位宽。 三者压缩对象和风险不同。
+  - 模型上线开启新的生命周期。 下一步是发现生产失败并持续监控。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念辨析
+  question: 原文如何解释「8.1 Deploy 不等于暴露一个 endpoint」？
+  answer: Endpoint 只解决可访问，生产还需容量、SLO、监控、回滚、安全和更新。
+  source_heading: 8.1 Deploy 不等于暴露一个 endpoint
+- level: 概念辨析
+  question: 原文如何解释「8.13 统一 batch/stream 不等于只使用一个存储产品」？
+  answer: 核心是 transformation、event-time 和 point-in-time 语义一致。
+  source_heading: 8.13 统一 batch/stream 不等于只使用一个存储产品
+- level: 概念辨析
+  question: 原文如何解释「8.17 Pruning 设为 0 不等于删除参数」？
+  answer: Unstructured sparse tensor 若仍跑 dense kernel，不会自然加速。
+  source_heading: 8.17 Pruning 设为 0 不等于删除参数
+- level: 概念辨析
+  question: 原文如何解释「8.22 Cloud 不等于一定更贵」？
+  answer: 低流量和 managed operation 下 cloud 可比自建/edge 开发更经济。
+  source_heading: 8.22 Cloud 不等于一定更贵
+- level: 概念辨析
+  question: 原文如何解释「8.30 Browser 跨硬件不等于 native 同速」？
+  answer: WASM/runtime 提供 portability，仍有 sandbox、下载和执行开销。
+  source_heading: 8.30 Browser 跨硬件不等于 native 同速

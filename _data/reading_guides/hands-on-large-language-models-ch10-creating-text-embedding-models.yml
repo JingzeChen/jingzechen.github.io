@@ -1,0 +1,158 @@
+source:
+  post: _posts/book-notes/deep-learning/hands-on-large-language-model/2026-08-08-hands-on-large-language-models-ch10-creating-text-embedding-models.md
+  body_sha256: b96983ae10678d0e075282cb3987daf5967965da0ef504f216c3210692d2d537
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 11
+  question: 原文围绕「0. 本章路线：Embedding 的含义由训练目标决定」建立了怎样的核心认识？
+  question_source: 0. 本章路线：Embedding 的含义由训练目标决定
+  thesis: Skip-gram + negative sampling 也是对比思想：邻近词是 positives，采样词是 negatives。但现代 sentence
+    embedding 通常比较句子/文档向量，并使用 cosine、softmax/InfoNCE 或 ranking objective。思想相通，不表示所有
+    loss 完全相同。
+  thesis_source: 2. 什么是对比学习（What Is Contrastive Learning?）
+  concepts:
+  - term: 0. 本章路线：Embedding 的含义由训练目标决定
+    meaning: NLI 数据、Softmax/Cosine/MNR loss 怎样创建 sentence encoder。
+    source_heading: 0. 本章路线：Embedding 的含义由训练目标决定
+  - term: 1. 嵌入模型（Embedding Models）
+    meaning: 下游需要 cosine ranking、聚类、线性分类，还是 nearest-neighbor retrieval？
+    source_heading: 1. 嵌入模型（Embedding Models）
+  - term: 3. SBERT
+    meaning: 训练完成后丢弃 classifier，保留 encoder + pooling。该 objective 能塑造 embedding，却与最终
+      cosine 使用存在一定 train/inference mismatch，这也是后续 cosine/MNR losses 常更好的原因之一。
+    source_heading: 3. SBERT
+  - term: 4. 创建嵌入模型（Creating an Embedding Model）
+    meaning: 原章前一段这样筛选了 entailment；后面的 supervised fine-tuning 示例却重新加载全部三类 MNLI 后直接配
+      MNR。若框架忽略 label 并把每行前两列都当 positive，neutral/contradiction 会被错误拉近。笔记采用筛选后的数据，避免这一语义
+      bug。
+    source_heading: 4. 创建嵌入模型（Creating an Embedding Model）
+  - term: 6. 无监督学习（Unsupervised Learning）
+    meaning: 原 TSDAE 实验发现 CLS pooling 有效。把原因简单归结为“mean pooling 丢位置而 CLS 不丢”并不严谨：两者都聚合
+      contextual token states，位置早已参与 encoder；差异来自 bottleneck、训练目标和 pooling inductive
+      bias，应以实验证据为准。
+    source_heading: 6. 无监督学习（Unsupervised Learning）
+  - term: 8. 总结（Summary）
+    meaning: 本章最重要的方法论是：先定义你希望空间表达的关系，再围绕这种关系设计 examples、negatives、loss 和 evaluator。模型架构只是载体，数据对比方式才决定
+      embedding 最终“看见”什么。
+    source_heading: 8. 总结（Summary）
+  logic:
+  - 0. 本章路线：Embedding 的含义由训练目标决定
+  - 1. 嵌入模型（Embedding Models）
+  - 2. 什么是对比学习（What Is Contrastive Learning?）
+  - 4. 创建嵌入模型（Creating an Embedding Model）
+  - 5. 微调嵌入模型（Fine-Tuning an Embedding Model）
+  - 6. 无监督学习（Unsupervised Learning）
+  - 8. 总结（Summary）
+  sections:
+  - title: 0. 本章路线：Embedding 的含义由训练目标决定
+    source_heading: 0. 本章路线：Embedding 的含义由训练目标决定
+    paragraphs:
+    - Contrastive learning 为什么需要“对比”。
+    - SBERT 如何在 cross-encoder 精度与 bi-encoder 效率之间取舍。
+    - NLI 数据、Softmax/Cosine/MNR loss 怎样创建 sentence encoder。
+    - 少量 gold data 如何借 cross-encoder 产生 silver data。
+  - title: 1. 嵌入模型（Embedding Models）
+    source_heading: 1. 嵌入模型（Embedding Models）
+    paragraphs:
+    - Embedding 是 task-oriented compression：保留下游最需要的关系，舍弃其他变化。
+    - 下游需要 cosine ranking、聚类、线性分类，还是 nearest-neighbor retrieval？
+    - 这解释了 normalized embeddings 上 dot product、cosine 和 squared Euclidean 排序的联系。未经归一化时，向量
+      norm 也会影响 dot product，不能直接互换阈值。
+    - 一个 STS 很强的模型不必然是问答检索最佳模型，因为“句义接近”与“文档回答 query”是不同关系。
+  - title: 2. 什么是对比学习（What Is Contrastive Learning?）
+    source_heading: 2. 什么是对比学习（What Is Contrastive Learning?）
+    paragraphs:
+    - Contrastive learning 通过相对关系训练表示：正样本靠近，负样本远离。
+    - 只说 “这是狗” 可能让模型抓住尾巴、四条腿等与猫共享特征；加入相似但错误的猫作为 negative，模型必须学习更有区分力的特征。
+    - Skip-gram + negative sampling 也是对比思想：邻近词是 positives，采样词是 negatives。但现代 sentence
+      embedding 通常比较句子/文档向量，并使用 cosine、softmax/InfoNCE 或 ranking objective。思想相通，不表示所有
+      loss 完全相同。
+    - 错误 positive 会把不应接近的样本拉近；false negative 会把真正相关项推远。高质量关系定义、采样策略和去重往往比换一个相似 loss
+      更关键。
+  - title: 3. SBERT
+    source_heading: 3. SBERT
+    paragraphs:
+    - 49,995,000 次 pair inference 不适合大规模检索。Cross-encoder 更适合对 bi-encoder 已召回的几十/几百
+      candidates rerank。
+    - 所谓“两套 BERT”是计算图中两条共享权重分支，不是保存两份不同参数。推理时文档向量可离线计算，查询只需一次编码和向量搜索。
+    - 训练完成后丢弃 classifier，保留 encoder + pooling。该 objective 能塑造 embedding，却与最终 cosine
+      使用存在一定 train/inference mismatch，这也是后续 cosine/MNR losses 常更好的原因之一。
+    - 最强系统往往是 bi-encoder retrieve + cross-encoder rerank，或用 cross-encoder distill/label
+      bi-encoder。
+  - title: 4. 创建嵌入模型（Creating an Embedding Model）
+    source_heading: 4. 创建嵌入模型（Creating an Embedding Model）
+    paragraphs:
+    - 单个 STS-B 分数只能回答一种英文句对相似任务。MTEB 将多种任务统一评测，包括 retrieval、reranking、classification、clustering、pair
+      classification、STS 与 summarization 等；数据集和语言规模随版本持续增长。
+    - 这个映射便于教学，却丢失信息：neutral 不一定与 contradiction 一样“不相似”；矛盾句常共享主题和实体，语义 similarity
+      可以很高但逻辑 relation 相反。若下游是 semantic search，把 contradiction 强推到 cosine 0 可能不符合需求。标签必须服从业务相似定义。
+    - 原章前一段这样筛选了 entailment；后面的 supervised fine-tuning 示例却重新加载全部三类 MNLI 后直接配 MNR。若框架忽略
+      label 并把每行前两列都当 positive，neutral/contradiction 会被错误拉近。笔记采用筛选后的数据，避免这一语义 bug。
+    - 原章 MNR 配置 Pearson cosine 约 0.809，高于前两种 loss，但文字误写“softmax 0.72”；真正 SoftmaxLoss
+      是约 0.598，0.72 属于 CosineSimilarityLoss。比较实验时应引用一致 baseline。
+  - title: 5. 微调嵌入模型（Fine-Tuning an Embedding Model）
+    source_heading: 5. 微调嵌入模型（Fine-Tuning an Embedding Model）
+    paragraphs:
+    - 少量 gold pairs 不足以训练 bi-encoder 时，可让精度高但慢的 cross-encoder 当 teacher，为大量候选 pairs
+      产生 silver labels，再训练快速 student bi-encoder。
+    - 将 entailment 映射 1、neutral/contradiction 映射 0，是二分类简化。Teacher 训练/选择必须只用 gold train/validation，不能用最终
+      test。
+    - Teacher bias 会被 student 放大，因此 silver data 不是 ground truth。比较 gold-only 与 gold+silver，才能判断
+      augmentation 是否真正有益。
+    - 原章 AugSBERT 约得 Pearson cosine 0.710，与 full-data CosineLoss 约 0.722 接近，说明少量 gold
+      + teacher labels 可节省人工标注；不是说 10k gold 本身等价于完整 50k ground truth。
+  - title: 6. 无监督学习（Unsupervised Learning）
+    source_heading: 6. 无监督学习（Unsupervised Learning）
+    paragraphs:
+    - 没有人工 pair labels 时，可从单句集合构造 self-supervised signal。原章列出 SimCSE、Contrastive Tension、TSDAE
+      与 GPL，并重点讲 TSDAE。
+    - 所有信息必须穿过固定维度 z，形成 bottleneck。若 decoder 能重建，z 必须保留句子重要语义和结构。训练后丢弃 decoder，只部署
+      encoder。
+    - 原 TSDAE 实验发现 CLS pooling 有效。把原因简单归结为“mean pooling 丢位置而 CLS 不丢”并不严谨：两者都聚合 contextual
+      token states，位置早已参与 encoder；差异来自 bottleneck、训练目标和 pooling inductive bias，应以实验证据为准。
+    - 目标域 labels 最好，但即使只有通用 supervised pairs，先在 target text 上自监督适配也可能改善。需防 catastrophic
+      forgetting，可混入通用 corpus/pairs 或采用较低 learning rate。
+  - title: 8. 总结（Summary）
+    source_heading: 8. 总结（Summary）
+    paragraphs:
+    - NLI 可构造 entailment positives 与 contradiction negatives，但 NLI relation 不完全等于
+      semantic similarity。
+    - Fine-tuning 现成 embedding checkpoint 通常比从普通 token encoder 构建更省数据，但会面临遗忘和 benchmark
+      exposure。
+    - 选择匹配的数据/loss：连续 score 用相似度 loss，positive pairs 用 MNR，teacher scores 用 distillation。
+    - 本章最重要的方法论是：先定义你希望空间表达的关系，再围绕这种关系设计 examples、negatives、loss 和 evaluator。模型架构只是载体，数据对比方式才决定
+      embedding 最终“看见”什么。
+  takeaways:
+  - 少量 gold data 如何借 cross-encoder 产生 silver data。
+  - 错误 positive 会把不应接近的样本拉近；false negative 会把真正相关项推远。高质量关系定义、采样策略和去重往往比换一个相似 loss
+    更关键。
+  - 原章 MNR 配置 Pearson cosine 约 0.809，高于前两种 loss，但文字误写“softmax 0.72”；真正 SoftmaxLoss
+    是约 0.598，0.72 属于 CosineSimilarityLoss。比较实验时应引用一致 baseline。
+  - 原章 AugSBERT 约得 Pearson cosine 0.710，与 full-data CosineLoss 约 0.722 接近，说明少量 gold
+    + teacher labels 可节省人工标注；不是说 10k gold 本身等价于完整 50k ground truth。
+  - 本章最重要的方法论是：先定义你希望空间表达的关系，再围绕这种关系设计 examples、negatives、loss 和 evaluator。模型架构只是载体，数据对比方式才决定
+    embedding 最终“看见”什么。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念辨析
+  question: 原文如何解释「7.1 “Embedding 准确”没有脱离任务的统一定义」？
+  answer: 语义、情感、问答 relevance 会塑造不同空间。先定义 relation，再选数据和 loss。
+  source_heading: 7.1 “Embedding 准确”没有脱离任务的统一定义
+- level: 概念辨析
+  question: 原文如何解释「7.5 Cross-encoder 通常不产出可复用独立 embeddings」？
+  answer: 它为 pair 联合打分，适合 teacher/reranker；bi-encoder 才适合全库向量检索。
+  source_heading: 7.5 Cross-encoder 通常不产出可复用独立 embeddings
+- level: 概念辨析
+  question: 原文如何解释「7.11 Batch 越大不无条件越好」？
+  answer: Negatives 更多，但显存、重复样本和 false negatives 也增加。需要 no-duplicates sampler 与数据审计。
+  source_heading: 7.11 Batch 越大不无条件越好
+- level: 概念辨析
+  question: 原文如何解释「7.14 Silver data 不是 ground truth」？
+  answer: Teacher errors 会传给 student。应保留 soft score、降低 silver 权重，并与 gold-only 对照。
+  source_heading: 7.14 Silver data 不是 ground truth
+- level: 概念辨析
+  question: 原文如何解释「7.18 Fine-tune 后不能混用新旧向量」？
+  answer: 空间已变化，corpus embeddings、index、threshold 和下游模型必须同步版本化。
+  source_heading: 7.18 Fine-tune 后不能混用新旧向量

@@ -1,0 +1,169 @@
+source:
+  post: _posts/book-notes/ai-system/design-deep-learning-system/2026-08-08-designing-deep-learning-systems-ch09-workflow-orchestration.md
+  body_sha256: fd1cb370f89b92d4b6c15f476df41b2bf762c1eb7631ca5fae1053342c6fba25
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 15
+  question: 原文围绕「本章要回答的核心问题」建立了怎样的核心认识？
+  question_source: 本章要回答的核心问题
+  thesis: 六项设计原则是 criticality、usability、extensibility、isolation、scaling 和 human-centric
+    prototyping/production support。
+  thesis_source: 核心结论
+  concepts:
+  - term: 本章要回答的核心问题
+    meaning: 原章以概念、系统设计和工具比较为主，没有复杂数学推导。本文会补充 DAG、拓扑排序、关键路径、可靠性和容量等形式化表达，以解释设计为什么有效；这些属于工程推导，不是原章另行提出的算法。Airflow、Argo
+      Workflows 与 Metaflow 都持续演进，文中的命令、API 和局限会明确区分“原章成书时结论”与当前采用时必须重新核对的版本事实。
+    source_heading: 本章要回答的核心问题
+  - term: 9.1 Workflow Orchestration 简介
+    meaning: 三个 subgraphs 是彼此独立的 workflow runs，没有跨项目 dataflow。相同编号表示复用同一种 step implementation
+      / contract，而不是多个项目共享同一个运行时 task instance：1 Auth、2 Data Pull、3 Embedding Pull、4
+      Training、5 HPO、6 Model Release。
+    source_heading: 9.1 Workflow Orchestration 简介
+  - term: 9.3 开源 Workflow Orchestration Systems 导览
+    meaning: 图中的统一是逻辑 API 与对象模型，不要求本地和生产共用同一个物理 store。统一 API 隐藏 infrastructure selection，但不会消除环境差异。Local
+      machine 和 production cluster 的 data access、IAM、network、CPU architecture、GPU
+      runtime 仍可能不同，必须做 staging / integration validation。
+    source_heading: 9.3 开源 Workflow Orchestration Systems 导览
+  - term: 原章 Summary 回顾
+    meaning: Workflow 是更大任务中的一系列 operations，可建模为 steps 构成的 DAG；step 是最小 resumable
+      computation unit，整体成功或失败；DAG 定义 dependencies 与 execution order。
+    source_heading: 原章 Summary 回顾
+  - term: 从本章提炼出的通用解题方法
+    meaning: 让 Airflow、Argo、Metaflow或组合方案执行相同 data → train → evaluate → register 流程。测量
+      authoring、local debug、schedule lag、startup、recovery、scale 和 TCO。先迁移低风险 workflow，建立
+      golden templates 与 on-call runbook，再扩大使用。
+    source_heading: 从本章提炼出的通用解题方法
+  - term: 复习与自测
+    meaning: Metaflow authoring、orchestration、compute、datastore 与 metadata 五层怎样组合？
+    source_heading: 复习与自测
+  logic:
+  - 本章要回答的核心问题
+  - 9.1 Workflow Orchestration 简介
+  - 9.2 设计 Workflow Orchestration System
+  - 原章 Summary 回顾
+  - 核心结论
+  - 从本章提炼出的通用解题方法
+  - 复习与自测
+  sections:
+  - title: 本章要回答的核心问题
+    source_heading: 本章要回答的核心问题
+    paragraphs:
+    - Workflow definition、workflow run、task definition 与 task instance 有何区别？
+    - 为什么深度学习原型通常从 Notebook / Python script 开始，而生产系统要求 workflow？
+    - Scheduler、controller、worker、metadata database 与 object store 如何协作？
+    - 原章以概念、系统设计和工具比较为主，没有复杂数学推导。本文会补充 DAG、拓扑排序、关键路径、可靠性和容量等形式化表达，以解释设计为什么有效；这些属于工程推导，不是原章另行提出的算法。Airflow、Argo
+      Workflows 与 Metaflow 都持续演进，文中的命令、API 和局限会明确区分“原章成书时结论”与当前采用时必须重新核对的版本事实。
+  - title: 9.1 Workflow Orchestration 简介
+    source_heading: 9.1 Workflow Orchestration 简介
+    paragraphs:
+    - 例如“训练 12 小时后上传模型”若是一个 task，最后上传失败可能导致整个训练重跑。更合理的边界可能是训练 task 先把 checkpoint 原子写入
+      artifact store，再由独立 registration task 注册模型。
+    - 把大段项目代码拆成 tasks 后，常用动作可以成为共享组件。原章图 9.2 想象三位数据科学家分别开发 workflow A、B、C：DAG 虽不同，但总共六类
+      steps 高度重叠，例如三个 workflow 都从 authorization 开始，也都可能复用 dataset service connector。
+    - 三个 subgraphs 是彼此独立的 workflow runs，没有跨项目 dataflow。相同编号表示复用同一种 step implementation
+      / contract，而不是多个项目共享同一个运行时 task instance：1 Auth、2 Data Pull、3 Embedding Pull、4
+      Training、5 HPO、6 Model Release。
+    - 如果 Dataset Management service 的认证、分页、重试和错误语义已封装为 operator / step function，算法工程师只需声明输入，不必每个项目重新学习
+      Web API。
+  - title: 9.2 设计 Workflow Orchestration System
+    source_heading: 9.2 设计 Workflow Orchestration System
+    paragraphs:
+    - 以 training task 为例，Vena 可以把 action 定义为向 model training service 发送 REST request。Request
+      payload 来自 task inputs，response 中的 job ID 则成为后续轮询和 lineage 的依据。
+    - Scheduler 持续观察 active workflows，在合适时间触发；controller 把 tasks 分派给 workers。二者都必须避免在
+      failover 后重复拥有同一任务，常用 database lock、lease、leader election 或 compare-and-swap。
+    - 但该公式只适用于 transient、近似独立故障。代码 bug、权限错误或数据 schema mismatch 会在每次重试中重复失败；盲目 retry
+      只增加成本。因此错误必须分类，并使用 exponential backoff、jitter 与 retry budget。
+    - 大型 DAG 或长时间 task 的优化目标是让用户仍写可读、直接的代码。系统应提供 parallel map、fan-out / fan-in、distributed
+      training operator、resource-aware execution 等能力，而不是要求每位用户手写分布式调度。
+  - title: 9.3 开源 Workflow Orchestration Systems 导览
+    source_heading: 9.3 开源 Workflow Orchestration Systems 导览
+    paragraphs:
+    - Airflow 由 Airbnb 在 2014 年创建，后来成为 Apache Software Foundation 项目。它用于 programmatically
+      author、schedule 与 monitor workflows，最初主要解决越来越复杂的 ETL / data pipelines，并凭借 extensibility、production
+      quality 和 GUI 扩展到包括 ML 在内的多个领域。
+    - 数据科学家仍需把 Notebook / script 重构为 Airflow DAG、选择 operators、打包 dependencies，并遵守
+      parse-time 与 runtime 边界。TaskFlow API、decorators、virtualenv / external Python
+      / Docker / Kubernetes operators 已改善体验，但 abstraction 仍可能泄漏基础设施细节。
+    - 图中的统一是逻辑 API 与对象模型，不要求本地和生产共用同一个物理 store。统一 API 隐藏 infrastructure selection，但不会消除环境差异。Local
+      machine 和 production cluster 的 data access、IAM、network、CPU architecture、GPU
+      runtime 仍可能不同，必须做 staging / integration validation。
+    - Metaflow 的核心优势是把 ML workflow、artifacts 与 local-to-production 体验围绕 Python 开发者重新设计。它可以利用
+      Argo / Step Functions 等生产编排器，而不必自己重新实现全部 control plane；主要权衡是增加一层 framework，并受其
+      Python model 与 backend capability matrix 约束。
+  - title: 原章 Summary 回顾
+    source_heading: 原章 Summary 回顾
+    paragraphs:
+    - Workflow 是更大任务中的一系列 operations，可建模为 steps 构成的 DAG；step 是最小 resumable computation
+      unit，整体成功或失败；DAG 定义 dependencies 与 execution order。
+    - Workflow orchestration 是按照 DAG 顺序执行 workflow steps。
+    - 六项设计原则是 criticality、usability、extensibility、task isolation、scalability 与 human
+      centricity。
+    - 非 ML 项目可选 Airflow 或 Argo；若项目运行在 Kubernetes 且采用 Docker，原章更推荐 Argo。
+  - title: 核心结论
+    source_heading: 核心结论
+    paragraphs:
+    - Control flow、state flow 与 data flow 应分离。 Scheduler 传 control，metadata DB 存 state，object
+      store / data service 传大对象。
+    - Isolation 包含 creation isolation 与 execution isolation。 Immutable definitions
+      / dependencies 保护前者，container / quota / credentials 保护后者。
+    - Argo Workflow CR 是 live object，Template 是可复用函数式定义，artifact repository 承担跨 Pod
+      dataflow。 Container image 应用 digest 固定。
+    - 工具选型必须用同一 representative workflow 验证。 Feature list 不能替代 authoring、failure reproduction、latency、scale、security、operations
+      与 TCO 数据。
+  - title: 从本章提炼出的通用解题方法
+    source_heading: 从本章提炼出的通用解题方法
+    paragraphs:
+    - 把端到端目标拆为 tasks，标出 control dependencies、data dependencies、并行 branches、quality
+      gates 和 external services。检查 cycle，并计算 critical path / maximum parallel width。
+    - 定义 time / event trigger、timezone、dedup、overlap、catchup、backfill 和 concurrency。按
+      tenant / workflow 设置 pool、quota、priority、parallelism 与 backpressure，并监控 schedule
+      lag / queue depth。
+    - 统一 workflow/run/task/attempt IDs 进入 logs、metrics、traces 与 artifacts。建立 RBAC、tenant
+      isolation、secret references、image policy、audit、retention、definition versioning、plugin
+      ownership 与 upgrade tests。
+    - 让 Airflow、Argo、Metaflow或组合方案执行相同 data → train → evaluate → register 流程。测量 authoring、local
+      debug、schedule lag、startup、recovery、scale 和 TCO。先迁移低风险 workflow，建立 golden templates
+      与 on-call runbook，再扩大使用。
+  - title: 复习与自测
+    source_heading: 复习与自测
+    paragraphs:
+    - Orchestrator 与 Dataset / Training / Serving services 是替代还是连接关系？
+    - 本地测试同一 container image 为什么能降低 production conversion cost？仍缺哪些一致性？
+    - Metaflow artifact persistence 怎样支持 checkpoint、resume 与 debugging？
+    - Metaflow authoring、orchestration、compute、datastore 与 metadata 五层怎样组合？
+  takeaways:
+  - Workflow 是更大任务中的一系列 operations，可建模为 steps 构成的 DAG；step 是最小 resumable computation
+    unit，整体成功或失败；DAG 定义 dependencies 与 execution order。
+  - Workflow orchestration 的直接目标是按 DAG 自动执行并监控 tasks。 实践中还覆盖 creation、schedule、management
+    与 troubleshooting。
+  - Airflow 的核心是 Python DAG、Operators、Sensors、扩展生态和成熟运维。 它首先是通用 data / workflow platform。
+  - Critical path 决定理想完成时间下界；worker 数量不能突破真实串行依赖。 调度优化前应先识别瓶颈路径。
+  - 工具选型必须用同一 representative workflow 验证。 Feature list 不能替代 authoring、failure reproduction、latency、scale、security、operations
+    与 TCO 数据。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念辨析
+  question: 原文如何解释「1. Workflow 就是 Workflow Orchestration」？
+  answer: Workflow 是执行计划 / DAG；orchestration 是创建、调度、执行、监控和恢复这些 plans 的系统行为。前者是“做什么及依赖”，后者是“怎样可靠地运行”。
+  source_heading: 1. Workflow 就是 Workflow Orchestration
+- level: 概念辨析
+  question: 原文如何解释「12. Task 越大越高效，所以最好做成一个 Task」？
+  answer: Monolithic task 减少调度开销，却失去并行、局部重试、阶段指标和复用。12 小时训练最后一步失败时，可能被迫全部重跑。
+  source_heading: 12. Task 越大越高效，所以最好做成一个 Task
+- level: 概念辨析
+  question: 原文如何解释「23. Local Test 通过就保证 Production 成功」？
+  answer: Local runner 无法完整复制 production IAM、network、data scale、GPU、scheduler、quota
+    与 failure mode。Local test 缩短反馈环，不替代 staging / integration test。
+  source_heading: 23. Local Test 通过就保证 Production 成功
+- level: 概念辨析
+  question: 原文如何解释「34. Kubernetes-Native 对所有用户都更简单」？
+  answer: 它对已熟悉 Kubernetes 的平台团队自然，却把 Pod、RBAC、resources、volumes 与 YAML 暴露给数据科学家。Higher-level
+    SDK / templates 常是必要产品层。
+  source_heading: 34. Kubernetes-Native 对所有用户都更简单
+- level: 概念辨析
+  question: 原文如何解释「45. Tool Feature List 可以直接决定选型」？
+  answer: 同名功能的可用性、延迟、调试路径和运维成本差异很大。应使用相同 representative workflow 做 POC，并按预先确定的组织权重评分。
+  source_heading: 45. Tool Feature List 可以直接决定选型

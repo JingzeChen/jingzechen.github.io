@@ -1,0 +1,173 @@
+source:
+  post: _posts/book-notes/ai-system/ai-engineering/2026-08-04-ai-engineering-ch09-inference-optimization.md
+  body_sha256: de7ca94ee43da119921e482d6e14cb9b0f63b490027a9287a6ebecf64f170a42
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 14
+  question: 原文围绕「0. 学习目标与全章因果主线」建立了怎样的核心认识？
+  question_source: 0. 学习目标与全章因果主线
+  thesis: Prompt cache 复用 prefix prefill/KV，不是复用最终答案；收益取决于 prefix 长度、命中率和存储成本。
+  thesis_source: 24. 本章总结
+  concepts:
+  - term: 0. 学习目标与全章因果主线
+    meaning: prefill 与 decode 是两种工作负载。 前者偏 compute-bound，后者偏 bandwidth-bound，不能只报一个总延迟。
+    source_heading: 0. 学习目标与全章因果主线
+  - term: 6. Inference Performance Metrics（推理性能指标）
+    meaning: p50 是 median，p90/p95/p99 描述尾部。平均会被少数网络错误、长 prompt 或冷启动拉高；只看 p50 又会掩盖最慢用户。应按
+      input/output length、batch、cache hit、模型、区域和状态切片。
+    source_heading: 6. Inference Performance Metrics（推理性能指标）
+  - term: 11. Model Compression（模型压缩）
+    meaning: 大 teacher 产生 hard sequence 或 soft probability，训练小 student 模仿。它能产生真正 dense
+      小模型，直接减少权重、FLOPs 和服务成本；代价是训练数据、teacher 调用和能力损失。
+    source_heading: 11. Model Compression（模型压缩）
+  - term: 14. Redesigning Attention（重设计注意力）
+    meaning: Character.AI 平均对话历史约 180 messages，KV 是主要 throughput 瓶颈。其 MQA、local/global
+      interleaving 与 cross-layer attention 组合报告 cache 减少 20 倍以上，使大 batch 不再被容量限制。该结果依其模型架构。
+    source_heading: 14. Redesigning Attention（重设计注意力）
+  - term: 19. Batching（批处理）
+    meaning: 若 batch 内 A 输出 10 token、B 输出 1000 token，naive 实现等待全 batch 完成才返回，A 被 B
+      阻塞。即使 A 完成，其 slot 也可能 padding/idle 到 B 结束。
+    source_heading: 19. Batching（批处理）
+  - term: 26. 一页速记
+    meaning: 本章最值得保留的判断框架是：不要从热门优化技术出发，而要从真实 workload 的 SLO、质量和成本出发；先用 TTFT/TPOT/goodput
+      与 Roofline 找到瓶颈，再选择直接减少该瓶颈的计算、字节或等待的技术，最后回到端到端负载验证。
+    source_heading: 26. 一页速记
+  logic:
+  - 0. 学习目标与全章因果主线
+  - 6. Inference Performance Metrics（推理性能指标）
+  - 8. AI Accelerators（AI 加速器）
+  - 14. Redesigning Attention（重设计注意力）
+  - 17. Kernels and Compilers（内核与编译器）
+  - 22. Parallelism（并行策略）
+  - 26. 一页速记
+  sections:
+  - title: 0. 学习目标与全章因果主线
+    source_heading: 0. 学习目标与全章因果主线
+    paragraphs:
+    - 做 model-level optimization：压缩、自回归解码、attention、kernel/compiler；
+    - 做 service-level optimization：batch、prefill/decode 分离、prompt cache 与并行。
+    - prefill 与 decode 是两种工作负载。 前者偏 compute-bound，后者偏 bandwidth-bound，不能只报一个总延迟。
+    - 这只是回收训练成本的必要条件，尚未包含推理硬件、研发、网络、运营和利润。使用量越大，训练固定成本越容易摊薄；但第三方在开源模型上转售推理的成本结构不同。
+  - title: 3. Computational Bottlenecks 与 Roofline
+    source_heading: 3. Computational Bottlenecks 与 Roofline
+    paragraphs:
+    - 处理单元等待数据从 HBM、DRAM 或设备间互联搬入。LLM 自回归 decode 常每生成一个 token 都要读取大量权重，但 batch 小、单步运算少，因此
+      ALU 空闲、带宽成为瓶颈。
+    - 容量不足可通过 CPU offload 或多 GPU 分片解决，但会引入更多低带宽传输，最终又表现成带宽/通信延迟。因此讨论时应明确说 capacity
+      还是 bandwidth。
+    - Roofline 通常使用 log-log 图。实际性能低于 roof 还可能来自并行度不足、shape 不友好、分支、通信和 kernel launch。
+    - Prefill-like 强度 100，高于 ridge point 50，碰到算力屋顶；decode-like 强度 10，只能达到带宽斜顶的 20
+      TFLOP/s。示例忽略 kernel 和通信，只说明 Roofline 下界逻辑。
+  - title: 6. Inference Performance Metrics（推理性能指标）
+    source_heading: 6. Inference Performance Metrics（推理性能指标）
+    paragraphs:
+    - Agent/CoT 中模型可能先生成隐藏计划、调用工具，再发布最终答案。模型内部第一个 token 很早，用户第一个可见 token 很晚。因此可用 time
+      to publish 明确测量第一个用户可见 token。
+    - 100 ms/token 时，1000 token 约需 100 秒 decode。极快读者约 120 ms/token，因此 streaming 中
+      6–8 tokens/s 常已能跟上阅读；代码生成、agent 和机器消费输出可能需要更快。
+    - p50 是 median，p90/p95/p99 描述尾部。平均会被少数网络错误、长 prompt 或冷启动拉高；只看 p50 又会掩盖最慢用户。应按
+      input/output length、batch、cache hit、模型、区域和状态切片。
+    - 3000 ms outlier 把 mean 拉到 730 ms，而 median 只有 180 ms；5 个请求中只有前两个同时满足 SLO。窗口吞吐很低，所以按满时计费的单位成本高。
+  - title: 8. AI Accelerators（AI 加速器）
+    source_heading: 8. AI Accelerators（AI 加速器）
+    paragraphs:
+    - 软件能多快、多便宜，受硬件上限决定。模型与硬件一直共同演进：算力不足是早期神经网络研究停滞的因素之一；AlexNet 在 2012 年用少量 GPU 取代过去需要大量
+      CPU 的训练方式，降低了深度学习实验门槛。
+    - GPU 之外还有 Google TPU、Intel Habana Gaudi、Graphcore IPU、Groq LPU、Cerebras wafer-scale
+      芯片、AMD GPU 等。名称不是性能保证，应以目标 workload 实测。
+    - 因此出现 Apple Neural Engine、AWS Inferentia、Meta MTIA、Google Edge TPU、NVIDIA Jetson
+      等。芯片也可针对 Transformer 或特定算子设计；反过来，模型架构也会迎合硬件原语。
+    - 现代 GPU 除 vector core 外还有 tensor core；TPU 以 systolic matrix/tensor 运算为中心。模型 shape、layout
+      和 dtype 若无法命中专用单元，峰值规格就没有意义。
+  - title: 11. Model Compression（模型压缩）
+    source_heading: 11. Model Compression（模型压缩）
+    paragraphs:
+    - 把 FP32/FP16 权重、activation 或 KV 降到更少 bit，减少容量和带宽，并在有对应 kernel 时提高吞吐。第七章已推导 scale/zero
+      point 与误差。
+    - FP32 到 FP16 理论权重减半；INT4 相对 FP16 再约减 4 倍。极限不能低于每二值状态 1 bit，且低 bit 的 scale、metadata
+      和 packing 仍有开销。
+    - 大 teacher 产生 hard sequence 或 soft probability，训练小 student 模仿。它能产生真正 dense 小模型，直接减少权重、FLOPs
+      和服务成本；代价是训练数据、teacher 调用和能力损失。
+    - 若 sparse storage 只保存 nonzero 与索引，可减存储；若硬件/kernel 仍执行 dense matmul，零值不会自动带来速度。2:4
+      等结构化稀疏更易命中专用单元。
+  - title: 14. Redesigning Attention（重设计注意力）
+    source_heading: 14. Redesigning Attention（重设计注意力）
+    paragraphs:
+    - 代价是无法直接访问窗口外事实。可穿插 global attention layer/token，让局部层捕获邻近关系、全局层传播长距离信息。
+    - MQA 与 MHA 是 KV-sharing 配置的两个端点，不是集合包含关系；GQA 在 cache 与质量间折中，现代 LLM 常用。
+    - 相邻层共享 K/V。若每 3 层共享一套，cache 理论约减 3 倍。层表征需求不同，共享过多可能损质量，需训练适配。
+    - Character.AI 平均对话历史约 180 messages，KV 是主要 throughput 瓶颈。其 MQA、local/global interleaving
+      与 cross-layer attention 组合报告 cache 减少 20 倍以上，使大 batch 不再被容量限制。该结果依其模型架构。
+  - title: 17. Kernels and Compilers（内核与编译器）
+    source_heading: 17. Kernels and Compilers（内核与编译器）
+    paragraphs:
+    - 常用 CUDA、Triton、ROCm。Kernel 与架构绑定：FlashAttention 最初主要面向 A100，FlashAttention-3
+      针对 H100 新能力优化。
+    - 把大矩阵分块，使工作集放入 cache/SRAM，重复使用后再写回。Tile shape 依硬件 cache、warp 和 tensor core；CPU
+      最优 tile 未必适合 GPU。
+    - 动态 shape、Python side effects、data-dependent control flow 可能造成 graph break 或频繁
+      recompilation。Compiler warmup 时间也要计入部署和冷启动。
+    - Throughput 逐步提高，但公开图未清楚说明每步对输出质量的影响。组合优化的增益也不一定可简单相乘，因为它们共享瓶颈：量化后 decode 可能从
+      bandwidth-bound 转 compute-bound，后续 kernel 收益会改变。
+  - title: 19. Batching（批处理）
+    source_heading: 19. Batching（批处理）
+    paragraphs:
+    - 一次 matmul 处理多个请求，可让同一权重块被多个输入复用，提高 arithmetic intensity 和 throughput。类比：每人一辆车延迟灵活，bus
+      承载更多人但有人要等车。
+    - 可按 input length bucket，减少 padding；按 model/adapter、sampling config 和 priority
+      分组。过细分组又会降低 batch formation rate。
+    - 若 batch 内 A 输出 10 token、B 输出 1000 token，naive 实现等待全 batch 完成才返回，A 被 B 阻塞。即使
+      A 完成，其 slot 也可能 padding/idle 到 B 结束。
+    - Continuous 让 A 在第 2 步返回、C 在第 3 步返回，总 makespan 从 6 降到 5。真实服务的 prefill、KV 和 scheduler
+      overhead 会降低理想收益。
+  - title: 22. Parallelism（并行策略）
+    source_heading: 22. Parallelism（并行策略）
+    paragraphs:
+    - 模型与异构 GPU 放置是 bin-packing。8B、13B、34B、70B INT8 约需至少 8、13、34、70 GB 权重，还要 KV/runtime。把三个
+      13B 放 40 GB 卡几乎没有运行余量，不能只按权重相加。
+    - 把长 input sequence 的 token 分给不同设备，协同计算 attention。每设备保存/处理部分 context，降低单卡 activation/KV；但全局
+      attention 需要交换 K/V 或中间结果，通信随算法而异。
+    - 原书将 sequence parallelism 描述为把整条输入所需的不同 operators 分到机器，例如 attention 在机器 1、feedforward
+      在机器 2；这在许多系统文献中更接近 operator/pipeline partition。
+    - 现代 Megatron 等语境中，sequence parallelism 常指在无法 tensor-parallel 的部分（LayerNorm、Dropout
+      等）沿 sequence dimension 分片，以减少重复 activation，并与 tensor parallelism 配合。
+  - title: 26. 一页速记
+    source_heading: 26. 一页速记
+    paragraphs:
+    - 多序列 batch 会让一次权重读取服务多个 token，聚合 TPS 直接代入会高估带宽；生产应使用 profiler 的 achieved bandwidth。
+    - 是否同时报告 p50/p95/p99、TPS、goodput 和 cost/good request；
+    - Parallelism 是否计 collective、拓扑、failure 和 imbalance；
+    - 本章最值得保留的判断框架是：不要从热门优化技术出发，而要从真实 workload 的 SLO、质量和成本出发；先用 TTFT/TPOT/goodput
+      与 Roofline 找到瓶颈，再选择直接减少该瓶颈的计算、字节或等待的技术，最后回到端到端负载验证。
+  takeaways:
+  - 推理优化的目标是在质量和 SLO 约束下，降低 latency 与 cost、提高 goodput。
+  - 用户延迟应拆成 TTFT、TPOT/TBT 和 end-to-end，并报告 p50/p90/p95/p99 与长度切片。
+  - KV cache 避免重复 K/V projection，容量随 batch、sequence、layers、KV heads 线性增长；累计 attention
+    仍是二次。
+  - Prefill/decode 分离允许分别优化 TTFT/TPOT，但需传 KV，并依赖高带宽互联。
+  - 作者的分析思路是：先用指标描述用户体验和成本，再用 Roofline/内存分析找资源瓶颈；模型级技术减少工作量或字节，服务级技术提高复用和调度效率；每次优化最后都回到真实
+    workload 下的质量、tail latency、goodput 和成本。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念辨析
+  question: 原文如何解释「误解 1：峰值 FLOP/s 更高，模型一定更快」？
+  answer: Decode 可能等 HBM；shape/dtype 也可能无法命中 tensor core。要看 achieved Roofline 与端到端指标。
+  source_heading: 误解 1：峰值 FLOP/s 更高，模型一定更快
+- level: 概念辨析
+  question: 原文如何解释「误解 7：Throughput 高就是服务好」？
+  answer: Batch 可提高 TPS 却让大多数请求违反 TTFT/TPOT。应优化 goodput 和 cost/good request。
+  source_heading: 误解 7：Throughput 高就是服务好
+- level: 概念辨析
+  question: 原文如何解释「误解 13：Reference decoding 对所有任务都有效」？
+  answer: 只有输出大量复用 context 时有效。创作任务 overlap 低。
+  source_heading: 误解 13：Reference decoding 对所有任务都有效
+- level: 概念辨析
+  question: 原文如何解释「误解 20：Batching 一定让每个请求更慢」？
+  answer: Batch formation 增加等待，但提高执行效率可能抵消；dynamic/continuous 能控制等待并减少阻塞。结果需实测。
+  source_heading: 误解 20：Batching 一定让每个请求更慢
+- level: 概念辨析
+  question: 原文如何解释「误解 26：Service-level optimization 绝不改变输出」？
+  answer: 设计目标是不改模型，但 timeout、版本漂移、数值 reduction、cache bug 和 truncation 仍会改变用户结果。
+  source_heading: 误解 26：Service-level optimization 绝不改变输出

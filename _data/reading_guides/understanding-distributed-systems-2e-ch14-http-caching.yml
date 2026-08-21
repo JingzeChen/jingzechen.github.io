@@ -1,0 +1,154 @@
+source:
+  post: _posts/book-notes/distributed-system/understanding-distributed-system/2026-08-16-understanding-distributed-systems-2e-ch14-http-caching.md
+  body_sha256: c5fb055e0a492169b0b90c529e415171e911124aab79a4738b9fb884ece7670d
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 8
+  question: 原文围绕「0. 本章定位：最便宜的请求，是根本不用发到服务器的请求」建立了怎样的核心认识？
+  question_source: 0. 本章定位：最便宜的请求，是根本不用发到服务器的请求
+  thesis: Client-side HTTP cache 是 replication。 它把静态 resource 副本放到 browser，以 stale
+    风险换取 latency 和 origin capacity。
+  thesis_source: 15. 核心结论
+  concepts:
+  - term: 0. 本章定位：最便宜的请求，是根本不用发到服务器的请求
+    meaning: "“static”不表示文件永不改变，而是同一资源表示在缓存有效期内通常稳定。Dynamic 也不是绝对不可缓存；只要能定义正确 cache
+      key、freshness 和隐私边界，也可缓存。但原章先聚焦静态资源。"
+    source_heading: 0. 本章定位：最便宜的请求，是根本不用发到服务器的请求
+  - term: 5. Validators：ETag 与 Last-Modified
+    meaning: Strong validator 必须在可观察 representation data 变化时变化。Weak validator 可以跨字节变化保持不变，只要旧
+      representation 仍可作为语义等价替代；当不再可接受为等价表示时才必须变化。
+    source_heading: 5. Validators：ETag 与 Last-Modified
+  - term: 7. HTTP caching 与 CQRS
+    meaning: 设置正确 HTTP headers 并不意味着必须引入 event sourcing、独立 read database 等复杂架构。这里强调的是
+      read/write workload 和语义不同，应分别优化。
+    source_heading: 7. HTTP caching 与 CQRS
+  - term: 9. Reverse proxies
+    meaning: Figure 14.3 原图只有一个 server；上图在其“client -> reverse proxy -> server”关系上加入第二个
+      origin，用于同时展示原章随后提到的 load-balancing 扩展。
+    source_heading: 9. Reverse proxies
+  - term: 12.3 示例边界
+    meaning: production 应使用成熟 HTTP cache/library。
+    source_heading: 12.3 示例边界
+  - term: 16. 从本章提炼出的通用解题方法
+    meaning: 监控 hit/miss/revalidation ratio、Age、stale serve、eviction、origin latency、stampede、cache
+      bytes 和 purge completion。
+    source_heading: 16. 从本章提炼出的通用解题方法
+  logic:
+  - 0. 本章定位：最便宜的请求，是根本不用发到服务器的请求
+  - 5. Validators：ETag 与 Last-Modified
+  - 6.5 “原子”的边界
+  - 9. Reverse proxies
+  - 11. Reverse-proxy cache 的故障与运维
+  - 13.4 Browser cache 与 reverse-proxy cache
+  - 16. 从本章提炼出的通用解题方法
+  sections:
+  - title: 0. 本章定位：最便宜的请求，是根本不用发到服务器的请求
+    source_heading: 0. 本章定位：最便宜的请求，是根本不用发到服务器的请求
+    paragraphs:
+    - "“static”不表示文件永不改变，而是同一资源表示在缓存有效期内通常稳定。Dynamic 也不是绝对不可缓存；只要能定义正确 cache key、freshness
+      和隐私边界，也可缓存。但原章先聚焦静态资源。"
+    - 收益来自把 reads 移到客户端；代价是副本可能 stale。这与前文 replication 的一致性/性能权衡相同，只是副本位于 browser。
+    - Freshness：已缓存 response 还能否不联系 origin 直接使用？
+    - Validation：stale response 是否与 origin 当前版本相同？
+  - title: 2. 第一次访问：cache miss
+    source_heading: 2. 第一次访问：cache miss
+    paragraphs:
+    - cache 存 body、status、headers、存储时刻等 metadata。
+    - 更精确地说，Age 估计的是 response 自 origin 生成或成功验证以来经过的时间，包含传输和多级 cache 驻留，而不只是当前 cache
+      内停留时间。
+    - Age 不是资源自创建起的年龄，也不是客户端页面停留时间；它参与当前 response 的缓存年龄计算。
+    - cache miss 仍访问 origin，甚至多了 cache lookup。缓存收益来自后续复用；若每个 URL 只访问一次或 cache key
+      高基数，缓存可能没有价值。
+  - title: 5. Validators：ETag 与 Last-Modified
+    source_heading: 5. Validators：ETag 与 Last-Modified
+    paragraphs:
+    - origin 生成的 opaque token。
+    - Strong validator 必须在可观察 representation data 变化时变化。Weak validator 可以跨字节变化保持不变，只要旧
+      representation 仍可作为语义等价替代；当不再可接受为等价表示时才必须变化。
+    - strong ETag：representation data 字节级等价，可用于 range 等强比较；
+    - 不要把缓存 validator 与业务 idempotency key 混为一谈。
+  - title: 6.5 “原子”的边界
+    source_heading: 6.5 “原子”的边界
+    paragraphs:
+    - service worker 有独立 cache；
+    - API/schema compatibility 仍需设计；
+    - assets 必须先发布且不能过早删除。
+    - 它提供的是 manifest/index 级 release consistency。
+  - title: 7. HTTP caching 与 CQRS
+    source_heading: 7. HTTP caching 与 CQRS
+    paragraphs:
+    - POST/PUT/DELETE：走 origin 权威 write path。
+    - read replicas 位于 browsers/proxies；
+    - 原章把这种 query/command 职责分离同时视为 functional decomposition。把缓存职责进一步放到 reverse proxy
+      也可看成类似的工程分解，但这是本文据此作出的推论。
+    - 设置正确 HTTP headers 并不意味着必须引入 event sourcing、独立 read database 等复杂架构。这里强调的是 read/write
+      workload 和语义不同，应分别优化。
+  - title: 9. Reverse proxies
+    source_heading: 9. Reverse proxies
+    paragraphs:
+    - server-side intermediary，拦截 client 与 origin 的通信。客户端把它视为目标 server，不需要知道后端拓扑。
+    - Figure 14.3 原图只有一个 server；上图在其“client -> reverse proxy -> server”关系上加入第二个 origin，用于同时展示原章随后提到的
+      load-balancing 扩展。
+    - origin 只见约 2%。这里 h_p 已定义为 browser miss 后剩余请求的条件命中率，因此乘法无需额外独立性假设；流量分布仍会决定两个命中率的实际数值。
+  - title: 11. Reverse-proxy cache 的故障与运维
+    source_heading: 11. Reverse-proxy cache 的故障与运维
+    paragraphs:
+    - request coalescing/single-flight；
+    - 若 cache key、Host、Vary 或代理 headers 处理错误，攻击者可能让恶意 response 被其他用户复用。需规范化 key、限制可缓存
+      response、验证 origin 和敏感 headers。
+    - browser private caches 不受 server purge 完全控制；
+    - 它提高可用性和 tail latency，但扩大 stale window，需按数据风险选择。
+  - title: 12.3 示例边界
+    source_heading: 12.3 示例边界
+    paragraphs:
+    - 只模拟一个 cache key 和 strong opaque ETag；
+    - 省略 Date/Age 完整算法、Vary、authorization 和 directives；
+    - 没有 stale-if-error、并发、single-flight 和 persistence；
+    - production 应使用成熟 HTTP cache/library。
+  - title: 13.4 Browser cache 与 reverse-proxy cache
+    source_heading: 13.4 Browser cache 与 reverse-proxy cache
+    paragraphs:
+    - browser：private、靠近单用户、减少所有网络调用；
+    - reverse proxy：shared、减少 origin 调用，但 client 到 proxy 仍有网络。
+  - title: 16. 从本章提炼出的通用解题方法
+    source_heading: 16. 从本章提炼出的通用解题方法
+    paragraphs:
+    - 识别 static/dynamic、public/private、safe/unsafe、可接受 stale window。不要先开启缓存再猜正确性。
+    - Origin down 时是否 serve stale？热门 key 到期是否 single-flight？revalidation timeout 如何处理？不要只测试
+      hit path。
+    - 监控 hit/miss/revalidation ratio、Age、stale serve、eviction、origin latency、stampede、cache
+      bytes 和 purge completion。
+    - 本章最重要的方法论是：缓存的本质是复制读取结果；先定义副本可以陈旧多久、怎样验证和怎样隔离，再用 headers、immutable naming 与共享代理把重复网络调用从关键路径移除。
+  takeaways:
+  - Client-side HTTP cache 是 replication。 它把静态 resource 副本放到 browser，以 stale 风险换取
+    latency 和 origin capacity。
+  - Stale 不表示内容一定改变。
+  - Immutable hashed URL 把 invalidation 转为 naming。 新内容新 URL，旧资源可长期缓存。
+  - Reverse proxy 是代表 server 的中间层。 Client 不感知内部 origin topology。
+  - Managed CDN 将 reverse proxy/cache/网络优化商品化。 这是 Chapter 15 的起点。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念辨析
+  question: 原文如何解释「13.1 Fresh、stale、invalid」？
+  answer: invalid/corrupt：不应使用。
+  source_heading: 13.1 Fresh、stale、invalid
+- level: 概念辨析
+  question: 原文如何解释「13.2 Validation 与 invalidation」？
+  answer: ETag 条件 GET 是 validation；purge 是 invalidation。
+  source_heading: 13.2 Validation 与 invalidation
+- level: 概念辨析
+  question: 原文如何解释「13.4 Browser cache 与 reverse-proxy cache」？
+  answer: reverse proxy：shared、减少 origin 调用，但 client 到 proxy 仍有网络。
+  source_heading: 13.4 Browser cache 与 reverse-proxy cache
+- level: 概念辨析
+  question: 原文如何解释「13.5 Cache consistency 与 database consistency」？
+  answer: HTTP cache freshness 允许 bounded stale window，不自动满足 linearizability。ETag
+    验证只能在 revalidation 时确认版本。
+  source_heading: 13.5 Cache consistency 与 database consistency
+- level: 概念辨析
+  question: 原文如何解释「13.6 Immutable 与不删除旧文件」？
+  answer: 同一 URL immutable 要求旧 bytes 持续可取；过早删除 hashed asset 会让缓存 miss/新用户失败。GC 必须晚于所有
+    index 引用与安全保留期。
+  source_heading: 13.6 Immutable 与不删除旧文件

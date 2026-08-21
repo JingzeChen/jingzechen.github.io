@@ -1,0 +1,167 @@
+source:
+  post: _posts/book-notes/ai-system/distributed-ai-system/2026-08-08-distributed-ai-systems-ch05-deepspeed-and-megatron.md
+  body_sha256: 525c0e77696a0a5f11ffafe9e26e01188b09ea7b99ac04246d95c9ca1e67dd2d
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 14
+  question: 原文围绕「0. 本章要回答的核心问题」建立了怎样的核心认识？
+  question_source: 0. 本章要回答的核心问题
+  thesis: State line：replicated state → owner shards → temporary materialization →
+    update/sync。
+  thesis_source: 31. 本章知识结构
+  concepts:
+  - term: 0. 本章要回答的核心问题
+    meaning: ZeRO++ 的 quantized weights、hierarchical partitioning 和 quantized gradients分别减少什么通信？
+    source_heading: 0. 本章要回答的核心问题
+  - term: 7. ZeRO-Infinity：将 NVMe 变为第三层容量
+    meaning: 原章建议free space约model size的2～4倍，属于粗略经验。应逐项计算offloaded params、optimizer、buffers、checkpoint和临时files。70B
+      FP16 weights 140 GB，optimizer-side 840 GB，单node全offload可接近TB级，不能只按weights估算。
+    source_heading: 7. ZeRO-Infinity：将 NVMe 变为第三层容量
+  - term: 14. Expert Parallelism：MoE 的稀疏计算轴
+    meaning: 例如Mixtral 8×7B并非总参数简单56B且每token算14B的精确公式；shared attention、expert结构、active
+      top-k和embedding均影响。报告：total params、active params/token、experts、top-k、capacity和actual
+      FLOPs。
+    source_heading: 14. Expert Parallelism：MoE 的稀疏计算轴
+  - term: 18. Megatron-FSDP：理解周围计算布局的状态分片
+    meaning: 已有Megatron TP/PP/CP/EP且追求NVIDIA栈极致性能：评估Megatron-FSDP。希望纯PyTorch/DTensor/compile和更通用integration：FSDP2。已有DeepSpeed
+      offload/ZeRO++：可选DeepSpeed，但process groups与Megatron集成必须由成熟framework管理。
+    source_heading: 18. Megatron-FSDP：理解周围计算布局的状态分片
+  - term: 25. Choosing the right strategy
+    meaning: TP每层通信且要求shape/topology；若layer fit且state sharding足够，TP可能只降低local GEMM
+      efficiency。加入前测单层peak与latency。
+    source_heading: 25. Choosing the right strategy
+  - term: 34. 复习与自测
+    meaning: 完成这些检查后，应能把“开启ZeRO/Megatron”改写为一个可证伪的系统设计：每份状态由谁持有、每个operator在哪里计算、每次沿哪组移动多少数据、峰值在何时出现、正确性如何与full
+      reference对照，以及配置变化后怎样恢复训练。
+    source_heading: 34. 复习与自测
+  logic:
+  - 0. 本章要回答的核心问题
+  - 7. ZeRO-Infinity：将 NVMe 变为第三层容量
+  - 11. Pipeline Parallelism：沿深度切模型
+  - 18. Megatron-FSDP：理解周围计算布局的状态分片
+  - 21. When do you need Megatron?
+  - 29. 统一公式与术语速查
+  - 34. 复习与自测
+  sections:
+  - title: 0. 本章要回答的核心问题
+    source_heading: 0. 本章要回答的核心问题
+    paragraphs:
+    - Bucket size、contiguous gradients、prefetch 和 live-parameter limit 各控制哪种成本？
+    - ZeRO++ 的 quantized weights、hierarchical partitioning 和 quantized gradients分别减少什么通信？
+    - Pipeline parallel 如何用 microbatches 降低 bubble，1F1B 与 GPipe/virtual pipeline 有何区别？
+    - Expert parallel 的两次 All-to-All、capacity、router balance 与 grouped GEMM 如何关联？
+  - title: 4. ZeRO Stage 2：再分 gradients
+    source_heading: 4. ZeRO Stage 2：再分 gradients
+    paragraphs:
+    - Optimizer owner rank只需要自己parameter partition的global reduced gradient。让每rank长期保留完整
+      P_g 没有必要。
+    - Owner更新local parameter partition，随后同步updated parameter partitions以恢复每rank完整parameters。
+    - 这不是所有GPU“安全默认值”。大bucket摊薄latency却增峰值和ready延迟；小GPU/小模型应根据profile调小。
+    - Parameters仍完整，forward无需逐层parameter AllGather。因此当parameters fit但optimizer+gradients不fit时，Stage2通常比Stage3通信简单、吞吐更高。
+  - title: 7. ZeRO-Infinity：将 NVMe 变为第三层容量
+    source_heading: 7. ZeRO-Infinity：将 NVMe 变为第三层容量
+    paragraphs:
+    - Infinity Engine通过partition、tiling、prefetch、evict和overlap让当前compute需要的tile及时到GPU。
+    - CPU需容纳staging/double buffers和optimizer working set。NVMe只能扩展cold-state capacity，不能让active
+      layer无限大。
+    - 原章建议free space约model size的2～4倍，属于粗略经验。应逐项计算offloaded params、optimizer、buffers、checkpoint和临时files。70B
+      FP16 weights 140 GB，optimizer-side 840 GB，单node全offload可接近TB级，不能只按weights估算。
+    - 原章PCIe Gen4 5～7 GB/s是单盘顺序读示意；随机/并发读写、filesystem、thermal throttling和多ranks会降低。训练长期写放大也消耗TBW
+      endurance。监控：throughput、IOPS、queue latency、utilization、temperature、wear level。
+  - title: 11. Pipeline Parallelism：沿深度切模型
+    source_heading: 11. Pipeline Parallelism：沿深度切模型
+    paragraphs:
+    - 在理想同样microbatch count/stages下，microbatching本身决定主要fill/drain bubble；1F1B并不凭名字消除所有bubble。它相对GPipe最明确的收益是activation
+      memory和调度steady state，具体bubble取决于schedule。
+    - 按layer数均分不一定按FLOPs/latency/memory均分。Embedding、loss head、MoE layers、long-context
+      attention成本不均。用per-layer profile partition。
+    - Forward发送activation，backward发送其gradient。Pipeline频率每microbatch每boundary，虽低于TP每layercollective，但长sequence/hidden仍可巨大。
+    - TP每层collective非常频繁；PP只在stage boundaries P2P，因此更能容忍较慢IB/RoCE。但若boundary activation大、microbatch很多或network拥塞，PP仍受限。通常TP
+      group在node内，PP stages跨nodes是一条经验，不是定律。
+  - title: 14. Expert Parallelism：MoE 的稀疏计算轴
+    source_heading: 14. Expert Parallelism：MoE 的稀疏计算轴
+    paragraphs:
+    - Total expert parameters随 E增长，per-token expert compute主要随 k增长。Dense attention/shared
+      layers仍每token执行。
+    - 即使平均均匀，tail hotspot也让其他ranks等待。观察：max/mean、coefficient of variation、overflow率、per-expert
+      GEMM utilization。
+    - 一rank有多个experts，每个token group大小不同。逐expert小GEMM效率低。Grouped GEMM将多个independent
+      expert matrices一次调度/批处理，提高Tensor Core utilization并减少launch。
+    - 例如Mixtral 8×7B并非总参数简单56B且每token算14B的精确公式；shared attention、expert结构、active top-k和embedding均影响。报告：total
+      params、active params/token、experts、top-k、capacity和actual FLOPs。
+  - title: 18. Megatron-FSDP：理解周围计算布局的状态分片
+    source_heading: 18. Megatron-FSDP：理解周围计算布局的状态分片
+    paragraphs:
+    - Megatron-FSDP可按这些结构做更紧密bucket、buffer和overlap。
+    - 它依赖NCCL/Transformer Engine/Megatron版本与拓扑，不是通用PyTorch特性。
+    - 原章引用约15%～25% throughput与约23% memory收益相对PyTorch FSDP2。这是NVIDIA特定模型、硬件、软件版本和配置的发布结果，不是普遍保证。复核时固定：model、global
+      batch、precision、checkpoint、TP/PP、network与quality。
+    - 已有Megatron TP/PP/CP/EP且追求NVIDIA栈极致性能：评估Megatron-FSDP。希望纯PyTorch/DTensor/compile和更通用integration：FSDP2。已有DeepSpeed
+      offload/ZeRO++：可选DeepSpeed，但process groups与Megatron集成必须由成熟framework管理。
+  - title: 21. When do you need Megatron?
+    source_heading: 21. When do you need Megatron?
+    paragraphs:
+    - 一个8B长上下文模型可能需要CP；一个30B短context模型可只FSDP；不能只看总参数。
+    - Layer wall：完整单层parameters/workspace不fit或GEMM太慢 → TP。
+    - Context wall：long sequence activation/attention → SP/CP/Ulysses。
+    - 几百GPU时，Megatron optimized overlap/checkpoint/kernels可能改善效率，即使每层fit；但引入复杂性。用proof-of-concept比较time-to-quality与运维成本。
+  - title: 25. Choosing the right strategy
+    source_heading: 25. Choosing the right strategy
+    paragraphs:
+    - 如果参数和gradient fit，仅optimizer不fit，ZeRO-1已经解决；直接Stage3会引入parameter AllGather。最低stage通常更简单、更快、更易debug。
+    - 低精度与recompute使用GPU本地compute换memory，通常比每step跨PCIe/NVMe更经济。但如果quality或compute
+      budget不允许，再offload。
+    - TP每层通信且要求shape/topology；若layer fit且state sharding足够，TP可能只降低local GEMM efficiency。加入前测单层peak与latency。
+    - PP解决depth/world扩展，却引入bubble、microbatch accumulation、P2P和stage balance。能用TP+DP满足时保持简单。
+  - title: 29. 统一公式与术语速查
+    source_heading: 29. 统一公式与术语速查
+    paragraphs:
+    - MoE不能无条件再乘 E_p。很多实现让EP重解释或细分某个已有模型/数据并行维度，并另外形成expert-data-parallel group。必须以框架的rank
+      generator为准。
+    - 这四式都不含activation、temporary full units、prefetch、communication buffers、kernel
+      workspace与allocator reserve。
+    - TP、PP、CP peers协作处理同一logical sample，不应重复乘入global batch。Sequence packing时应统计valid/non-padding
+      tokens。
+    - Padding或dropping取决于实际route分布。Total parameters由全部experts决定，active FLOPs主要由每token选中的
+      k 个experts决定。
+  - title: 34. 复习与自测
+    source_heading: 34. 复习与自测
+    paragraphs:
+    - 为目标模型建立parameter/gradient/optimizer/activation/temporary ledger。
+    - 分别报告persistent、allocated peak、reserved peak和device-used peak。
+    - NVMe offload用目标block size/queue depth测effective bandwidth。
+    - 完成这些检查后，应能把“开启ZeRO/Megatron”改写为一个可证伪的系统设计：每份状态由谁持有、每个operator在哪里计算、每次沿哪组移动多少数据、峰值在何时出现、正确性如何与full
+      reference对照，以及配置变化后怎样恢复训练。
+  takeaways:
+  - State line：replicated state → owner shards → temporary materialization → update/sync。
+  - Bucket越大通常提高bandwidth efficiency，却增加buffer、延迟与峰值。
+  - PP性能上限由最慢stage决定，按layer count平均不等于按latency/memory平衡。
+  - Dense world-size乘积只描述整数容量；同一乘积的communication与kernel效率可能完全不同。
+  - 稳定知识是ownership、lifetime、collective和拓扑；具体flags/API必须按版本验证。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念复述
+  question: 原文如何解释「0. 本章要回答的核心问题」？
+  answer: ZeRO++ 的 quantized weights、hierarchical partitioning 和 quantized gradients分别减少什么通信？
+  source_heading: 0. 本章要回答的核心问题
+- level: 边界判断
+  question: 原文如何解释「7. ZeRO-Infinity：将 NVMe 变为第三层容量」？
+  answer: 原章建议free space约model size的2～4倍，属于粗略经验。应逐项计算offloaded params、optimizer、buffers、checkpoint和临时files。70B
+    FP16 weights 140 GB，optimizer-side 840 GB，单node全offload可接近TB级，不能只按weights估算。
+  source_heading: 7. ZeRO-Infinity：将 NVMe 变为第三层容量
+- level: 边界判断
+  question: 原文如何解释「18. Megatron-FSDP：理解周围计算布局的状态分片」？
+  answer: 已有Megatron TP/PP/CP/EP且追求NVIDIA栈极致性能：评估Megatron-FSDP。希望纯PyTorch/DTensor/compile和更通用integration：FSDP2。已有DeepSpeed
+    offload/ZeRO++：可选DeepSpeed，但process groups与Megatron集成必须由成熟framework管理。
+  source_heading: 18. Megatron-FSDP：理解周围计算布局的状态分片
+- level: 关系解释
+  question: 原文如何解释「25. Choosing the right strategy」？
+  answer: TP每层通信且要求shape/topology；若layer fit且state sharding足够，TP可能只降低local GEMM efficiency。加入前测单层peak与latency。
+  source_heading: 25. Choosing the right strategy
+- level: 概念复述
+  question: 原文如何解释「34. 复习与自测」？
+  answer: 完成这些检查后，应能把“开启ZeRO/Megatron”改写为一个可证伪的系统设计：每份状态由谁持有、每个operator在哪里计算、每次沿哪组移动多少数据、峰值在何时出现、正确性如何与full
+    reference对照，以及配置变化后怎样恢复训练。
+  source_heading: 34. 复习与自测

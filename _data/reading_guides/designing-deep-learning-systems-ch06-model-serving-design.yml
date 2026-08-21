@@ -1,0 +1,144 @@
+source:
+  post: _posts/book-notes/ai-system/design-deep-learning-system/2026-08-08-designing-deep-learning-systems-ch06-model-serving-design.md
+  body_sha256: b5f80cedd86a7f97c0be5ac4b3299eec78d7103700511c77477bca5558239ae9
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 10
+  question: 原文围绕「本章要回答的核心问题」建立了怎样的核心认识？
+  question_source: 本章要回答的核心问题
+  thesis: 六项核心挑战是 API 异构、runtime 异构、工具选择、场景定制、时延/利用率权衡、部署与监控。
+  thesis_source: 核心结论
+  concepts:
+  - term: 本章要回答的核心问题
+    meaning: 原章以概念、术语和高层设计为主，没有给出需要推导的机器学习公式。本文会在对应位置补充端到端时延、Little 定律、缓存命中率、容量、可用性和
+      DAG 关键路径等工程表达，用来说明作者设计选择的依据与局限；这些形式化分析不是原章另行提出的算法。第 7 章才会进入具体服务实现、开源工具、部署与监控实践。
+    source_heading: 本章要回答的核心问题
+  - term: 6.1 解释模型服务
+    meaning: 以语音翻译为例：用户上传音频，远程服务加载并执行 sequence-to-sequence 模型，再返回翻译音频。模型文件、执行环境、预处理、预测、后处理、网络接口和运行服务共同构成实际的
+      serving 能力。
+    source_heading: 6.1 解释模型服务
+  - term: 6.2 常见模型服务策略
+    meaning: 一个统一 API 与单一进程无法魔法般消除这些差异。Model server 通常通过 standardized model format、backend
+      adapter、custom handler 或 ensemble graph 建立扩展点。
+    source_heading: 6.2 常见模型服务策略
+  - term: 核心结论
+    meaning: 多应用 prediction platform 由 unified API、metadata routing、graph execution、inference
+      backends 和 model file server 组成。
+    source_heading: 核心结论
+  - term: 从本章提炼出的通用解题方法
+    meaning: 测量 loaded model footprint、workspace 和并发内存；选择 preload、LRU / cost-aware
+      eviction、single-flight、model affinity 和 warm pool。对 cache miss 单独定义 SLO / fallback。
+    source_heading: 从本章提炼出的通用解题方法
+  - term: 复习与自测
+    meaning: Training mode 与 evaluation mode 在 gradient、Dropout 和 BatchNorm 上有何区别？
+    source_heading: 复习与自测
+  logic:
+  - 本章要回答的核心问题
+  - 6.1 解释模型服务
+  - 6.2 常见模型服务策略
+  - 6.3 设计 Prediction Service
+  - 核心结论
+  - 从本章提炼出的通用解题方法
+  - 复习与自测
+  sections:
+  - title: 本章要回答的核心问题
+    source_heading: 本章要回答的核心问题
+    paragraphs:
+    - Prediction、inference、scoring 与 serving 在本章语境中是什么关系？
+    - Direct model embedding、model service 与 model server 分别适合什么场景？
+    - 多应用、多模型类型场景为何需要统一 API、路由、DAG 和多个 inference backends？
+    - 原章以概念、术语和高层设计为主，没有给出需要推导的机器学习公式。本文会在对应位置补充端到端时延、Little 定律、缓存命中率、容量、可用性和 DAG
+      关键路径等工程表达，用来说明作者设计选择的依据与局限；这些形式化分析不是原章另行提出的算法。第 7 章才会进入具体服务实现、开源工具、部署与监控实践。
+  - title: 6.1 解释模型服务
+    source_heading: 6.1 解释模型服务
+    paragraphs:
+    - 模型服务（model serving）处在深度学习产品链路最靠近终端用户的位置。数据准备、训练、超参数优化和模型评价只产生候选模型；只有 serving
+      把这些模型接入应用，模型输出才开始承担真实业务后果。
+    - 以语音翻译为例：用户上传音频，远程服务加载并执行 sequence-to-sequence 模型，再返回翻译音频。模型文件、执行环境、预处理、预测、后处理、网络接口和运行服务共同构成实际的
+      serving 能力。
+    - 只在稳定、单位一致且边界清楚时成立。服务设计应同时定义 QPS、P50 / P95 / P99 latency、错误率和资源成本，而不是只看 average
+      latency 或 GPU utilization。
+    - 这些同义关系只适用于本书 serving 讨论。实际产品、论文和团队可能赋予更细差异，例如 “deployment” 可指创建服务资源，“release”
+      可指让流量切换到已部署版本。设计文档应明确自己的状态机，而不是依赖词语默认含义。
+  - title: 6.2 常见模型服务策略
+    source_heading: 6.2 常见模型服务策略
+    paragraphs:
+    - 所以 direct embedding 并非“很少使用就不值得考虑”。在离线、隐私、网络不可用、超低时延或边缘设备场景，它可能是正确方案；只是原章针对一般业务应用更推荐
+      server-side model service。
+    - Model server 试图以黑盒方式承载多个模型类型、框架或版本，通过统一 prediction API 和管理 API 动态注册、加载、卸载并执行模型。新增合规模型通常不需要修改
+      / 部署一套新业务服务代码。
+    - TensorFlow Serving、TorchServe、NVIDIA Triton 等是原章列举的 model server 方案。它们的实际模型格式与框架覆盖各不相同，不能仅凭“通用服务器”名称假设任意模型都可直接运行。
+    - 一个统一 API 与单一进程无法魔法般消除这些差异。Model server 通常通过 standardized model format、backend
+      adapter、custom handler 或 ensemble graph 建立扩展点。
+  - title: 6.3 设计 Prediction Service
+    source_heading: 6.3 设计 Prediction Service
+    paragraphs:
+    - 建模和预处理常用 Python；客户端可能是 Java、C++、C#、Go。虽然 TensorFlow / PyTorch 等提供非 Python runtime，custom
+      layers、tokenizer 和 postprocess 仍可能重写。Model service 可直接复用大部分 Python / framework
+      code。
+    - 原章以 Java 调 TensorFlow 为例：native tensors / execution objects 不一定由 Java GC 自动回收，需要显式关闭。Native
+      allocation 不体现在普通 JVM heap 指标中，泄漏难定位。
+    - 这不是 direct embedding 独有，任何 JNI / native runtime 都可能发生。应使用 ownership API、try-with-resources、native
+      allocator metrics、RSS 和 jemalloc 等工具。
+    - 原章建议不要从零实现通用 inference server，而是复用 TensorFlow Serving、TorchServe、NVIDIA Triton
+      等，再集成自己的 model storage、routing、monitoring 和 alerting。
+  - title: 核心结论
+    source_heading: 核心结论
+    paragraphs:
+    - Direct embedding 少一个网络 hop并支持端侧 / 离线，但增加客户端资源、版本、跨语言、所有权和 native memory 风险。
+    - 同模型类型的多租户场景适合 model service + versioned model cache。 执行代码共享，模型数据按 tenant / version
+      切换。
+    - 多应用 prediction platform 由 unified API、metadata routing、graph execution、inference
+      backends 和 model file server 组成。
+    - 所有 serving 设计都需要部署安全、latency 和 monitoring / alerting。 版本、rollback 和可观测 hook
+      必须从第一天进入数据模型。
+  - title: 从本章提炼出的通用解题方法
+    source_heading: 从本章提炼出的通用解题方法
+    paragraphs:
+    - 固定 artifact、architecture / runtime、executor、schema、transformer、labels、dependencies、metadata、checksum
+      和 signature。把它作为部署与 rollback 的原子单位。
+    - 明确 model / graph identity、immutable version、input/output schema、batch、timeout、errors、tenant
+      和实际执行版本。Business API 与平台 tensor API 可分层。
+    - 为网络、排队、preprocess、load、infer、postprocess 分配 budget；定义目标 QPS 与 P50/P95/P99。用生产请求大小分布压测，不只
+      benchmark 单个 tensor。
+    - 测量 loaded model footprint、workspace 和并发内存；选择 preload、LRU / cost-aware eviction、single-flight、model
+      affinity 和 warm pool。对 cache miss 单独定义 SLO / fallback。
+  - title: 复习与自测
+    source_heading: 复习与自测
+    paragraphs:
+    - Model serving、prediction service、model instance 和 endpoint 分别是什么？
+    - Training mode 与 evaluation mode 在 gradient、Dropout 和 BatchNorm 上有何区别？
+    - Model serving、model scoring、inference 和 prediction 在本书如何使用？
+    - Model cache key 为什么应包含 tenant、name 和 immutable version？
+  takeaways:
+  - Serving 是模型价值到达用户的最后一公里。 它把训练制品变成满足业务 API 和 SLO 的运行能力。
+  - 六项核心挑战是 API 异构、runtime 异构、工具选择、场景定制、时延/利用率权衡、部署与监控。
+  - 同模型类型的多租户场景适合 model service + versioned model cache。 执行代码共享，模型数据按 tenant / version
+    切换。
+  - DAG 的时延由 critical path 决定。 每个远程模型节点都增加 failure 与 tail-latency 风险。
+  - 架构应按单模型 → 同类型多租户 → 多类型平台逐步演进。 当前需求决定复杂度，而不是对未来功能的想象。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念辨析
+  question: 原文如何解释「1. 模型就是 weights 文件」？
+  answer: 错误。Serving 还需要架构 / graph、executor、runtime、preprocess、postprocess、labels
+    / vocabulary 和输入输出契约。
+  source_heading: 1. 模型就是 weights 文件
+- level: 概念辨析
+  question: 原文如何解释「12. Direct embedding 总比远程服务快」？
+  answer: 不一定。它少一个网络 hop，但客户端硬件可能远弱于服务端 GPU，且本地 preprocess 和内存压力可更大。
+  source_heading: 12. Direct embedding 总比远程服务快
+- level: 概念辨析
+  question: 原文如何解释「21. Cache key 只用 model name 就足够」？
+  answer: 至少要固定 version，多租户还要 tenant namespace。
+  source_heading: 21. Cache key 只用 model name 就足够
+- level: 概念辨析
+  question: 原文如何解释「31. Graph execution 只是连续调用几个 API，不需版本化」？
+  answer: 错误。节点、边、transformer、timeout 和 fallback 都影响结果；graph definition 是可部署、可审计的制品。
+  source_heading: 31. Graph execution 只是连续调用几个 API，不需版本化
+- level: 概念辨析
+  question: 原文如何解释「40. 最通用的 prediction platform 应该从第一个模型开始建设」？
+  answer: 错误。原章核心观点是按场景选择刚好足够的系统，随模型类型和应用规模演进。
+  source_heading: 40. 最通用的 prediction platform 应该从第一个模型开始建设

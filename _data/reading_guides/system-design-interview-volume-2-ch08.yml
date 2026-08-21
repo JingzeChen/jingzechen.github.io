@@ -1,0 +1,138 @@
+source:
+  post: _posts/book-notes/software-architecture/system-design-interview-volume-2/2026-08-12-system-design-interview-volume-2-ch08.md
+  body_sha256: 7382ac29853166f7e3077e2c160df7fa894fdcaf88e3385cdfa38d1b97e55c13
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 8
+  question: 原文围绕「0. 邮件系统不是“把文本发给另一个用户”」建立了怎样的核心认识？
+  question_source: 0. 邮件系统不是“把文本发给另一个用户”
+  thesis: Deliverability 是邮件产品的核心功能。 Dedicated IP、Warm-up、Feedback、Reputation 和 SPF/DKIM/DMARC
+    决定是否进入 Inbox。
+  thesis_source: 13. 核心结论
+  concepts:
+  - term: 0. 邮件系统不是“把文本发给另一个用户”
+    meaning: SMTP Delivery State：通过持久队列、重试和 Feedback Loop 管理。
+    source_heading: 0. 邮件系统不是“把文本发给另一个用户”
+  - term: 2.3 IMAP
+    meaning: IMAP 让邮件继续保存在 Server，Client 按需下载 Header/Body，并同步 Folder、Read 等状态。
+    source_heading: 2.3 IMAP
+  - term: 4.2 SMTP 重试
+    meaning: Permanent Failure（5xx、Invalid Recipient）不应无限重试，应生成 Hard Bounce/DSN。
+    source_heading: 4.2 SMTP 重试
+  - term: 6.1 邮件数据特征
+    meaning: Read/Folder 状态可变，邮件内容大多不可变。
+    source_heading: 6.1 邮件数据特征
+  - term: 8.3 方案一：Elasticsearch
+    meaning: ES 不是 Source of Truth；损坏时从 Mail Store/Kafka 重建，所以 Search 短暂不可用不应丢邮件。
+    source_heading: 8.3 方案一：Elasticsearch
+  - term: 14. 解决分布式邮件问题的一般思路
+    meaning: Queued -> Sending -> Remote Accepted / Soft Bounce Retry / Hard Bounce
+      / Complaint，按 MX Priority、Backoff/Jitter 和 Domain Rate Limit 执行。
+    source_heading: 14. 解决分布式邮件问题的一般思路
+  logic:
+  - 0. 邮件系统不是“把文本发给另一个用户”
+  - 2.3 IMAP
+  - 3.1 Webmail API
+  - 6.1 邮件数据特征
+  - 6.10 Consistency Trade-off
+  - 10.2 Compliance
+  - 14. 解决分布式邮件问题的一般思路
+  sections:
+  - title: 0. 邮件系统不是“把文本发给另一个用户”
+    source_heading: 0. 邮件系统不是“把文本发给另一个用户”
+    paragraphs:
+    - 用户邮箱中的 Folder/Read/Label 状态；
+    - Mail Metadata/Body：以用户邮箱为访问边界，要求强一致、低 I/O 和高可靠；
+    - Search：写多读少的异步派生索引，可从 Primary Store 重建；
+    - SMTP Delivery State：通过持久队列、重试和 Feedback Loop 管理。
+  - title: 1.4 非功能需求
+    source_heading: 1.4 非功能需求
+    paragraphs:
+    - 不丢邮件。发送请求成功后，即使某节点、磁盘或网络故障，也要能恢复投递/邮箱状态。
+    - 部分故障时仍尽可能收发与读取。某 Mailbox Primary 切换时可短暂停写，以防分叉。
+    - 邮件从纯文本演进到附件、Thread、Search、Label 和安全能力。架构要便于增加处理 Stage，而不是让 SMTP Server 承担所有逻辑。
+  - title: 2.3 IMAP
+    source_heading: 2.3 IMAP
+    paragraphs:
+    - IMAP 让邮件继续保存在 Server，Client 按需下载 Header/Body，并同步 Folder、Read 等状态。
+    - 多设备访问同一 Mailbox；
+    - 因此现代个人账户更常用 IMAP/JMAP/厂商 HTTPS API，而非纯 POP。
+  - title: 3.1 Webmail API
+    source_heading: 3.1 Webmail API
+    paragraphs:
+    - 默认 Folder 包括 All、Archive、Drafts、Flagged、Junk、Sent、Trash。
+    - 返回 Owner、From、To、Subject、Body、Read Status、Attachment References 等。
+  - title: 4.2 SMTP 重试
+    source_heading: 4.2 SMTP 重试
+    paragraphs:
+    - Permanent Failure（5xx、Invalid Recipient）不应无限重试，应生成 Hard Bounce/DSN。
+    - SMTP 连接可能在 Remote 已接受后、本地未收到确认时断开，重试会导致 Recipient 收到重复。
+  - title: 6.1 邮件数据特征
+    source_heading: 6.1 邮件数据特征
+    paragraphs:
+    - 操作大多局限于单用户 Mailbox；
+    - 新邮件访问最热，原书数据称 82% 读取是 16 天内邮件；
+    - Read/Folder 状态可变，邮件内容大多不可变。
+    - 这提示：按 User 分区、冷热分层、内容与 Mutable Mailbox State 分离。
+  - title: 6.10 Consistency Trade-off
+    source_heading: 6.10 Consistency Trade-off
+    paragraphs:
+    - 每个 Mailbox 使用 Single Primary。故障时 Client 暂停 Sync/Update，等待 Failover，而不是同时向两个
+      Primary 写。
+    - 理由：重复、丢失、Read/Folder 状态分叉比短暂停写更难修复。Read 可从已确认同步 Replica 提供，但要定义 Staleness。
+    - Single Primary 不代表整个服务单机：不同用户 Primary 分散在许多 Shard/DC。
+  - title: 8.3 方案一：Elasticsearch
+    source_heading: 8.3 方案一：Elasticsearch
+    paragraphs:
+    - Primary Mail Store 完成 Send/Receive/Delete；
+    - Indexer 异步 Upsert/Delete Elasticsearch；
+    - 优点：成熟全文搜索、易集成、较易扩展。 缺点：Primary + ES 双副本、异步不一致、运维复杂、Gmail 规模需专门团队。
+    - ES 不是 Source of Truth；损坏时从 Mail Store/Kafka 重建，所以 Search 短暂不可用不应丢邮件。
+  - title: 10.2 Compliance
+    source_heading: 10.2 Compliance
+    paragraphs:
+    - 欧洲 PII/GDPR 数据驻留、访问、删除；
+    - Retention 与用户删除；
+    - Legal Hold：即使用户删除也依法保留；
+    - "“删除权”与“Legal Hold”可能冲突，需要 Policy Engine，而不是直接物理删除所有 Blob。"
+  - title: 14. 解决分布式邮件问题的一般思路
+    source_heading: 14. 解决分布式邮件问题的一般思路
+    paragraphs:
+    - 区分 Client Submission、Mailbox Access、Server-to-server SMTP、Realtime Notification
+      和 Sync Recovery。
+    - Incoming/Outgoing/Index/Feedback Worker 都按 At-least-once 设计，使用 Message ID 与
+      Unique Entry 去重。
+    - Queued -> Sending -> Remote Accepted / Soft Bounce Retry / Hard Bounce / Complaint，按
+      MX Priority、Backoff/Jitter 和 Domain Rate Limit 执行。
+    - 本章最值得迁移的方法是：围绕“邮件被接受后不能丢”确定耐久边界，再把可变的用户邮箱状态、大型不可变附件、可重建全文索引和不可靠外部 SMTP 投递拆成不同子系统；它们通过持久事件与稳定
+      ID 协作，而不是共享一个脆弱的大数据库。
+  takeaways:
+  - 客户端协议与服务器间协议要分开。 Webmail 可用 HTTP/WebSocket，跨域仍由 SMTP + DNS MX 完成。
+  - 附件适合 Object Storage。 队列和 Mail Store 保存引用，避免大 Blob 拖垮 Cache/Compaction。
+  - NoSQL Schema 由 Query 驱动。 Folder List、Recent Messages、Read/Unread 需要不同表或索引。
+  - Search 是写多读少的派生系统。 ES 易集成但双写不一致；超大规模可做 Native Search。
+  - 多收件人可共享 Immutable Content，但用户状态独立。 这能大幅降低正文/附件存储，代价是引用生命周期复杂。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念辨析
+  question: 原文如何解释「11.1 SMTP、IMAP、POP 职责不同」？
+  answer: SMTP 发，IMAP/POP 取。Webmail HTTP API 不能替代跨域 SMTP。
+  source_heading: 11.1 SMTP、IMAP、POP 职责不同
+- level: 概念辨析
+  question: 原文如何解释「11.10 Cache 不是 Mailbox Source of Truth」？
+  answer: 最近邮件 Cache 丢失可从 Metadata Store 重建，不能因 Cache Miss 判邮件不存在。
+  source_heading: 11.10 Cache 不是 Mailbox Source of Truth
+- level: 概念辨析
+  question: 原文如何解释「11.14 TIMEUUID 提供时间排序，不等于业务全局顺序」？
+  answer: 跨节点时钟、同时间事件仍要用 Sequence/唯一 Tie-breaker。
+  source_heading: 11.14 TIMEUUID 提供时间排序，不等于业务全局顺序
+- level: 概念辨析
+  question: 原文如何解释「11.21 Soft Bounce 与 Hard Bounce 不能同样重试」？
+  answer: Soft 退避，Hard 抑制；Complaint 需保护 Reputation。
+  source_heading: 11.21 Soft Bounce 与 Hard Bounce 不能同样重试
+- level: 概念辨析
+  question: 原文如何解释「11.28 Reliability 不等于没有重复」？
+  answer: At-least-once 重试会重复。应依赖稳定 Message ID、Mailbox Entry Unique Key 和幂等 Worker。
+  source_heading: 11.28 Reliability 不等于没有重复

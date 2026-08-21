@@ -1,0 +1,145 @@
+source:
+  post: _posts/book-notes/software-architecture/system-design-interview/2026-08-12-system-design-interview-ch15.md
+  body_sha256: d5b74d9f0376f24d0bfec58eda2350ab13906f487ae0e936bf095d46184be47f
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 8
+  question: 原文围绕「0. 学习目标、边界与全章总览」建立了怎样的核心认识？
+  question_source: 0. 学习目标、边界与全章总览
+  thesis: 如果这些问题都能回答，就不只是会“把文件上传到 S3”，而是理解了本章的核心方法：把可变文件抽象为稳定身份、原子最新指针和不可变块清单；用块级内容寻址把带宽、版本和去重统一起来，再用强一致
+    Metadata 提交、持久变更游标和弱耦合通知，让多设备在断网、并发修改和组件故障下仍能恢复到同一已提交版本。
+  thesis_source: 26. 核心结论与一般设计方法
+  concepts:
+  - term: 0. 学习目标、边界与全章总览
+    meaning: 本文严格沿原书顺序展开。补充的乐观并发控制、内容寻址、Merkle/manifest、outbox/change log、租约与可运行同步模型属于标准工程背景，不是作者逐式给出的原文。
+    source_heading: 0. 学习目标、边界与全章总览
+  - term: 6. Sync Conflict：版本条件写
+    meaning: 影响行数 1 表示赢；0 表示冲突。不能先 SELECT 再无条件 UPDATE，否则两个并发请求都可能覆盖。
+    source_heading: 6. Sync Conflict：版本条件写
+  - term: 15.1 工作方式
+    meaning: 客户端拉 metadata changes；
+    source_heading: 15.1 工作方式
+  - term: 19. 可运行示例：内容块、Delta Sync、去重、版本冲突与重建
+    meaning: 示例把 blocks 与 metadata 放同一内存对象。真实系统先上传不可变块，再在关系 DB 事务中写 manifest 与 CAS
+      latest pointer；冲突上传的孤儿块由后台 GC 清理。
+    source_heading: 19. 可运行示例：内容块、Delta Sync、去重、版本冲突与重建
+  - term: 23.3 同步
+    meaning: duplicate/missing change audit。
+    source_heading: 23.3 同步
+  - term: 26. 核心结论与一般设计方法
+    meaning: 需求是 Web/Mobile、任意文件、10GB、静态加密、上传/下载/多设备同步/版本/分享/通知，10M DAU，强调零数据丢失、快速同步和低带宽。
+      50M 注册用户 ×10GB 是 500PB 配额；日上传 20M 文件、平均 500KB，约 231 QPS、10TB/day。先以单机 Apache/MySQL/local
+      drive 建基线，再把 Web 无状态化，Metadata DB 独立复制分片，文件进跨地域对象存储。
+    source_heading: 26. 核心结论与一般设计方法
+  logic:
+  - 0. 学习目标、边界与全章总览
+  - 6. Sync Conflict：版本条件写
+  - 11. Strong Consistency Requirement
+  - 19. 可运行示例：内容块、Delta Sync、去重、版本冲突与重建
+  - 21.4 现代折中
+  - 25.2 演进层
+  - 26. 核心结论与一般设计方法
+  sections:
+  - title: 0. 学习目标、边界与全章总览
+    source_heading: 0. 学习目标、边界与全章总览
+    paragraphs:
+    - 为什么 240 upload QPS 看起来很低，实际每天仍产生约 10 TB 新数据？
+    - Notification 为什么只需要 Long Poll，而聊天更适合 WebSocket？
+    - 任一 Block/API/DB/Notification 节点故障后怎样恢复且不丢数据？
+    - 本文严格沿原书顺序展开。补充的乐观并发控制、内容寻址、Merkle/manifest、outbox/change log、租约与可运行同步模型属于标准工程背景，不是作者逐式给出的原文。
+  - title: 2. 粗略估算
+    source_heading: 2. 粗略估算
+    paragraphs:
+    - 这是可售/承诺容量，不是已使用物理容量。实际容量取决于利用率、去重、压缩、副本和版本。
+    - 原书假设 1:1，平均下载 API 也约 240 QPS。但下载文件大小分布和 block cache 命中决定字节流量，不能只看请求数。
+  - title: 6. Sync Conflict：版本条件写
+    source_heading: 6. Sync Conflict：版本条件写
+    paragraphs:
+    - 影响行数 1 表示赢；0 表示冲突。不能先 SELECT 再无条件 UPDATE，否则两个并发请求都可能覆盖。
+    - 网络更快的请求可能赢，即使用户更晚编辑。系统只定义可序列化提交，不判断哪份内容更正确。
+    - 文本可尝试三方 merge，但 Google Docs 实时协作超出本章。
+  - title: 11. Strong Consistency Requirement
+    source_heading: 11. Strong Consistency Requirement
+    paragraphs:
+    - DB write 时 invalidate cache。
+    - 关系 DB ACID 能原子维护 File/latest_version/File_version/Block 引用，但不能自动让外部 Cache 原子一致。DB
+      commit 与 cache invalidate 仍有双写窗口。
+    - Change Data Capture/outbox 可靠失效；
+    - 上传块可在 metadata commit 前存在为临时孤儿，后台清理；但 metadata 不能引用不存在的 block。
+  - title: 15.1 工作方式
+    source_heading: 15.1 工作方式
+    paragraphs:
+    - 客户端建立 long poll；
+    - 客户端拉 metadata changes；
+    - 处理后立即新建 long poll；
+  - title: 19. 可运行示例：内容块、Delta Sync、去重、版本冲突与重建
+    source_heading: 19. 可运行示例：内容块、Delta Sync、去重、版本冲突与重建
+    paragraphs:
+    - 相同块按 SHA-256 去重；
+    - Block order 能重建 bytes；
+    - 同一 upload request ID 幂等；
+    - 示例把 blocks 与 metadata 放同一内存对象。真实系统先上传不可变块，再在关系 DB 事务中写 manifest 与 CAS latest
+      pointer；冲突上传的孤儿块由后台 GC 清理。
+  - title: 21.4 现代折中
+    source_heading: 21.4 现代折中
+    paragraphs:
+    - 限定 key/size/checksum；
+    - 关键 dedupe/版本 commit 在服务端。
+  - title: 23.3 同步
+    source_heading: 23.3 同步
+    paragraphs:
+    - notification → metadata pull；
+    - metadata → blocks downloaded；
+    - end-to-end device convergence；
+    - duplicate/missing change audit。
+  - title: 25.2 演进层
+    source_heading: 25.2 演进层
+    paragraphs:
+    - Apache/MySQL/local drive；
+    - Load Balancer/无状态 Web；
+    - 独立、复制、分片 Metadata。
+  - title: 26. 核心结论与一般设计方法
+    source_heading: 26. 核心结论与一般设计方法
+    paragraphs:
+    - 需求是 Web/Mobile、任意文件、10GB、静态加密、上传/下载/多设备同步/版本/分享/通知，10M DAU，强调零数据丢失、快速同步和低带宽。
+      50M 注册用户 ×10GB 是 500PB 配额；日上传 20M 文件、平均 500KB，约 231 QPS、10TB/day。先以单机 Apache/MySQL/local
+      drive 建基线，再把 Web 无状态化，Metadata DB 独立复制分片，文件进跨地域对象存储。
+    - 稳定 file ID 与 path 分离；File 保存 latest pointer，File_version 不可变，manifest 按顺序引用
+      4MB content-hash blocks。 Block Server 分块、按类型压缩、AEAD 加密，只上传缺失/变化块。编辑携带 base_version，DB
+      用 CAS：赢家原子提交新 manifest/latest，输家收到 conflict 并保留本地冲突副本。
+    - 上传 metadata 与 bytes 并行，先 PENDING；所有块和 checksum 验证后事务写 File_version、CAS latest，再
+      outbox 通知 COMMITTED。 Notification 用 Long Poll 只做 wakeup，设备按持久 change cursor
+      拉 metadata，再只下载缺块并校验重建。账户级 block 去重、分层版本保留和 Cold Storage 控制成本。
+    - 如果这些问题都能回答，就不只是会“把文件上传到 S3”，而是理解了本章的核心方法：把可变文件抽象为稳定身份、原子最新指针和不可变块清单；用块级内容寻址把带宽、版本和去重统一起来，再用强一致
+      Metadata 提交、持久变更游标和弱耦合通知，让多设备在断网、并发修改和组件故障下仍能恢复到同一已提交版本。
+  takeaways:
+  - Web/Mobile、任意格式、10GB、加密；
+  - component failover；
+  - Long Poll 匹配低频单向通知。 它不是对 WebSocket 的普遍替代。
+  - 能否推导 10GB 文件约有多少 4MB blocks？
+  - 如果这些问题都能回答，就不只是会“把文件上传到 S3”，而是理解了本章的核心方法：把可变文件抽象为稳定身份、原子最新指针和不可变块清单；用块级内容寻址把带宽、版本和去重统一起来，再用强一致
+    Metadata 提交、持久变更游标和弱耦合通知，让多设备在断网、并发修改和组件故障下仍能恢复到同一已提交版本。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念辨析
+  question: 原文如何解释「24.1 File 与 File Version」？
+  answer: File 是稳定逻辑身份/最新指针；File Version 是不可变历史内容。不能每次修改都换掉逻辑 file ID。
+  source_heading: 24.1 File 与 File Version
+- level: 概念辨析
+  question: 原文如何解释「24.7 去重与加密天然兼容」？
+  answer: 随机加密破坏相同 ciphertext；跨用户去重还泄露存在性。账户级边界更安全。
+  source_heading: 24.7 去重与加密天然兼容
+- level: 概念辨析
+  question: 原文如何解释「24.11 Online client 一定已同步」？
+  answer: 在线只表示连接；device cursor 可能落后。必须跟踪变化应用进度。
+  source_heading: 24.11 Online client 一定已同步
+- level: 概念辨析
+  question: 原文如何解释「24.15 First writer wins 不会丢用户工作」？
+  answer: 赢家更新 latest，输家不能静默覆盖，但仍要保存冲突副本/让用户合并，否则输家工作会丢。
+  source_heading: 24.15 First writer wins 不会丢用户工作
+- level: 概念辨析
+  question: 原文如何解释「24.20 每个版本都完整复制文件」？
+  answer: 逻辑版本有完整 manifest，但物理块可跨版本复用；这正是块级版本存储的价值。
+  source_heading: 24.20 每个版本都完整复制文件

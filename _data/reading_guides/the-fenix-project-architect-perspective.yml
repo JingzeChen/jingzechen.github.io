@@ -1,0 +1,160 @@
+source:
+  post: _posts/book-notes/distributed-system/the-fenix-project/2026-08-08-the-fenix-project-architect-perspective.md
+  body_sha256: bfde3206adce55292263b952dc2384ccd9ad6ba22351a740cc7e9a8cfbcf0996
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 12
+  question: 1. 本章总览：架构师究竟在权衡什么？
+  question_source: 1. 本章总览：架构师究竟在权衡什么
+  thesis: 架构师的核心能力不是记住产品，而是识别状态、边界、失败模型和保证强度，并作可验证权衡。
+  thesis_source: 9. 本章知识结构总结
+  concepts:
+  - term: 1. 本章总览：架构师究竟在权衡什么
+    meaning: 约束条件是方案 x 必须满足业务所需的正确性、性能、可用性和安全底线。架构师不是追求某一维度的绝对最大值，而是在约束下最小化建设、运行和失败的总成本。
+    source_heading: 1. 本章总览：架构师究竟在权衡什么
+  - term: 3. 事务处理
+    meaning: 消费者必须幂等，可用唯一事务 ID、去重表或条件更新。原书把这种持续重试称为 Best-Effort Delivery；按现代消息投递语义，Transactional
+      Outbox 加消息中继通常提供的是 At-Least-Once Delivery：发布成功后、记录完成前发生崩溃会造成重复投递，而不是“至多一次”或“恰好一次”。因此还要定义单键顺序边界、退避、死信、告警和人工恢复，不能无限静默重试。
+    source_heading: 3. 事务处理
+  - term: 5. 架构安全性
+    meaning: OAuth 2 解决第三方应用在不获得用户密码的情况下访问有限资源的问题。Token 可以限制 Scope、受众和有效期。授权服务器可以撤销
+      Grant 或 Refresh Token；已经签发且由资源服务器离线验证的自包含 Access JWT，通常仍会有效到过期，除非额外使用撤销表、在线
+      Introspection、短寿命或密钥轮换机制。这与后文“JWT 难以主动失效”并不矛盾。
+    source_heading: 5. 架构安全性
+  - term: 6. 四条主线之间的关系
+    meaning: REST 的无状态、可缓存和分层约束，在透明多级分流中得到具体实现：浏览器缓存、CDN、反向代理都可以理解 HTTP 元数据并复用表征。RPC
+      若使用专有二进制协议，也能缓存，但通常需要自己定义缓存键、失效和中间节点语义。
+    source_heading: 6. 四条主线之间的关系
+  - term: 8.4 优先缩小问题边界
+    meaning: 把热点查询模型预先构建，减少跨服务联查；
+    source_heading: 8.4 优先缩小问题边界
+  - term: 10. 主动回忆题
+    meaning: Transactional Outbox 怎样消除数据库与消息的双写裂缝？
+    source_heading: 10. 主动回忆题
+  logic:
+  - 1. 本章总览：架构师究竟在权衡什么
+  - 3. 事务处理
+  - 4. 透明多级分流系统
+  - 6. 四条主线之间的关系
+  - 8.2 把质量目标写成可验证指标
+  - 9. 本章知识结构总结
+  - 10. 主动回忆题
+  sections:
+  - title: 1. 本章总览：架构师究竟在权衡什么
+    source_heading: 1. 本章总览：架构师究竟在权衡什么
+    paragraphs:
+    - 透明多级分流系统：请求从浏览器到数据库的途中，怎样尽早在便宜、可扩展的层次得到处理？
+    - 作者反复采用同一种分析方式：先说明最直观的理想目标，再揭示现实约束，最后比较不同解法的收益、代价与边界。
+    - 约束条件是方案 x 必须满足业务所需的正确性、性能、可用性和安全底线。架构师不是追求某一维度的绝对最大值，而是在约束下最小化建设、运行和失败的总成本。
+    - 这张图也解释了原书的章节组织：远程服务定义交互抽象，事务保证状态变化，分流系统优化请求路径，安全机制约束整条链路。
+  - title: 2. 访问远程服务
+    source_heading: 2. 访问远程服务
+    paragraphs:
+    - UNIX Domain Socket 在同机通信时不必经过完整网络协议栈，通常只做进程间数据复制；Internet Socket 则把通信扩展到不同机器。RPC
+      可以归类为 IPC 的远程特例，但不能照搬本地 IPC 的成本和失败假设。
+    - REST 来自 Roy Fielding 2000 年的博士论文，并凝结了其参与 HTTP/1.0、HTTP/1.1 和 Apache 服务器设计的经验。REST
+      即 Representational State Transfer，可从四个词理解。
+    - 原书在这一语境中把 REST 特指基于 HTTP 的 Web 实践，但 Fielding 定义的 REST 约束本身并不限定具体协议。常见 REST API
+      深度复用 HTTP 方法、状态码、Header 和缓存设施，因而不能像专用 RPC 那样自由控制二进制编码、帧和连接。实际性能取决于具体 HTTP 版本、媒体类型和实现；内部高频、低延迟、流式调用常更适合
+      gRPC 等方案。
+    - REST 不提供 WS-AtomicTransaction 一类协调协议，也不阻止应用实现最终一致性。分布式强事务困难来自网络分区和数据边界，不是 URL
+      风格本身。若确实需要统一协调，应显式引入事务协议，而不是假装 HTTP 方法自动具备事务性。
+  - title: 3. 事务处理
+    source_heading: 3. 事务处理
+    paragraphs:
+    - 一个数据源可以观察所有冲突并确定事务顺序，原书称之为内部一致性；多个数据源或服务之间没有单一观察者决定全局顺序，原书在教学分类中称之为外部一致性。需要注意，分布式系统文献中的
+      External Consistency 通常特指严格可串行化：不仅存在全局串行顺序，该顺序还尊重真实时间。使用多个数据源只说明需要跨边界协调，并不自动获得这种性质。本文后续沿用原书分类时，讨论的是全局协调问题。
+    - 在同步网络、通信延迟有界且不存在网络分区等强前提下，参与者在 PreCommit 后等不到协调者可按协议默认提交，以缓解协调者单点阻塞。异步或可能分区的网络中，超时无法区分协调者故障、消息延迟和网络隔离，3PC
+      仍可能阻塞或产生分叉。它在回滚概率高时可能少做重工作，但正常提交多一轮通信，现实系统很少把它作为 2PC 的通用替代品。
+    - 共享事务指多个服务访问同一个逻辑数据源。理论上可引入交易服务器，让多个服务带同一事务 ID，经同一数据库连接完成本地事务；也可让服务把更新消息发送到统一消费者，由消费者在单库本地事务中提交。
+    - 消费者必须幂等，可用唯一事务 ID、去重表或条件更新。原书把这种持续重试称为 Best-Effort Delivery；按现代消息投递语义，Transactional
+      Outbox 加消息中继通常提供的是 At-Least-Once Delivery：发布成功后、记录完成前发生崩溃会造成重复投递，而不是“至多一次”或“恰好一次”。因此还要定义单键顺序边界、退避、死信、告警和人工恢复，不能无限静默重试。
+  - title: 4. 透明多级分流系统
+    source_heading: 4. 透明多级分流系统
+    paragraphs:
+    - 传统 Local DNS 可能被劫持或因出口位置导致智能线路判断错误。应用侧 HTTPDNS 和标准化 DNS over HTTPS（DoH）都可绕开本地
+      UDP 解析器，但二者不完全等义。DoH 只加密并认证客户端到所选递归解析器的信道，解析器仍能观察查询，也可能返回错误结果；DNSSEC 用于验证 DNS
+      数据来源和完整性，两者彼此正交。DoH 还会带来解析集中化、隐私和企业网络治理问题。
+    - "“四层”首先表示依据 IP、端口和传输层状态决策，并不唯一决定连接拓扑：DSR、NAT 等模式主要做数据包转发，也存在终止客户端 TCP、再连接后端的
+      L4 全代理。七层均衡必须理解 HTTP 等应用协议，通常终止连接并以反向代理方式建立后端连接。两者的根本差异是可见信息和决策能力，而不是简单等同于“一条
+      TCP”与“两条 TCP”。"
+    - 进程内一级缓存加分布式二级缓存可形成 Transparent Multilevel Cache。访问先 L1、再 L2、再数据源；变更以 L2 或权威数据为准，并通知各
+      L1 失效。普通 Redis Pub/Sub 通知可能丢失，不能单独作为最终一致性保证；还应设置有限 TTL、携带数据版本，并在要求较高时使用持久化 Stream、变更数据捕获（CDC）或可重放日志补偿漏失通知。
+    - 先写数据库再失效缓存，且失效而非直接更新，可减少时序复杂度。但仍存在“旧查询晚回填”竞态；延迟双删只能概率性缩小窗口，不能提供强一致保证。要求更高时应采用版本号与条件写、可重放的
+      CDC/失效日志、单写者，或让关键读取绕过缓存，不能声称 Cache Aside 绝对一致。
+  - title: 5. 架构安全性
+    source_heading: 5. 架构安全性
+    paragraphs:
+    - Java 的 JAAS 引入 Subject、Principal、Credentials、LoginContext 等概念，后续有 JACC、JASPIC、Java
+      EE Security。由于容器模型复杂和轻量框架兴起，实际项目更常用 Spring Security 或 Apache Shiro。
+    - OAuth 2 解决第三方应用在不获得用户密码的情况下访问有限资源的问题。Token 可以限制 Scope、受众和有效期。授权服务器可以撤销 Grant
+      或 Refresh Token；已经签发且由资源服务器离线验证的自包含 Access JWT，通常仍会有效到过期，除非额外使用撤销表、在线 Introspection、短寿命或密钥轮换机制。这与后文“JWT
+      难以主动失效”并不矛盾。
+    - 绝对安全需要极强前提。信息论中被证明具有完美保密性的是 One-Time Pad（一次一密），要求真正随机、与消息等长、只使用一次且已安全共享的密钥。它不同于日常所说动态验证码
+      One-Time Password，互联网规模下的密钥分发使其不实用。
+    - X.509 证书包含：版本、序列号、签名算法、CA 签名、Issuer、有效期、Subject、Subject Public Key，以及 SAN、Key
+      Usage 等扩展。现代浏览器主要根据 Subject Alternative Name 验证域名，不能只看 CN。
+  - title: 6. 四条主线之间的关系
+    source_heading: 6. 四条主线之间的关系
+    paragraphs:
+    - 可靠消息、TCC Confirm/Cancel、SAGA 子事务和 Cache Aside 失效都依赖幂等或版本条件。幂等不是某个协议的附属特性，而是分布式恢复的基础。
+    - REST 的无状态、可缓存和分层约束，在透明多级分流中得到具体实现：浏览器缓存、CDN、反向代理都可以理解 HTTP 元数据并复用表征。RPC 若使用专有二进制协议，也能缓存，但通常需要自己定义缓存键、失效和中间节点语义。
+    - 虽然不一定每对副本直接同步，但公式说明副本越多，潜在关系增长越快。架构应明确权威源、写入路径、失效机制和允许的陈旧窗口。
+    - TLS 保护链路，但无法修复越权或错误业务规则。
+  - title: 8.2 把质量目标写成可验证指标
+    source_heading: 8.2 把质量目标写成可验证指标
+    paragraphs:
+    - 最大陈旧时间与事务失败恢复时间；
+    - RTO、RPO、MTBF、MTTR；
+    - Token 寿命、撤销传播时间；
+  - title: 8.4 优先缩小问题边界
+    source_heading: 8.4 优先缩小问题边界
+    paragraphs:
+    - 合并错误的服务边界，避免分布式事务；
+    - 把热点查询模型预先构建，减少跨服务联查；
+    - 用 HTTP 标准缓存而非自建缓存协议；
+    - 使用托管身份、PKI 和成熟安全框架；
+  - title: 9. 本章知识结构总结
+    source_heading: 9. 本章知识结构总结
+    paragraphs:
+    - RPC 的稳定问题域是数据表示、传递和方法标识；REST 则通过资源和统一接口降低 Web API 的认知成本。
+    - 本地事务通过日志和并发控制实现 ACID，ARIES、WAL、锁和 MVCC 是理解数据库行为的基础。
+    - 服务和数据源一旦跨边界，强一致成本急剧提高；首选缩小事务边界，再考虑 XA、消息、TCC 或 SAGA。
+    - 架构师的核心能力不是记住产品，而是识别状态、边界、失败模型和保证强度，并作可验证权衡。
+  - title: 10. 主动回忆题
+    source_heading: 10. 主动回忆题
+    paragraphs:
+    - Commit Logging 与 WAL 在提交前写数据上有何区别？
+    - Transactional Outbox 怎样消除数据库与消息的双写裂缝？
+    - TCC 的 Try、Confirm、Cancel 分别承担什么职责？
+    - Cache Aside 为什么先写数据库再失效缓存？它仍有什么竞态？
+  takeaways:
+  - 远程调用无法在语义和成本上等同本地调用，好的抽象应减少样板而不隐藏失败。
+  - 本地事务通过日志和并发控制实现 ACID，ARIES、WAL、锁和 MVCC 是理解数据库行为的基础。
+  - 多级分流的目标是让请求尽早命中可扩展层，保护不可扩展单点；组件数量必须服从真实流量。
+  - 缓存的价值由命中率和后端减压决定，失效、一致性和安全成本必须一并计算。
+  - 架构师的核心能力不是记住产品，而是识别状态、边界、失败模型和保证强度，并作可验证权衡。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念辨析
+  question: 原文如何解释「7.1 RPC 与 REST 不是协议层面的单选题」？
+  answer: RPC 是调用范式，REST 是架构风格；gRPC 可使用 HTTP/2，REST 也可能在内部触发 RPC。应比较抽象、消费者和约束，不是比较名字。
+  source_heading: 7.1 RPC 与 REST 不是协议层面的单选题
+- level: 概念辨析
+  question: 7.4 CAP 不是“任何时候三选二”？
+  answer: 选择发生在网络分区时。平时系统可以同时表现出一致和可用；分区出现后才必须决定拒绝请求还是返回可能不一致的数据。
+  source_heading: 7.4 CAP 不是“任何时候三选二”
+- level: 概念辨析
+  question: 原文如何解释「7.10 缓存不是多多益善」？
+  answer: 低命中率、强一致数据或容易扩容的源服务可能不值得缓存。缓存会隐藏容量缺陷，也会成为安全和一致性风险。
+  source_heading: 7.10 缓存不是多多益善
+- level: 概念辨析
+  question: 原文如何解释「7.13 JWT 不一定比 Session 更现代」？
+  answer: 需要主动撤销、在线状态和大量上下文时，Session 更自然；多方独立验签和无状态扩展时，JWT 更合适。
+  source_heading: 7.13 JWT 不一定比 Session 更现代
+- level: 概念辨析
+  question: 原文如何解释「7.16 Bean Validation 不能代替数据库约束」？
+  answer: 应用校验改善体验并表达业务，唯一索引、外键和事务才是并发下最终完整性防线。
+  source_heading: 7.16 Bean Validation 不能代替数据库约束

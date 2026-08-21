@@ -1,5 +1,9 @@
 # frozen_string_literal: true
 
+require "digest"
+require "kramdown"
+require "kramdown-parser-gfm"
+require "nokogiri"
 require "uri"
 
 module Garden
@@ -17,12 +21,24 @@ module Garden
     TEMPLATE_DESCRIPTION = /梳理核心概念、论证结构、适用边\s*界与实践要点/.freeze
     INLINE_MATH = /(?<!\\)(?<!\$)\$(?!\$)(?=\S)[^$\n]+?(?<=\S)\$(?!\$)/.freeze
     DISPLAY_MATH = /(?<!\\)\$\$|\\\[|\\\(/.freeze
+    READING_GUIDE_RESIDUAL_TEX = /\\(?:[A-Za-z]+|\(|\)|\[|\])|\$(?=(?:[A-Za-z]|\\|\s))/.freeze
     UNSAFE_STAR_SUPERSCRIPT = /\^\*/.freeze
     UNSAFE_ABSOLUTE_VALUE = /(?<!\$)\$(?!\$)\|[^$\n]+\|\$(?!\$)/.freeze
     UNSAFE_INLINE_DELIMITER = /\\\(|\\\)/.freeze
     UNSAFE_DISPLAY_DELIMITER = /^\s*\\[\[\]]\s*$/.freeze
     CORRUPTED_TEX_COMMAND = /\t(?:heta|ext|au|imes|op|ilde|o|anh|riangle|ag)(?=[^A-Za-z]|$)/.freeze
     MISSING_TEX_BACKSLASH = /^\s+(?:heta|ext)(?=[_{(])/.freeze
+    READING_GUIDE_OVERVIEW_RANGES = {
+      "concepts" => (3..8),
+      "logic" => (3..7),
+      "takeaways" => (3..6)
+    }.freeze
+    READING_GUIDE_SUMMARY_SECTION_RANGE = (4..10).freeze
+    READING_GUIDE_SUMMARY_PARAGRAPH_RANGE = (2..4).freeze
+    READING_GUIDE_INDEX_SECTION_RANGE = (1..3).freeze
+    READING_GUIDE_INDEX_PARAGRAPH_RANGE = (1..4).freeze
+    READING_GUIDE_CHECK_RANGE = (3..8).freeze
+    READING_GUIDE_INDEX_CHECK_RANGE = (2..5).freeze
 
     def generate(site)
       content_types = site.config.dig("garden", "content_types") || []
@@ -73,6 +89,8 @@ module Garden
           seen_uids[uid] = post.relative_path
         end
       end
+
+      validate_reading_guides(site.data["reading_guides"] || {}, site.posts.docs, errors)
 
       site.collections.fetch("courses").docs.each do |document|
         enable_math(document)
@@ -270,6 +288,244 @@ module Garden
       else
         series_by_category[category_key] = series
       end
+    end
+
+    def validate_reading_guides(guides, posts, errors)
+      unless guides.is_a?(Hash)
+        errors << "_data/reading_guides must contain YAML files keyed by reading uid"
+        return
+      end
+
+      posts_by_uid = posts.to_h { |post| [post.data["uid"], post] }
+      guides.each do |uid, guide|
+        path = "_data/reading_guides/#{uid}.yml"
+        post = posts_by_uid[uid]
+        unless post&.data&.fetch("type", nil) == "reading"
+          errors << "#{path}: filename must match the uid of a reading post"
+        end
+        unless guide.is_a?(Hash)
+          errors << "#{path}: guide must be a YAML object"
+          next
+        end
+
+        source = guide["source"]
+        unless source.is_a?(Hash)
+          errors << "#{path}: missing source provenance"
+        else
+          errors << "#{path}: source post does not match reading uid" unless source["post"] == post&.relative_path
+          raw_post = post&.path && File.read(post.path, encoding: "UTF-8")
+          source_body = raw_post&.split(/^---\s*$/, 3)&.fetch(2, "").to_s
+          expected_sha = Digest::SHA256.hexdigest(source_body)
+          errors << "#{path}: source body changed; regenerate or review the guide" unless source["body_sha256"] == expected_sha
+          errors << "#{path}: source extraction must be non-empty text" unless guide_text?(source["extraction"])
+          unless %w[extractive curated-source-checked].include?(source["fidelity"])
+            errors << "#{path}: source fidelity must be extractive or curated-source-checked"
+          end
+        end
+
+        overview = guide["overview"]
+        unless overview.is_a?(Hash)
+          errors << "#{path}: missing 'overview' object"
+          next
+        end
+
+        source_headings = reading_guide_source_headings(post&.content.to_s)
+        referenced_headings = []
+        %w[question_source thesis_source].each do |field|
+          value = overview[field]
+          if guide_text?(value)
+            referenced_headings << value
+          else
+            errors << "#{path}: overview '#{field}' must be non-empty text"
+          end
+        end
+
+        guide_kind = overview["kind"] || "summary"
+        unless %w[summary index].include?(guide_kind)
+          errors << "#{path}: overview kind must be 'summary' or 'index'"
+        end
+
+        minutes = overview["minutes"]
+        minutes_range = guide_kind == "index" ? (1..10) : (8..30)
+        unless minutes.is_a?(Integer) && minutes_range.cover?(minutes)
+          errors << "#{path}: overview minutes must be an integer between #{minutes_range.begin} and #{minutes_range.end}"
+        end
+
+        overview_text = []
+        %w[question thesis].each do |field|
+          value = overview[field]
+          if guide_text?(value)
+            overview_text << value
+          else
+            errors << "#{path}: overview '#{field}' must be non-empty text"
+          end
+        end
+
+        concepts = overview["concepts"]
+        if guide_kind == "index"
+          errors << "#{path}: index overview concepts must be empty" unless concepts == []
+        else
+          validate_guide_list_size(concepts, READING_GUIDE_OVERVIEW_RANGES["concepts"], "overview concepts", path, errors)
+        end
+        if concepts.is_a?(Array)
+          concepts.each_with_index do |concept, index|
+            unless concept.is_a?(Hash)
+              errors << "#{path}: concept #{index + 1} must contain term and meaning"
+              next
+            end
+            %w[term meaning].each do |field|
+              value = concept[field]
+              if guide_text?(value)
+                overview_text << value
+              else
+                errors << "#{path}: concept #{index + 1} requires non-empty '#{field}'"
+              end
+            end
+            if guide_text?(concept["source_heading"])
+              referenced_headings << concept["source_heading"]
+            else
+              errors << "#{path}: concept #{index + 1} requires non-empty 'source_heading'"
+            end
+          end
+        end
+
+        %w[logic takeaways].each do |field|
+          values = overview[field]
+          if guide_kind == "index"
+            errors << "#{path}: index overview #{field} must be empty" unless values == []
+          else
+            validate_guide_list_size(values, READING_GUIDE_OVERVIEW_RANGES[field], "overview #{field}", path, errors)
+          end
+          next unless values.is_a?(Array)
+
+          if values.all? { |value| guide_text?(value) }
+            overview_text.concat(values)
+          else
+            errors << "#{path}: overview '#{field}' entries must be non-empty text"
+          end
+        end
+
+        sections = overview["sections"]
+        section_range = guide_kind == "index" ? READING_GUIDE_INDEX_SECTION_RANGE : READING_GUIDE_SUMMARY_SECTION_RANGE
+        validate_guide_list_size(
+          sections,
+          section_range,
+          "overview sections",
+          path,
+          errors
+        )
+        if sections.is_a?(Array)
+          sections.each_with_index do |section, index|
+            unless section.is_a?(Hash)
+              errors << "#{path}: overview section #{index + 1} must contain title and paragraphs"
+              next
+            end
+
+            title = section["title"]
+            if guide_text?(title)
+              overview_text << title
+            else
+              errors << "#{path}: overview section #{index + 1} requires non-empty 'title'"
+            end
+            if guide_text?(section["source_heading"])
+              referenced_headings << section["source_heading"]
+            else
+              errors << "#{path}: overview section #{index + 1} requires non-empty 'source_heading'"
+            end
+
+            paragraphs = section["paragraphs"]
+            paragraph_range = guide_kind == "index" ? READING_GUIDE_INDEX_PARAGRAPH_RANGE : READING_GUIDE_SUMMARY_PARAGRAPH_RANGE
+            validate_guide_list_size(
+              paragraphs,
+              paragraph_range,
+              "overview section #{index + 1} paragraphs",
+              path,
+              errors
+            )
+            if paragraphs.is_a?(Array) && paragraphs.all? { |paragraph| guide_text?(paragraph) }
+              overview_text.concat(paragraphs)
+            elsif paragraphs.is_a?(Array)
+              errors << "#{path}: overview section #{index + 1} paragraphs must be non-empty text"
+            end
+          end
+        end
+
+        if overview_text.any? { |text| reading_guide_technical_text?(text) }
+          errors << "#{path}: overview must not contain code or math"
+        end
+
+        check_intro = guide["check_intro"]
+        errors << "#{path}: 'check_intro' must be non-empty text" unless guide_text?(check_intro)
+        check_text = guide_text?(check_intro) ? [check_intro] : []
+        checks = guide["checks"]
+        check_range = guide_kind == "index" ? READING_GUIDE_INDEX_CHECK_RANGE : READING_GUIDE_CHECK_RANGE
+        validate_guide_list_size(checks, check_range, "checks", path, errors)
+        next unless checks.is_a?(Array)
+
+        questions = []
+        checks.each_with_index do |check, index|
+          unless check.is_a?(Hash)
+            errors << "#{path}: check #{index + 1} must be a YAML object"
+            next
+          end
+          %w[level question answer].each do |field|
+            value = check[field]
+            if guide_text?(value)
+              check_text << value
+            else
+              errors << "#{path}: check #{index + 1} requires non-empty '#{field}'"
+            end
+          end
+          if guide_text?(check["source_heading"])
+            referenced_headings << check["source_heading"]
+          else
+            errors << "#{path}: check #{index + 1} requires non-empty 'source_heading'"
+          end
+          if check.key?("hint")
+            if guide_text?(check["hint"])
+              check_text << check["hint"]
+            else
+              errors << "#{path}: check #{index + 1} hint must be non-empty text when present"
+            end
+          end
+          questions << check["question"] if guide_text?(check["question"])
+        end
+        errors << "#{path}: check questions must be unique" unless questions.uniq.size == questions.size
+        if check_text.any? { |text| reading_guide_technical_text?(text) }
+          errors << "#{path}: checks must not contain code or math"
+        end
+        missing_headings = referenced_headings.uniq - source_headings
+        unless missing_headings.empty?
+          errors << "#{path}: source headings do not exist in the post: #{missing_headings.join(', ')}"
+        end
+      end
+    end
+
+    def validate_guide_list_size(value, range, label, path, errors)
+      return if value.is_a?(Array) && range.cover?(value.size)
+
+      errors << "#{path}: #{label} must contain #{range.begin} to #{range.end} entries"
+    end
+
+    def guide_text?(value)
+      value.is_a?(String) && !value.strip.empty?
+    end
+
+    def reading_guide_technical_text?(text)
+      text.include?("`") || text.match?(INLINE_MATH) || text.match?(DISPLAY_MATH) ||
+        text.match?(READING_GUIDE_RESIDUAL_TEX)
+    end
+
+    def reading_guide_source_headings(content)
+      html = Kramdown::Document.new(content, input: "GFM").to_html
+      headings = Nokogiri::HTML.fragment(html).css("h2, h3, h4").map do |heading|
+        heading.text
+          .gsub(/[[:space:]]+/, " ")
+          .gsub(/(?<=[\u3400-\u9FFF\uF900-\uFAFF]) (?=[\u3400-\u9FFF\uF900-\uFAFF])/, "")
+          .gsub(/ (?=[，。！？；：])/, "")
+          .strip
+      end
+      ["导言", *headings]
     end
 
     def validate_featured(post, errors)

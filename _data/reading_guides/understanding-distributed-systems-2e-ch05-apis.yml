@@ -1,0 +1,141 @@
+source:
+  post: _posts/book-notes/distributed-system/understanding-distributed-system/2026-08-16-understanding-distributed-systems-2e-ch05-apis.md
+  body_sha256: 985e56603238d7e2fed61242b27d91917ac523fab9a76d2b1978edd79650bf55
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 8
+  question: 原文围绕「0. 本章定位：让远端服务的能力可被调用」建立了怎样的核心认识？
+  question_source: 0. 本章定位：让远端服务的能力可被调用
+  thesis: safe、idempotent、cacheable 是不同性质。 GET safe/idempotent，PUT/DELETE idempotent
+    但不 safe，POST 默认非幂等。
+  thesis_source: 12. 核心结论
+  concepts:
+  - term: 0. 本章定位：让远端服务的能力可被调用
+    meaning: API（Application Programming Interface）为这些问题建立契约。它描述远端服务暴露什么能力，以及调用者和实现者必须共同遵守的消息语义。
+    source_heading: 0. 本章定位：让远端服务的能力可被调用
+  - term: 4. Request methods：请求方法
+    meaning: 分页尤其重要。无限返回整个集合会造成响应过大、延迟和内存失控。offset 分页易理解，cursor 分页在持续变化的大集合上通常更稳定，但
+      cursor 必须被视为不透明契约。
+    source_heading: 4. Request methods：请求方法
+  - term: 6.3 OpenAPI 是什么
+    meaning: response status codes；
+    source_heading: 6.3 OpenAPI 是什么
+  - term: 6.6 Contract-first 与 code-first
+    meaning: code-first：从路由、注解或类型生成 OpenAPI。
+    source_heading: 6.6 Contract-first 与 code-first
+  - term: 10.1 API 与协议
+    meaning: 两个服务都使用 HTTP，不代表 API 兼容。
+    source_heading: 10.1 API 与协议
+  - term: 13. 从本章提炼出的通用解题方法
+    meaning: 假设旧客户端会长期存在。优先增加 optional 能力，采用 expand-and-contract；必要时创建新版本并通过流量证明旧版本可下线。
+    source_heading: 13. 从本章提炼出的通用解题方法
+  logic:
+  - 0. 本章定位：让远端服务的能力可被调用
+  - 4. Request methods：请求方法
+  - 6.1 适配器如何调用业务接口
+  - 6.6 Contract-first 与 code-first
+  - 8. Idempotency：幂等性
+  - 10.4 Safe、idempotent 与 cacheable
+  - 13. 从本章提炼出的通用解题方法
+  sections:
+  - title: 0. 本章定位：让远端服务的能力可被调用
+    source_heading: 0. 本章定位：让远端服务的能力可被调用
+    paragraphs:
+    - TCP 如何在不可靠 IP 上提供可靠字节流；
+    - API（Application Programming Interface）为这些问题建立契约。它描述远端服务暴露什么能力，以及调用者和实现者必须共同遵守的消息语义。
+    - 原章把服务端适配器描述为 API：适配器接收通信链路中的消息，把协议层请求翻译成业务接口调用，再把业务结果翻译成协议响应。它连接了 IPC 机制与业务逻辑。
+    - 本地函数签名由同一编译过程约束；远程 API 的客户端与服务器可能由不同团队、语言、版本和发布节奏管理。API 一旦公开，就成为跨时间和组织边界的协议。
+  - title: 2. HTTP
+    source_heading: 2. HTTP
+    paragraphs:
+    - 消息体承载资源表示或命令参数。请求和响应都可以没有 body；body 边界由协议规则和相关头字段确定，而不是简单读到连接关闭。
+    - 每层保证不同：HTTP 定义请求/响应语义，TLS 保护通道，TCP 可靠交付字节。HTTP 状态码无法替代 TCP 错误，TLS 成功也不代表 HTTP
+      请求成功。
+    - 但所有 stream 共享同一 TCP 有序字节流。底层 TCP 段丢失时，后续字节必须等待缺口恢复，所有受阻于该连接字节流的 stream 都可能停顿。这是传输层
+      HOL。
+    - 一个 QUIC 包丢失只会阻塞依赖该包数据的 stream；未受影响 stream 可以继续推进。若同一丢失包包含多个 stream 数据，它们仍都会受影响；所有
+      stream 也共享连接级拥塞控制。因此“只中断一个 stream”是建立差异的简化直觉，不是绝对保证。
+  - title: 4. Request methods：请求方法
+    source_heading: 4. Request methods：请求方法
+    paragraphs:
+    - CRUD 是入门映射，但 HTTP API 不必机械等于数据库表 CRUD。业务操作若有明确领域语义，可以建模为资源状态转换或命令资源，但仍要定义重试和结果语义。
+    - 分页尤其重要。无限返回整个集合会造成响应过大、延迟和内存失控。offset 分页易理解，cursor 分页在持续变化的大集合上通常更稳定，但 cursor
+      必须被视为不透明契约。
+    - 安全方法（safe method）的语义是客户端请求读取，不要求服务器产生调用者请求的状态变化。GET 是 safe。
+    - 重复“设置价格”可幂等；“库存加 1”重复执行则不幂等。不能仅凭方法名推断具体 API 已正确实现语义。
+  - title: 6.1 适配器如何调用业务接口
+    source_heading: 6.1 适配器如何调用业务接口
+    paragraphs:
+    - 解析方法、路径、query 和 headers；
+    - 映射为状态码、headers 和 body。
+    - 适配器不应承载核心目录规则；它负责协议翻译和边界校验。业务逻辑不应直接依赖 HTTP header 或状态码。
+  - title: 6.3 OpenAPI 是什么
+    source_heading: 6.3 OpenAPI 是什么
+    paragraphs:
+    - path/query/header 参数；
+    - response status codes；
+  - title: 6.6 Contract-first 与 code-first
+    source_heading: 6.6 Contract-first 与 code-first
+    paragraphs:
+    - contract-first：先设计 OpenAPI，再生成 skeleton/SDK；
+    - code-first：从路由、注解或类型生成 OpenAPI。
+    - 检测 breaking changes；
+    - 做 provider/consumer contract tests；
+  - title: 8. Idempotency：幂等性
+    source_heading: 8. Idempotency：幂等性
+    paragraphs:
+    - 执行两次仍把价格设为 999。DELETE 两次后资源仍不存在。方法语义让客户端可在不知道第一次结果时重试，而不必先解决“第一次是否成功”的知识问题。
+    - 下面用单记录内存结构模拟逻辑，不是数据库事务实现，也不支持多个 key 同时保留。它展示：同 key + 同请求返回原响应，同 key + 不同请求被拒绝。
+    - 局限：内存记录无法跨实例、进程崩溃或重启；检查与写入也不是并发原子操作。生产系统必须把业务效果和记录放进同一数据库事务，并用唯一约束/锁处理并发。本例刻意只验证协议决策，不冒充持久化方案。
+    - 客户端真正需要的通常是 observable effect appears once，不是物理代码只运行一次。幂等、去重和事务让重复尝试产生一个可观察结果。
+  - title: 10.1 API 与协议
+    source_heading: 10.1 API 与协议
+    paragraphs:
+    - 协议定义消息如何交换和解释，如 HTTP；
+    - API 定义某个服务在该协议上提供什么资源、操作和语义；
+    - 两个服务都使用 HTTP，不代表 API 兼容。
+  - title: 10.4 Safe、idempotent 与 cacheable
+    source_heading: 10.4 Safe、idempotent 与 cacheable
+    paragraphs:
+    - safe：客户端没有请求改变资源状态；
+    - idempotent：重复执行的预期效果相同；
+    - cacheable：响应可按缓存规则复用。
+    - GET 通常三者兼具；PUT 幂等但不 safe；POST 默认非幂等，但某些响应可以显式缓存，某个 POST API也可用幂等键增强。
+  - title: 13. 从本章提炼出的通用解题方法
+    source_heading: 13. 从本章提炼出的通用解题方法
+    paragraphs:
+    - 列出方法、路径、query、headers、body、状态码、错误 schema 和媒体类型。只有签名没有错误和重试语义的 API 仍不完整。
+    - 假设旧客户端会长期存在。优先增加 optional 能力，采用 expand-and-contract；必要时创建新版本并通过流量证明旧版本可下线。
+    - 监控每个 endpoint 的请求率、延迟、状态码、超时、重试放大、幂等重放与冲突。通过批量、缓存、连接复用和边界调整减少不必要调用。
+    - 本章最重要的方法论是：API 设计不是给函数套一层 HTTP，而是把资源、消息、错误、兼容性和故障恢复写成跨进程、跨版本的长期契约。
+  takeaways:
+  - API 把网络消息翻译为业务接口调用。 入站适配器隔离 HTTP/gRPC 等 IPC 细节与业务逻辑。
+  - REST 强调无状态请求和明确缓存语义。 无状态不是服务器没有持久数据，而是请求不依赖隐式前序会话。
+  - 状态码是机器可操作的第一层结果契约。 4xx/5xx 不能机械决定重试，仍需结合错误、幂等性、退避和时间预算。
+  - 幂等键标识逻辑操作，而不是单次网络尝试。 所有重试必须复用同一个 key。
+  - 网络调用不是免费的抽象。 能通过缓存、批量、本地计算或合理边界避免的调用，通常最可靠。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念辨析
+  question: 原文如何解释「10.1 API 与协议」？
+  answer: 两个服务都使用 HTTP，不代表 API 兼容。
+  source_heading: 10.1 API 与协议
+- level: 概念辨析
+  question: 原文如何解释「10.3 同步语法与同步执行」？
+  answer: 语法看起来同步，不等于运行时阻塞；反过来，异步 API 也不等于业务结果已经完成。
+  source_heading: 10.3 同步语法与同步执行
+- level: 概念辨析
+  question: 原文如何解释「10.4 Safe、idempotent 与 cacheable」？
+  answer: GET 通常三者兼具；PUT 幂等但不 safe；POST 默认非幂等，但某些响应可以显式缓存，某个 POST API也可用幂等键增强。
+  source_heading: 10.4 Safe、idempotent 与 cacheable
+- level: 概念辨析
+  question: 原文如何解释「10.6 版本化与兼容演化」？
+  answer: 版本化容纳不可避免的 breaking change；兼容演化减少创建新版本的频率。二者不是互斥方案，优先兼容、必要时版本化。
+  source_heading: 10.6 版本化与兼容演化
+- level: 概念辨析
+  question: 原文如何解释「10.7 幂等方法与幂等 API」？
+  answer: HTTP 方法规范声明预期语义，具体服务实现必须兑现。错误实现的 PUT 仍可能每次累加库存；POST 也可以借助 key、事务和结果缓存成为业务幂等
+    API。
+  source_heading: 10.7 幂等方法与幂等 API

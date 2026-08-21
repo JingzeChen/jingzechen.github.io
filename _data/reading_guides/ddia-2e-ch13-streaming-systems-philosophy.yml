@@ -1,0 +1,209 @@
+source:
+  post: _posts/book-notes/distributed-system/design-data-intensive-application/2026-08-05-ddia-2e-ch13-streaming-systems-philosophy.md
+  body_sha256: b241d69436d487e72cc667197b7997278275106759dce6989c535cee15751d7d
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 23
+  question: 原文围绕「0. 本章定位：系统存在的目的不是保存自己，而是承载变化」建立了怎样的核心认识？
+  question_source: 0. 本章定位：系统存在的目的不是保存自己，而是承载变化
+  thesis: one atomic request event → local validation/reservation → stable derived
+    effect IDs → per-shard ordered application → dedup/reconciliation。
+  thesis_source: 6. 知识结构与证据地图
+  concepts:
+  - term: 0. 本章定位：系统存在的目的不是保存自己，而是承载变化
+    meaning: strict uniqueness/linearizability需coordination；有些business constraint可temporarily
+      violate并compensate。选择依据是violation cost与coordination/outage cost，而不是“strong consistency总是正确”。
+    source_heading: 0. 本章定位：系统存在的目的不是保存自己，而是承载变化
+  - term: 2. Unbundling Databases
+    meaning: benefits：responsive UI、offline support、less polling、explicit state sync。costs：long-lived
+      connections、per-client offsets、privacy/auth changes、fan-out scale、version compatibility与battery/network
+      use。
+    source_heading: 2. Unbundling Databases
+  - term: 4. Summary：以dataflow组合系统，以end-to-end evidence保证正确
+    meaning: async views可暂时stale却保持integrity。strict uniqueness需consensus；recoverable
+      business constraints可optimistic accept、later validate/compensate。只在irreversible/hard
+      boundarycoordination。
+    source_heading: 4. Summary：以dataflow组合系统，以end-to-end evidence保证正确
+  - term: 6. 知识结构与证据地图
+    meaning: one atomic request event → local validation/reservation → stable derived
+      effect IDs → per-shard ordered application → dedup/reconciliation。
+    source_heading: 6. 知识结构与证据地图
+  - term: 8. 核心结论
+    meaning: distributed transactions提供synchronous atomic visibility；async log integration以temporary
+      lag换fault containment与heterogeneous interoperability。
+    source_heading: 8. 核心结论
+  - term: 10. References
+    meaning: 'Peter Bailis, Alan Fekete, Michael J. Franklin, Ali Ghodsi, Joseph M.
+      Hellerstein, and Ion Stoica. “Feral Concurrency Control: An Empirical Investigation
+      of Modern Application Integrity.” SIGMOD, June 2015. doi:10.1145/2723372.2737784'
+    source_heading: 10. References
+  logic:
+  - 0. 本章定位：系统存在的目的不是保存自己，而是承载变化
+  - 2. Unbundling Databases
+  - 3. Aiming for Correctness
+  - 6. 知识结构与证据地图
+  - 7. 综合案例：全球marketplace的订单、搜索与客户端dataflow
+  - 9. 设计dataflow系统的一般方法
+  - 10. References
+  sections:
+  - title: 0. 本章定位：系统存在的目的不是保存自己，而是承载变化
+    source_heading: 0. 本章定位：系统存在的目的不是保存自己，而是承载变化
+    paragraphs:
+    - 阿奎那以船作比喻：船的最终目的不是永远停在港口以免受损，而是航行。类似地，data system不能以“绝不改变”为最高目标；它要在控制风险的同时持续支持new
+      features、new views与new business processes。
+    - one ordered log有利于deterministic derivation，但single leader有throughput/latency边界；sharding、multi-region、microservices与offline
+      clients会产生partial orders。
+    - strict uniqueness/linearizability需coordination；有些business constraint可temporarily
+      violate并compensate。选择依据是violation cost与coordination/outage cost，而不是“strong consistency总是正确”。
+    - hardware、database、application code都可能bug。系统不能只依赖vendor guarantee；应保留provenance、checksums、reconciliation与rebuild能力，持续验证integrity。
+  - title: 1. Data Integration
+    source_heading: 1. Data Integration
+    paragraphs:
+    - 典型组合是OLTP database + full-text search。PostgreSQL内建search对simple app可能足够；advanced
+      linguistic/ranking需要specialized information-retrieval engine，而search index不适合作durable
+      system of record。
+    - synchronous secondary index within one database可atomic，但cross-system sync让slow/failingparticipant拖累writer。async
+      log让source继续commit，derived consumer later catch up。
+    - early lambda architecture同时维护batch layer与speed/stream layer，再mergequeries。它提供low
+      latency + eventual correction，却常duplicatelogic并产生two inconsistent implementations。
+    - specialized tools应通过one-way derived dataflows组合：source先决定order，consumers deterministic/idempotent更新views。global
+      total order不可无限扩展，cross-service causality需explicit metadata。
+  - title: 2. Unbundling Databases
+    source_heading: 2. Unbundling Databases
+    paragraphs:
+    - small storage/processing tools各做one thing well；event log类似pipe/file protocol；stream
+      operators类似Unix processes；higher-level workflow/schema contracts类似shell/program
+      composition。
+    - consumer slow/down时log buffer，producer与other consumers继续；repair后catch up。fault
+      localized，避免synchronous distributed transaction把one participant failure升级为global
+      write outage。
+    - async不等decoupled from semantics：consumer依赖event fields/order/retention；producer
+      breaking schema、deleting history或改变key会破坏downstream。coupling从runtime availability转到contract/evolution。
+    - benefits：responsive UI、offline support、less polling、explicit state sync。costs：long-lived
+      connections、per-client offsets、privacy/auth changes、fan-out scale、version compatibility与battery/network
+      use。
+  - title: 3. Aiming for Correctness
+    source_heading: 3. Aiming for Correctness
+    paragraphs:
+    - local reliability mechanisms不能识别end-user intent；stable request ID必须贯穿all hops。strict
+      per-key constraints用consensus/ordered shard决定winner；cross-shard integrity可拆为deterministic,
+      idempotent event stages。
+    - Bitcoin/Ethereum是cryptographically checked shared append-only event logs；smart
+      contracts类似deterministic stream processors；Byzantine fault-tolerant（BFT） consensus让mutually
+      distrustful replicas同意sequence。
+    - Certificate Transparency用cryptographically verifiable append-only logs + Merkle
+      trees检查TLS certificates。每log可single leader，monitors/auditors检查consistency，因此不必为每append运行general
+      consensus。
+    - correctness不能由one database/broker feature封装完成。end-to-end request IDs连接user intent；ordered
+      deterministic stages与dedup保integrity；selective consensus保hard constraints；compensation处理recoverable
+      violations。
+  - title: 4. Summary：以dataflow组合系统，以end-to-end evidence保证正确
+    source_heading: 4. Summary：以dataflow组合系统，以end-to-end evidence保证正确
+    paragraphs:
+    - external CDC/stream processors所做的事与database internal secondary-index/materialized-view
+      maintenance同构。unbundling把这些functions拆成different technologies/teams维护的components。
+    - async views可暂时stale却保持integrity。strict uniqueness需consensus；recoverable business
+      constraints可optimistic accept、later validate/compensate。只在irreversible/hard
+      boundarycoordination。
+    - hardware、database和application code都会bug。immutable provenance、checksums、rederivation、reconciliation、Merkle/transparency
+      techniques与restore drills让system持续“trust, but verify”。
+    - 一句话：以ordered facts和versioned transformations组织dataflow，以stable request IDs与selective
+      coordination守住integrity，再用continuous end-to-end audits验证整条链，而不是把正确性寄托在单个组件承诺上。
+  - title: 6. 知识结构与证据地图
+    source_heading: 6. 知识结构与证据地图
+    paragraphs:
+    - contract还要声明applied prefix/offset p、config/reference version C_v、commit与rebuild方式。
+    - B是materialization boundary。boundary右移表示more eager precomputation：write/storage增，read
+      latency降。
+    - one atomic request event → local validation/reservation → stable derived effect
+      IDs → per-shard ordered application → dedup/reconciliation。
+    - conservation proof基于effects algebra；instant visibility不是默认requirement。
+  - title: 7. 综合案例：全球marketplace的订单、搜索与客户端dataflow
+    source_heading: 7. 综合案例：全球marketplace的订单、搜索与客户端dataflow
+    paragraphs:
+    - 全球marketplace需要：product catalog与full-text search、checkout/payment、regional inventory、recommendations、merchant
+      analytics、offline-capable mobile app。任何one database都难同时优化这些workloads。
+    - seller先unpublish product，再创建campaign。campaign event引用observed catalog version；notification/recommendation
+      processor必须确认product在该causal version后仍eligible，防arrival reorder推广已下架商品。
+    - search/recommendations not linearizable；cross-products no global order；soft
+      stock may oversell；compensation may take time；offline device may show stale
+      state；audit detects after fact；external physical events may not be perfectly
+      reversible。
+    - marketplace可靠性来自relationship design而非one magic database：authorities决定facts/order，logs隔离failures，versioned
+      functions维护views，stable IDs连接intent/effects，selective consensus守hard conflicts，compensation处理soft
+      constraints，batch replay支持migration，audit验证whole path。
+  - title: 8. 核心结论
+    source_heading: 8. 核心结论
+    paragraphs:
+    - distributed transactions提供synchronous atomic visibility；async log integration以temporary
+      lag换fault containment与heterogeneous interoperability。
+    - database internal index/view/replica maintenance与external CDC/dataflow属于同一derived-state
+      algorithm family。
+    - multishard workflow可用one atomic request + ordered idempotent stages保final integrity，不必heterogeneous
+      atomic commit。
+    - streaming philosophy的核心不是某产品，而是以ordered facts、versioned derivations、end-to-end
+      identities、selective coordination和audit构建可演进system。
+  - title: 9. 设计dataflow系统的一般方法
+    source_heading: 9. 设计dataflow系统的一般方法
+    paragraphs:
+    - 对每invariant问：concurrent valid states能否merge？violation能否detect、bounded、compensate？hard/irreversible才pre-coordinate；soft
+      constraint采用optimistic + compensation；可用escrow缩小scope。
+    - one atomic request event启动workflow；each shard按order validate/reserve/apply；derived
+      effect IDs稳定；duplicates ignored；success/decline/compensation均为explicit events；写出conservation
+      proof。
+    - 明确read path读source还是derived view、允许多stale、read-your-writes/wait-for-offset方案。offline
+      clients用snapshot+offset、local log与push/resume；critical read保存result version。
+    - 从authoritative facts重算views/invariants；做counts/checksums/conservation/Merkle
+      comparisons、Jepsen/fault tests、storage scrub与backup restore。定义quarantine、first-divergence定位与repair
+      workflow。
+  - title: 10. References
+    source_heading: 10. References
+    paragraphs:
+    - 'Peter Bailis, Alan Fekete, Michael J. Franklin, Ali Ghodsi, Joseph M. Hellerstein,
+      and Ion Stoica. “Feral Concurrency Control: An Empirical Investigation of Modern
+      Application Integrity.” SIGMOD, June 2015. doi:10.1145/2723372.2737784'
+    - 'Sebastian Burckhardt, Daan Leijen, Jonathan Protzenko, and Manuel Fähndrich.
+      “Global Sequence Protocol: A Robust Abstraction for Replicated Shared State.”
+      ECOOP, July 2015. doi:10.4230/LIPIcs.ECOOP.2015.568'
+    - Peter Bailis, Alan Fekete, Michael J. Franklin, Ali Ghodsi, Joseph M. Hellerstein,
+      and Ion Stoica. “Coordination Avoidance in Database Systems.” PVLDB, November
+      2014. doi:10.14778/2735508.2735509
+    - 'Martin Kleppmann, Alastair R. Beresford, and Boerge Svingen. “Online Event
+      Processing: Achieving Consistency Where Distributed Transactions Have Failed.”
+      Communications of the ACM, May 2019. doi:10.1145/3312527'
+  takeaways:
+  - 正确性不是one component属性，而是整条path的contract。
+  - fault injection/Jepsen；
+  - 没有one data tool能高效满足all access patterns；复杂application必然面对data integration。
+  - database internal index/view/replica maintenance与external CDC/dataflow属于同一derived-state
+    algorithm family。
+  - streaming philosophy的核心不是某产品，而是以ordered facts、versioned derivations、end-to-end
+    identities、selective coordination和audit构建可演进system。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念辨析
+  question: 原文如何解释「5.1 “streaming philosophy 要求所有计算实时化”」？
+  answer: 错误。核心是changes/dataflow/replay；batch仍负责history reprocessing、migration、audit与repair。latency按业务需求选择。
+  source_heading: 5.1 “streaming philosophy 要求所有计算实时化”
+- level: 概念辨析
+  question: 原文如何解释「5.12 “same object partitioning 解决all causality”」？
+  answer: 错误。unfriend/message、shipping quote/purchase等dependencies跨entities/services。需要explicit
+    observed-version/provenance IDs。
+  source_heading: 5.12 “same object partitioning 解决all causality”
+- level: 概念辨析
+  question: 原文如何解释「5.23 “cache 与 materialized view完全不同”」？
+  answer: 错误。common query cache是materialized result，source变化时需invalidate/update。二者都移动write/read
+    path boundary。
+  source_heading: 5.23 “cache 与 materialized view完全不同”
+- level: 概念辨析
+  question: 原文如何解释「5.34 “compensating transaction 就是rollback”」？
+  answer: 错误。它是new semantic action，original history/effects仍存在；可能失败、付费并需human handling。
+  source_heading: 5.34 “compensating transaction 就是rollback”
+- level: 概念辨析
+  question: 原文如何解释「5.45 误区的统一根源」？
+  answer: 多数错误把one layer的property外推到whole application：local order不等causal correctness，transaction
+    attempt不等user intent，asynchronous不等corruption，cryptographic integrity不等business
+    truth。
+  source_heading: 5.45 误区的统一根源

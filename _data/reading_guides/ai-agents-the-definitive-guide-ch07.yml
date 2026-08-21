@@ -1,0 +1,161 @@
+source:
+  post: _posts/book-notes/ai-system/ai-agents-the-definitive-guide/2026-08-12-ai-agents-the-definitive-guide-ch07.md
+  body_sha256: 800ce22ca9def7b90347db5775e637e41d92ce162cf08c92d8e25966f4060fd5
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 11
+  question: 原文围绕「0. 本章定位与阅读主线」建立了怎样的核心认识？
+  question_source: 0. 本章定位与阅读主线
+  thesis: 可迁移的一般方法是：把每个“应该能工作”的假设变成可观测指标和故障实验；先限制无界状态、循环和成本，再为外部依赖设计显式降级；把结构正确和业务正确分开评价；最后用真实
+    workload 将软件架构映射到硬件容量与用户体验。
+  thesis_source: 27. 本章知识结构与核心结论
+  concepts:
+  - term: 0. 本章定位与阅读主线
+    meaning: 自托管时处理 vLLM/TGI/SGLang、cold start、scale-to-zero、KV/prefix cache 和 memory
+      pressure。
+    source_heading: 0. 本章定位与阅读主线
+  - term: 6. Context Janitor：保留控制前缀和近期状态
+    meaning: 并通过 deterministic extraction/verifier 或人工检查高风险字段。原 messages 仍应在 external
+      store 可追溯，summary 只用于 model context。
+    source_heading: 6. Context Janitor：保留控制前缀和近期状态
+  - term: 13.2 例 7-7 Pydantic model
+    meaning: 两份合同可能 drift，应从单一 source 生成/对比 schema hash。
+    source_heading: 13.2 例 7-7 Pydantic model
+  - term: 16. Tier 2：Instructor（例 7-8 与 7-12）
+    meaning: Latency 包括 retries；监控必须记录 re-ask count，不能只看最终成功。
+    source_heading: 16. Tier 2：Instructor（例 7-8 与 7-12）
+  - term: 21.1 例 7-16
+    meaning: 不同 limits 必须通过统一 capability config 暴露给 Agent router。
+    source_heading: 21.1 例 7-16
+  - term: 27. 本章知识结构与核心结论
+    meaning: 可迁移的一般方法是：把每个“应该能工作”的假设变成可观测指标和故障实验；先限制无界状态、循环和成本，再为外部依赖设计显式降级；把结构正确和业务正确分开评价；最后用真实
+      workload 将软件架构映射到硬件容量与用户体验。
+    source_heading: 27. 本章知识结构与核心结论
+  logic:
+  - 0. 本章定位与阅读主线
+  - 6. Context Janitor：保留控制前缀和近期状态
+  - 11. 三层 Structured Output Enforcement
+  - 16. Tier 2：Instructor（例 7-8 与 7-12）
+  - 17.3 Canonicalization 的危险边界
+  - 23. Context、KV Cache 与 Prefix Cache
+  - 27. 本章知识结构与核心结论
+  sections:
+  - title: 0. 本章定位与阅读主线
+    source_heading: 0. 本章定位与阅读主线
+    paragraphs:
+    - 通过 serializable session、context pruning、circuit breaker 和 checkpoint 硬化骨架；
+    - 构造 strict schema→Instructor→degraded canonicalization 三层 fallback；
+    - 自托管时处理 vLLM/TGI/SGLang、cold start、scale-to-zero、KV/prefix cache 和 memory pressure。
+    - 生产不是一次发布状态，而是一条持续闭环。模型质量只是其中一个变量；真正的部署能力是及时发现退化、限制影响、保存进度、切换依赖、量化成本，并把结果反哺下一次发布。
+  - title: 3. Monitoring：观察系统和 Agent 行为
+    source_heading: 3. Monitoring：观察系统和 Agent 行为
+    paragraphs:
+    - 每个 span 至少记录：run/session/correlation ID、model/provider/version、prompt/schema/tool
+      hash、tokens、latency、retry、status、cost estimate；敏感正文默认不记录或先脱敏。
+    - 原章图 7-3 对应：live system→monitor→find drift/failure→improve prompt/routing/architecture→evaluate→redeploy。Monitoring
+      只提供信号，不自动创造 resilience；后续 circuit breaker/checkpoint 才在运行中控制影响。
+    - 在启用 tracing 之前定义 PII、PCI、credential、access token、customer content redaction。采样后再脱敏太晚，敏感数据已进入
+      collector。
+    - Trace 增加 serialization、network、storage 和 query 成本，也可能阻塞 request。使用异步 exporter、bounded
+      queue、drop policy 和 collector backpressure。Telemetry outage 不应拖垮主业务，但 security
+      audit event 可能要求更强 durability。
+  - title: 6. Context Janitor：保留控制前缀和近期状态
+    source_heading: 6. Context Janitor：保留控制前缀和近期状态
+    paragraphs:
+    - 它是 pruning metadata，不是真正 conversation summary。
+    - 并通过 deterministic extraction/verifier 或人工检查高风险字段。原 messages 仍应在 external store
+      可追溯，summary 只用于 model context。
+    - 若 system prompt 本身很长或 recent 6 条包含大 tool output，结果仍可能超过 4000。
+    - 这是 token/成本收益，不证明语义保真。应同时评估 compaction 前后任务答案、约束召回和 tool continuity。
+  - title: 11. 三层 Structured Output Enforcement
+    source_heading: 11. 三层 Structured Output Enforcement
+    paragraphs:
+    - unsupported schema features/limits 因 provider 而异。
+    - 模型先生成 JSON-like output，client 解析并运行 Pydantic validators；失败把 semantic error 回传并
+      bounded retry。优势：跨 provider、可做 normalization/custom validators；代价：额外 calls/latency，仍依赖模型能修复。
+    - Prompt 描述固定 keys/enums，得到 raw output 后用 deterministic aliases/maps/defaults
+      转为 canonical object。它最脆弱，只应作为 emergency degraded path，并显式标记来源和置信/人工复核，不应悄悄伪装
+      Tier 1 成功。
+    - 最少实现 Tier 1+2；业务关键场景可加 Tier 3，但 Tier 3 的 conservative default 仍可能产生业务动作，通常应限制为排队/人工而非自动高影响执行。
+  - title: 13.2 例 7-7 Pydantic model
+    source_heading: 13.2 例 7-7 Pydantic model
+    paragraphs:
+    - provider schema 约束 generation；
+    - Pydantic 是不信任 provider 的本地 boundary；
+    - custom maps/inference 可能不体现在 strict schema；
+    - 两份合同可能 drift，应从单一 source 生成/对比 schema hash。
+  - title: 16. Tier 2：Instructor（例 7-8 与 7-12）
+    source_heading: 16. Tier 2：Instructor（例 7-8 与 7-12）
+    paragraphs:
+    - Latency 包括 retries；监控必须记录 re-ask count，不能只看最终成功。
+    - 它其实是 canonical/validated serialization，不是模型原始响应。
+    - parse error/validation errors；
+    - normalization transformations；
+  - title: 17.3 Canonicalization 的危险边界
+    source_heading: 17.3 Canonicalization 的危险边界
+    paragraphs:
+    - 空 summary 填固定文本会隐藏信息缺失；
+    - defaults 可让不完整对象看似完整；需 provenance per field；
+    - alias map 可能误吞未知语义；高影响 field 应 fail/escalate。
+    - 至少在 metadata 保存来源，不一定改变 product schema。
+  - title: 21.1 例 7-16
+    source_heading: 21.1 例 7-16
+    paragraphs:
+    - Commands 是可信管理员配置，不应由用户/Agent 拼接并 shell 执行。
+    - 不同 limits 必须通过统一 capability config 暴露给 Agent router。
+  - title: 23. Context、KV Cache 与 Prefix Cache
+    source_heading: 23. Context、KV Cache 与 Prefix Cache
+    paragraphs:
+    - 只有 exact token prefix（及 model/tokenizer/adapter/RoPE 等配置）匹配，才能复用 blocks。适合稳定
+      system prompt、重复模板和共享 few-shot examples。
+    - 与表中 1.11×、1.23×一致。原文其他位置说 prefix cache “typically 2–5×” 是宽泛经验，当前实验只有 1.11–1.23×；收益取决于
+      shared prefix 比例、prefill 占比、cache warmness 和测量噪声。
+    - Paged KV cache 有限。长会话和高 concurrency 占用 blocks，旧/低优先级 prefix 被回收；后续请求重新 prefill，形成
+      latency spike。平均 latency 可能好看，P99 却受 eviction 影响。
+    - 监控：cache hit tokens/rate、KV utilization、evictions/preemptions、prefix length、queue
+      time 与 P99。Autoscaler 若只看 GPU utilization，可能忽略 KV memory pressure。
+  - title: 27. 本章知识结构与核心结论
+    source_heading: 27. 本章知识结构与核心结论
+    paragraphs:
+    - Context pruning 减少 token/延迟/KV，但原 role-count janitor 不是语义摘要；compaction 必须验证事实与
+      protocol bundle。
+    - Strict JSON Schema 只保证单次结构，Instructor 提供本地 normalization/retry，canonicalization
+      只提供显式 degraded 最低对象。
+    - Valid JSON 不代表稳定 decision；priority、sentiment 等语义 drift 需业务规则、gold eval 和 shadow
+      comparison。
+    - 可迁移的一般方法是：把每个“应该能工作”的假设变成可观测指标和故障实验；先限制无界状态、循环和成本，再为外部依赖设计显式降级；把结构正确和业务正确分开评价；最后用真实
+      workload 将软件架构映射到硬件容量与用户体验。
+  takeaways:
+  - 部署不是 endpoint 创建，而是 build→observe→harden→integrate→optimize 的持续成熟闭环。
+  - Turn/cost breaker 覆盖不同 runaway 模式；费用在调用前 reserve，完成后按 actual reconcile。
+  - vLLM、TGI、SGLang 都可暴露兼容 API，但调度、cache 和能力不同；必须按真实 workload benchmark。
+  - 用成熟度模型拒绝一步到 production，先建立快速学习环；
+  - 可迁移的一般方法是：把每个“应该能工作”的假设变成可观测指标和故障实验；先限制无界状态、循环和成本，再为外部依赖设计显式降级；把结构正确和业务正确分开评价；最后用真实
+    workload 将软件架构映射到硬件容量与用户体验。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念复述
+  question: 原文如何解释「0. 本章定位与阅读主线」？
+  answer: 自托管时处理 vLLM/TGI/SGLang、cold start、scale-to-zero、KV/prefix cache 和 memory
+    pressure。
+  source_heading: 0. 本章定位与阅读主线
+- level: 边界判断
+  question: 原文如何解释「6. Context Janitor：保留控制前缀和近期状态」？
+  answer: 并通过 deterministic extraction/verifier 或人工检查高风险字段。原 messages 仍应在 external
+    store 可追溯，summary 只用于 model context。
+  source_heading: 6. Context Janitor：保留控制前缀和近期状态
+- level: 边界判断
+  question: 原文如何解释「16. Tier 2：Instructor（例 7-8 与 7-12）」？
+  answer: Latency 包括 retries；监控必须记录 re-ask count，不能只看最终成功。
+  source_heading: 16. Tier 2：Instructor（例 7-8 与 7-12）
+- level: 关系解释
+  question: 原文如何解释「21.1 例 7-16」？
+  answer: 不同 limits 必须通过统一 capability config 暴露给 Agent router。
+  source_heading: 21.1 例 7-16
+- level: 概念复述
+  question: 原文如何解释「27. 本章知识结构与核心结论」？
+  answer: 可迁移的一般方法是：把每个“应该能工作”的假设变成可观测指标和故障实验；先限制无界状态、循环和成本，再为外部依赖设计显式降级；把结构正确和业务正确分开评价；最后用真实
+    workload 将软件架构映射到硬件容量与用户体验。
+  source_heading: 27. 本章知识结构与核心结论

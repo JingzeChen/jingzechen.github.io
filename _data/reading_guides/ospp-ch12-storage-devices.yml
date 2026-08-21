@@ -1,0 +1,179 @@
+source:
+  post: _posts/book-notes/operating-system/ospp/2026-08-02-ospp-ch12-storage-devices.md
+  body_sha256: ff93a082ea65c16949d519f0e30dc5e611bf65fb2e729e6fbf80a4ffc1f64b82
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 14
+  question: 原文围绕「全章主线」建立了怎样的核心认识？
+  question_source: 全章主线
+  thesis: 总 FC 接口 4 GB/s 对应约 10.24 ms，不是瓶颈。若应用每发一个 4 KiB 请求都同步等待，而且设备无法预取，则会退化到练习
+    12 的约 2 s；题目把页面特意设为 sequential，通常意图是假设控制器/OS 能流水并使用顺序带宽。故答案 20 ms 的成立条件是有足够 queue/readahead
+    或合并，使工作负载真正成为顺序流。
+  thesis_source: 章末练习详解
+  concepts:
+  - term: 全章主线
+    meaning: 由约束反推系统策略。 磁盘需要布局、批量传输和请求调度；闪存需要 erase-before-write、wear leveling、garbage
+      collection 和逻辑到物理映射。
+    source_heading: 全章主线
+  - term: 12.1.1 磁盘访问与性能（Disk Access and Performance）
+    meaning: 原书特别警告不要滥用 average seek：它近似假设工作负载毫无 locality，接近常见负载的坏情况。文件系统会把同一文件连续布局、把同目录对象放在附近；此时观测值可能更接近
+      minimum seek。评估具体工作负载应使用它的距离分布，而不是看到“average”就机械代入厂商指标。
+    source_heading: 12.1.1 磁盘访问与性能（Disk Access and Performance）
+  - term: 12.1.3 磁盘调度（Disk Scheduling）
+    meaning: SCAN（elevator）。 磁头选定方向，例如从外向内，沿途按位置服务所有同方向 pending request；到边缘后反向，再服务另一方向。每个请求至多等待一次往返
+      sweep，避免 SSTF 的无限 starvation，并保留大部分 seek locality。
+    source_heading: 12.1.3 磁盘调度（Disk Scheduling）
+  - term: 12.3 总结与未来方向
+    meaning: 原书讨论 phase-change memory（PCM）和 memristor，设想接近 DRAM 延迟、可按字节寻址且非易失的介质。这些内容是当时的研究展望，不应把论文原型参数当成今天已普及产品；它提出的问题却很关键：若持久介质不再像磁盘/flash
+      block device，文件与内存的边界应怎样变化？
+    source_heading: 12.3 总结与未来方向
+  - term: 章末练习详解
+    meaning: 总 FC 接口 4 GB/s 对应约 10.24 ms，不是瓶颈。若应用每发一个 4 KiB 请求都同步等待，而且设备无法预取，则会退化到练习
+      12 的约 2 s；题目把页面特意设为 sequential，通常意图是假设控制器/OS 能流水并使用顺序带宽。故答案 20 ms 的成立条件是有足够
+      queue/readahead 或合并，使工作负载真正成为顺序流。
+    source_heading: 章末练习详解
+  - term: 复习检查清单
+    meaning: 能解释 over-provisioning、wear leveling、ECC、bad-block management 和 read scrubbing。
+    source_heading: 复习检查清单
+  logic:
+  - 全章主线
+  - 12.1.1 磁盘访问与性能（Disk Access and Performance）
+  - 12.1.2 案例研究：Toshiba MK3254GSY
+  - 12.3 总结与未来方向
+  - C/C++ 可运行实验
+  - 全章方法论总结
+  - 复习检查清单
+  sections:
+  - title: 全章主线
+    source_heading: 全章主线
+    paragraphs:
+    - 拆开物理动作。 磁盘访问分为 seek、rotation、transfer；闪存操作分为 read、program、erase。
+    - 由约束反推系统策略。 磁盘需要布局、批量传输和请求调度；闪存需要 erase-before-write、wear leveling、garbage collection
+      和逻辑到物理映射。
+    - Bandwidth/throughput（带宽/吞吐）：单位时间完成多少字节或请求，单位可为 MB/s 或 IOPS。
+    - "“设备标称带宽高”不代表小型随机请求快。若每个请求都先付固定定位成本 L，传输 x 字节的带宽为 B，则单请求时间近似为"
+  - title: 12.1 磁盘（Magnetic Disk）
+    source_heading: 12.1 磁盘（Magnetic Disk）
+    paragraphs:
+    - 磁盘把位编码为盘片表面薄磁性材料的磁化状态。断电后磁化方向仍保留，因此具有非易失性；旋转盘片可用较少读写头覆盖很大面积，因此单位容量成本低。代价是访问任意位置前必须移动机械部件并等待盘片旋转，延迟比
+      DRAM 高出多个数量级。
+    - Sector（扇区）：硬件可独立寻址和传输的最小固定大小单元。原书典型值为 512 B；现代 Advanced Format 盘常以 4 KiB 为物理扇区，同时模拟
+      512 B 逻辑扇区。
+    - 读完磁道末尾后，磁头切到下一磁道或另一表面需要时间 t_s。若下一磁道的逻辑起点仍在同一角位置，切换完成时它已经转过磁头，只能再等近一圈。Track skewing
+      把相邻磁道的逻辑 sector 0 向后错开，使切换完成时下一段恰好到达磁头。
+    - Tagged Command Queueing（SCSI/FC 中常称 TCQ，SATA 中称 NCQ）允许 OS 同时提交多个带 tag 的请求，设备按机械位置而非到达顺序执行，再用
+      tag 对应完成结果。
+  - title: 12.1.1 磁盘访问与性能（Disk Access and Performance）
+    source_heading: 12.1.1 磁盘访问与性能（Disk Access and Performance）
+    paragraphs:
+    - Seek。 磁臂先粗略移动，再根据盘面伺服信息细调并等待振动稳定。距离越远通常越慢，但关系不是线性的：启动、加速、减速和 settle 都有固定/非线性成本。
+    - 原书特别警告不要滥用 average seek：它近似假设工作负载毫无 locality，接近常见负载的坏情况。文件系统会把同一文件连续布局、把同目录对象放在附近；此时观测值可能更接近
+      minimum seek。评估具体工作负载应使用它的距离分布，而不是看到“average”就机械代入厂商指标。
+    - 柱面为何衰落。 旧文件系统把相关数据放在不同表面但同一 cylinder，期望只切磁头、不移动磁臂。随着磁道窄到微米以下，各表面同编号磁道无法精确对齐；换
+      head 后仍需伺服重定位，成本与移动到相邻磁道接近。因此现代布局更应关注连续 LBA 和实测性能，而不是虚构几何中的 cylinder。
+    - 外圈周长比内圈大。现代磁盘通常使用 zone bit recording，让外圈每磁道容纳更多 sector；转速不变时，外圈每圈经过磁头的数据更多，所以外圈
+      B_s 高于内圈。把整个设备只用一个峰值带宽建模会高估内圈性能。
+  - title: 12.1.2 案例研究：Toshiba MK3254GSY
+    source_heading: 12.1.2 案例研究：Toshiba MK3254GSY
+    paragraphs:
+    - 原书后文有一处把该对比写成约 5.5 s，但依本例明确给定的三个分量，结果是 7.33 s；后续与调度结果比较也应使用 7.33 s。真正设备还会受队列、固件重排和缓存影响。
+    - 原书按参数精度写为 16.7–19.5 ms。与 500 个独立请求的 7.33 s 相比，数据量相同，时间却缩短约
+    - 所以更细估计为 16.4–18.5 ms。这里的概率和平均节省量是几何近似，不是一般定理；真实 track sector 数、seek 后相位和控制器策略不可见时，只能给合理区间。
+    - 更重要的结论不变：要用一次随机起点访问达到 80% 外圈峰值，需要读取约 10 MB，而不是几 KiB。
+  - title: 12.1.3 磁盘调度（Disk Scheduling）
+    source_heading: 12.1.3 磁盘调度（Disk Scheduling）
+    paragraphs:
+    - SCAN（elevator）。 磁头选定方向，例如从外向内，沿途按位置服务所有同方向 pending request；到边缘后反向，再服务另一方向。每个请求至多等待一次往返
+      sweep，避免 SSTF 的无限 starvation，并保留大部分 seek locality。
+    - CSCAN（circular SCAN）。 只在一个方向服务；到最内端后快速回到最外端，再按同一方向开始新 sweep。也可只回到该方向最远的 pending
+      request，这类“不必走到物理边缘”的实现常称 LOOK/C-LOOK。
+    - 设备固件通常比 OS 更了解真实 LBA 映射、坏块重映射和当前相位，所以 TCQ/NCQ 设备常在内部做旋转感知调度；OS 则更了解进程优先级、deadline
+      和写入依赖。两层需要协作，不能各自任意重排。
+    - seek 从 10.5 ms 降到约 1.06 ms 后，rotation 变成最大分量，说明进一步优化必须考虑相位，而不只是磁道排序。该估算还假设 500
+      个请求同时可见；若应用一次只提交一个，调度器没有候选可选，无法获得这种收益。
+  - title: 12.3 总结与未来方向
+    source_heading: 12.3 总结与未来方向
+    paragraphs:
+    - 磁盘和闪存都提供非易失 block storage，但优势来自不同物理机制。选择设备不能问“谁绝对更快”，而要问 workload 的容量、顺序/随机比例、读写比例、队列深度、功耗、寿命、成本和故障模型。
+    - 密度提高会让每圈经过更多 bits，直接推高带宽和容量；机械臂加速度与转速受功耗、振动、可靠性限制，延迟改善慢。于是长期趋势不是“磁盘所有方面等比例变快”，而是顺序吞吐与随机访问的鸿沟扩大。
+    - 原书也回顾 IBM 350：1956 年约 3.3 MB、50 个盘片、1200 RPM、平均 seek 600 ms、重约一吨。历史意义不是背数字，而是看到抽象延续：设备形态变化巨大，操作系统仍需在容量、定位成本、队列和可靠性之间权衡。
+    - 原书讨论 phase-change memory（PCM）和 memristor，设想接近 DRAM 延迟、可按字节寻址且非易失的介质。这些内容是当时的研究展望，不应把论文原型参数当成今天已普及产品；它提出的问题却很关键：若持久介质不再像磁盘/flash
+      block device，文件与内存的边界应怎样变化？
+  - title: C/C++ 可运行实验
+    source_heading: C/C++ 可运行实验
+    paragraphs:
+    - 本例显示 locality 可显著减少移动，但不能据此宣布 SSTF 总是最好：程序一次给定有限队列，无法展示持续到达导致的 starvation；也没有计算旋转相位和请求
+      deadline。
+    - 该程序对应练习 9：顺序覆盖并同步、50,000 次随机 2 KiB 覆盖后统一同步、每次随机覆盖都同步、50,000 次随机读取。使用固定随机种子，两个随机写阶段采用同一
+      offset 序列。
+    - 该程序对应练习 10。三个文件都预先扩展为 100 MiB，分别执行 256,000 次连续 4-byte 更新；提交阶段和持久化阶段分开计时，避免把“store
+      很快”误解为“已落盘”。
+    - 所以它创建 100 MB 文件，却只改开头约 1 MB。若目标是用 4-byte 操作覆盖完整 100 MiB，应执行
+  - title: 章末练习详解
+    source_heading: 章末练习详解
+    paragraphs:
+    - 因此经典高性能盘选择一套成熟 actuator，再靠 NCQ、cache、RAID/多盘并行扩展。这个结论不是物理上“不可能”：现代确有 dual-actuator
+      大容量 HDD，说明当容量密度、带宽瓶颈与产品价格重新平衡时，方案可以回归；它仍是成本/复杂度权衡，而非免费翻倍。
+    - 这可理解为磁头几乎顺序扫过整个 100 MB 区间，而不是为每个 512 B 请求单独等半圈。结果对文件是否真的连续、位于哪个 zone、控制器是否旋转感知很敏感，但数量级约
+      1 s，远低于全盘随机 SCAN 的 75.6 s。它证明缩小数据工作集并保持物理 locality，可能比换一个局部调度规则更有效。
+    - 40.96 MB 按 2048 MB/s flash 带宽下界为 20 ms，所以仍由 IOPS 限制。相对串行 150 ms 只提高 1.5 倍，因为
+      15 μs 前台写 latency 本已对应约 66,667 serial IOPS，接近设备 100,000 IOPS 的并发上限。
+    - 总 FC 接口 4 GB/s 对应约 10.24 ms，不是瓶颈。若应用每发一个 4 KiB 请求都同步等待，而且设备无法预取，则会退化到练习 12 的约
+      2 s；题目把页面特意设为 sequential，通常意图是假设控制器/OS 能流水并使用顺序带宽。故答案 20 ms 的成立条件是有足够 queue/readahead
+      或合并，使工作负载真正成为顺序流。
+  - title: 全章方法论总结
+    source_heading: 全章方法论总结
+    paragraphs:
+    - 先定义 workload，而不是先看峰值。 请求是 512 B 还是 10 MB、随机还是顺序、串行还是并发，会决定该用 latency、IOPS 还是
+      bandwidth。
+    - 由物理不对称反推间接层。 Flash 的 erase-before-write 不是要求每次同步擦整块，而是促成 FTL、异地写和 GC；抽象通过间接映射把昂贵动作移出前台。
+    - 把可靠性与性能一起分析。 Write cache、重排和 group commit 能加速，但必须保留 durability ordering；否则 benchmark
+      更快只是因为保证变弱。
+    - 这种方法也指出替代方案的适用位置：HDD locality 不足可用调度/布局或增加磁盘并行；SSD GC 压力可用 over-provisioning、TRIM、冷热分离或
+      log-structured 写；同步小写过慢可用 WAL、group commit 或批事务；若设备模型被虚拟化隐藏，则应依据实测 SLA 和异步队列，而不是猜物理几何。
+  - title: 复习检查清单
+    source_heading: 复习检查清单
+    paragraphs:
+    - 能说明 platter、surface、head、arm、track、sector、cylinder 和 LBA 的关系。
+    - 能区分 surface bandwidth 与 host-interface bandwidth，并判断流水瓶颈。
+    - 能解释 floating gate、threshold voltage 以及 SLC/MLC/TLC/QLC 的密度权衡。
+    - 能解释 over-provisioning、wear leveling、ECC、bad-block management 和 read scrubbing。
+  takeaways:
+  - "“设备标称带宽高”不代表小型随机请求快。若每个请求都先付固定定位成本 L，传输 x 字节的带宽为 B，则单请求时间近似为"
+  - 外圈周长比内圈大。现代磁盘通常使用 zone bit recording，让外圈每磁道容纳更多 sector；转速不变时，外圈每圈经过磁头的数据更多，所以外圈
+    B_s 高于内圈。把整个设备只用一个峰值带宽建模会高估内圈性能。
+  - 原书讨论 phase-change memory（PCM）和 memristor，设想接近 DRAM 延迟、可按字节寻址且非易失的介质。这些内容是当时的研究展望，不应把论文原型参数当成今天已普及产品；它提出的问题却很关键：若持久介质不再像磁盘/flash
+    block device，文件与内存的边界应怎样变化？
+  - 总 FC 接口 4 GB/s 对应约 10.24 ms，不是瓶颈。若应用每发一个 4 KiB 请求都同步等待，而且设备无法预取，则会退化到练习 12 的约
+    2 s；题目把页面特意设为 sequential，通常意图是假设控制器/OS 能流水并使用顺序带宽。故答案 20 ms 的成立条件是有足够 queue/readahead
+    或合并，使工作负载真正成为顺序流。
+  - 能解释 over-provisioning、wear leveling、ECC、bad-block management 和 read scrubbing。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念复述
+  question: 原文如何解释「全章主线」？
+  answer: 由约束反推系统策略。 磁盘需要布局、批量传输和请求调度；闪存需要 erase-before-write、wear leveling、garbage
+    collection 和逻辑到物理映射。
+  source_heading: 全章主线
+- level: 边界判断
+  question: 原文如何解释「12.1.1 磁盘访问与性能（Disk Access and Performance）」？
+  answer: 原书特别警告不要滥用 average seek：它近似假设工作负载毫无 locality，接近常见负载的坏情况。文件系统会把同一文件连续布局、把同目录对象放在附近；此时观测值可能更接近
+    minimum seek。评估具体工作负载应使用它的距离分布，而不是看到“average”就机械代入厂商指标。
+  source_heading: 12.1.1 磁盘访问与性能（Disk Access and Performance）
+- level: 边界判断
+  question: 原文如何解释「12.3 总结与未来方向」？
+  answer: 原书讨论 phase-change memory（PCM）和 memristor，设想接近 DRAM 延迟、可按字节寻址且非易失的介质。这些内容是当时的研究展望，不应把论文原型参数当成今天已普及产品；它提出的问题却很关键：若持久介质不再像磁盘/flash
+    block device，文件与内存的边界应怎样变化？
+  source_heading: 12.3 总结与未来方向
+- level: 关系解释
+  question: 原文如何解释「章末练习详解」？
+  answer: 总 FC 接口 4 GB/s 对应约 10.24 ms，不是瓶颈。若应用每发一个 4 KiB 请求都同步等待，而且设备无法预取，则会退化到练习
+    12 的约 2 s；题目把页面特意设为 sequential，通常意图是假设控制器/OS 能流水并使用顺序带宽。故答案 20 ms 的成立条件是有足够 queue/readahead
+    或合并，使工作负载真正成为顺序流。
+  source_heading: 章末练习详解
+- level: 概念复述
+  question: 原文如何解释「复习检查清单」？
+  answer: 能解释 over-provisioning、wear leveling、ECC、bad-block management 和 read scrubbing。
+  source_heading: 复习检查清单

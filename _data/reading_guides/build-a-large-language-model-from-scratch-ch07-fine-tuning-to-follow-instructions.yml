@@ -1,0 +1,167 @@
+source:
+  post: _posts/book-notes/deep-learning/build-a-large-language-model-from-scratch/2026-08-08-build-a-large-language-model-from-scratch-ch07-fine-tuning-to-follow-instructions.md
+  body_sha256: 776c189160bc3a9d6be5cd02460c74ec7a68fe6389d309cddacba5f7ab83d3a2
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 11
+  question: 原文围绕「0. 本章定位、学习目标与行为迁移主线」建立了怎样的核心认识？
+  question_source: 0. 本章定位、学习目标与行为迁移主线
+  thesis: Prompt masking 与 padding masking 不同；本章主线不 mask prompt，练习中 response-only
+    反而约低 4 分。
+  thesis_source: 14. 核心结论
+  concepts:
+  - term: 0. 本章定位、学习目标与行为迁移主线
+    meaning: 第 5 章让 GPT 学会一般文本续写，第 6 章把它改造成固定类别分类器。第 7 章保留生成式词表头，用监督指令数据教模型把自然语言请求解释为任务，并生成符合预期的开放式回答。这是
+      Chatbot、个人助手和通用任务接口形成的核心步骤之一。
+    source_heading: 0. 本章定位、学习目标与行为迁移主线
+  - term: 7.3 Organizing Data into Training Batches（把指令数据组织成训练 batch）
+    meaning: 原书引用 2024 年论文 Instruction Tuning With Loss Over Instructions，说明“不 mask
+      instruction”可能更好，因此主线保留 prompt loss，没有声称存在普遍最优。
+    source_heading: 7.3 Organizing Data into Training Batches（把指令数据组织成训练 batch）
+  - term: 7.6 Fine-Tuning the LLM on Instruction Data（在指令数据上微调 LLM）
+    meaning: 第一轮快速下降，第二轮 train 继续下降而 validation 在约 0.65–0.68 波动，已出现轻微 gap。作者认为两轮足够，第三轮可能增加过拟合；应以
+      validation 与回答质量选 checkpoint，而非固定遵循“2 epochs”。
+    source_heading: 7.6 Fine-Tuning the LLM on Instruction Data（在指令数据上微调 LLM）
+  - term: 7.7 Extracting and Saving Responses（提取并保存回答）
+    meaning: Token loss 衡量模型给 reference token 序列的概率，但开放回答可能有多个正确表述；低 loss 也可能伴随啰嗦、格式错误或事实问题。因此，Stage
+      3 先对 110 条 test prompts 真正自回归生成，保存回答，再做人工或自动评估。
+    source_heading: 7.7 Extracting and Saving Responses（提取并保存回答）
+  - term: Summary（原书小结）
+    meaning: 数据准备包括下载、格式化 instruction-response entries，并划分 train/validation/test。
+    source_heading: Summary（原书小结）
+  - term: 16. 自测题与参考答案
+    meaning: 额外一位容纳 EOT target。构造长度 6 的 extended sequence 后，input/target 各取 5 位，最后
+      input token 的 target 是 EOT。
+    source_heading: 16. 自测题与参考答案
+  logic:
+  - 0. 本章定位、学习目标与行为迁移主线
+  - 7.3 Organizing Data into Training Batches（把指令数据组织成训练 batch）
+  - 7.4 Creating Data Loaders for an Instruction Dataset（创建指令数据 DataLoader）
+  - 7.7 Extracting and Saving Responses（提取并保存回答）
+  - 7.9 Conclusions（结论与下一步）
+  - 14. 核心结论
+  - 16. 自测题与参考答案
+  sections:
+  - title: 0. 本章定位、学习目标与行为迁移主线
+    source_heading: 0. 本章定位、学习目标与行为迁移主线
+    paragraphs:
+    - 第 5 章让 GPT 学会一般文本续写，第 6 章把它改造成固定类别分类器。第 7 章保留生成式词表头，用监督指令数据教模型把自然语言请求解释为任务，并生成符合预期的开放式回答。这是
+      Chatbot、个人助手和通用任务接口形成的核心步骤之一。
+    - 7.3 批处理：变长样本怎样动态 padding、构造右移 target 并屏蔽无效 loss？
+    - 7.4 DataLoader：怎样把 custom collate 接入 train/validation/test？
+    - 练习 7.2 会把 Prompt 区也改为 -100，只训练 Response 区；这是独立实验，不要与 padding mask 混淆。
+  - title: 7.1 Introduction to Instruction Fine-Tuning（指令微调导论）
+    source_heading: 7.1 Introduction to Instruction Fine-Tuning（指令微调导论）
+    paragraphs:
+    - 从 next-token 角度，合理续写可能是复述、继续讨论、生成另一道题，而不必直接完成任务。用户期待的是特定交互协议：把前半段解释为 request，把后续写成
+      answer。
+    - 监督指令微调（supervised instruction fine-tuning，SFT）从预训练模型出发，用人工或经审核生成的理想回答做 teacher
+      forcing：训练时模型看到完整前缀和真实前一 token，预测每个下一 token。
+    - prompt 中哪些字段代表任务、输入和回答边界；
+    - 少量 SFT 数据不太可能从零注入全部世界知识；更多是在已有基础能力上塑造访问方式和行为。
+  - title: 7.3 Organizing Data into Training Batches（把指令数据组织成训练 batch）
+    source_heading: 7.3 Organizing Data into Training Batches（把指令数据组织成训练 batch）
+    paragraphs:
+    - 预先 tokenize 减少每 epoch 重复 CPU 工作，代价是把所有 ID 列表存内存。大数据集可缓存到磁盘、流式 tokenize 或使用 memory
+      mapping。
+    - 如果所有 targets 都为 -100，mean reduction 可能产生 NaN，因为有效计数为 0；collate/truncation 必须确保每条
+      batch 有可监督 token。
+    - 潜在收益：更多梯度集中到回答，减少记忆 prompt 文本。潜在代价：模型不再通过 loss 学习模板和 instruction token 分布；有效
+      token 更少，梯度方差变化。
+    - 原书引用 2024 年论文 Instruction Tuning With Loss Over Instructions，说明“不 mask instruction”可能更好，因此主线保留
+      prompt loss，没有声称存在普遍最优。
+  - title: 7.4 Creating Data Loaders for an Instruction Dataset（创建指令数据 DataLoader）
+    source_heading: 7.4 Creating Data Loaders for an Instruction Dataset（创建指令数据 DataLoader）
+    paragraphs:
+    - 它避免用全局变量隐藏 device/context 配置，也让 train/validation/test 复用同一规则。
+    - 本书方式简洁可用，不能一概声称总能隐藏传输延迟。MPS 在原书写作时还可能产生数值差异。
+    - 每 batch loss 等权平均不等于严格 token-weighted corpus loss；
+    - 原书训练仍使用 batch mean，是常见且足够教学的实现；比较不同 masking/长度策略时应明确口径。
+  - title: 7.6 Fine-Tuning the LLM on Instruction Data（在指令数据上微调 LLM）
+    source_heading: 7.6 Fine-Tuning the LLM on Instruction Data（在指令数据上微调 LLM）
+    paragraphs:
+    - 这是预训练 GPT-2 对格式化 instruction sequences 的 next-token NLL，不是“回答正确率”。Validation
+      略低于 train 可能由小样本/批次难度造成。
+    - 第一轮快速下降，第二轮 train 继续下降而 validation 在约 0.65–0.68 波动，已出现轻微 gap。作者认为两轮足够，第三轮可能增加过拟合；应以
+      validation 与回答质量选 checkpoint，而非固定遵循“2 epochs”。
+    - 只需将 URL 改为 Stanford Alpaca JSON，但数据约为本章 1,100 条的 47.3 倍（原书概述约 50 倍），且样本更长。训练总
+      token 与显存压力远大于条目倍数。
+    - 原书建议：GPU，并在 OOM 时把 batch 8 降到 4/2/1，或把最大长度 1,024 降到 512/256。更大数据不自动更高质量，仍需检查答案正确性、重复、许可证和任务分布。
+  - title: 7.7 Extracting and Saving Responses（提取并保存回答）
+    source_heading: 7.7 Extracting and Saving Responses（提取并保存回答）
+    paragraphs:
+    - Token loss 衡量模型给 reference token 序列的概率，但开放回答可能有多个正确表述；低 loss 也可能伴随啰嗦、格式错误或事实问题。因此，Stage
+      3 先对 110 条 test prompts 真正自回归生成，保存回答，再做人工或自动评估。
+    - 两者都满足“用明喻改写”。Reference 是评分依据和任务意图示范，不必是唯一合法输出。Judge 应关注正确性、约束和相关性，而不是与 reference
+      的词面相似度。
+    - 原书 A100 约 1 分钟、M3 MacBook Air 约 6 分钟。这是逐条、batch size 1 生成；批量生成和 KV cache 可进一步加速，但需处理不同
+      prompt 长度和完成状态。
+    - 文件仅有 state dict。恢复时还需同一 GPT-2 medium 架构、tokenizer、Alpaca template 和 generation
+      config。
+  - title: 7.9 Conclusions（结论与下一步）
+    source_heading: 7.9 Conclusions（结论与下一步）
+    paragraphs:
+    - 书中 GitHub 仓库还提供大量 bonus material，用于继续探索训练技巧和应用主题。真实助手还可能需要检索、工具调用、安全策略和线上反馈闭环。
+    - 固定模型和 tokenizer revision；
+    - 用自动测试验证 shape、mask 和 loss；
+    - 从零实现 LLM 的价值不是取代生产框架，而是形成对 tokenizer、attention、loss、checkpoint 和微调数据流的机制级理解。真实项目可使用
+      Axolotl、LitGPT 等成熟工具处理更强模型、mixed precision、分布式训练、checkpoint、LoRA 和日志；这些工具仍不能替代对
+      token target、mask、架构匹配和评估口径的审查能力。
+  - title: Summary（原书小结）
+    source_heading: Summary（原书小结）
+    paragraphs:
+    - 数据准备包括下载、格式化 instruction-response entries，并划分 train/validation/test。
+    - Custom collate 负责 padding、构造 target IDs 和屏蔽 padding targets。
+    - 本章从 GPT-2 medium 355M pretrained weights 开始。
+    - 评估需要提取 test responses，并用人工或另一 LLM 评分。
+  - title: 14. 核心结论
+    source_heading: 14. 核心结论
+    paragraphs:
+    - 指令微调仍使用自回归 next-token cross-entropy，关键变化是模板和 loss-visible positions。
+    - Prompt masking 与 padding masking 不同；本章主线不 mask prompt，练习中 response-only 反而约低
+      4 分。
+    - 两 epochs 共 232 updates，train loss 到 0.300，validation 约 0.657，回答已能执行被动语态转换。
+    - Ollama/Llama 3 judge 给本章模型平均 50.32，但该分数依赖 judge、prompt、版本和解析 coverage。
+  - title: 16. 自测题与参考答案
+    source_heading: 16. 自测题与参考答案
+    paragraphs:
+    - Teacher forcing 需要真实下一 token targets；若只有 prompt，模型只能继续预训练 prompt 文本，无法获得目标回答监督。推理时才移除答案。
+    - 额外一位容纳 EOT target。构造长度 6 的 extended sequence 后，input/target 各取 5 位，最后 input
+      token 的 target 是 EOT。
+    - 它测 reference token likelihood，可能受到 prompt 复现部分主导；必须在 held-out prompts 实际生成并检查任务执行。
+    - 它使用真实 prompt ID 数，不受 decode 空白规范化、Unicode 字符长度或模板字符串 replace 的影响。
+  takeaways:
+  - 预训练教文本续写，SFT 用示范把自然语言请求映射为期望回答行为。
+  - InstructionDataset 预先编码完整 prompt+response；推理只编码 prompt。
+  - Prompt masking 与 padding masking 不同；本章主线不 mask prompt，练习中 response-only 反而约低 4
+    分。
+  - 两 epochs 共 232 updates，train loss 到 0.300，validation 约 0.657，回答已能执行被动语态转换。
+  - Preference tuning 可在 SFT 后对齐回答偏好；LoRA 可降低可训练参数和资源，但不替代数据/评估。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念复述
+  question: 原文如何解释「0. 本章定位、学习目标与行为迁移主线」？
+  answer: 第 5 章让 GPT 学会一般文本续写，第 6 章把它改造成固定类别分类器。第 7 章保留生成式词表头，用监督指令数据教模型把自然语言请求解释为任务，并生成符合预期的开放式回答。这是
+    Chatbot、个人助手和通用任务接口形成的核心步骤之一。
+  source_heading: 0. 本章定位、学习目标与行为迁移主线
+- level: 边界判断
+  question: 原文如何解释「7.3 Organizing Data into Training Batches（把指令数据组织成训练 batch）」？
+  answer: 原书引用 2024 年论文 Instruction Tuning With Loss Over Instructions，说明“不 mask instruction”可能更好，因此主线保留
+    prompt loss，没有声称存在普遍最优。
+  source_heading: 7.3 Organizing Data into Training Batches（把指令数据组织成训练 batch）
+- level: 边界判断
+  question: 原文如何解释「7.7 Extracting and Saving Responses（提取并保存回答）」？
+  answer: Token loss 衡量模型给 reference token 序列的概率，但开放回答可能有多个正确表述；低 loss 也可能伴随啰嗦、格式错误或事实问题。因此，Stage
+    3 先对 110 条 test prompts 真正自回归生成，保存回答，再做人工或自动评估。
+  source_heading: 7.7 Extracting and Saving Responses（提取并保存回答）
+- level: 关系解释
+  question: 原文如何解释「Summary（原书小结）」？
+  answer: 数据准备包括下载、格式化 instruction-response entries，并划分 train/validation/test。
+  source_heading: Summary（原书小结）
+- level: 概念复述
+  question: 原文如何解释「16. 自测题与参考答案」？
+  answer: 额外一位容纳 EOT target。构造长度 6 的 extended sequence 后，input/target 各取 5 位，最后 input
+    token 的 target 是 EOT。
+  source_heading: 16. 自测题与参考答案

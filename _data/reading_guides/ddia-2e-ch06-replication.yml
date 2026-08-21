@@ -1,0 +1,177 @@
+source:
+  post: _posts/book-notes/distributed-system/design-data-intensive-application/2026-08-05-ddia-2e-ch06-replication.md
+  body_sha256: '0690453b541c26ac7643e7b9a81b23b2f523d29bbc9d85ade270b618ef9f9a81'
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 16
+  question: 原文围绕「0. 本章定位：复制不是拷贝一次，而是持续复制变化」建立了怎样的核心认识？
+  question_source: 0. 本章定位：复制不是拷贝一次，而是持续复制变化
+  thesis: client/coordinator 同时写多个 replicas，并行读取多个 replicas，通过 version comparison、repair
+    和 quorum threshold 处理 stale nodes。没有 leader failover，对 slow/unavailable node 更平滑。
+  thesis_source: 5. 原章总结：复制是在故障与并发下维持多份状态
+  concepts:
+  - term: 0. 本章定位：复制不是拷贝一次，而是持续复制变化
+    meaning: 本章先假设每台机器都能保存整个 dataset，只讨论复制变化。第 7 章再引入分片/分区（sharding/partitioning），让每台机器只保存数据子集。
+    source_heading: 0. 本章定位：复制不是拷贝一次，而是持续复制变化
+  - term: 2. 单主复制
+    meaning: 同步程度决定确认写的 latency/availability/durability；snapshot+log 建 follower；failover
+      必须正确检测、选最新节点、fence old leader。physical WAL 高效但版本耦合，logical log 支持升级和 CDC。读扩展只有在应用明确处理
+      lag/session guarantee 时才安全。
+    source_heading: 2. 单主复制
+  - term: 4. 无主复制
+    meaning: 各节点的 packet arrival order 只是局部观察，variable network delay 与 partial failure
+      会让它们不同。eventual consistency 要求 replicas 对同一 write set 收敛，因此必须使用与 arrival order
+      无关的 resolution：LWW total order、siblings/manual merge 或 CRDT。
+    source_heading: 4. 无主复制
+  - term: 6.1 65 条引用覆盖什么
+    meaning: 原章共有 65 条参考文献，跨度从 1978/1979 年的分布式时序、quorum 与数据库研究，到 2024/2025 年的 sync
+      engine、local-first、协同编辑与现代云数据库资料。
+    source_heading: 6.1 65 条引用覆盖什么
+  - term: 9. 综合案例：全球协作工作区的复制设计
+    meaning: 更换 replication/merge protocol 时，旧新 clients 会并存。operation envelope 应带
+      schema/protocol version；server 保留 unknown fields，先部署能双读的新 reader，再逐步启用新 writer，并提供
+      replay/rollback 路径。
+    source_heading: 9. 综合案例：全球协作工作区的复制设计
+  - term: 11. 设计复制系统的一般方法
+    meaning: 用 deterministic simulation、network fault injection、clock skew、disk fault、process
+      pause 和 region isolation 覆盖 race。验证最终所有 replicas 收敛、invariant 未破坏、API outcome
+      符合文档。
+    source_heading: 11. 设计复制系统的一般方法
+  logic:
+  - 0. 本章定位：复制不是拷贝一次，而是持续复制变化
+  - 2. 单主复制
+  - 3. 多主复制
+  - 6.1 65 条引用覆盖什么
+  - 8. 全章知识结构
+  - 10. 核心结论
+  - 11. 设计复制系统的一般方法
+  sections:
+  - title: 0. 本章定位：复制不是拷贝一次，而是持续复制变化
+    source_heading: 0. 本章定位：复制不是拷贝一次，而是持续复制变化
+    paragraphs:
+    - 一个节点、机架或可用区失效时，其他副本继续提供服务。高可用（high availability）关注系统能否继续响应，而不仅是数据是否存在。
+    - 本章先假设每台机器都能保存整个 dataset，只讨论复制变化。第 7 章再引入分片/分区（sharding/partitioning），让每台机器只保存数据子集。
+    - 异步副本在停止新写且网络/节点最终恢复后，会最终追上。但“eventually”没有自动时间上限：可能毫秒、分钟，甚至因故障永不完成。
+    - 它不是“几秒内一致”的 SLO，也不是只属于 NoSQL；异步 PostgreSQL follower 同样 eventual。
+  - title: 1. 备份与复制（Backups and Replication）
+    source_heading: 1. 备份与复制（Backups and Replication）
+    paragraphs:
+    - replica 快速传播当前写，backup 保存过去 snapshot。误删在 leader 发生后会复制到所有 followers；恢复过去状态仍需
+      backup。
+    - 新 follower 通常从 backup/snapshot 初始化，再 replay replication log；
+    - continuous replication log archive 可实现 point-in-time recovery；
+    - replication 常降低 RTO；sync replication 可降低部分故障下 RPO；backup 提供历史恢复但 RTO 较长。
+  - title: 2. 单主复制
+    source_heading: 2. 单主复制
+    paragraphs:
+    - 关系数据库、MongoDB、DynamoDB、Kafka partition、DRBD、文件系统，以及 Raft-based CockroachDB/TiDB/etcd/RabbitMQ
+      quorum queues 都使用 leader 思想。
+    - 若 leader 在另一 region，强制 leader read 会跨洲，牺牲 latency。可用 sync local replica、session
+      stickiness、region-specific position tracking，但复杂度上升。
+    - 现代 NewSQL/consensus-based databases 可提供 linearizability/transactions，同时具备 replication/sharding。代价：coordination
+      latency、network partition 下 availability 取舍和更高 overhead。
+    - 同步程度决定确认写的 latency/availability/durability；snapshot+log 建 follower；failover
+      必须正确检测、选最新节点、fence old leader。physical WAL 高效但版本耦合，logical log 支持升级和 CDC。读扩展只有在应用明确处理
+      lag/session guarantee 时才安全。
+  - title: 3. 多主复制
+    source_heading: 3. 多主复制
+    paragraphs:
+    - 在单个 region 内，multi-leader 增加的冲突复杂度通常超过收益。它更合理的场景是 geographically distributed、geo-distributed
+      或 geo-replicated deployment：为容忍整个 region 故障，或让数据靠近各地用户，在多个 region 放置副本。
+    - key-value mapping 可组合其他 conflict resolution：不同 keys 独立合并，同一 key 的 values 按对应
+      datatype 的规则处理。例如 document map 中，title 用 text CRDT、likes 用 counter、tags 用 set。
+    - multi-leader 让每个 region/device 在断连时仍可本地写，以更弱 consistency 换取 low latency 和 availability。topology
+      决定传播路径与故障面；sync engine 把该模型带到实时协作、offline-first 和 local-first 应用。
+    - 它的决定性成本是 concurrent writes。avoidance 依赖稳定 ownership；LWW 收敛但丢数据；siblings 保留值却把复杂度交给应用；CRDT/OT
+      能自动保留大量可合并意图并提供 strong eventual consistency，却不能维护任意跨对象 invariant。
+  - title: 4. 无主复制
+    source_heading: 4. 无主复制
+    paragraphs:
+    - 它尤其能平滑处理 slow node 与 gray failure；代价是 fan-out、repair debt、tail latency，以及更难量化的
+      staleness。sloppy quorum 和 local quorum 可继续提高 availability/latency，却进一步削弱后续读取新值的保证。
+    - 各节点的 packet arrival order 只是局部观察，variable network delay 与 partial failure 会让它们不同。eventual
+      consistency 要求 replicas 对同一 write set 收敛，因此必须使用与 arrival order 无关的 resolution：LWW
+      total order、siblings/manual merge 或 CRDT。
+    - replicas 在 read response 中把 values 与 version vectors 交给 client；client 合并 siblings
+      后，在 write request 中原样带回 causal context。database 据此区分 overwrite 与 concurrent
+      write。
+    - leaderless 系统没有统一 arrival order，必须区分 causal overwrite 与 concurrent conflict。单
+      replica 可让 client 携带 prior scalar version；多个写入 replicas 则需要 per-replica component
+      组成 version vector，并以 partial order 判断 happens-before。
+  - title: 6.1 65 条引用覆盖什么
+    source_heading: 6.1 65 条引用覆盖什么
+    paragraphs:
+    - 原章共有 65 条参考文献，跨度从 1978/1979 年的分布式时序、quorum 与数据库研究，到 2024/2025 年的 sync engine、local-first、协同编辑与现代云数据库资料。
+    - 它们不是装饰性书目，而分别支撑历史来源、产品行为、事故教训、理论边界与算法演进。完整条目和链接见原章 References。
+  - title: 8. 全章知识结构
+    source_heading: 8. 全章知识结构
+    paragraphs:
+    - single-leader 把顺序集中；multi-leader 接受多个顺序源再合并；leaderless 不设顺序源，以版本、集合相交和修复维持副本。
+    - 必须把 concurrency detection、value merge 和 invariant validation 分成三层。
+    - 公式成立都有 model assumptions，尤其不能从 quorum intersection 直接跳到 linearizability。
+    - 这条链比“选 single/multi/leaderless 哪个最好”更重要，因为每个局部选择都会改变后续必须承担的工作。
+  - title: 9. 综合案例：全球协作工作区的复制设计
+    source_heading: 9. 综合案例：全球协作工作区的复制设计
+    paragraphs:
+    - workspace slug、seat allocation、ACL version 等由 consensus-backed leader 串行处理。每个
+      shard 可有不同 leader 以扩展容量，但同一 invariant scope 内只有一个 authoritative order。
+    - 把一个 replica 注入高 I/O latency 而非直接 kill。leaderless coordinator 应从其他 fast replicas
+      达到 threshold，request hedging 降低 tail；同时 slow node 的 hint/repair backlog 不应无限增长。
+    - 更换 replication/merge protocol 时，旧新 clients 会并存。operation envelope 应带 schema/protocol
+      version；server 保留 unknown fields，先部署能双读的新 reader，再逐步启用新 writer，并提供 replay/rollback
+      路径。
+    - 该系统没有一个“全局最终一致”或“全局强一致”的简单标签。它按 invariant 分层：authority/coordination 保护身份、权限与计费；local-first
+      replication 保护交互和离线能力；leaderless ingestion 保护高写 availability；backup 保护历史恢复。
+  - title: 10. 核心结论
+    source_heading: 10. 核心结论
+    paragraphs:
+    - 复制目标至少包括 availability、durability、disconnected operation、latency 和 read scalability。
+    - read-your-writes、monotonic reads、consistent prefix 是有实际价值的 session guarantees。
+    - version vector 用 componentwise partial order 表达 distributed causal history。
+    - convergence、session consistency、global invariant 和 disaster recovery 是四个不同问题。
+  - title: 11. 设计复制系统的一般方法
+    source_heading: 11. 设计复制系统的一般方法
+    paragraphs:
+    - 至少考虑 crash、slow/gray node、disk full、packet loss/reorder/duplicate、network partition、AZ/region
+      loss、clock skew、stale process、operator error 和 software corruption。
+    - 明确使用 serialized leader order、conditional version、Lamport/logical timestamp、version
+      vector 或其他 causal context。不要把 unsynchronized wall clock 当作 happens-before 证明。
+    - rebalance、leader change、replica replacement 都使用 epoch/term/config version。old
+      leader/process 必须通过 lease、token、storage condition 或 credential revocation 被
+      fence。
+    - 用 deterministic simulation、network fault injection、clock skew、disk fault、process
+      pause 和 region isolation 覆盖 race。验证最终所有 replicas 收敛、invariant 未破坏、API outcome
+      符合文档。
+  takeaways:
+  - high availability：机器、多个机器、zone 或 region 故障时继续服务；
+  - monotonic reads：一旦见过某版本，不再倒退；
+  - 必须把 concurrency detection、value merge 和 invariant validation 分成三层。
+  - logical replication 更适合 version evolution、CDC 和异构 consumers。
+  - 最可靠的架构通常按数据 invariant 组合复制模型，并用真实故障演练验证承诺。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念辨析
+  question: 原文如何解释「7.1 误区：replication 就是 backup」？
+  answer: replica 会迅速传播误删除和 corruption，backup 则保留历史恢复点。两者目标、failure independence 和恢复流程不同，必须同时存在。
+  source_heading: 7.1 误区：replication 就是 backup
+- level: 概念辨析
+  question: 原文如何解释「7.7 误区：read scaling 对应用完全透明」？
+  answer: 把 reads 路由到 async followers 会暴露 read-your-writes、monotonic 和 causal-prefix
+    异常。应用要携带 position/session context，或接受弱语义。
+  source_heading: 7.7 误区：read scaling 对应用完全透明
+- level: 概念辨析
+  question: 原文如何解释「7.13 误区：保存 siblings 就解决了冲突」？
+  answer: siblings 只是延迟决策，并把 API、UI 和 merge 复杂度交给 application/user。resolution 还可能再次
+    concurrent。
+  source_heading: 7.13 误区：保存 siblings 就解决了冲突
+- level: 概念辨析
+  question: 原文如何解释「7.18 误区：quorum 就是 majority」？
+  answer: majority 是常用配置；定义是 read/write quorum sets 按协议必须相交。
+  source_heading: 7.18 误区：quorum 就是 majority
+- level: 概念辨析
+  question: 原文如何解释「7.26 误区：coordinator node 就是临时 leader」？
+  answer: coordinator 可为单次请求 fan-out，却不为该 key 的全部 writes 建立统一顺序。下个请求可换 coordinator，因此它不具备
+    leader 的 ordering authority。
+  source_heading: 7.26 误区：coordinator node 就是临时 leader

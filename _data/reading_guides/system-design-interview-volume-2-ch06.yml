@@ -1,0 +1,135 @@
+source:
+  post: _posts/book-notes/software-architecture/system-design-interview-volume-2/2026-08-12-system-design-interview-volume-2-ch06.md
+  body_sha256: 8930c943e855f5942c733abdfc597a2fe76c0bccc03afb2bc5fca22463088789
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 8
+  question: 0. 为什么广告点击聚合比普通计数难？
+  question_source: 0. 为什么广告点击聚合比普通计数难
+  thesis: 广告聚合的核心不是 Count，而是窗口状态在乱序、重复和故障下的正确演进。
+  thesis_source: 7. 核心结论
+  concepts:
+  - term: 0. 为什么广告点击聚合比普通计数难
+    meaning: 原始数据是事实来源，聚合数据是查询优化后的派生视图。Kafka 不只是缓冲，还用于把“处理输入 Offset”和“提交输出结果”纳入流处理事务边界。
+    source_heading: 0. 为什么广告点击聚合比普通计数难
+  - term: Raw
+    meaning: 或把 10 GB 左右滚动文件写入 S3，使用 ORC/Parquet/Avro。
+    source_heading: Raw
+  - term: 3.3 Data Recalculation
+    meaning: 专用 Recalculation Cluster 必须限流。历史重放速度若远高于实时，会压垮输出 Kafka/DB。
+    source_heading: 3.3 Data Recalculation
+  - term: 3.7 Delivery Guarantees：为什么要 Exactly-once
+    meaning: At-least-once 对一般分析常够用，但几个百分点误差在广告账单中可能是数百万美元，因此作者推荐 Exactly-once Processing。
+    source_heading: 3.7 Delivery Guarantees：为什么要 Exactly-once
+  - term: 3.15 Hotspot Issue
+    meaning: 作者方案：检测某 Aggregate 超容量后向 Resource Manager 申请额外节点，将该广告事件拆成多个子组并行局部聚合，最后
+      Reduce 回原节点。
+    source_heading: 3.15 Hotspot Issue
+  - term: 8. 解决流式事件聚合问题的一般思路
+    meaning: 本章最值得迁移的方法是：不要把流计算正确性寄托在“事件只来一次且按时到达”；应把重放视为常态，用不可变 Raw、Event Time、Watermark、原子
+      Checkpoint 和独立 Reconciliation 共同定义可解释、可恢复的最终结果。
+    source_heading: 8. 解决流式事件聚合问题的一般思路
+  logic:
+  - 0. 为什么广告点击聚合比普通计数难
+  - Raw
+  - 2.8 Aggregation DAG
+  - 3.7 Delivery Guarantees：为什么要 Exactly-once
+  - 3.11 可运行示例：Event-time、Watermark、Dedup 与 Top-N
+  - 3.20 Alternative Design
+  - 8. 解决流式事件聚合问题的一般思路
+  sections:
+  - title: 0. 为什么广告点击聚合比普通计数难
+    source_heading: 0. 为什么广告点击聚合比普通计数难
+    paragraphs:
+    - 在状态尚未持久化时遇到 Aggregator 崩溃；
+    - 原始数据是事实来源，聚合数据是查询优化后的派生视图。Kafka 不只是缓冲，还用于把“处理输入 Offset”和“提交输出结果”纳入流处理事务边界。
+  - title: 1.5 延迟目标
+    source_heading: 1.5 延迟目标
+    paragraphs:
+    - RTB 在广告展示前实时决策，通常低于 1 秒；
+    - 点击聚合主要供账单和报表，分钟级可接受。
+    - 这个宽松延迟预算允许一分钟窗口、15 秒 Watermark、Kafka、批量写库和状态 Snapshot，以正确性换少量等待。
+  - title: Raw
+    source_heading: Raw
+    paragraphs:
+    - 平均 10K、峰值 50K 写 QPS；
+    - 正常读取少，重算/分析时范围扫描；
+    - Cassandra/InfluxDB 等更适合高写和时间范围；
+    - 或把 10 GB 左右滚动文件写入 S3，使用 ORC/Parquet/Avro。
+  - title: 2.8 Aggregation DAG
+    source_heading: 2.8 Aggregation DAG
+    paragraphs:
+    - 保证同 Key 进入同 Aggregate Node。
+    - 它是第一层 Reduce/Combine，把大量事件压缩成较少局部聚合。
+    - 中间状态可在进程内 Shared Memory 或进程间 TCP 传递。
+  - title: 3.3 Data Recalculation
+    source_heading: 3.3 Data Recalculation
+    paragraphs:
+    - Recalculation Service 从 Raw Store 批量读取 Bug 起点后的事件；
+    - 发送给专用 Aggregation Service，不挤占实时主路径；
+    - Database Writer 以版本化/幂等方式覆盖 Aggregation DB。
+    - 专用 Recalculation Cluster 必须限流。历史重放速度若远高于实时，会压垮输出 Kafka/DB。
+  - title: 3.7 Delivery Guarantees：为什么要 Exactly-once
+    source_heading: 3.7 Delivery Guarantees：为什么要 Exactly-once
+    paragraphs:
+    - At-least-once 对一般分析常够用，但几个百分点误差在广告账单中可能是数百万美元，因此作者推荐 Exactly-once Processing。
+    - 每个输入事件对最终 Aggregation View 的业务效果恰好一次。
+    - 不是要求网络只传一次。网络和任务都可以重试，关键是 State/Output/Offset 原子一致。
+  - title: 3.11 可运行示例：Event-time、Watermark、Dedup 与 Top-N
+    source_heading: 3.11 可运行示例：Event-time、Watermark、Dedup 与 Top-N
+    paragraphs:
+    - Watermark 越过窗口末端才 Final；
+    - 这是教学化简化：生产 Watermark 通常基于各 Source Partition 的最小进度，Dedup State 要有 TTL/Checkpoint，不能无限增长。
+  - title: 3.15 Hotspot Issue
+    source_heading: 3.15 Hotspot Issue
+    paragraphs:
+    - 作者方案：检测某 Aggregate 超容量后向 Resource Manager 申请额外节点，将该广告事件拆成多个子组并行局部聚合，最后 Reduce
+      回原节点。
+    - 它把单 Key 拆为 k 个子 Key，代价是多一层 Shuffle/Reduce 和状态协调。
+  - title: 3.20 Alternative Design
+    source_heading: 3.20 Alternative Design
+    paragraphs:
+    - 快速检索 -> Elasticsearch；
+    - 聚合/OLAP -> ClickHouse、Druid；
+    - Risk Control 在入口过滤欺诈；
+    - Merchant-facing Analytics 查询 Serving 层。
+  - title: 8. 解决流式事件聚合问题的一般思路
+    source_heading: 8. 解决流式事件聚合问题的一般思路
+    paragraphs:
+    - 逐一检查崩溃发生在：读后、状态更新后、输出后、Offset 后。使 State/Output/Offset 同一 Checkpoint/Transaction，或让
+      Sink 幂等。
+    - 保存 Offset、Window、Heap、Dedup 和 Timer；恢复后只重放增量。根据恢复 SLO 选择 Checkpoint 周期。
+    - 监控 Watermark Lag、Late/Duplicate Rate、Window Finalization、Checkpoint、Kafka Lag、Hot
+      Key、Sink Commit、Reconciliation Diff 和账单版本。
+    - 本章最值得迁移的方法是：不要把流计算正确性寄托在“事件只来一次且按时到达”；应把重放视为常态，用不可变 Raw、Event Time、Watermark、原子
+      Checkpoint 和独立 Reconciliation 共同定义可解释、可恢复的最终结果。
+  takeaways:
+  - 广告聚合的核心不是 Count，而是窗口状态在乱序、重复和故障下的正确演进。
+  - Map/Aggregate/Reduce 把全局大数据转成局部状态和小结果。 Local Top-N 再 Global Reduce 显著减少 Shuffle。
+  - Tumbling Window 适合每分钟 Count，Sliding Window 适合最近 M 分钟 Top-N。
+  - Stateful Scaling 受 Partition 与 Key 分布约束。 增 Consumer、Partition 或 Topic 都可能触发状态迁移/Rebalance。
+  - Reconciliation 是财务级数据最后防线。 它补足超晚事件并发现实时逻辑错误，但自身也要定义截止时间。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念辨析
+  question: 原文如何解释「5.2 Raw Data 与 Aggregated Data 不是二选一」？
+  answer: Raw 提供事实与重算，Aggregated 提供查询性能。只存后者无法修 Bug，只存前者 Dashboard 太慢。
+  source_heading: 5.2 Raw Data 与 Aggregated Data 不是二选一
+- level: 概念辨析
+  question: 原文如何解释「5.10 Star Schema 预聚合不是任意过滤」？
+  answer: 只支持预定义 Dimension；维度组合越多，Bucket/写放大越大。
+  source_heading: 5.10 Star Schema 预聚合不是任意过滤
+- level: 概念辨析
+  question: 原文如何解释「5.16 Dedup State 不能无限增长」？
+  answer: 应按最大重试/乱序窗口设置 TTL，并写入 Checkpoint；太短会接受旧重复，太长耗尽状态。
+  source_heading: 5.16 Dedup State 不能无限增长
+- level: 概念辨析
+  question: 原文如何解释「5.20 Topic Physical Sharding 会影响 Global Top-N」？
+  answer: 地域/业务 Topic 各自产生 Local Top-N 后仍需 Global Reduce。
+  source_heading: 5.20 Topic Physical Sharding 会影响 Global Top-N
+- level: 概念辨析
+  question: 原文如何解释「5.27 Query 的“最近 M 分钟”要定义 Final/Provisional」？
+  answer: 当前窗口尚未越过 Watermark，结果可能更新。账单与 Dashboard 对数据稳定性要求不同。
+  source_heading: 5.27 Query 的“最近 M 分钟”要定义 Final/Provisional

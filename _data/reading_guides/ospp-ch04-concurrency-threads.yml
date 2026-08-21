@@ -1,0 +1,148 @@
+source:
+  post: _posts/book-notes/operating-system/ospp/2026-08-02-ospp-ch04-concurrency-threads.md
+  body_sha256: 39b0834873c1a9b52033631418e4a923206e98e2c43c70f145131fc214131186
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 10
+  question: 原文围绕「全章主线」建立了怎样的核心认识？
+  question_source: 全章主线
+  thesis: 90 年代客户端—服务器推动 Windows NT、Solaris、Linux 等以线程为基础的新系统。到 90 年代末 OS X 出现后，主要商业
+    OS 均基于线程。POSIX 线程从 1995 年开始标准化，Java 等语言也内建线程构造。
+  thesis_source: 4.10 总结与未来方向
+  concepts:
+  - term: 全章主线
+    meaning: 简化线程 API、形式化模型、性能推导、现代实现与 POSIX C 示例直接放在对应概念之后，依次回答“为什么需要、抽象是什么、怎样实现、成本和边界在哪里”。
+    source_heading: 全章主线
+  - term: 4.2 线程抽象（Thread Abstraction）
+    meaning: 线程数可远多于物理 CPU。调度器维护 READY 线程集合：暂停 CPU 上的线程，保存状态并移入 READY；再选择另一 READY
+      线程，把保存状态加载到 CPU，转为 RUNNING。
+    source_heading: 4.2 线程抽象（Thread Abstraction）
+  - term: 4.5 线程生命周期
+    meaning: 具备运行条件但尚未占用 CPU。寄存器保存在 TCB/栈，TCB 位于 ready 数据结构。原书沿用“ready list”名称，实际常是优先队列或多级队列。
+    source_heading: 4.5 线程生命周期
+  - term: 4.7 结合内核线程与单线程用户进程
+    meaning: 内核代码通常避免浮点运算，因此纯内核线程切换可不保存浮点寄存器。不同用户进程/线程可能使用浮点与 SIMD，切换用户执行流时必须保存/恢复其完整状态。
+    source_heading: 4.7 结合内核线程与单线程用户进程
+  - term: 4.10 总结与未来方向
+    meaning: 90 年代客户端—服务器推动 Windows NT、Solaris、Linux 等以线程为基础的新系统。到 90 年代末 OS X 出现后，主要商业
+      OS 均基于线程。POSIX 线程从 1995 年开始标准化，Java 等语言也内建线程构造。
+    source_heading: 4.10 总结与未来方向
+  - term: 复习检查清单
+    meaning: 能画出 INIT、READY、RUNNING、WAITING、FINISHED 状态图；
+    source_heading: 复习检查清单
+  logic:
+  - 全章主线
+  - 4.2 线程抽象（Thread Abstraction）
+  - 4.4 线程数据结构与生命周期
+  - 4.7 结合内核线程与单线程用户进程
+  - 4.8 实现多线程进程
+  - 章末练习详解
+  - 复习检查清单
+  sections:
+  - title: 全章主线
+    source_heading: 全章主线
+    paragraphs:
+    - 现实世界和现代计算机内部都有许多同时推进的活动：服务器有多个处理器、磁盘与网卡，桌面系统同时处理屏幕、键盘、网络和存储，手机也普遍采用多核。
+    - 本章回答线程“是什么、为何需要、怎样使用、怎样实现”；第 5 章处理共享数据同步，第 6 章讨论高级并发，第 7 章讨论选择下一线程的调度策略。
+    - 简化线程 API、形式化模型、性能推导、现代实现与 POSIX C 示例直接放在对应概念之后，依次回答“为什么需要、抽象是什么、怎样实现、成本和边界在哪里”。
+    - 编译命令适用于 Linux、macOS 或 WSL；当前环境没有 C/C++ 编译器，因此未做本地运行验证。
+  - title: 4.1 线程使用场景（Thread Use Cases）
+    source_heading: 4.1 线程使用场景（Thread Use Cases）
+    paragraphs:
+    - 顺序程序若下载高分辨率图像后才处理输入，界面会冻结。多线程可让两个线程绘制场景，另一个线程管理 UI，再用一个线程下载数据。用户可继续操作，图像逐步改善。
+    - 后台工作仍需定义取消、错误报告、完成通知和对象生命周期。UI 若释放对象，后台线程继续写它，就会产生悬空访问。线程提高响应性，不自动保证操作已持久化；“write
+      返回”也可能只表示进入缓冲区。
+    - Earth Visualizer 在 8 核机器上可用 6 条线程渲染不同画面区域，另外 2 核处理 UI、网络消息和响应解析。线程数不必等于核心数，内核负责映射。
+    - 磁盘读取可耗费数十毫秒，足够现代 CPU 执行上千万条指令。请求 I/O 后若 CPU 空等，会浪费巨大算力；把等待线程置为 WAITING，运行另一线程即可覆盖延迟。
+  - title: 4.2 线程抽象（Thread Abstraction）
+    source_heading: 4.2 线程抽象（Thread Abstraction）
+    paragraphs:
+    - 线程数可远多于物理 CPU。调度器维护 READY 线程集合：暂停 CPU 上的线程，保存状态并移入 READY；再选择另一 READY 线程，把保存状态加载到
+      CPU，转为 RUNNING。
+    - 它提供公平和响应性，却要求程序对任何合法交错都正确。共享数据必须使用锁、条件变量等显式同步，而不能假设某段代码“应该来得及执行完”。
+    - 作者要求程序员不假设线程相对速度，是为了把正确性与调度策略解耦。若程序只有在线程 A 比 B 快时正确，换调度器、硬件或负载就可能失败。
+    - 中断处理程序虽是一条从头到尾的顺序指令流，却不是独立可调度任务：它由硬件事件触发，而非调度器选择；通常运行至完成或被更高优先级中断。因此不满足线程定义的第二部分。
+  - title: 4.4 线程数据结构与生命周期
+    source_heading: 4.4 线程数据结构与生命周期
+    paragraphs:
+    - 常见字段：线程 ID、调度优先级、状态、资源消耗、所属进程、CPU 亲和性、等待对象和退出值。这些不直接表示程序计算，却是调度、统计和生命周期管理所需。
+    - 内核栈通常使用物理内存且固定较小。以当时的 x86 Linux 默认约 8 KiB 为例，内核编码惯例是：大缓冲和大结构放堆上，不作为局部变量；递归也应受严格限制。
+    - 有些语言运行时（如 Go）支持可增长/搬迁栈，但普通 POSIX C 线程常预留固定虚拟区域并放置不可访问 guard page。原书教材库默认 1 MiB。
+    - 逻辑堆共享，但分配器可给每线程局部 arena/cache：多数分配无需争用全局锁，同一线程对象靠近也改善缓存局部性。局部区域空时再向共享堆批量取空间。
+  - title: 4.5 线程生命周期
+    source_heading: 4.5 线程生命周期
+    paragraphs:
+    - 具备运行条件但尚未占用 CPU。寄存器保存在 TCB/栈，TCB 位于 ready 数据结构。原书沿用“ready list”名称，实际常是优先队列或多级队列。
+    - TCB 放在同步对象的等待队列。事件发生后，由其他线程/中断把它移到 ready 集合，状态变为 READY；不能直接假定立即 RUNNING。
+    - 旧机器 idle 线程空转；现代 idle 循环执行特权低功耗睡眠指令，等待中断唤醒。中断处理后若有线程转 READY，调度它；否则继续 idle。
+    - 单核中主线程进入 READY 的最少次数为 2：初始创建后一次；让子线程运行而被抢占/让出后再次进入一次。所有子线程可一次性全部完成，再恢复主线程。
+  - title: 4.7 结合内核线程与单线程用户进程
+    source_heading: 4.7 结合内核线程与单线程用户进程
+    paragraphs:
+    - 内核代码通常避免浮点运算，因此纯内核线程切换可不保存浮点寄存器。不同用户进程/线程可能使用浮点与 SIMD，切换用户执行流时必须保存/恢复其完整状态。
+    - 实现变体。 历史系统曾使用“惰性浮点保存”：先不保存，下一线程首次用浮点时异常，再切状态。现代安全和侧信道考虑、扩展状态复杂度会影响具体策略。
+    - 硬件在当前栈压入 PC 和 flags，不需保存/更换 SP，因为 handler 继续使用当前内核栈。
+    - 若返回前后权限级相同，只恢复 PC/flags 并继续当前栈；若权限不同，还恢复保存的 SP，切回用户栈。
+  - title: 4.8 实现多线程进程
+    source_heading: 4.8 实现多线程进程
+    paragraphs:
+    - handler 可在运行库修改 ready 队列一半时到达，必须像内核屏蔽中断一样暂时屏蔽 signal；还要遵守异步信号安全，正确处理嵌套信号、系统调用重启和
+      FPU 状态。
+    - 自旋适合等待极短且有空闲 CPU；单核或长等待只浪费时间。正确实现需要原子状态和内存顺序，避免“检查未完成后，目标退出，但调用者尚未登记等待”造成丢失唤醒。
+    - 应用启动时创建约等于可用处理器数的内核线程。每个内核线程运行用户调度器：从共享用户 ready 集合取 green thread 并执行。
+    - Scheduler activation 是内核在影响用户线程调度的事件发生时，主动 upcall 用户调度器。upcall 不像普通 signal handler
+      最终返回原点，而是直接完成用户线程挂起/恢复。
+  - title: 4.10 总结与未来方向
+    source_heading: 4.10 总结与未来方向
+    paragraphs:
+    - 无论 API 是 pthread、Java thread、任务还是协程，若存在共享可变状态，都必须明确同步和生命周期。速度不可预测假设迫使设计摆脱偶然时序依赖。
+    - 70 年代末 Alto OS 从头以线程构建，并展示位图显示、菜单、窗口、鼠标、以太网与电子邮件等现代个人计算技术。本书线程方法大量借鉴该项目经验。
+    - 90 年代客户端—服务器推动 Windows NT、Solaris、Linux 等以线程为基础的新系统。到 90 年代末 OS X 出现后，主要商业 OS
+      均基于线程。POSIX 线程从 1995 年开始标准化，Java 等语言也内建线程构造。
+    - 一些著名研究者认为普通程序员应尽量避免线程：共享内存线程太难正确，而多数场景有更安全替代方案。即使不同意，也应认真吸收其警告：减少共享、使用结构化并发、消息传递、事件或数据并行，往往比裸线程更易维护。
+  - title: 章末练习详解
+    source_heading: 章末练习详解
+    paragraphs:
+    - 以下按章末题目顺序给出分析、程序和推导。示例使用 POSIX C，可在 Linux、macOS 或 WSL 编译；当前环境没有 C 编译器，因此未做本地运行验证。
+    - 如果输入响应很慢，可能原因包括 CPU 调度策略、计数线程实时优先级、stdout 锁竞争或机器过载。普通优先级线程不应永久饿死输入线程，但响应时间没有严格实时上限。
+    - 即使变量位于寄存器，线程暂停时其值也会保存到该线程 TCB/栈，仍是逻辑私有。只有把变量地址发布给其他线程后，其他线程才可能通过共享地址空间访问它；这会引入生命周期风险。
+    - 最少为 0：主线程创建完子线程后，在第一次 join 前被抢占；所有子线程全部结束；主线程恢复后，每次 join 都立即返回，不进入 WAITING。
+  - title: 复习检查清单
+    source_heading: 复习检查清单
+    paragraphs:
+    - 能解释 create/yield/join/exit 作为异步过程调用 API；
+    - 能画出 INIT、READY、RUNNING、WAITING、FINISHED 状态图；
+    - 能解释 idle 线程和三种 current TCB 定位方法；
+    - 能说明新线程为什么需要 stub 和 dummy switch frame；
+  takeaways:
+  - 编译命令适用于 Linux、macOS 或 WSL；当前环境没有 C/C++ 编译器，因此未做本地运行验证。
+  - 中断处理程序虽是一条从头到尾的顺序指令流，却不是独立可调度任务：它由硬件事件触发，而非调度器选择；通常运行至完成或被更高优先级中断。因此不满足线程定义的第二部分。
+  - 若返回前后权限级相同，只恢复 PC/flags 并继续当前栈；若权限不同，还恢复保存的 SP，切回用户栈。
+  - 一些著名研究者认为普通程序员应尽量避免线程：共享内存线程太难正确，而多数场景有更安全替代方案。即使不同意，也应认真吸收其警告：减少共享、使用结构化并发、消息传递、事件或数据并行，往往比裸线程更易维护。
+  - 能说明新线程为什么需要 stub 和 dummy switch frame；
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念辨析
+  question: 原文如何解释「易混淆概念与常见误解」？
+  answer: 普通 pthread 代码主要在用户态执行，但每条线程通常仍有内核调度实体。纯 green thread 则对内核不可见。
+  source_heading: 易混淆概念与常见误解
+- level: 边界判断
+  question: 原文如何解释「4.2 线程抽象（Thread Abstraction）」？
+  answer: 线程数可远多于物理 CPU。调度器维护 READY 线程集合：暂停 CPU 上的线程，保存状态并移入 READY；再选择另一 READY 线程，把保存状态加载到
+    CPU，转为 RUNNING。
+  source_heading: 4.2 线程抽象（Thread Abstraction）
+- level: 关系解释
+  question: 原文如何解释「4.5 线程生命周期」？
+  answer: 具备运行条件但尚未占用 CPU。寄存器保存在 TCB/栈，TCB 位于 ready 数据结构。原书沿用“ready list”名称，实际常是优先队列或多级队列。
+  source_heading: 4.5 线程生命周期
+- level: 关系解释
+  question: 原文如何解释「4.10 总结与未来方向」？
+  answer: 90 年代客户端—服务器推动 Windows NT、Solaris、Linux 等以线程为基础的新系统。到 90 年代末 OS X 出现后，主要商业
+    OS 均基于线程。POSIX 线程从 1995 年开始标准化，Java 等语言也内建线程构造。
+  source_heading: 4.10 总结与未来方向
+- level: 概念复述
+  question: 原文如何解释「复习检查清单」？
+  answer: 能画出 INIT、READY、RUNNING、WAITING、FINISHED 状态图；
+  source_heading: 复习检查清单

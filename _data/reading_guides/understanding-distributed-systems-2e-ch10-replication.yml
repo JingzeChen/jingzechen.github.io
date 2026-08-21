@@ -1,0 +1,149 @@
+source:
+  post: _posts/book-notes/distributed-system/understanding-distributed-system/2026-08-16-understanding-distributed-systems-2e-ch10-replication.md
+  body_sha256: 40c85e61383f093ae0575c369bd644e5a37d81d2cf5f84bf891588fcd545d452
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 8
+  question: 原文围绕「0. 本章定位：复制数据容易，让副本表现成一份数据很难」建立了怎样的核心认识？
+  question_source: 0. 本章定位：复制数据容易，让副本表现成一份数据很难
+  thesis: PACELC 指出正常无分区时也有 latency 与 consistency 权衡。 本质是 coordination tax。
+  thesis_source: 27. 核心结论
+  concepts:
+  - term: 0. 本章定位：复制数据容易，让副本表现成一份数据很难
+    meaning: 复制后，客户端可切换到仍存活副本。冗余把单节点故障从“数据不可访问”变成“需要故障检测与切换”。
+    source_heading: 0. 本章定位：复制数据容易，让副本表现成一份数据很难
+  - term: 5. 新 leader 为什么必须日志足够新
+    meaning: 注意：单靠“最后 entry 比较”这句话不足以独立证明全部性质，完整证明还依赖 election restriction 与 log matching；这里给出原章层级直觉。
+    source_heading: 5. 新 leader 为什么必须日志足够新
+  - term: 12. Strong consistency / Linearizability
+    meaning: 原章把 strong consistency 等同 linearizability。行业中 strong 有时泛指多种较强模型；技术讨论最好直接说
+      linearizable，并说明对象/事务范围。
+    source_heading: 12. Strong consistency / Linearizability
+  - term: 16. CAP theorem
+    meaning: 网络分区不可由软件彻底禁止，所以发生 P 时实际是在 C 与 A 之间选择。无 partition 时，系统可以同时 consistent
+      且 available，但仍有 latency 与故障概率。
+    source_heading: 16. CAP theorem
+  - term: 21. Chain 为什么容易推理
+    meaning: write commit 必须到达 tail，因此必经全部 chain nodes。相比 quorum replication 中 committed
+      write 只存在于某 subset，chain 对故障恢复的可能状态更少。
+    source_heading: 21. Chain 为什么容易推理
+  - term: 28. 从本章提炼出的通用解题方法
+    meaning: 本章最重要的方法论是：复制协议决定状态怎样安全收敛，一致性模型决定客户端允许看到什么；只有把内部 commit 机制与外部观察语义同时说清，才能真正理解一个
+      replicated system。
+    source_heading: 28. 从本章提炼出的通用解题方法
+  logic:
+  - 0. 本章定位：复制数据容易，让副本表现成一份数据很难
+  - 5. 新 leader 为什么必须日志足够新
+  - 9.3 代码边界
+  - 16. CAP theorem
+  - 18.4 为什么强一致
+  - 24.1 Data plane
+  - 28. 从本章提炼出的通用解题方法
+  sections:
+  - title: 0. 本章定位：复制数据容易，让副本表现成一份数据很难
+    source_heading: 0. 本章定位：复制数据容易，让副本表现成一份数据很难
+    paragraphs:
+    - 复制后，客户端可切换到仍存活副本。冗余把单节点故障从“数据不可访问”变成“需要故障检测与切换”。
+    - 新 leader 是否包含已承诺数据；
+    - 读从 leader 还是 follower 返回；
+    - 因此复制的核心不是存储多份字节，而是在故障和并发下定义并维护副本的可观察语义。
+  - title: 3.1 为什么先写日志，不立即执行
+    source_heading: 3.1 为什么先写日志，不立即执行
+    paragraphs:
+    - appended：写入某节点日志；
+    - replicated：出现在多个节点日志；
+    - committed：协议保证不会被未来 leader 丢弃；
+    - applied：状态机已经执行该 command。
+  - title: 5. 新 leader 为什么必须日志足够新
+    source_heading: 5. 新 leader 为什么必须日志足够新
+    paragraphs:
+    - 只需要多数即可 commit，所以某些 followers 可能落后。leader 崩溃时若选出落后 follower，它可能缺少 committed
+      entries。
+    - 若 lastLogTerm 相同，lastLogIndex 更大者更新。
+    - 交集 voter 拥有 committed entry，并拒绝日志比自己旧的 candidate。结合 Raft 日志性质，获胜者不会缺少 committed
+      prefix。
+    - 注意：单靠“最后 entry 比较”这句话不足以独立证明全部性质，完整证明还依赖 election restriction 与 log matching；这里给出原章层级直觉。
+  - title: 9.3 代码边界
+    source_heading: 9.3 代码边界
+    paragraphs:
+    - command 只是“把 state_value 设为 value”；
+    - 只模拟一个 entry 和当前 term 的 majority commit；
+    - 假设 AppendEntries 来自合法 current leader，且被截断 suffix 全部未 committed；
+    - 没有磁盘原子性、term 更新、vote、snapshot、membership change；
+  - title: 12. Strong consistency / Linearizability
+    source_heading: 12. Strong consistency / Linearizability
+    paragraphs:
+    - 写的 linearization point 位于调用和返回之间；在点之前的 read 可见 1，点之后开始/生效的 read 应可见 3。
+    - leader 成为读瓶颈，网络往返增加 tail latency。这是 consistency 的 coordination tax。
+    - 原章把 strong consistency 等同 linearizability。行业中 strong 有时泛指多种较强模型；技术讨论最好直接说 linearizable，并说明对象/事务范围。
+    - Linearizability 是单对象操作的最强常用实时一致性；多对象事务还需要 serializability 等执行隔离概念，二者维度不同。
+  - title: 16. CAP theorem
+    source_heading: 16. CAP theorem
+    paragraphs:
+    - CAP 的 availability 不是日常 uptime 百分比；慢到最终返回在形式上仍可能“available”，返回错误则不算。
+    - 若两边都接受冲突写，无法保证 single-copy linearizability；若只允许有权一侧工作，另一侧请求必须失败/等待，牺牲 CAP availability。
+    - 网络分区不可由软件彻底禁止，所以发生 P 时实际是在 C 与 A 之间选择。无 partition 时，系统可以同时 consistent 且 available，但仍有
+      latency 与故障概率。
+    - consistency 指 linearizability，不是所有一致性；
+  - title: 18.4 为什么强一致
+    source_heading: 18.4 为什么强一致
+    paragraphs:
+    - 所有 write 由 head 排序；
+    - 每个 write 按相同链顺序传播；
+    - 所有 read 由 tail 返回。
+    - 因此 read 不会跳过已确认 write，操作可在 tail 处理点 linearize。
+  - title: 21. Chain 为什么容易推理
+    source_heading: 21. Chain 为什么容易推理
+    paragraphs:
+    - write commit 必须到达 tail，因此必经全部 chain nodes。相比 quorum replication 中 committed
+      write 只存在于某 subset，chain 对故障恢复的可能状态更少。
+    - 这不是说实现简单到没有边界；配置切换、重放、并发 reconfiguration 仍需严格协议。但拓扑将数据路径约束为一条线，减少组合。
+  - title: 24.1 Data plane
+    source_heading: 24.1 Data plane
+    paragraphs:
+    - tail 或 CRAQ replicas 读；
+    - 目标是 throughput 与 latency。
+  - title: 28. 从本章提炼出的通用解题方法
+    source_heading: 28. 从本章提炼出的通用解题方法
+    paragraphs:
+    - 为 appended、replicated、committed、applied、client-visible 分别记录 index/指标。不要把“写到
+      follower”误报成“已提交”。
+    - 写出 cluster size、majority、交集和 leader election restriction；检查 crash-recovery 后
+      term/vote/log 是否持久。
+    - 计算 write 等 fastest quorum 还是 all chain nodes，read 是否需协调，最慢副本如何影响 tail latency，故障前是否能继续。
+    - 本章最重要的方法论是：复制协议决定状态怎样安全收敛，一致性模型决定客户端允许看到什么；只有把内部 commit 机制与外部观察语义同时说清，才能真正理解一个
+      replicated system。
+  takeaways:
+  - 复制提高可用性与读取容量，但真正困难是故障下保持可定义的一致性。
+  - 当前 term entry 获多数后可直接 commit。 旧 term entry 随当前 term entry 提交而间接 committed。
+  - Linearizability 要求原子点位于调用区间并保持 real-time order。 Presumed leader 读前必须确认领导权。
+  - Chain replication 让 writes 从 head 走到 tail，ACK 反向返回，reads 由 tail 服务。 Tail 是 commit/linearization
+    点。
+  - Chain replication 没有消灭 consensus。 它把拓扑协调移到低频 control plane，减少每请求协调。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念辨析
+  question: 原文如何解释「25.1 Replicated、committed、applied」？
+  answer: 某 entry 在一个 follower 上 replicated 不代表 committed；committed 不代表每个 follower
+    已 applied；客户端可见性取决于读路径和 consistency model。
+  source_heading: 25.1 Replicated、committed、applied
+- level: 概念辨析
+  question: 原文如何解释「25.4 Consensus 与 replication」？
+  answer: consensus 决定一个值；SMR 反复运行有序 consensus 决定命令日志；replication 还包括状态传输、apply 和读取语义。
+  source_heading: 25.4 Consensus 与 replication
+- level: 概念辨析
+  question: 原文如何解释「25.6 Sequential consistency 与 eventual consistency」？
+  answer: sequential consistency 要所有 observer 认可一个保持程序顺序的全局顺序；eventual 仅承诺停止写后最终收敛，不自动给共同中间顺序。
+  source_heading: 25.6 Sequential consistency 与 eventual consistency
+- level: 概念辨析
+  question: 原文如何解释「25.9 Chain tail 与 Raft follower」？
+  answer: tail 是 chain 的 commit/read 端点，不是普通滞后 follower。正常强读只从 tail，正因为所有 committed
+    writes 到此排序。
+  source_heading: 25.9 Chain tail 与 Raft follower
+- level: 概念辨析
+  question: 原文如何解释「25.11 能否完全不用 consensus」？
+  answer: 原章结尾提出下一步问题：是否能在不使用 consensus 的情况下复制数据、进一步减少协调？Chain replication 只是把 consensus
+    移到 control plane，并未消除它。下一章将从 coordination avoidance 继续探索这个问题。
+  source_heading: 25.11 能否完全不用 consensus

@@ -15,6 +15,8 @@ script_includes:
 {% assign post_words = content | strip_html | number_of_words: 'auto' %}
 {% assign post_read_time = post_words | divided_by: 180 %}
 {% if post_read_time < 1 %}{% assign post_read_time = 1 %}{% endif %}
+{% assign learning_guide = site.data.reading_guides[page.uid] %}
+{% assign learning_guide_kind = learning_guide.overview.kind | default: 'summary' %}
 {% assign post_long_read = false %}
 {% if post_read_time > 30 %}{% assign post_long_read = true %}{% endif %}
 {% assign post_ultra_long = false %}
@@ -27,6 +29,7 @@ script_includes:
   data-read-minutes="{{ post_read_time }}"
   data-toc-items="{{ page.garden_toc_items }}"
   data-ultra-long="{{ post_ultra_long }}"
+  {% if learning_guide %}data-learning-guide="true"{% endif %}
 >
   <header>
     <h1 data-toc-skip>{{ page.title }}</h1>
@@ -142,8 +145,139 @@ script_includes:
     </dialog>
   {% endif %}
 
+  {% if learning_guide %}
+    <section class="learning-mode-picker" aria-labelledby="learning-mode-title">
+      <div>
+        <p class="garden-kicker">分层阅读</p>
+        <h2 id="learning-mode-title" data-toc-skip>选择阅读深度</h2>
+        <p>先读完整总结建立脉络，再深入全部细节，最后用问题检验理解。</p>
+      </div>
+      <div class="learning-mode-tabs" role="tablist" aria-label="阅读模式">
+        <button
+          id="learning-tab-overview"
+          type="button"
+          role="tab"
+          aria-selected="true"
+          aria-controls="learning-panel-overview"
+          data-learning-mode="overview"
+        >
+          <i class="fas fa-bolt" aria-hidden="true"></i>
+          <span>总结<small>{{ learning_guide.overview.minutes }} 分钟</small></span>
+        </button>
+        <button
+          id="learning-tab-detail"
+          type="button"
+          role="tab"
+          aria-selected="false"
+          aria-controls="learning-panel-detail"
+          data-learning-mode="detail"
+          tabindex="-1"
+        >
+          <i class="fas fa-book-open" aria-hidden="true"></i>
+          <span>深读<small>{{ post_read_time }} 分钟</small></span>
+        </button>
+        <button
+          id="learning-tab-check"
+          type="button"
+          role="tab"
+          aria-selected="false"
+          aria-controls="learning-panel-check"
+          data-learning-mode="check"
+          tabindex="-1"
+        >
+          <i class="fas fa-circle-question" aria-hidden="true"></i>
+          <span>检验<small>{{ learning_guide.checks.size }} 道题</small></span>
+        </button>
+      </div>
+    </section>
+
+    <section
+      id="learning-panel-overview"
+      class="learning-panel learning-overview"
+      role="tabpanel"
+      aria-labelledby="learning-tab-overview"
+      data-learning-panel="overview"
+    >
+      <header class="learning-overview-lead">
+        <p class="learning-eyebrow">
+          {% if learning_guide_kind == 'index' %}导览版 · 本页说明{% else %}总结版 · 本章要回答{% endif %}
+        </p>
+        <h2 data-toc-skip>{{ learning_guide.overview.question | escape }}</h2>
+        <p>{{ learning_guide.overview.thesis | escape }}</p>
+      </header>
+
+      {% if learning_guide.overview.logic.size > 0 %}
+        <section aria-labelledby="learning-logic-title">
+          <h3 id="learning-logic-title" data-toc-skip>全文脉络</h3>
+          <ol class="learning-logic">
+            {% for step in learning_guide.overview.logic %}
+              <li>{{ step | escape }}</li>
+            {% endfor %}
+          </ol>
+        </section>
+      {% endif %}
+
+      <section class="learning-summary" aria-labelledby="learning-summary-title">
+        <header>
+          <h3 id="learning-summary-title" data-toc-skip>
+            {% if learning_guide_kind == 'index' %}页面摘要{% else %}全章总结{% endif %}
+          </h3>
+          <p>
+            {% if learning_guide_kind == 'index' %}
+              概括本页的阅读目标、组织方式与导航范围。
+            {% else %}
+              保留原文的核心解释与因果关系，省略公式、代码和延伸细节。
+            {% endif %}
+          </p>
+        </header>
+        <div class="learning-summary-sections">
+          {% for summary_section in learning_guide.overview.sections %}
+            <article class="learning-summary-section">
+              <span aria-hidden="true">{{ forloop.index | prepend: '0' | slice: -2, 2 }}</span>
+              <div>
+                <h4 data-toc-skip>{{ summary_section.title | escape }}</h4>
+                {% for paragraph in summary_section.paragraphs %}
+                  <p>{{ paragraph | escape }}</p>
+                {% endfor %}
+              </div>
+            </article>
+          {% endfor %}
+        </div>
+      </section>
+
+      {% if learning_guide.overview.concepts.size > 0 %}
+        <section aria-labelledby="learning-concepts-title">
+          <h3 id="learning-concepts-title" data-toc-skip>核心概念索引</h3>
+          <dl class="learning-concepts">
+            {% for concept in learning_guide.overview.concepts %}
+              <div>
+                <dt>{{ concept.term | escape }}</dt>
+                <dd>{{ concept.meaning | escape }}</dd>
+              </div>
+            {% endfor %}
+          </dl>
+        </section>
+      {% endif %}
+
+      {% if learning_guide.overview.takeaways.size > 0 %}
+        <section aria-labelledby="learning-takeaways-title">
+          <h3 id="learning-takeaways-title" data-toc-skip>核心结论</h3>
+          <ul class="learning-takeaways">
+            {% for takeaway in learning_guide.overview.takeaways %}
+              <li>{{ takeaway | escape }}</li>
+            {% endfor %}
+          </ul>
+        </section>
+      {% endif %}
+    </section>
+  {% endif %}
+
   {% if post_ultra_long and page.garden_h2_headings.size > 0 %}
-    <section class="chapter-overview" aria-labelledby="chapter-overview-title">
+    <section
+      class="chapter-overview"
+      aria-labelledby="chapter-overview-title"
+      {% if learning_guide %}data-learning-detail-only hidden{% endif %}
+    >
       <div>
         <p class="garden-kicker">Ultra-long note</p>
         <h2 id="chapter-overview-title" data-toc-skip>Chapter overview</h2>
@@ -176,13 +310,57 @@ script_includes:
   </nav>
 
   <div
-    class="content"
+    class="content{% if learning_guide %} learning-panel{% endif %}"
     {% if page.type == 'podcast' %}
       id="podcast-summary"
+    {% elsif learning_guide %}
+      id="learning-panel-detail"
+      role="tabpanel"
+      aria-labelledby="learning-tab-detail"
+      data-learning-panel="detail"
+      hidden
     {% endif %}
   >
     {{ content }}
   </div>
+
+  {% if learning_guide %}
+    <section
+      id="learning-panel-check"
+      class="learning-panel learning-check"
+      role="tabpanel"
+      aria-labelledby="learning-tab-check"
+      data-learning-panel="check"
+      hidden
+    >
+      <header>
+        <p class="learning-eyebrow">主动回忆</p>
+        <h2 data-toc-skip>先回答，再看参考思路</h2>
+        <p>{{ learning_guide.check_intro | escape }}</p>
+      </header>
+      <ol class="learning-check-list">
+        {% for check in learning_guide.checks %}
+          <li>
+            <article>
+              <p class="learning-check-level">{{ check.level | escape }}</p>
+              <h3 data-toc-skip>{{ check.question | escape }}</h3>
+              {% if check.hint %}<p class="learning-check-hint">提示：{{ check.hint | escape }}</p>{% endif %}
+              <details>
+                <summary>查看参考思路</summary>
+                <p>{{ check.answer | escape }}</p>
+              </details>
+            </article>
+          </li>
+        {% endfor %}
+      </ol>
+    </section>
+    <noscript>
+      <style>
+        [data-learning-panel][hidden] { display: block !important; }
+        [data-learning-detail-only][hidden] { display: grid !important; }
+      </style>
+    </noscript>
+  {% endif %}
 
   {% include garden-series-nav.html %}
   {% include garden-connections.html %}

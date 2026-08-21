@@ -1,0 +1,155 @@
+source:
+  post: _posts/book-notes/distributed-system/understanding-distributed-system/2026-08-16-understanding-distributed-systems-2e-ch26-fault-isolation.md
+  body_sha256: 3ecf7c031602d4f521dcbecdc078408d01dbf6d8e7cb558896fe124746452aba
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 10
+  question: 原文围绕「0. 本章定位：冗余应对“某个副本坏了”，隔离应对“同一种输入能打坏所有副本”」建立了怎样的核心认识？
+  question_source: 0. 本章定位：冗余应对“某个副本坏了”，隔离应对“同一种输入能打坏所有副本”
+  thesis: Bounded cells 用 stranded capacity/运营复杂度换 predictability、benchmarkability
+    和 fault containment。
+  thesis_source: 23. 核心结论
+  concepts:
+  - term: 0. 本章定位：冗余应对“某个副本坏了”，隔离应对“同一种输入能打坏所有副本”
+    meaning: Redundancy 对 infrastructure fault 很有效：一台机器的 memory、disk 或 NIC 故障时，其他机器可接管。但如果
+      fault 的原因存在于所有副本共享的 code、configuration、dependency 或 workload 中，复制更多副本不会消除风险。
+    source_heading: 0. 本章定位：冗余应对“某个副本坏了”，隔离应对“同一种输入能打坏所有副本”
+  - term: 5. Figure 26.1：6 instances、3 partitions
+    meaning: Users 被永久分配到一个 P。Figure 26.1 中 A/B/C 分别只访问各自 partition 的两个 instances。
+    source_heading: 5. Figure 26.1：6 instances、3 partitions
+  - term: 10. Shuffle shard mapping 如何实现
+    meaning: 异构 nodes 不应等概率。可用 weighted rendezvous 或 virtual tokens，让高 capacity node
+      获得更多 assignments，同时监控 assignment count/work。
+    source_heading: 10. Shuffle shard mapping 如何实现
+  - term: 12. 26.2 Cellular architecture
+    meaning: 可共享 global control plane、DNS、identity 或 artifacts，但它们会形成 common-mode
+      risk。应支持 static stability、replication、staged rollout 和 bounded blast radius。
+    source_heading: 12. 26.2 Cellular architecture
+  - term: 17.5 示例局限
+    meaning: 无 gateway、state migration 和 shared dependencies；
+    source_heading: 17.5 示例局限
+  - term: 24. 一般化的解决问题方法
+    meaning: Fault-domain-aware subset、mapping epoch、渐进 remap、per-shard/cell metrics
+      和 blast-radius drills 缺一不可。
+    source_heading: 24. 一般化的解决问题方法
+  logic:
+  - 0. 本章定位：冗余应对“某个副本坏了”，隔离应对“同一种输入能打坏所有副本”
+  - 5. Figure 26.1：6 instances、3 partitions
+  - 7. 26.1 Shuffle sharding
+  - 12. 26.2 Cellular architecture
+  - 15. 固定 cell 最大容量
+  - 21. 作者如何形成解决思路
+  - 24. 一般化的解决问题方法
+  sections:
+  - title: 0. 本章定位：冗余应对“某个副本坏了”，隔离应对“同一种输入能打坏所有副本”
+    source_heading: 0. 本章定位：冗余应对“某个副本坏了”，隔离应对“同一种输入能打坏所有副本”
+    paragraphs:
+    - Redundancy 对 infrastructure fault 很有效：一台机器的 memory、disk 或 NIC 故障时，其他机器可接管。但如果
+      fault 的原因存在于所有副本共享的 code、configuration、dependency 或 workload 中，复制更多副本不会消除风险。
+    - Fault isolation：限制某个 fault 能接触和损坏的副本、用户与依赖集合。
+    - Shuffle sharding：用同一组 stateless instances 构造大量小而永久的用户子集；
+    - Cellular architecture：连同 LB、compute、storage 等 dependencies 一起切开，获得更完整的 failure
+      containment。
+  - title: 2. Poison pills
+    source_heading: 2. Poison pills
+    paragraphs:
+    - 某用户发送 malformed requests，故意或无意触发 server bug 并 crash。这类 requests 常称 poison pills。
+    - 如果 client/LB 没有 idempotency、error classification 和 retry budget，resilience mechanism
+      反而传播 fault。
+    - Chapter 23 的 poison message 在 consumer 中反复失败，最终进 DLQ；本章 poison pill 是能让 serving
+      process crash/degrade 的 request。共同点是输入确定性触发 fault，处理策略都应隔离 source/payload，而非无限重试。
+    - 隔离只减 blast radius，不应成为不修 parser bug 的借口。
+  - title: 5. Figure 26.1：6 instances、3 partitions
+    source_heading: 5. Figure 26.1：6 instances、3 partitions
+    paragraphs:
+    - Users 被永久分配到一个 P。Figure 26.1 中 A/B/C 分别只访问各自 partition 的两个 instances。
+    - Shuffle sharding 就是为了降低“完全共享同一 failure fate”的概率。
+  - title: 7. 26.1 Shuffle sharding
+    source_heading: 7. 26.1 Shuffle sharding
+    paragraphs:
+    - Physical partition 中两个 users 要么完全不重叠，要么完全共享同一组 instances。落到 degraded partition
+      的无辜 users 全部受影响。
+    - Random：不同 users 大概率获得不同组合；permanent：一个 user 的所有 requests/retries 保持在同一 subset，保留隔离。
+    - 不需要把 instances 物理切成互斥 groups。同一 instance 可属于多个 user shards；virtual partition
+      是 routing mapping，不是独占机器组。
+    - Users A/C 部分重叠 instance 1，却仍各有一个不同 fallback。
+  - title: 10. Shuffle shard mapping 如何实现
+    source_heading: 10. Shuffle shard mapping 如何实现
+    paragraphs:
+    - 可用 rendezvous hashing/伪随机 permutation。原章只规定 random but permanent，没有指定算法。
+    - 需要 mapping epoch、gradual migration、old/new overlap、slow start 和 bounded remapping。
+    - Randomness 不能替代 placement constraints。
+    - 异构 nodes 不应等概率。可用 weighted rendezvous 或 virtual tokens，让高 capacity node 获得更多
+      assignments，同时监控 assignment count/work。
+  - title: 12. 26.2 Cellular architecture
+    source_heading: 12. 26.2 Cellular architecture
+    paragraphs:
+    - Each cell completely independent of others；gateway 负责 route 到正确 cell。
+    - 好 dimension 应让请求和 state 尽量 cell-local，并限制 correlated fault。
+    - 如果一个 tenant 独占 cell，其 blast radius 可降至该 tenant；但成本较高。
+    - 可共享 global control plane、DNS、identity 或 artifacts，但它们会形成 common-mode risk。应支持
+      static stability、replication、staged rollout 和 bounded blast radius。
+  - title: 15. 固定 cell 最大容量
+    source_heading: 15. 固定 cell 最大容量
+    paragraphs:
+    - 既然 production 不超过已测 envelope，就减少无限 scale-up 碰到 hidden brick wall 的风险。
+    - 还需 spare cell/headroom 支持 cell fault、migration 和 growth。
+    - 满足 QPS 上限但超过 data/tenant metadata 上限，仍可能 brick wall。
+    - Bounded cell 用资源利用率换 predictability 和 isolation。
+  - title: 17.5 示例局限
+    source_heading: 17.5 示例局限
+    paragraphs:
+    - 所有 virtual shards 等概率，未模拟 user traffic skew；
+    - 无 LB health detection、retry 和 capacity；
+    - 无 gateway、state migration 和 shared dependencies；
+    - 因此程序验证组合学和静态 blast radius，不预测生产 availability。
+  - title: 21. 作者如何形成解决思路
+    source_heading: 21. 作者如何形成解决思路
+    paragraphs:
+    - Poison pill 让 server crash，noisy neighbor 让所有 users变慢；共同问题是用户可触达整个 application。
+    - 按 user 固定 partition 后，一人只能影响一部分。Figure 26.1 用 3 partitions 把 blast radius 降至
+      33%。
+    - Shuffle mapping 单独不处理 node fault；health ejection + shard-local retry 才利用另一个不同节点。
+    - Storage cluster/stamp 就是 cell，accounts 由 Location Service 分配，证明 cellular pattern
+      已实际出现。
+  - title: 24. 一般化的解决问题方法
+    source_heading: 24. 一般化的解决问题方法
+    paragraphs:
+    - Identity 到 isolation domain 的 mapping 必须永久、可信、版本化；随机 per-request routing 会传播
+      fault。
+    - Virtual combinations 可指数/组合增长，CPU 仍固定。每个 degraded shard/cell必须通过容量测试。
+    - Retry 只在 assigned subset 内，配合健康摘除、deadline、idempotency 和 budget，避免 poison传播。
+    - Fault-domain-aware subset、mapping epoch、渐进 remap、per-shard/cell metrics 和 blast-radius
+      drills 缺一不可。
+  takeaways:
+  - Redundancy 无法单独容忍同 code、input、config 或 workload 引起的高相关 failure。
+  - Figure 26.1 的 6 instances/3 physical partitions 将理论 blast radius 从 100% 降至约 33%。
+  - 指定两 nodes 同时 fail 时 shuffle 仅 1/15 shards 全 down，而相应 physical pair 影响 1/3 users。
+  - Gateway 负责 stable cell mapping，但自身和 shared control dependencies 是 common-mode
+    risk。
+  - Physical partition、shuffle sharding 和 cells 可组合，不是互斥方案。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念辨析
+  question: 原文如何解释「18.1 Fault isolation 与 redundancy」？
+  answer: Redundancy 提供替代副本；isolation 限制 fault 能影响哪些副本/用户。一个保证接管，一个限制传播。
+  source_heading: 18.1 Fault isolation 与 redundancy
+- level: 概念辨析
+  question: 原文如何解释「18.7 Exact overlap 与 any overlap」？
+  answer: 原章优势是 fully overlap 更少，不是所有 overlap 都少。示例 any overlap 60%，exact overlap
+    仅 6.67%。
+  source_heading: 18.7 Exact overlap 与 any overlap
+- level: 概念辨析
+  question: 原文如何解释「19.1 “跨 region 冗余能防所有 poison request”」？
+  answer: 同 code bug 会在所有 regions 触发。必须限制用户能触达的 isolation domain。
+  source_heading: 19.1 “跨 region 冗余能防所有 poison request”
+- level: 概念辨析
+  question: 原文如何解释「19.7 “单 node fault 不影响其他 users”」？
+  answer: 包含该 node 的 5/15 shards 都 degraded，只是 shard size 2 时不全 down。
+  source_heading: 19.7 “单 node fault 不影响其他 users”
+- level: 概念辨析
+  question: 原文如何解释「19.13 “Gateway mapping 只是缓存，可丢”」？
+  answer: 错误 mapping 会跨 cell 路由并破坏 isolation，是 correctness/security state，需要版本和 LKG。
+  source_heading: 19.13 “Gateway mapping 只是缓存，可丢”

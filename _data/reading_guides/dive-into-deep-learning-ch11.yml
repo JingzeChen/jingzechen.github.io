@@ -1,0 +1,150 @@
+source:
+  post: _posts/book-notes/deep-learning/dive-into-deep-learning/2026-08-12-dive-into-deep-learning-ch11.md
+  body_sha256: c93fbdc33e1e946dfdec7af40ef9245272b627338c73f85015000b8ef10a8cf4
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 9
+  question: 原文围绕「1. 本章要解决的核心问题」建立了怎样的核心认识？
+  question_source: 1. 本章要解决的核心问题
+  thesis: Nadaraya–Watson 回归说明注意力的统计本质：按 query-key 相似度对 values 做局部平滑。
+  thesis_source: 15. 核心结论与解决问题的一般思路
+  concepts:
+  - term: 1. 本章要解决的核心问题
+    meaning: 注意力的初始想法很直接：不要要求解码器永远只读取同一个压缩向量，而应让它在每个生成步骤重新查看全部编码器表示，并动态选择当前最相关的部分。
+    source_heading: 1. 本章要解决的核心问题
+  - term: 4. 注意力评分函数
+    meaning: 但“经过 LayerNorm 后 key 范数必然完全相同”并不严格。LayerNorm 有可学习的逐维缩放和平移，投影后的 key 范数也会变化。点积注意力应理解为高效、可学习的相似度，而不是与欧氏距离始终严格等价。
+    source_heading: 4. 注意力评分函数
+  - term: 7.2 CNN、RNN 与 self-attention
+    meaning: 缺少 RNN 的天然顺序和 CNN 的局部归纳偏置。
+    source_heading: 7.2 CNN、RNN 与 self-attention
+  - term: 7.7 实现细节
+    meaning: d 为奇数时 sine/cosine 列数不一致；
+    source_heading: 7.7 实现细节
+  - term: 10. Transformer 的大规模预训练
+    meaning: Chain-of-thought prompting 通过中间推理示例引导模型生成步骤；self-consistency 对多个推理路径聚合；问题分解把复杂任务拆为子问题。它们能提高部分任务表现，但生成的文字推理不自动保证忠实反映模型内部因果过程，也不保证结论正确。
+    source_heading: 10. Transformer 的大规模预训练
+  - term: 15. 核心结论与解决问题的一般思路
+    meaning: 本章完成了一次从局部方法到通用架构的推演：核回归说明相似度加权为什么合理，scaled dot product 将其变成高效可学习算子，Bahdanau
+      attention 让 decoder 动态读取源序列，多头与 self-attention 将这一读取扩展为序列内部的并行关系建模，位置编码补回顺序，残差、LayerNorm
+      和 FFN 组成可堆叠的 Transformer；同一骨架再通过不同 mask、token 化方式和自监督目标，扩展到视觉、BERT、T5、GPT 与大规模多模态预训练。理解
+      Transformer 的关键不是背结构图，而是始终追问：谁在查询、能看见谁、如何汇总、形状怎样变化、代价在哪里。
+    source_heading: 15. 核心结论与解决问题的一般思路
+  logic:
+  - 1. 本章要解决的核心问题
+  - 4. 注意力评分函数
+  - 6. 多头注意力
+  - 7.7 实现细节
+  - 8. Transformer 架构
+  - 11. 可运行的综合 PyTorch 实验
+  - 15. 核心结论与解决问题的一般思路
+  sections:
+  - title: 1. 本章要解决的核心问题
+    source_heading: 1. 本章要解决的核心问题
+    paragraphs:
+    - 注意力的初始想法很直接：不要要求解码器永远只读取同一个压缩向量，而应让它在每个生成步骤重新查看全部编码器表示，并动态选择当前最相关的部分。
+    - 关键不是人工指定对应关系，而是把“选择什么”做成可微运算，与整个网络端到端学习。
+    - 把动态注意力接入 RNN encoder-decoder，解决固定上下文瓶颈；
+    - 通过不同可见性 mask，得到 encoder-only、encoder-decoder、decoder-only 三大范式。
+  - title: 3. 基于相似度的注意力池化
+    source_heading: 3. 基于相似度的注意力池化
+    paragraphs:
+    - 现代注意力通常学习 Q/K 表示，但“相似位置应该共享信息”并非新思想。Nadaraya–Watson 核回归用一个无需神经网络的例子，把 query、key、value
+      和权重关系展示得非常清楚。
+    - 实验观察：高斯、Boxcar、Epanechnikov 虽函数形状不同，但都形成相似的局部权重，拟合效果接近；常数核只输出训练标签均值，无法跟随曲线。
+    - 统一全局带宽也未必合理：稠密区域可用窄带宽，稀疏区域可能需要宽带宽。这一困难促使模型不再手工调核，而是学习 query/key 表示及评分函数。
+    - Nadaraya–Watson 优点：无需参数训练、直观、局部、在适当条件下一致。
+  - title: 4. 注意力评分函数
+    source_heading: 4. 注意力评分函数
+    paragraphs:
+    - 但“经过 LayerNorm 后 key 范数必然完全相同”并不严格。LayerNorm 有可学习的逐维缩放和平移，投影后的 key 范数也会变化。点积注意力应理解为高效、可学习的相似度，而不是与欧氏距离始终严格等价。
+    - 其注释说也将无效 value 置零，但实际代码只改 logits；这已足够使对应权重近似零。
+    - Attention mask 控制“能读什么”；loss mask 控制“在哪些位置计分”。即使 attention 正确屏蔽 padding，训练损失仍需单独排除
+      target padding。
+    - 它可视为对拼接后的 query/key 使用一个单隐藏层 MLP。Bahdanau attention 采用这一评分。
+  - title: 6. 多头注意力
+    source_heading: 6. 多头注意力
+    paragraphs:
+    - 单个 attention 用同一套投影和一张权重矩阵汇总所有关系，容易形成折中。多头注意力让 h 个 head 在不同子空间独立匹配。
+    - 不能简单把整个 batch 重复若干遍，否则 mask 与 head 对应样本错位。恢复热图时，权重从
+    - 平均注意力小的 head 仍通过 value/output 投影产生重要影响。
+    - 评估 head 重要性应做消融、验证集指标和真实延迟测试，不能只看热图或平均权重。
+  - title: 7.2 CNN、RNN 与 self-attention
+    source_heading: 7.2 CNN、RNN 与 self-attention
+    paragraphs:
+    - 权重根据内容动态生成，而非固定卷积核。
+    - 缺少 RNN 的天然顺序和 CNN 的局部归纳偏置。
+  - title: 7.7 实现细节
+    source_heading: 7.7 实现细节
+    paragraphs:
+    - d 为奇数时 sine/cosine 列数不一致；
+    - 增量解码时必须使用缓存长度作为位置 offset；
+  - title: 8. Transformer 架构
+    source_heading: 8. Transformer 架构
+    paragraphs:
+    - Pre-norm 给残差主路径提供更直接的梯度，深层训练通常更稳定；post-norm 是原始论文设计。两者不能只交换一行代码后假定训练行为完全相同。
+    - Source padding mask 屏蔽无效 keys，使真实 token 不读取 padding。它不会自动把 padding query 的输出置零；若后续使用这些位置，还需继续
+      mask。
+    - 注意“允许看到自身”不泄漏标签，因为 decoder 输入已右移：位置 t 的输入是前一个真实 token，预测的是下一个 token。
+    - 它让每个目标位置读取全部有效源位置。Cross-attention 使用 source padding mask，而不是 causal mask。
+  - title: 10. Transformer 的大规模预训练
+    source_heading: 10. Transformer 的大规模预训练
+    paragraphs:
+    - 原始 BERT 还有 next sentence prediction，判断句 B 是否紧随句 A；RoBERTa 研究表明该目标并非必要。后续变体包括参数共享、span
+      masking、知识蒸馏、replaced-token detection 等。
+    - 标准 causal attention 允许位置 t 读取自身和过去输入位置。之所以看不到待预测 token，是因为 label 已右移；不能把“mask
+      不允许未来”和“输入标签错位”混为一个机制。
+    - Chain-of-thought prompting 通过中间推理示例引导模型生成步骤；self-consistency 对多个推理路径聚合；问题分解把复杂任务拆为子问题。它们能提高部分任务表现，但生成的文字推理不自动保证忠实反映模型内部因果过程，也不保证结论正确。
+    - 原书列举 Gato、Flamingo、CLIP/DALL-E 2、Parti 等，说明同一注意力骨架可跨模态扩展。但“统一成 token”不表示模态差异消失；输入编码、位置结构、损失和数据配比仍需专门设计。
+  - title: 11. 可运行的综合 PyTorch 实验
+    source_heading: 11. 可运行的综合 PyTorch 实验
+    paragraphs:
+    - masked softmax 的归一化、padding 与全 mask 行；
+    - scaled dot-product 输出位于有效 values 的凸包内；
+    - 修改最后一个未来 token 不影响前三个 causal outputs；
+    - Encoder block 的 attention、FFN、residual 都保持模型宽度；
+  - title: 15. 核心结论与解决问题的一般思路
+    source_heading: 15. 核心结论与解决问题的一般思路
+    paragraphs:
+    - 加性 attention 可处理异维 query/key，Bahdanau 用 decoder state 动态查询 encoder sequence，打破固定
+      context 瓶颈。
+    - Transformer 用 attention 做 token mixing、FFN 做 channel mixing，再以 residual 与 LayerNorm
+      支撑深层训练。
+    - Fine-tuning 更新参数，in-context learning 只改变推理上下文；instruction tuning 和 RLHF 是额外对齐阶段。
+    - 本章完成了一次从局部方法到通用架构的推演：核回归说明相似度加权为什么合理，scaled dot product 将其变成高效可学习算子，Bahdanau
+      attention 让 decoder 动态读取源序列，多头与 self-attention 将这一读取扩展为序列内部的并行关系建模，位置编码补回顺序，残差、LayerNorm
+      和 FFN 组成可堆叠的 Transformer；同一骨架再通过不同 mask、token 化方式和自监督目标，扩展到视觉、BERT、T5、GPT 与大规模多模态预训练。理解
+      Transformer 的关键不是背结构图，而是始终追问：谁在查询、能看见谁、如何汇总、形状怎样变化、代价在哪里。
+  takeaways:
+  - Attention 是对 key-value 集合的 query 条件加权读取，输出数量由 queries 决定，输出宽度由 values 决定。
+  - 无位置的 self-attention 对排列等变；正弦编码用多频率表示绝对位置，并使固定相对位移可由二维旋转表示。
+  - 先写清任务信息流：当前输出可以看到哪些输入、过去和未来？
+  - 分开测试训练和推理：完整 teacher-forcing causal mask、单 token cache、EOS 和位置偏移都要验证。
+  - 本章完成了一次从局部方法到通用架构的推演：核回归说明相似度加权为什么合理，scaled dot product 将其变成高效可学习算子，Bahdanau attention
+    让 decoder 动态读取源序列，多头与 self-attention 将这一读取扩展为序列内部的并行关系建模，位置编码补回顺序，残差、LayerNorm
+    和 FFN 组成可堆叠的 Transformer；同一骨架再通过不同 mask、token 化方式和自监督目标，扩展到视觉、BERT、T5、GPT 与大规模多模态预训练。理解
+    Transformer 的关键不是背结构图，而是始终追问：谁在查询、能看见谁、如何汇总、形状怎样变化、代价在哪里。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念辨析
+  question: 原文如何解释「12.1 Query、key、value 是三个不同 token 集合」？
+  answer: 不一定。Cross-attention 中 query 与 key/value 来自不同序列；self-attention 中三者来自同一输入，但经不同投影。
+  source_heading: 12.1 Query、key、value 是三个不同 token 集合
+- level: 概念辨析
+  question: 原文如何解释「12.8 核越窄越准确」？
+  answer: 只在训练点自我预测时可能产生假象。过窄核高方差且易记忆噪声，应使用验证或 leave-one-out 选择。
+  source_heading: 12.8 核越窄越准确
+- level: 概念辨析
+  question: 原文如何解释「12.21 LayerNorm 与 BatchNorm 相同」？
+  answer: LayerNorm 对单 token 特征维归一化；BatchNorm 借助 batch 统计，依赖其他样本和 batch size。
+  source_heading: 12.21 LayerNorm 与 BatchNorm 相同
+- level: 概念辨析
+  question: 原文如何解释「12.26 ViT 的 patch embedding 是普通局部卷积特征提取」？
+  answer: 计算形式用卷积实现，但 kernel=stride=patch size，主要作用是切块和线性投影，没有重叠滑窗的局部层级结构。
+  source_heading: 12.26 ViT 的 patch embedding 是普通局部卷积特征提取
+- level: 概念辨析
+  question: 原文如何解释「12.34 参数越多就一定更好」？
+  answer: 固定计算下还需足够训练 token 和合理优化。过大的 undertrained model 可能不如更小但数据更充分的模型。
+  source_heading: 12.34 参数越多就一定更好

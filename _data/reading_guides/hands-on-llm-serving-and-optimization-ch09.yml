@@ -1,0 +1,155 @@
+source:
+  post: _posts/book-notes/ai-system/hands-on-llm-serving-and-optimization/2026-08-12-hands-on-llm-serving-and-optimization-ch09.md
+  body_sha256: 011752d473169dec4698cdd9e38701af50de102faa66ca2f63e33e05d15ae440
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 11
+  question: 原文围绕「0. 本章定位、学习目标与实验主线」建立了怎样的核心认识？
+  question_source: 0. 本章定位、学习目标与实验主线
+  thesis: 本章的总方法是：把 serving 优化写成“在质量与 tail-latency 约束下最大化 goodput”的实验问题，用真实自然流量与可控
+    synthetic workload 建 baseline，从原始 token 计数和显存账本验证框架输出，再一次只改变模型、cache、scheduler
+    或 parallel topology 中的一项；当 AWQ、TP 或其他技术改变容量和数据路径后，重新识别瓶颈，并以同 run speedup、TPS/GPU、$/good
+    token 和质量决定是否进入生产。
+  thesis_source: 6. 本章知识结构与核心结论
+  concepts:
+  - term: 0. 本章定位、学习目标与实验主线
+    meaning: 实验时效说明：本章结果取决于 vLLM 版本、Qwen checkpoint、AWS instance、driver、CUDA、数据采样和
+      benchmark CLI。正文日志与绘图部分存在相邻运行的轻微数字差异，本笔记分别保留并解释，不将不同运行拼成一个精确实验记录。若本地无 L40S/A100
+      环境，不应安装或租用硬件只为机械复现；可阅读 captured notebook，并用现有硬件做方法验证。
+    source_heading: 0. 本章定位、学习目标与实验主线
+  - term: 1. LLM Serving Optimization Plan
+    meaning: 最低 latency 通常让请求立即执行、减少共享，GPU 可能低利用；峰值 throughput 则让请求等待并共享大 batch。真正目标是
+      latency constraint 下的 Pareto frontier，而不是两个互斥极端。
+    source_heading: 1. LLM Serving Optimization Plan
+  - term: 2. Optimize Qwen3-14B Serving with vLLM
+    meaning: 类似 Mean TTFT/ITL 说明用户可见平均 latency 未显著改善；prefix caching 的价值可能体现在服务能处理更多
+      input work、tail 或同一时间完成更多请求。要证明 cache 原因，应报告 prefix cache hit tokens/rate；“prefix
+      caching + continuous batching + block sharing”是合理假设，但仅凭两个不同数据集不能做严格因果归因。
+    source_heading: 2. Optimize Qwen3-14B Serving with vLLM
+  - term: 3. Common Optimization Trade-offs
+    meaning: Static config 可重复、易容量规划，却会过拟合固定 arrival/length。Adaptive runtime 可按 queue、tokens、KV、SLO
+      调 batch/cache/schedule，但控制环会振荡、难调试。需保留 bounds、hysteresis、fallback 和决策 telemetry。
+    source_heading: 3. Common Optimization Trade-offs
+  - term: 5. 从本章抽象出的通用优化方法
+    meaning: Input/output tokens、相关性、arrival、concurrency、prefix reuse、cancel、tenant/model
+      mix 都进入 replay；同时保留 synthetic stress cases。
+    source_heading: 5. 从本章抽象出的通用优化方法
+  - term: 6. 本章知识结构与核心结论
+    meaning: 本章的总方法是：把 serving 优化写成“在质量与 tail-latency 约束下最大化 goodput”的实验问题，用真实自然流量与可控
+      synthetic workload 建 baseline，从原始 token 计数和显存账本验证框架输出，再一次只改变模型、cache、scheduler
+      或 parallel topology 中的一项；当 AWQ、TP 或其他技术改变容量和数据路径后，重新识别瓶颈，并以同 run speedup、TPS/GPU、$/good
+      token 和质量决定是否进入生产。
+    source_heading: 6. 本章知识结构与核心结论
+  logic:
+  - 0. 本章定位、学习目标与实验主线
+  - 1. LLM Serving Optimization Plan
+  - 2. Optimize Qwen3-14B Serving with vLLM
+  - 3. Common Optimization Trade-offs
+  - 5. 从本章抽象出的通用优化方法
+  - 6. 本章知识结构与核心结论
+  sections:
+  - title: 0. 本章定位、学习目标与实验主线
+    source_heading: 0. 本章定位、学习目标与实验主线
+    paragraphs:
+    - 第 5～8 章分别给出瓶颈模型、优化技术、高级分布式方法和框架内部机制。第 9 章不再引入大量新算法，而是展示优化过程本身：先测量，再假设，再做可归因实验，最后根据瓶颈迁移决定下一步。
+    - Offered request rate、max concurrency、achieved request throughput 与 queue latency
+      有何关系？
+    - 怎样在 throughput/latency、memory/quality、utilization/flexibility、vertical/horizontal、static/adaptive
+      之间选点？
+    - 实验时效说明：本章结果取决于 vLLM 版本、Qwen checkpoint、AWS instance、driver、CUDA、数据采样和 benchmark
+      CLI。正文日志与绘图部分存在相邻运行的轻微数字差异，本笔记分别保留并解释，不将不同运行拼成一个精确实验记录。若本地无 L40S/A100 环境，不应安装或租用硬件只为机械复现；可阅读
+      captured notebook，并用现有硬件做方法验证。
+  - title: 1. LLM Serving Optimization Plan
+    source_heading: 1. LLM Serving Optimization Plan
+    paragraphs:
+    - 其中 goodput 只计算成功、质量达标且满足 SLO 的工作。仅最大化 total TPS 可能偏向长 input 或大 batch，却不改善用户可见
+      decode 和任务成功率。
+    - 最低 latency 通常让请求立即执行、减少共享，GPU 可能低利用；峰值 throughput 则让请求等待并共享大 batch。真正目标是 latency
+      constraint 下的 Pareto frontier，而不是两个互斥极端。
+    - 否则“只改变模型”可能暗中同时改变请求样本、cache warm state 或 max length。
+  - title: 2. Optimize Qwen3-14B Serving with vLLM
+    source_heading: 2. Optimize Qwen3-14B Serving with vLLM
+    paragraphs:
+    - 原章示例：50 prompts，prefix=256、suffix=256、5 unique prefixes、output=128。每个 prompt
+      input 为 512 tokens。减少 unique prefixes 提高重复次数和理论 hit；它是刻意放大 prefix reuse 的 synthetic
+      workload。
+    - Active request KV 通常不能随意驱逐而继续无代价 decode；容量不足更常导致 admission 降低、preemption/recompute/swap
+      或更少 active sequences。Prefix cache blocks 才可能按 LRU 驱逐。应区分 active KV 与 reusable
+      prefix KV。
+    - Prefix workload 每请求固定 512 input/约127 output，input/output ratio 约 4.03；ShareGPT
+      总 input/output ratio 约 1.08。Total TPS 高主要因为更多 input tokens 被计入，且 prefix cache
+      使部分 prefill 便宜，并不表示 decode 快 2.37×。
+    - 类似 Mean TTFT/ITL 说明用户可见平均 latency 未显著改善；prefix caching 的价值可能体现在服务能处理更多 input
+      work、tail 或同一时间完成更多请求。要证明 cache 原因，应报告 prefix cache hit tokens/rate；“prefix
+      caching + continuous batching + block sharing”是合理假设，但仅凭两个不同数据集不能做严格因果归因。
+  - title: 3. Common Optimization Trade-offs
+    source_heading: 3. Common Optimization Trade-offs
+    paragraphs:
+    - Batch、queue、token budget 提高设备利用率但增加等待/iteration。按 use case 设 TTFT/ITL hard constraint，在其下最大化
+      goodput；不要分别追求“最大 TPS”和“最低 latency”两个无法共存的点。
+    - L40S 专用 block/batch/TP 最优配置可能在 A100/H100 或不同流量上失败。牺牲少量峰值换版本/硬件/traffic envelope
+      的稳健性，往往降低长期 TCO。可将少数参数交给 runtime adaptive policy，而不是全部静态写死。
+    - Vertical TP/PP：fit/单请求 latency，但通信、故障域和每 token GPU 成本上升。Horizontal DP：aggregate
+      throughput/HA，不能降低单请求 model latency。通常先单 GPU + DP；只有 fit 或 latency 需要才增加 TP。
+    - Static config 可重复、易容量规划，却会过拟合固定 arrival/length。Adaptive runtime 可按 queue、tokens、KV、SLO
+      调 batch/cache/schedule，但控制环会振荡、难调试。需保留 bounds、hysteresis、fallback 和决策 telemetry。
+  - title: 5. 从本章抽象出的通用优化方法
+    source_heading: 5. 从本章抽象出的通用优化方法
+    paragraphs:
+    - Input/output tokens、相关性、arrival、concurrency、prefix reuse、cancel、tenant/model
+      mix 都进入 replay；同时保留 synthetic stress cases。
+    - 拆 weights、KV、active/prefix、activation、graphs、workspace、fragmentation；用 KV tokens/max
+      length 验证 concurrency。
+    - 固定 sampled IDs、arrival、cache state 和 config，只换 AWQ；之后单独扫 memory、sequences、token
+      budget、chunk/cache。组合前先知道每项作用。
+    - Canary 新配置，监控 workload drift、queue、KV、preemption、quality 和 cost；保留 adaptive
+      defaults、范围和 fallback，定期重放 suite。
+  - title: 6. 本章知识结构与核心结论
+    source_heading: 6. 本章知识结构与核心结论
+    paragraphs:
+    - Offered RPS 不是 achieved RPS。 Concurrency/backpressure/service time 会使 10 RPS
+      配置只完成约 1.10 req/s；必须记录 queue 和实际完成率。
+    - Total TPS 会被 input/output ratio影响。 Prefix baseline total TPS 是 ShareGPT 2.37×，但
+      output TPS 基本相同，不能解释为 decode 快 2.37×。
+    - AWQ 同时改变容量和 bandwidth。 Model memory 降到 9.36 GiB，KV token capacity 增 2.65×，并减少
+      decode HBM weight bytes；它不是 activation 4-bit compute。
+    - 本章的总方法是：把 serving 优化写成“在质量与 tail-latency 约束下最大化 goodput”的实验问题，用真实自然流量与可控 synthetic
+      workload 建 baseline，从原始 token 计数和显存账本验证框架输出，再一次只改变模型、cache、scheduler 或 parallel
+      topology 中的一项；当 AWQ、TP 或其他技术改变容量和数据路径后，重新识别瓶颈，并以同 run speedup、TPS/GPU、$/good
+      token 和质量决定是否进入生产。
+  takeaways:
+  - 优化首先是一套实验方法。 业务目标、代表性 workload、指标、baseline、局部假设和受控实验比参数清单更重要。
+  - Total TPS 会被 input/output ratio影响。 Prefix baseline total TPS 是 ShareGPT 2.37×，但
+    output TPS 基本相同，不能解释为 decode 快 2.37×。
+  - 不同 run 的近似数字不能混用。 图与日志 baseline 有轻微差异，应在同 run 内计算 speedup 并报告方差。
+  - Vertical 和 horizontal 解决不同问题。 四个独立 A100 replicas 理想总吞吐约为 TP=4 的 2.5×；TP=4 则把单请求
+    TTFT 从 66.73 ms 降到 33.46 ms。
+  - 本章的总方法是：把 serving 优化写成“在质量与 tail-latency 约束下最大化 goodput”的实验问题，用真实自然流量与可控 synthetic
+    workload 建 baseline，从原始 token 计数和显存账本验证框架输出，再一次只改变模型、cache、scheduler 或 parallel
+    topology 中的一项；当 AWQ、TP 或其他技术改变容量和数据路径后，重新识别瓶颈，并以同 run speedup、TPS/GPU、$/good token
+    和质量决定是否进入生产。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念辨析
+  question: 原文如何解释「4.1 Optimization 是找一个全局永久最佳配置」？
+  answer: 错误。最优点随 model、framework、GPU、topology、traffic、SLO 和价格变化。
+  source_heading: 4.1 Optimization 是找一个全局永久最佳配置
+- level: 概念辨析
+  question: 原文如何解释「4.7 Total TPS 可直接比较不同数据集的模型速度」？
+  answer: 错误。Input/output ratio 不同，prefill/cache 成本不同；本章 1123 vs474 主要由 input work
+    composition 变化。
+  source_heading: 4.7 Total TPS 可直接比较不同数据集的模型速度
+- level: 概念辨析
+  question: 原文如何解释「4.13 AWQ 4-bit 模型应正好缩小 4×」？
+  answer: 错误。Scales、metadata、非量化层、loader/runtime 使本实验仅约 2.94×。
+  source_heading: 4.13 AWQ 4-bit 模型应正好缩小 4×
+- level: 概念辨析
+  question: 原文如何解释「4.20 Block size 越小 cache utilization 越好且无代价」？
+  answer: 错误。Internal fragmentation 降低，但 metadata、indirection 和 kernel 限制增加。
+  source_heading: 4.20 Block size 越小 cache utilization 越好且无代价
+- level: 概念辨析
+  question: 原文如何解释「4.26 自动调优意味着不必监控」？
+  answer: 错误。Adaptive policy 也会在 drift/burst 下失效，需要 decision metrics、bounds 和 rollback。
+  source_heading: 4.26 自动调优意味着不必监控

@@ -1,0 +1,183 @@
+source:
+  post: _posts/book-notes/ai-system/design-machine-learning-system/2026-08-08-designing-machine-learning-systems-ch10-infrastructure-and-tooling-for-mlops.md
+  body_sha256: 359c659f4fe26c2e989c5892887a89d7dfc34effe512b9110a7fbfc3fe692254
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 18
+  question: 原文围绕「0. 本章要回答的核心问题」建立了怎样的核心认识？
+  question_source: 0. 本章要回答的核心问题
+  thesis: 最后，所有层都面临 build versus buy。公司阶段、核心优势、现成工具成熟度会改变答案；选择高度 context-dependent，没有统一
+    vendor 或架构。
+  thesis_source: 7. 原章总结的完整还原
+  concepts:
+  - term: 0. 本章要回答的核心问题
+    meaning: 一句话概括：基础设施的价值不是拥有最多工具，而是把组织反复需要的正确做法做成低摩擦、可复现、可审计的默认路径，并让计算、开发、编排和 ML
+      artifacts 在同一血缘中协作。
+    source_heading: 0. 本章要回答的核心问题
+  - term: 2. Storage and Compute：存储与计算
+    meaning: Core count 是方便的代理，不包含单核性能、vector/tensor units、NUMA、memory、I/O 和软件优化。原章提醒
+      AWS vCPU 通常对应一个 hardware thread，例如某些实例两 cores × 每 core 两 threads = 4 vCPUs；但不同实例/architecture
+      的映射要看当前规格，不能普遍理解成“半个物理 core”。
+    source_heading: 2. Storage and Compute：存储与计算
+  - term: 4. Resource Management：资源管理
+    meaning: 现实边界重叠：Kubernetes 有 scheduler 和 controllers；Slurm/Borg 也有 provisioning/placement
+      能力。不要仅按产品类别判断，应查看谁负责 trigger、dependency、placement、provisioning、retry 和 service
+      reconciliation。
+    source_heading: 4. Resource Management：资源管理
+  - term: 6. Build Versus Buy：自建还是购买
+    meaning: Managed Databricks cluster 可能只需少量平台人力；自管 Spark/EMR、K8s、registry、feature
+      platform 需要更多 build/on-call。原章用“一名 vs 多五名工程师”作直觉例，不是通用 staffing formula。
+    source_heading: 6. Build Versus Buy：自建还是购买
+  - term: 9. 本章知识结构
+    meaning: ML platform 把 deployment、model lineage、feature semantics 做成跨团队能力。
+    source_heading: 9. 本章知识结构
+  - term: 11. 作者如何分析问题，以及可迁移的一般方法
+    meaning: Container build 中：pin base digest、dependencies 和 source commit；生成 SBOM/signature；non-root；CI
+      build + vulnerability + smoke test；registry immutable promotion。
+    source_heading: 11. 作者如何分析问题，以及可迁移的一般方法
+  logic:
+  - 0. 本章要回答的核心问题
+  - 2. Storage and Compute：存储与计算
+  - 3. Development Environment：开发环境
+  - 6. Build Versus Buy：自建还是购买
+  - 7. 原章总结的完整还原
+  - 10. 核心结论
+  - 11. 作者如何分析问题，以及可迁移的一般方法
+  sections:
+  - title: 0. 本章要回答的核心问题
+    source_heading: 0. 本章要回答的核心问题
+    paragraphs:
+    - Storage/compute、resource management、ML platform、development environment 四层分别解决什么问题？
+    - Offline/online feature consistency 为什么仍需要 event time 与 point-in-time correctness？
+    - Feature catalog、feature store、data warehouse 和 monitoring tool 为何会出现产品边界重叠？
+    - 一句话概括：基础设施的价值不是拥有最多工具，而是把组织反复需要的正确做法做成低摩擦、可复现、可审计的默认路径，并让计算、开发、编排和 ML artifacts
+      在同一血缘中协作。
+  - title: 1. 开篇：基础设施必须匹配应用规模与特殊性
+    source_heading: 1. 开篇：基础设施必须匹配应用规模与特殊性
+    paragraphs:
+    - 季度用户预测等 ad hoc analytics，Jupyter、Python、Pandas 可能足够；给朋友展示的 Android object detection
+      app 也许只需 TensorFlow Lite。这里额外平台的固定成本大于复用收益。
+    - 原章对比：2018 年 Uber 日增数十 TB、Zillow 最大数据集约日增 2 TB；2014 年 Facebook 已日增 4 PB。它们是不同年份、不同口径的历史例子，只用于说明数量级，不能直接横比当前能力。
+    - 图 10-2 的两个方向：越往底层越 commodity、越被上层抽象；越往上越直接影响数据科学家体验。它不是严格产品边界：Kubernetes 同时调度和编排，ML
+      platform 也可能托管 dev notebook 和 compute。
+    - 作者先讲最基础、最 commodity、也最容易解释的 storage/compute；再讲数据科学家每日接触的 dev environment；然后进入有争议的
+      resource management；最后讨论仍在形成中的 ML platform 和贯穿各层的 build/buy。
+  - title: 2. Storage and Compute：存储与计算
+    source_heading: 2. Storage and Compute：存储与计算
+    paragraphs:
+    - Resource/allocation unit：CPU/GPU core、thread、vCPU、VM/instance、Spark executor、Ray
+      worker、Kubernetes pod、Cloud Run instance；它们实际承载 CPU、memory 或 accelerator；
+    - 因此 job 是工作/control-plane object，executor/worker 才是主要执行资源，不能把两者的数量直接互换。Pod 是
+      Kubernetes 最小 deployable/schedulable unit，可包含多个共享 network/storage/lifecycle
+      的 containers；同一 pod 内 containers 不能作为独立 pod 单独调度或扩缩，但进程本身仍可各自退出/重启，不能把“不能独立
+      start/stop”理解成操作系统绝对限制。
+    - Core count 是方便的代理，不包含单核性能、vector/tensor units、NUMA、memory、I/O 和软件优化。原章提醒 AWS
+      vCPU 通常对应一个 hardware thread，例如某些实例两 cores × 每 core 两 threads = 4 vCPUs；但不同实例/architecture
+      的映射要看当前规格，不能普遍理解成“半个物理 core”。
+    - Dropbox 2018 S-1 称 IPO 前两年 infrastructure optimization 节省约 7500 万美元，其中很大部分与迁回自有
+      data centers 有关。Dropbox 本身是 storage-heavy、规模稳定的特殊 workload，不能直接推导一般公司都应 repatriate。
+  - title: 3. Development Environment：开发环境
+    source_heading: 3. Development Environment：开发环境
+    paragraphs:
+    - GitHub Actions、CircleCI 等可在进入 staging/production 前执行 lint、unit/integration tests、data/schema
+      contracts、model smoke tests 和 image scan。
+    - IDE 适合模块化 code、refactor、debug、test 和 review；Notebook 把 code、图、表、文字和内存状态放在一个交互文档，适合
+      EDA 与训练结果分析。二者不是互斥，探索可在 Notebook，稳定逻辑应提取为 versioned modules/tests。
+    - 原章列 Netflix 2018 的 Papermill（参数化、多 notebook 执行/汇总）、Commuter（组织内查看、搜索、共享）和 nbdev（在
+      notebook 中协同 code、docs、tests）。这些说明 notebook 的缺点可以由 infrastructure 缓解，但平台不能自动消除
+      hidden state 或不受控数据依赖。
+    - 原章称 K8s 自 2014 年后在 production 日益普及，同时指出它对 data scientist 不友好。合理的解决方向不是要求每位数据科学家掌握所有
+      K8s primitives，而是由平台提供 workload-oriented interface，并保留必要 escape hatch。
+  - title: 4. Resource Management：资源管理
+    source_heading: 4. Resource Management：资源管理
+    paragraphs:
+    - 更成熟策略包括历史 usage recommendation、vertical/horizontal autoscaling、bin packing、preemption、resource
+      reclaim 和分 workload class 的 QoS。Reclaim 必须保留隔离，否则 noisy neighbor 会让任务不可预测。
+    - 现实边界重叠：Kubernetes 有 scheduler 和 controllers；Slurm/Borg 也有 provisioning/placement
+      能力。不要仅按产品类别判断，应查看谁负责 trigger、dependency、placement、provisioning、retry 和 service
+      reconciliation。
+    - 这些描述反映早期 Airflow 设计和当时作者体验。现代版本已有 task mapping、params、TaskFlow、Kubernetes/Docker
+      operators 等能力；是否满足 isolation/dynamic use case 必须按部署版本验证。更持久的批评是：scheduler-time
+      DAG parsing、control plane 运维和把 data-dependent loop 误建成巨大 DAG 会增加复杂度。
+    - 原章将 Prefect 视为吸取 Airflow 经验的下一代工具：workflow parameterized、dynamic，继续 Python-as-code。作者认为
+      task-level containers 不是当时第一优先，仍需处理 Dockerfiles 和 registration。
+  - title: 6. Build Versus Buy：自建还是购买
+    source_heading: 6. Build Versus Buy：自建还是购买
+    paragraphs:
+    - Managed Databricks cluster 可能只需少量平台人力；自管 Spark/EMR、K8s、registry、feature platform
+      需要更多 build/on-call。原章用“一名 vs 多五名工程师”作直觉例，不是通用 staffing formula。
+    - 团队可能希望购买 model store，却找不到满足 lineage/compliance 的成熟产品，只能在 OSS 上自建。Early adopters
+      因无现成工具而形成 custom stacks；后来的 vendor 很难适配，进入 “integration hell”。
+    - 公司阶段、规模、vendor 和法规会变化。Contract 应有 review date、usage/cost telemetry、exit plan
+      和 ownership。先 buy 后 build、先 build 后 replace、核心自建外围购买都很常见。
+    - 原章以 Erik Bernhardsson 2021 推文收束：基础设施快速增长使 vendor/product selection 成为 CTO 重要工作。这是观点，但揭示
+      selection 本身需要长期能力。
+  - title: 7. 原章总结的完整还原
+    source_heading: 7. 原章总结的完整还原
+    paragraphs:
+    - 第一层是 storage and compute。它提供数据和算力，且已高度 commodity 化；多数公司用 cloud 按需购买。Cloud 易开始，但作者认为规模增大后成本可能过高，一些大公司会考虑
+      repatriation 或 private data centers。本文补充：是否划算必须基于具体 workload 和完整 TCO，不能从个别案例外推。
+    - 第二层是 development environment。工程师大部分时间在此，环境改善直接转化为 productivity。团队最先可做的事情之一是标准化
+      runtime、packages 和 machine environment，同时保留合理 IDE 偏好。
+    - 第三层是 resource management。作者从 cron 讲到 scheduler、orchestrator，再比较 Airflow、Argo、Prefect、Kubeflow、Metaflow
+      等 data science workflow tools。真正问题不是 data scientist 是否直接操作 Kubernetes，而是平台是否提供合适
+      abstraction。
+    - 第四层是新兴 ML platform。作者聚焦 deployment、model store、feature store，monitoring 已由第
+      8 章覆盖。平台组件定义尚不统一。
+  - title: 9. 本章知识结构
+    source_heading: 9. 本章知识结构
+    paragraphs:
+    - Dev environment 让用户以可复现方式定义 code、data 和 experiments。
+    - Workflow DAG 描述工作，scheduler 决定何时/以何资源运行，orchestrator 提供并维护执行位置。
+    - ML platform 把 deployment、model lineage、feature semantics 做成跨团队能力。
+    - Monitoring、CI/CD、security、lineage 横跨所有层，而不是单独盒子。
+  - title: 10. 核心结论
+    source_heading: 10. 核心结论
+    paragraphs:
+    - 四层是 storage/compute、resource management、ML platform、development environment。
+      它们相互依赖且边界重叠。
+    - Cron 处理固定重复，scheduler 处理依赖/队列/资源，orchestrator 处理 placement/provisioning/desired
+      state。
+    - Reproduction 需要 model definition、parameters、feature/predict logic、environment、data
+      和 code。
+    - Single feature definition 仍要处理 event/available time、late data 和 engine parity。
+  - title: 11. 作者如何分析问题，以及可迁移的一般方法
+    source_heading: 11. 作者如何分析问题，以及可迁移的一般方法
+    paragraphs:
+    - Container build 中：pin base digest、dependencies 和 source commit；生成 SBOM/signature；non-root；CI
+      build + vulnerability + smoke test；registry immutable promotion。
+    - Historical dataset 必须 point-in-time join；online/offline 做 parity sample；late/backfill
+      有 reconciliation；deprecation 先查 consumers。
+    - 删除无 owner workflows、废弃 images/features/models；演练 registry restore、region/provider
+      outage、vendor export、credential revocation 和 model rollback。
+    - 本章最值得迁移的原则是：从应用和用户工作流倒推能力，从能力倒推抽象，再从抽象倒推工具。好的 MLOps infrastructure 不要求每位数据科学家理解所有底层细节，却必须让底层约束、版本和失败可见；它把正确路径变得最容易，同时保留处理真正特殊问题的空间。
+  takeaways:
+  - 作者首先重申：把 ML model 带到生产，本质上是基础设施问题。正确工具让 data scientists 能开发、部署和维护模型。
+  - 四层是 storage/compute、resource management、ML platform、development environment。 它们相互依赖且边界重叠。
+  - Cloud dev 可缩小 dev/prod gap，但仍需成本、安全和权限 hygiene。
+  - Deployment service 要同时考虑 online、batch、production tests 和 rollback。
+  - 好的平台提供 well-lit path、可组合 primitives 和 escape hatch。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念辨析
+  question: 原文如何解释「8.1 基础设施越多，ML 团队越成熟」？
+  answer: 成熟度看交付、可靠性、复现和用户价值。单一简单应用使用 notebook 可能比堆叠十个 control planes 更合理。
+  source_heading: 8.1 基础设施越多，ML 团队越成熟
+- level: 概念辨析
+  question: 原文如何解释「8.19 Spot 只是更便宜的 on-demand」？
+  answer: Spot 可被回收，必须 checkpoint、retry 和容忍 interruption。
+  source_heading: 8.19 Spot 只是更便宜的 on-demand
+- level: 概念辨析
+  question: 原文如何解释「8.37 Dockerfile 是运行中的环境」？
+  answer: Dockerfile 构建 image；image 运行后才产生 container。
+  source_heading: 8.37 Dockerfile 是运行中的环境
+- level: 概念辨析
+  question: 原文如何解释「8.60 Online 与 batch deployment 必须完全不同」？
+  answer: 执行架构可不同，但 model、feature contract、pre/postprocess 和 evaluation 应共享语义版本。
+  source_heading: 8.60 Online 与 batch deployment 必须完全不同
+- level: 概念辨析
+  question: 原文如何解释「8.80 标准化意味着消灭所有选择」？
+  answer: 好的平台提供安全默认、可组合 primitives 和受控 escape hatch，不是把所有 workload 强塞一种工具。
+  source_heading: 8.80 标准化意味着消灭所有选择

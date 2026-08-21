@@ -1,0 +1,198 @@
+source:
+  post: _posts/book-notes/machine-learning/hands-on-machine-learning/2026-08-02-homl-ch17-accelerating-transformers.md
+  body_sha256: 653017e202f41724a21cb16e2bc607dfd5ac0f38e770659df2946347cc33bcfb
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 17
+  question: 原文围绕「阅读导引」建立了怎样的核心认识？
+  question_source: 阅读导引
+  thesis: LoRA 降低 trainable states，checkpointing 降 activation memory，packing 降 padding
+    waste，accumulation 降 microbatch memory；它们作用于不同资源。
+  thesis_source: 11. 本章总结
+  concepts:
+  - term: 阅读导引
+    meaning: 第 17 章是 online-only：本地 Markdown 只有 10 行导言；作者官方 Notebook 包含示例代码，但 MoE、部分训练技术和
+      exercise solutions 尚未完成。因此本文以本地导言规定的技术顺序为主线，以官方 Notebook 的代码和保存输出校准示例，并将必要理论完整补齐。
+    source_heading: 阅读导引
+  - term: 1. Faster Decoding at Inference Time
+    meaning: Autoregressive target model p 每步只产生一个 token，GPU 对单 token decode utilization
+      较低。较小 draft model q 快速提出 K 个 tokens；target 用一次并行 forward 同时验证整段。若大部分 proposals
+      被接受，一次昂贵 target call 可推进多个 tokens。
+    source_heading: 1. Faster Decoding at Inference Time
+  - term: 3. Scaling Up with Mixture of Experts
+    meaning: 该教学实现没有 capacity limit，也用 Python loops，目的是验证公式，不是高性能 kernel。Production
+      会先按 expert 对 tokens 排序/dispatch，批量执行 expert GEMMs，再 combine outputs。
+    source_heading: 3. Scaling Up with Mixture of Experts
+  - term: 5. Additional Speed and Memory Levers
+    meaning: Eager execution 会为 LayerNorm、bias、activation、dropout 等启动多个 kernels，并反复读写
+      HBM。Fusion 将连续 elementwise operations 合成一个 kernel，减少 launch overhead 和 memory
+      traffic。
+    source_heading: 5. Additional Speed and Memory Levers
+  - term: 7. 自测与实践题
+    meaning: 对等大 microbatches、正确 loss scaling、无 batch-dependent layer 时，参数 gradient
+      数学等价到浮点误差。但 dropout random sequence、optimizer/scheduler step 数、gradient clipping
+      和 BatchNorm statistics 可不同；它也不会获得一次大 GEMM 的硬件效率。
+    source_heading: 7. 自测与实践题
+  - term: 11. 本章总结
+    meaning: LoRA 降低 trainable states，checkpointing 降 activation memory，packing 降
+      padding waste，accumulation 降 microbatch memory；它们作用于不同资源。
+    source_heading: 11. 本章总结
+  logic:
+  - 阅读导引
+  - 1. Faster Decoding at Inference Time
+  - 2. Boosting Multi-Head Attention
+  - 5. Additional Speed and Memory Levers
+  - 6. 如何选择优化技术
+  - 10. 工程实践检查清单
+  - 11. 本章总结
+  sections:
+  - title: 阅读导引
+    source_heading: 阅读导引
+    paragraphs:
+    - Boosting MHA：sparse/approximate attention、MQA/GQA、FlashAttention；
+    - Faster training：PEFT/LoRA、activation checkpointing、packing、gradient accumulation
+      和多维 parallelism。
+    - 第 17 章是 online-only：本地 Markdown 只有 10 行导言；作者官方 Notebook 包含示例代码，但 MoE、部分训练技术和
+      exercise solutions 尚未完成。因此本文以本地导言规定的技术顺序为主线，以官方 Notebook 的代码和保存输出校准示例，并将必要理论完整补齐。
+    - 纯 PyTorch 代码本地执行，依赖大型 checkpoint/GPU 的示例只做语法检查并明确标注，不把官方输出冒充本机结果。
+  - title: 0. 性能分析前置知识
+    source_heading: 0. 性能分析前置知识
+    paragraphs:
+    - 优化 throughput 可能损害 latency：增大 batch 能提高 GPU utilization，却让请求排队更久。必须先确定 service-level
+      objective，而不是只报告“快了几倍”。
+    - 所以让 prefill 更快的技术未必改善 TPOT；KV cache 主要消除 decode 的重复 projection，而不会让首次 prompt
+      processing 消失。
+    - I 低时 memory-bound，减少 FLOPs 未必明显加速；FlashAttention 的关键就是减少 HBM traffic，而不是改变 exact
+      attention 的渐近 FLOPs。
+    - P 是参数数，b_w 是每参数 bytes。FP16/BF16 为 2 bytes，FP32 为 4 bytes。Mixed-precision Adam
+      粗略还可能保存 gradients、FP32 master weights、两组 FP32 moments，总量常接近 16 bytes/parameter，但具体取决于
+      optimizer、sharding 和 implementation。
+  - title: 1. Faster Decoding at Inference Time
+    source_heading: 1. Faster Decoding at Inference Time
+    paragraphs:
+    - Autoregressive target model p 每步只产生一个 token，GPU 对单 token decode utilization
+      较低。较小 draft model q 快速提出 K 个 tokens；target 用一次并行 forward 同时验证整段。若大部分 proposals
+      被接受，一次昂贵 target call 可推进多个 tokens。
+    - Greedy 模式只需 target 检查 draft token 是否等于 target argmax；不等时采用 target token。Sampling
+      模式必须使用上面的 acceptance/residual correction，不能简单“target 不喜欢就重采”，否则会改变 distribution。
+    - 收益取决于 acceptance length、target parallel verification efficiency、draft cost 和额外
+      KV memory。两个 models 都要驻留内存；高 batch serving 中，speculation 还可能增加 scheduling complexity。
+    - EOS、不同 output lengths、sampling randomness 和 tool calls 会造成 control-flow divergence。GPU
+      上“并行更多”也不保证更快：如果 memory bandwidth、KV capacity 或 scheduler 已饱和，额外 branches 可能降低
+      throughput。
+  - title: 2. Boosting Multi-Head Attention
+    source_heading: 2. Boosting Multi-Head Attention
+    paragraphs:
+    - BigBird 常以 blocks 为单位稀疏，方便 kernel 形成规则矩阵块。若 sequence 太短，sparse kernel overhead
+      不划算，implementation 会退回 full attention。官方 14-token fill-mask 示例低于其 sparse threshold
+      704，因此实际 fallback 为 full attention。
+    - 局限：hash 是随机离散操作；相似但跨 bucket 的 pairs 会丢失；causal masking、padding 和不同长度增加实现难度；短
+      sequence 未必比 optimized dense kernel 快。Reformer 还用 reversible layers 降 activation
+      memory，但这是与 LSH attention 独立的另一技巧。
+    - Random features 越多，variance 越低但速度/内存越差；orthogonal features 只是降 variance，不消除
+      approximation。Numerical overflow/underflow 需要 max subtraction 等稳定技巧。对现代 GPU
+      上中等 sequence，FlashAttention exact kernel 可能更快；Performer 更适合极长 sequence 且可接受近似误差的场景。
+    - Backward 可从保存的 row statistics 重算局部 probabilities，减少 activation memory，以额外 FLOPs
+      换显存/I/O。FlashAttention-2 改善 work partitioning，后续版本利用新 GPU instructions；实际支持依赖
+      dtype、head dimension、mask、device 和 library version。
+  - title: 3. Scaling Up with Mixture of Experts
+    source_heading: 3. Scaling Up with Mixture of Experts
+    paragraphs:
+    - Switch Transformer 常用 top-1，routing 简单；top-2（如 Mixtral-style）冗余和质量通常更好，但 expert
+      compute/communication 约翻倍。
+    - Top-k index 是离散选择，gradient 只经过选中的 gate weights/experts；未选 experts 没有主任务 gradient。Noisy
+      routing、auxiliary loss 和更大 token batches 帮助探索与均衡。
+    - 该教学实现没有 capacity limit，也用 Python loops，目的是验证公式，不是高性能 kernel。Production 会先按 expert
+      对 tokens 排序/dispatch，批量执行 expert GEMMs，再 combine outputs。
+    - 替代方案包括增大 dense model、增加 depth/width、parameter sharing、retrieval augmentation，或只在部分
+      layers 使用 MoE。
+  - title: 5. Additional Speed and Memory Levers
+    source_heading: 5. Additional Speed and Memory Levers
+    paragraphs:
+    - Quantization error 来自 rounding/clipping；outliers、per-channel scales、calibration
+      data 决定质量。
+    - 量化通常降低 memory/bandwidth，但若硬件没有对应 fast kernels，packed/unpack overhead 可能不加速。Quality
+      必须在真实 downstream tasks 和长 generation 上评估。
+    - Eager execution 会为 LayerNorm、bias、activation、dropout 等启动多个 kernels，并反复读写 HBM。Fusion
+      将连续 elementwise operations 合成一个 kernel，减少 launch overhead 和 memory traffic。
+    - Dynamic shapes、Python side effects、graph breaks 和小 workload 可能让 compile 无收益甚至更慢。Benchmark
+      必须排除首次 compilation，并检查 correctness。
+  - title: 6. 如何选择优化技术
+    source_heading: 6. 如何选择优化技术
+    paragraphs:
+    - 用 profiler 判断 compute、memory、communication 或 input bottleneck；
+    - 先用 exact/低风险优化（cache、batch、Flash、fusion）；
+    - 再用结构性/近似技术（GQA、sparse、Performer、MoE、quantization）；
+    - 在 production shape/concurrency 上复测，并估算总成本而非单卡 tokens/s。
+  - title: 7. 自测与实践题
+    source_heading: 7. 自测与实践题
+    paragraphs:
+    - 数据依赖链未改变，所以 exact autoregressive generation 仍逐 token；speculation 只是让一次 target
+      call 验证多个 candidates。
+    - 普通 causal mask 只禁止看未来，却允许 document B 读取更早的 document A。Block-diagonal mask 还要求
+      document IDs 相同，才能保持不同 training examples 条件独立；边界 label 也必须忽略。
+    - 对等大 microbatches、正确 loss scaling、无 batch-dependent layer 时，参数 gradient 数学等价到浮点误差。但
+      dropout random sequence、optimizer/scheduler step 数、gradient clipping 和 BatchNorm
+      statistics 可不同；它也不会获得一次大 GEMM 的硬件效率。
+    - 示例：64 GPUs，每节点 8 GPUs，可先设 tensor parallel 8（节点内高速互连），跨 8 节点 data parallel 8。若
+      model 仍放不下，可改为 tensor 4 × pipeline 2 × data 8。最优组合必须由 layer shape、network topology、global
+      batch 和 profiler 决定。
+  - title: 10. 工程实践检查清单
+    source_heading: 10. 工程实践检查清单
+    paragraphs:
+    - 明确 workload：prefill/decode、length distribution、batch/concurrency；
+    - Profiler 确认 compute、memory、communication 或 input bottleneck；
+    - Speculation 报告 acceptance length、draft cost 与 target calls；
+    - Distributed training 记录 topology、parallel dimensions 和 efficiency；
+  - title: 11. 本章总结
+    source_heading: 11. 本章总结
+    paragraphs:
+    - KV cache 把过去 K/V 重算变成线性增长的显存；speculative decoding 用小模型 proposals 减少 target sequential
+      calls，并可严格保持 target distribution。
+    - BigBird 通过 sparse graph 降复杂度；Reformer 用 LSH 找候选；Performer 用 positive random
+      features 近似 softmax kernel。
+    - LoRA 降低 trainable states，checkpointing 降 activation memory，packing 降 padding
+      waste，accumulation 降 microbatch memory；它们作用于不同资源。
+    - Reduced precision、quantization、fusion、compile 和 smaller models 是同等重要的补充手段；任何速度收益都必须与
+      quality、memory 和 cost 一起报告。
+  takeaways:
+  - 性能优化先区分 prefill/decode，并同时看 compute、memory bandwidth、communication 和 queueing。
+  - BigBird 通过 sparse graph 降复杂度；Reformer 用 LSH 找候选；Performer 用 positive random features
+    近似 softmax kernel。
+  - MoE 用 top-k routing 让总参数容量与每-token active compute 解耦，但引入 load balance、capacity、all-to-all
+    和总内存问题。
+  - DDP、FSDP/ZeRO、tensor、pipeline、context 和 expert parallel 沿不同维度切分，最优组合取决于模型 shape
+    与硬件 topology。
+  - Reduced precision、quantization、fusion、compile 和 smaller models 是同等重要的补充手段；任何速度收益都必须与
+    quality、memory 和 cost 一起报告。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念辨析
+  question: 原文如何解释「9. 常见误解辨析」？
+  answer: "“Speculative decoding 会改变输出分布。” 正确 acceptance/residual sampling 保持 target
+    distribution；简化实现可能改变。"
+  source_heading: 9. 常见误解辨析
+- level: 边界判断
+  question: 原文如何解释「1. Faster Decoding at Inference Time」？
+  answer: Autoregressive target model p 每步只产生一个 token，GPU 对单 token decode utilization
+    较低。较小 draft model q 快速提出 K 个 tokens；target 用一次并行 forward 同时验证整段。若大部分 proposals
+    被接受，一次昂贵 target call 可推进多个 tokens。
+  source_heading: 1. Faster Decoding at Inference Time
+- level: 关系解释
+  question: 原文如何解释「3. Scaling Up with Mixture of Experts」？
+  answer: 该教学实现没有 capacity limit，也用 Python loops，目的是验证公式，不是高性能 kernel。Production 会先按
+    expert 对 tokens 排序/dispatch，批量执行 expert GEMMs，再 combine outputs。
+  source_heading: 3. Scaling Up with Mixture of Experts
+- level: 关系解释
+  question: 原文如何解释「7. 自测与实践题」？
+  answer: 对等大 microbatches、正确 loss scaling、无 batch-dependent layer 时，参数 gradient 数学等价到浮点误差。但
+    dropout random sequence、optimizer/scheduler step 数、gradient clipping 和 BatchNorm
+    statistics 可不同；它也不会获得一次大 GEMM 的硬件效率。
+  source_heading: 7. 自测与实践题
+- level: 概念复述
+  question: 原文如何解释「11. 本章总结」？
+  answer: LoRA 降低 trainable states，checkpointing 降 activation memory，packing 降 padding
+    waste，accumulation 降 microbatch memory；它们作用于不同资源。
+  source_heading: 11. 本章总结

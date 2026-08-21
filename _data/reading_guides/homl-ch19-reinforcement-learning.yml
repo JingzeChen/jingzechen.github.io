@@ -1,0 +1,203 @@
+source:
+  post: _posts/book-notes/machine-learning/hands-on-machine-learning/2026-08-02-homl-ch19-reinforcement-learning.md
+  body_sha256: a0fd7ebccff4def15ee3e24f741fae14e991ddd9baeb4aabfc3b90cee1962b93
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 19
+  question: 原文围绕「阅读导引」建立了怎样的核心认识？
+  question_source: 阅读导引
+  thesis: RL 的核心是 policy-dependent sequential data、delayed credit 和 exploration。
+  thesis_source: 11. 本章总结
+  concepts:
+  - term: 阅读导引
+    meaning: 监督学习给出“正确答案”，强化学习（RL）只给延迟、稀疏、带噪的 reward。Agent 的 actions 又会改变未来 data distribution，因此不能简单把历史数据当
+      IID labels。
+    source_heading: 阅读导引
+  - term: 2. Policy Gradients
+    meaning: REINFORCE 用完整 episodes 才更新，unbiased 但 high variance、sample inefficient；on-policy
+      data 不能反复无限复用。Reward shaping、demonstration pretraining 可注入 prior knowledge，但
+      shaping 若改变 optimal policy 会优化错目标。
+    source_heading: 2. Policy Gradients
+  - term: 4. Actor-Critic Algorithms
+    meaning: PPO training cycle：collect N steps from parallel envs → compute GAE/targets
+      → normalize advantages → shuffle minibatches → optimize actor/critic for several
+      epochs → discard rollout and collect fresh on-policy data。
+    source_heading: 4. Actor-Critic Algorithms
+  - term: 5. Mastering Atari Breakout with Stable-Baselines3 PPO
+    meaning: Evaluation 必须单独 env、deterministic policy、多个 episodes/seeds，不用训练 reward
+      normalization statistics 错配。官方叙述：约 1M steps mean reward ~20，10M 近 human，50M
+      常 superhuman；这依版本/hardware/seed，不是保证。
+    source_heading: 5. Mastering Atari Breakout with Stable-Baselines3 PPO
+  - term: 7. Exercises：问题 1–11
+    meaning: RL agent 在 environment 中 sequential decision，通过 actions 影响未来 states/data，目标
+      maximize expected cumulative reward。没有逐 action 正确 label，reward 可延迟/稀疏；data 非
+      IID 且由 policy 生成。监督学习从 fixed labeled examples 预测 targets；无监督/self-supervised
+      从 fixed data structure 学 representation/distribution。
+    source_heading: 7. Exercises：问题 1–11
+  - term: 11. 本章总结
+    meaning: PPO 通过 clipped importance ratio 限制 destructive policy updates；SAC 以最大熵提升
+      continuous-control sample efficiency。
+    source_heading: 11. 本章总结
+  logic:
+  - 阅读导引
+  - 2. Policy Gradients
+  - 3. Value-Based Methods
+  - 5. Mastering Atari Breakout with Stable-Baselines3 PPO
+  - 6. Overview of Popular RL Algorithms
+  - 10. 工程与安全检查清单
+  - 11. 本章总结
+  sections:
+  - title: 阅读导引
+    source_heading: 阅读导引
+    paragraphs:
+    - 监督学习给出“正确答案”，强化学习（RL）只给延迟、稀疏、带噪的 reward。Agent 的 actions 又会改变未来 data distribution，因此不能简单把历史数据当
+      IID labels。
+    - Value-based methods / DQN：先学 state/action 的长期价值，再 greedy 行动；
+    - Actor-Critic / PPO：actor 学 policy，critic 降低 policy-gradient variance，PPO 限制更新幅度。
+    - 本文自包含 MDP/PyTorch 代码在本机执行；CartPole/LunarLander/BipedalWalker/Atari 代码提供完整依赖和实验方案，但不虚构训练结果。
+  - title: 1. What Is Reinforcement Learning?
+    source_heading: 1. What Is Reinforcement Learning?
+    paragraphs:
+    - RL agent 通过 trial and error maximize expected cumulative reward，而不是每一步 reward。Examples：robot
+      motors、Atari joystick、Go moves、thermostat settings、trading positions、recommendations/ads、attention
+      control。
+    - Reward 可以全为负：maze 每步 -1 会鼓励尽快离开。Reward design 决定 agent 真正优化什么，而不是设计者心里想什么；错误
+      proxy 会 reward hacking。
+    - State 必须包含预测未来所需信息。Observation 缺 velocity/noisy 时不是 Markov，形成 POMDP；可 stack
+      history、RNN/Transformer memory 或 belief state。
+    - 性能应以独立 evaluation episodes 的 undiscounted/discounted return distribution 衡量：mean、median、std、quantiles、success
+      rate、safety violations 和 sample efficiency。Training loss 不是 agent performance。要多个
+      seeds 和 confidence intervals，且 eval policy 常 deterministic/no exploration。
+  - title: 2. Policy Gradients
+    source_heading: 2. Policy Gradients
+    paragraphs:
+    - Policy search 可 brute force、evolution strategies/genetic algorithms；policy gradient
+      利用 expected return 对 parameters 的 gradient。
+    - Discrete actions：network 输出 logits，构造 Categorical/Bernoulli；continuous actions：输出
+      Gaussian mean/log-std，动作若有 bounds 可经 Tanh transform 并修正 log probability。
+    - Sampling 而非 argmax 形成 exploration；evaluation 可 argmax，但 training 要保持与 policy
+      gradient log-prob 对应的 stochastic sampling。
+    - REINFORCE 用完整 episodes 才更新，unbiased 但 high variance、sample inefficient；on-policy
+      data 不能反复无限复用。Reward shaping、demonstration pretraining 可注入 prior knowledge，但
+      shaping 若改变 optimal policy 会优化错目标。
+  - title: 3. Value-Based Methods
+    source_heading: 3. Value-Based Methods
+    paragraphs:
+    - Policy-gradient 直接更新 policy；value-based 先估计“长期好坏”，再选 value 最大 action。Tabular
+      methods 适合小 state/action，DQN 用 neural function approximation 泛化到巨大 state space。
+    - Online consecutive transitions 强相关且 distribution 随 policy 快变。Uniform replay
+      randomizes batches、复用 data、平滑 distribution，使 off-policy DQN 更 sample-efficient/stable。代价：old/stale
+      policy data、内存大；on-policy REINFORCE/PPO 不可无 importance correction 随意 replay。
+    - 原书描述 subtract maximum 也可确保 best advantage 0；mean aggregation 更常见、gradient 更平滑。Dueling（architecture）不同于
+      Double（target）。Rainbow 组合 Double、PER、Dueling 等六种改进。
+    - Function approximation + bootstrapping + off-policy 三者并存可 divergence，DQN 正好全有。Replay/target
+      network/Double/Huber/clipping 缓解但无通用保证。这是深度 RL 不稳定的核心背景。
+  - title: 4. Actor-Critic Algorithms
+    source_heading: 4. Actor-Critic Algorithms
+    paragraphs:
+    - A3C：多个 workers 异步探索，各自把 gradients push 到 shared model；decorrelated data，但 stale
+      gradients/nondeterminism；
+    - SAC 学 stochastic actor、双 Q critics 和 temperature，sample-efficient，适合 robotics/continuous
+      actions；DQN 更适合 discrete，PPO 通用稳健但 on-policy sample efficiency 较低。
+    - Clipping 不严格保证 KL trust region，只是 practical approximation。还会监控 approximate KL、clip
+      fraction，并可 early stop。
+    - PPO training cycle：collect N steps from parallel envs → compute GAE/targets
+      → normalize advantages → shuffle minibatches → optimize actor/critic for several
+      epochs → discard rollout and collect fresh on-policy data。
+  - title: 5. Mastering Atari Breakout with Stable-Baselines3 PPO
+    source_heading: 5. Mastering Atari Breakout with Stable-Baselines3 PPO
+    paragraphs:
+    - Atari preprocess：210×160 RGB → 84×84 grayscale；多个 environments parallel。
+    - 训练不稳定时降 LR/clip、增 rollout/batch；探索不足增 entropy。
+    - Evaluation 必须单独 env、deterministic policy、多个 episodes/seeds，不用训练 reward normalization
+      statistics 错配。官方叙述：约 1M steps mean reward ~20，10M 近 human，50M 常 superhuman；这依版本/hardware/seed，不是保证。
+    - 关闭 reward clipping 和 life-loss terminal 后，evaluation reward 才是完整游戏 raw score，才能与
+      human score 比较。Atari sticky actions、no-op reset 等 protocol 仍会改变 scores，benchmark
+      必须注明环境版本和 wrappers。
+  - title: 6. Overview of Popular RL Algorithms
+    source_heading: 6. Overview of Popular RL Algorithms
+    paragraphs:
+    - MCTS 重复 selection → expansion → simulation/evaluation → backup。UCT-style selection
+      平衡 value 与 visit uncertainty。AlphaGo 用 policy/value nets 辅助 search；AlphaGo Zero
+      单 network 输出 policy prior + state value，从 self-play 学；AlphaZero 泛化到 chess/shogi。
+    - 它学 reward/value/policy-relevant model，不必预测所有 pixels/rules。Model bias 会让 planning
+      exploitation model errors；real data/reanalysis 校正。
+    - Noisy-TV problem：不可控随机噪声永远难预测，会吸引 agent；用 controllable features、episodic novelty、RND
+      等缓解。
+    - POET 同时 evolve environments 与 agents，环境逐渐加难（curriculum），agents 跨环境竞争/迁移。目标不是单一
+      task optimum，而是持续产生新 challenge/skill。难点：质量-多样性、资源无限增长、安全和评估没有固定终点。
+  - title: 7. Exercises：问题 1–11
+    source_heading: 7. Exercises：问题 1–11
+    paragraphs:
+    - RL agent 在 environment 中 sequential decision，通过 actions 影响未来 states/data，目标
+      maximize expected cumulative reward。没有逐 action 正确 label，reward 可延迟/稀疏；data 非
+      IID 且由 policy 生成。监督学习从 fixed labeled examples 预测 targets；无监督/self-supervised
+      从 fixed data structure 学 representation/distribution。
+    - Delayed/sparse reward 时，不知之前 actions 谁应得 credit。用 discounted reward-to-go、TD/n-step、critic
+      baseline、GAE、eligibility traces、reward shaping（保持 policy invariance 的 potential-based
+      shaping）、hierarchical RL/demonstrations。低 variance 往往以 bias 为代价。
+    - 打散 temporal correlation、平滑 nonstationary distribution、重复利用 expensive experience，支持
+      off-policy learning。代价是 stale data/内存/coverage bias。PER 聚焦大 TD errors，需 importance
+      weights。On-policy PPO 不能任意长期 replay。
+    - 使用已知/学习的 environment dynamics/reward 来 plan。Examples：dynamic programming（known
+      MDP）、Dyna-Q、MCTS+AlphaGo/AlphaZero、MuZero、model-predictive control、Dreamer。优势可
+      imaginary rollouts/高 sample efficiency；风险 model bias compounding。
+  - title: 10. 工程与安全检查清单
+    source_heading: 10. 工程与安全检查清单
+    paragraphs:
+    - 明确 state/observation、action、transition、reward、termination；
+    - PPO 监控 KL、clip fraction、entropy、value explained variance；
+    - Real-world actions 有 bounds、shield、emergency stop 和 human approval；
+    - 保存 checkpoints、replay/config、seed 和实际 evaluation videos；
+  - title: 11. 本章总结
+    source_heading: 11. 本章总结
+    paragraphs:
+    - REINFORCE 用 likelihood-ratio 将 return 转为 policy gradient，无需 environment differentiable；baseline
+      降 variance。
+    - Bellman recursion 把长期 return 分解为 immediate reward + next value；discounted Bellman
+      operator 是 contraction。
+    - PPO 通过 clipped importance ratio 限制 destructive policy updates；SAC 以最大熵提升 continuous-control
+      sample efficiency。
+    - AlphaZero/MuZero 将 learned models/values/policies 与 search 结合；curiosity/OEL
+      扩展 sparse reward 和持续学习。
+  takeaways:
+  - RL 的核心是 policy-dependent sequential data、delayed credit 和 exploration。
+  - Bellman recursion 把长期 return 分解为 immediate reward + next value；discounted Bellman
+    operator 是 contraction。
+  - DQN 以 neural Q 泛化，replay 降 correlation，target/Double/PER/Dueling 改善稳定性与效率。
+  - PPO 通过 clipped importance ratio 限制 destructive policy updates；SAC 以最大熵提升 continuous-control
+    sample efficiency。
+  - RL 结果必须多 seeds、独立评估和安全约束；真实系统不能无保护 trial-and-error。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念辨析
+  question: 原文如何解释「9. 常见误解」？
+  answer: "“Off-policy 可从任意 data 学任意 policy。” 仍需 action/state coverage，存在 extrapolation
+    error。"
+  source_heading: 9. 常见误解
+- level: 边界判断
+  question: 原文如何解释「2. Policy Gradients」？
+  answer: REINFORCE 用完整 episodes 才更新，unbiased 但 high variance、sample inefficient；on-policy
+    data 不能反复无限复用。Reward shaping、demonstration pretraining 可注入 prior knowledge，但 shaping
+    若改变 optimal policy 会优化错目标。
+  source_heading: 2. Policy Gradients
+- level: 关系解释
+  question: 原文如何解释「4. Actor-Critic Algorithms」？
+  answer: PPO training cycle：collect N steps from parallel envs → compute GAE/targets
+    → normalize advantages → shuffle minibatches → optimize actor/critic for several
+    epochs → discard rollout and collect fresh on-policy data。
+  source_heading: 4. Actor-Critic Algorithms
+- level: 关系解释
+  question: 原文如何解释「7. Exercises：问题 1–11」？
+  answer: RL agent 在 environment 中 sequential decision，通过 actions 影响未来 states/data，目标
+    maximize expected cumulative reward。没有逐 action 正确 label，reward 可延迟/稀疏；data 非 IID
+    且由 policy 生成。监督学习从 fixed labeled examples 预测 targets；无监督/self-supervised 从 fixed
+    data structure 学 representation/distribution。
+  source_heading: 7. Exercises：问题 1–11
+- level: 概念复述
+  question: 原文如何解释「11. 本章总结」？
+  answer: PPO 通过 clipped importance ratio 限制 destructive policy updates；SAC 以最大熵提升
+    continuous-control sample efficiency。
+  source_heading: 11. 本章总结

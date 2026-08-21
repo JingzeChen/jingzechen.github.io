@@ -1,0 +1,152 @@
+source:
+  post: _posts/book-notes/distributed-system/understanding-distributed-system/2026-08-16-understanding-distributed-systems-2e-ch18-network-load-balancing.md
+  body_sha256: 98376b72ed45e90a79081f87ace93a55d504b368d5eb3bd1878d23456eae8ddf
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 9
+  question: 原文围绕「0. 导读：状态外置以后，计算层终于可以横向扩展」建立了怎样的核心认识？
+  question_source: 0. 导读：状态外置以后，计算层终于可以横向扩展
+  thesis: 共同核心能力是 selection、service discovery 和 health checks。
+  thesis_source: 29. 核心结论
+  concepts:
+  - term: 0. 导读：状态外置以后，计算层终于可以横向扩展
+    meaning: Application server 的压力大幅下降，但它仍只有一个实例。只要动态请求继续增长，这个实例最终仍会达到 CPU、memory、network
+      或 concurrency 上限。
+    source_heading: 0. 导读：状态外置以后，计算层终于可以横向扩展
+  - term: 8. Health checks
+    meaning: 具体 scheduler 是“每次开始间隔”还是“上次结束后间隔”会改变公式。更通用地说，检测时间受 probe interval、timeout、failure
+      threshold 和 phase alignment 共同决定。
+    source_heading: 8. Health checks
+  - term: 13.4 Source IP visibility
+    meaning: 不要直接信任 client 可伪造的 forwarding header。
+    source_heading: 13.4 Source IP visibility
+  - term: 17. 18.3 Application layer load balancing（L7）
+    meaning: L7 可在同一 client TCP connection 上，把不同 HTTP requests 分给不同 backends。尤其 HTTP/2：一条
+      TCP connection 上有多个 concurrent streams，且 streams cost 差异大。
+    source_heading: 17. 18.3 Application layer load balancing（L7）
+  - term: 24.1 Load balancing 与 autoscaling
+    meaning: LB 不能凭空产生 server；autoscaler 也需要 discovery/readiness 才能安全接流量。
+    source_heading: 24.1 Load balancing 与 autoscaling
+  - term: 30. 一般化的解决问题方法
+    meaning: Health check、retry、watchdog 和 autoscaler 都是 feedback controllers，也会故障或振荡。为它们添加
+      hysteresis、jitter、budget、max-ejection、last-known-good 和 observability。
+    source_heading: 30. 一般化的解决问题方法
+  logic:
+  - 0. 导读：状态外置以后，计算层终于可以横向扩展
+  - 8. Health checks
+  - 11. 18.1 DNS load balancing
+  - 17. 18.3 Application layer load balancing（L7）
+  - 21. Sidecar pattern 与 service mesh
+  - 24.8 NAT 与 DSR
+  - 30. 一般化的解决问题方法
+  sections:
+  - title: 0. 导读：状态外置以后，计算层终于可以横向扩展
+    source_heading: 0. 导读：状态外置以后，计算层终于可以横向扩展
+    paragraphs:
+    - 用 managed file store 承担大文件 bytes；
+    - Application server 的压力大幅下降，但它仍只有一个实例。只要动态请求继续增长，这个实例最终仍会达到 CPU、memory、network
+      或 concurrency 上限。
+    - 决策粒度是 DNS endpoint、TCP connection，还是 HTTP request？
+    - Session、retry、drain、DDoS 与 observability 如何处理？
+  - title: 4. Request-selection algorithms
+    source_heading: 4. Request-selection algorithms
+    paragraphs:
+    - Long-lived connection 使 connection count 均匀但 work 不均；
+    - Weighted round robin 可按 capacity 分配比例，但 weight 仍需正确估计。
+    - 每次在 eligible pool 中均匀随机选 server。它不需要所有 LB instances 共享一个 global counter，分布式实现简单。
+    - Random 的重要价值是避免多个 balancers 因相同 stale metric 同时追逐同一个“最空闲”server。
+  - title: 8. Health checks
+    source_heading: 8. Health checks
+    paragraphs:
+    - 最简单 handler 永远返回 200，只证明 event loop/process 能响应。原章指出严重 degraded server 的普通 request
+      往往会 timeout，因此简单 check 也有价值。
+    - 但 deep health 有风险：如果共享 database 短暂失败，所有 application servers 同时报 unhealthy，LB
+      清空 pool，使原本可降级的系统完全不可用。
+    - Use dependency-specific degradation instead of full unready。
+    - 具体 scheduler 是“每次开始间隔”还是“上次结束后间隔”会改变公式。更通用地说，检测时间受 probe interval、timeout、failure
+      threshold 和 phase alignment 共同决定。
+  - title: 11. 18.1 DNS load balancing
+    source_heading: 11. 18.1 DNS load balancing
+    paragraphs:
+    - DNS 不在每个 byte/request 的 data path，因此吞吐本身不经过一个 proxy bottleneck。
+    - DNS TTL 降低只缩短名义 cache 窗口，不提供瞬时 failover，还增加 DNS query load。
+    - 因此 IP 数量均匀返回不等于 request/byte load 均匀。DNS 的决策粒度太粗，无法看到实时 connection/request cost。
+    - DNS 适合 region-level coarse steering；region 内通常再用 L4/L7 做细粒度、快速 failure handling。
+  - title: 13.4 Source IP visibility
+    source_heading: 13.4 Source IP visibility
+    paragraphs:
+    - Transparent proxying；
+    - 不要直接信任 client 可伪造的 forwarding header。
+  - title: 17. 18.3 Application layer load balancing（L7）
+    source_heading: 17. 18.3 Application layer load balancing（L7）
+    paragraphs:
+    - L7 LB 是 HTTP reverse proxy：接收 client HTTP request、检查它，再发送给 backend。
+    - L7 可在同一 client TCP connection 上，把不同 HTTP requests 分给不同 backends。尤其 HTTP/2：一条
+      TCP connection 上有多个 concurrent streams，且 streams cost 差异大。
+    - L4 只能把整条 connection 固定给一个 backend，无法把内部 streams 分开。这是 request-level balancing
+      的关键优势。
+    - 功能越多，配置和 failure modes 越多。Retry、buffer、timeout、header trust 等都可能改变 application
+      semantics。
+  - title: 21. Sidecar pattern 与 service mesh
+    source_heading: 21. Sidecar pattern 与 service mesh
+    paragraphs:
+    - 大量 microservices 互相通信，每个 workload 都有 proxy data plane，由 central control plane
+      管理 discovery、identity、routing 和 policy，形成 service-to-service communication mesh。
+    - 作者写作时列举 NGINX、HAProxy、Envoy 作为 popular sidecar proxy load balancers。具体 service-mesh
+      ecosystem 会演进，不能把品牌列表当成永久定义。
+    - 避免一个 dedicated L7 fleet 承担全部 internal traffic；
+    - Sidecar 消除了 dedicated LB 的集中 data path，却没有消除 load balancing system；它将系统分布到每个
+      client，并新增 control plane。
+  - title: 24.1 Load balancing 与 autoscaling
+    source_heading: 24.1 Load balancing 与 autoscaling
+    paragraphs:
+    - LB 分配已有 capacity；
+    - Autoscaler 增删 capacity。
+    - LB 不能凭空产生 server；autoscaler 也需要 discovery/readiness 才能安全接流量。
+  - title: 24.8 NAT 与 DSR
+    source_heading: 24.8 NAT 与 DSR
+    paragraphs:
+    - Full NAT：往返都经 LB，便于 state/observability；
+    - DSR：response 直返 client，减轻 LB egress，network setup 更复杂。
+  - title: 30. 一般化的解决问题方法
+    source_heading: 30. 一般化的解决问题方法
+    paragraphs:
+    - 若 instance 拥有唯一 session/file/job state，简单加 LB 会产生 affinity 和 failover 问题。先让
+      state durable/shared 或可重建。
+    - Discovery、health、algorithm 是三个状态机。混在一个 TTL 或一个 CPU 数字里，会让 failure diagnosis
+      和 rollout 不可靠。
+    - Health check、retry、watchdog 和 autoscaler 都是 feedback controllers，也会故障或振荡。为它们添加
+      hysteresis、jitter、budget、max-ejection、last-known-good 和 observability。
+    - Dedicated LB 可复制并由 Anycast/ECMP 前置；sidecar 可分散 data path。两种方案都需要可靠 control plane、config
+      rollout 和 debugging。
+  takeaways:
+  - 当 authoritative state 外置后，application instances 可互换，horizontal scaling 才简单。
+  - Service registry 的 TTL 支持动态 membership/autoscaling，但 discovery 与 readiness 是不同事实。
+  - DNS load balancing 适合 region-level global steering，却因 cache/TTL 不适合快速逐实例 failover。
+  - L7 可做 TLS、header routing、rate limit 和 sticky session，但 throughput/复杂度成本更高。
+  - 端到端正确性取决于 discovery、health、drain、retry、capacity 和 LB 自身 availability，而不只是选路算法。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念辨析
+  question: 原文如何解释「24.1 Load balancing 与 autoscaling」？
+  answer: LB 不能凭空产生 server；autoscaler 也需要 discovery/readiness 才能安全接流量。
+  source_heading: 24.1 Load balancing 与 autoscaling
+- level: 概念辨析
+  question: 原文如何解释「24.8 NAT 与 DSR」？
+  answer: DSR：response 直返 client，减轻 LB egress，network setup 更复杂。
+  source_heading: 24.8 NAT 与 DSR
+- level: 概念辨析
+  question: 原文如何解释「25.2 “有多个 servers 就自动四个 9”」？
+  answer: 独立故障、即时摘除和剩余 capacity 是强假设。Shared dependency/deploy 会让全部一起失败。
+  source_heading: 25.2 “有多个 servers 就自动四个 9”
+- level: 概念辨析
+  question: 原文如何解释「25.9 “ECMP 会让每个 packet 随机走不同 LB”」？
+  answer: 通常按 flow hash 保持 connection path；per-packet spraying 会造成重排并破坏 stateful LB。
+  source_heading: 25.9 “ECMP 会让每个 packet 随机走不同 LB”
+- level: 概念辨析
+  question: 原文如何解释「25.15 “Service mesh 自动降低复杂度”」？
+  answer: 它把 cross-cutting networking 集中标准化，却增加 distributed proxy fleet 和 control
+    plane；收益取决于组织规模与运营能力。
+  source_heading: 25.15 “Service mesh 自动降低复杂度”

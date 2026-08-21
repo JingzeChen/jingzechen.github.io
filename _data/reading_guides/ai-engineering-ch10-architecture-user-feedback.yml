@@ -1,0 +1,148 @@
+source:
+  post: _posts/book-notes/ai-system/ai-engineering/2026-08-04-ai-engineering-ch10-architecture-user-feedback.md
+  body_sha256: 969a8cd1e25b2089f8eeffd96a294fe2a45091b893ada193d508a2a1c7b969b2
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 9
+  question: 原文围绕「0. 学习目标与全章因果主线」建立了怎样的核心认识？
+  question_source: 0. 学习目标与全章因果主线
+  thesis: 作者的核心分析路径是：不要先画一张“大而全”的架构图，而要从最小调用出发，每遇到一种生产 failure 才加入对应组件；组件增加后立刻补 telemetry
+    和 contracts；系统最终只有经过真实用户反馈，才能知道是否实现产品目标，但反馈本身也必须被当作有偏、敏感的数据来治理。
+  thesis_source: 28. 本章总结
+  concepts:
+  - term: 0. 学习目标与全章因果主线
+    meaning: 前九章分别讨论模型选择、评价、提示、RAG/Agent、微调、数据集和推理优化。第十章把这些技术放回一个真实产品：怎样从最简单的模型调用逐步构造可用、可控、可观测、可持续改进的
+      AI 系统。
+    source_heading: 0. 学习目标与全章因果主线
+  - term: 7. Model Gateway（模型网关）
+    meaning: 原书列举 Portkey、MLflow AI Gateway、Wealthsimple LLM Gateway、TrueFoundry、Kong、Cloudflare
+      等时点实例。也可构建 tool gateway 统一工具访问，虽然原书写作时尚非普遍模式。
+    source_heading: 7. Model Gateway（模型网关）
+  - term: 13. MTTD、MTTR 与 CFR
+    meaning: 行业中 MTTR 也可能表示 repair/recovery/resolution，报告时要声明定义。还应看 median/p90，因为
+      mean 会被少数长 incident 主导。
+    source_heading: 13. MTTD、MTTR 与 CFR
+  - term: 16. Drift Detection（漂移检测）
+    meaning: 用户会学习怎样与系统交互：更短 prompt、特定关键词、绕过限制、欺负自动系统。Response length 下降可能是模型变简洁，也可能是用户学会写更精确指令。
+    source_heading: 16. Drift Detection（漂移检测）
+  - term: 22. When to Collect Feedback（何时收集）
+    meaning: 但生成两份增加成本；用户未必愿读。Gemini 等有时只展示候选开头，用户点击展开。完整与 partial 哪个反馈更可靠需实验：完整信息更充分，partial
+      摩擦更低但可能只按开头选择。
+    source_heading: 22. When to Collect Feedback（何时收集）
+  - term: 30. 一页速记
+    meaning: 本章最值得保留的判断框架是：从最小架构出发，只为真实 failure 增加组件；每加一层能力就同步加 contracts、telemetry
+      和降级路径；最后把用户反馈视为有偏且敏感的观测，而不是答案本身，用它驱动可验证、可逆的系统改进。
+    source_heading: 30. 一页速记
+  logic:
+  - 0. 学习目标与全章因果主线
+  - 7. Model Gateway（模型网关）
+  - 11.1 闭环
+  - 16. Drift Detection（漂移检测）
+  - 19.2 Implicit Feedback
+  - 26. Degenerate Feedback Loops（退化反馈环）
+  - 30. 一页速记
+  sections:
+  - title: 0. 学习目标与全章因果主线
+    source_heading: 0. 学习目标与全章因果主线
+    paragraphs:
+    - 前九章分别讨论模型选择、评价、提示、RAG/Agent、微调、数据集和推理优化。第十章把这些技术放回一个真实产品：怎样从最简单的模型调用逐步构造可用、可控、可观测、可持续改进的
+      AI 系统。
+    - Feedback：把用户显式评价、自然语言纠正和行为信号变成评价、个性化与训练数据，同时防止偏差和退化反馈环。
+    - 这不是要求所有应用按固定顺序堆齐组件。作者给出的是常见生产演进：只在真实需求出现时增加组件。 每个组件都带来新能力，也增加延迟、成本、状态、依赖和故障点。
+    - Metrics、logs、traces 和 drift detection 如何共同缩短 MTTD/MTTR；
+  - title: '3. Step 2: Put in Guardrails（加入护栏）'
+    source_heading: '3. Step 2: Put in Guardrails（加入护栏）'
+    paragraphs:
+    - Guardrail 应放在每个风险暴露边界。原书按 input/output 分类；真实系统还可在 retrieval、tool execution、gateway
+      和 memory write 处设置策略。
+    - 只要数据离开组织，就没有“绝对不泄漏”的应用层保证。护栏用于降低风险，不代替供应商合同、数据边界和最小权限。
+    - 检测可用规则、校验位、NER/分类模型和上下文判断。规则 precision 高但覆盖有限；模型能识别地址等语义实体，却会误报和漏报。
+    - 示例的 reverse map 本身极敏感，不能记录到普通日志或跨请求复用。模型若改变 placeholder 拼写，也可能无法恢复。
+  - title: 7. Model Gateway（模型网关）
+    source_heading: 7. Model Gateway（模型网关）
+    paragraphs:
+    - 可做 quota、rate limit、预算告警和按成本路由。若只看主调用，重试和隐藏 orchestrator calls 会漏计。
+    - Fallback 模型可能 context、tool、safety 和质量不同。切换前要验证兼容性，响应 metadata 应记录实际模型。
+    - 对 write action，不可因 timeout 自动在另一 provider 重做，除非有 idempotency key 和事务状态。
+    - 原书列举 Portkey、MLflow AI Gateway、Wealthsimple LLM Gateway、TrueFoundry、Kong、Cloudflare
+      等时点实例。也可构建 tool gateway 统一工具访问，虽然原书写作时尚非普遍模式。
+  - title: 11.1 闭环
+    source_heading: 11.1 闭环
+    paragraphs:
+    - token/cost/time budget；
+    - completion invariant；
+    - cancellation 与 checkpoint。
+  - title: 13. MTTD、MTTR 与 CFR
+    source_heading: 13. MTTD、MTTR 与 CFR
+    paragraphs:
+    - 它衡量发现速度。Incident 实际开始时间常未知，可用 first bad event 估计，可能有测量偏差。
+    - 行业中 MTTR 也可能表示 repair/recovery/resolution，报告时要声明定义。还应看 median/p90，因为 mean 会被少数长
+      incident 主导。
+    - 高 CFR 不一定是监控差，反而可能检测很敏感；但它提示 pre-deployment evaluation、canary 或发布流程需要改进。不知道
+      CFR 本身就是变更血缘不足。
+    - 三个 incident 很少，mean 不稳定；生产报告应带样本量、分位数、severity 和服务切片。
+  - title: 16. Drift Detection（漂移检测）
+    source_heading: 16. Drift Detection（漂移检测）
+    paragraphs:
+    - 确定性 hash 即可发现非预期变化，不必先用 ML drift detector。
+    - 用户会学习怎样与系统交互：更短 prompt、特定关键词、绕过限制、欺负自动系统。Response length 下降可能是模型变简洁，也可能是用户学会写更精确指令。
+    - 监控 input length、intent、language、error correction、attack 和 cohort 随时间变化，结合定性调查找原因。
+    - 统计差异只提示变化，不说明好坏和原因；大流量下极小差异也显著，应结合业务阈值。
+  - title: 19.2 Implicit Feedback
+    source_heading: 19.2 Implicit Feedback
+    paragraphs:
+    - rephrase/correction；
+    - 它量大、低摩擦，却高度依赖场景。分享可能因为内容有用，也可能因为错误可笑。
+  - title: 22. When to Collect Feedback（何时收集）
+    source_heading: 22. When to Collect Feedback（何时收集）
+    paragraphs:
+    - Face ID 等功能必须校准；其他产品初始问卷会增加 signup friction，应可跳过，先用 neutral defaults 再逐步学习。
+    - 但生成两份增加成本；用户未必愿读。Gemini 等有时只展示候选开头，用户点击展开。完整与 partial 哪个反馈更可靠需实验：完整信息更充分，partial
+      摩擦更低但可能只按开头选择。
+    - Google Photos 在不确定两个人/宠物是否相同时询问，属于 uncertainty-driven feedback/active learning。
+    - 另一观点是 enthusiastic positive feedback 揭示真正高价值功能。可低频采样，例如仅向 1% 用户展示；但采样更小会增加选择偏差和估计方差。
+  - title: 26. Degenerate Feedback Loops（退化反馈环）
+    source_heading: 26. Degenerate Feedback Loops（退化反馈环）
+    paragraphs:
+    - 反馈不完整：只能收到系统展示内容的反馈。当前模型/排序决定 exposure，exposure 决定 click，click 又训练下一模型。
+    - 视频 A 初始分数略高，展示更多，得到更多 clicks，模型把 clicks 当质量，A 继续升高；B 没曝光就没有证明自己的机会。
+    - 少量用户喜欢某类内容，系统多生成该内容，吸引更多同类用户，反馈继续强化。产品可能从通用工具变成极窄内容社区。若被放大的是种族、性别或色情偏好，风险更严重。
+    - 只优化用户即时赞同时，模型会说用户想听的话，而非最准确/有益的内容。Human-feedback 训练研究观察到模型更倾向匹配用户观点。
+  - title: 30. 一页速记
+    source_heading: 30. 一页速记
+    paragraphs:
+    - Cache key 是否含 tenant/ACL/version，semantic hit 是否二次校验；
+    - Agent 是否有 budget、loop detection、approval 和 idempotency；
+    - 每请求是否能从 trace 定位 route、docs、prompt、tools、model 和 guardrail；
+    - 本章最值得保留的判断框架是：从最小架构出发，只为真实 failure 增加组件；每加一层能力就同步加 contracts、telemetry 和降级路径；最后把用户反馈视为有偏且敏感的观测，而不是答案本身，用它驱动可验证、可逆的系统改进。
+  takeaways:
+  - AI 工程架构应从 query → model → response 的最小系统开始，按真实失败逐步增加组件。
+  - Exact cache 安全性取决于完整 scope/version key；semantic cache 提高 hit，却可能产生错误复用。
+  - Drift 可来自 system prompt、用户行为或第三方底层模型，即使 API 名称不变。
+  - 反馈应嵌入工作流、随时可给且不打断任务；错误发生和模型低 confidence 时尤其有价值。
+  - 作者的核心分析路径是：不要先画一张“大而全”的架构图，而要从最小调用出发，每遇到一种生产 failure 才加入对应组件；组件增加后立刻补 telemetry
+    和 contracts；系统最终只有经过真实用户反馈，才能知道是否实现产品目标，但反馈本身也必须被当作有偏、敏感的数据来治理。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念辨析
+  question: 原文如何解释「误解 1：成熟 AI 应用必须包含图中的所有组件」？
+  answer: 架构是演进框架，不是 checklist。没有需求的组件只增加故障和成本。
+  source_heading: 误解 1：成熟 AI 应用必须包含图中的所有组件
+- level: 概念辨析
+  question: 原文如何解释「误解 6：重试总能修复模型错误」？
+  answer: 只对瞬态/随机失败有效；事实缺失、错误 context 和坏 policy 会重复失败。
+  source_heading: 误解 6：重试总能修复模型错误
+- level: 概念辨析
+  question: 原文如何解释「误解 12：Cache hit rate 越高越好」？
+  answer: False/stale hit 会快速返回错误或泄漏。应优化安全命中带来的净收益。
+  source_heading: 误解 12：Cache hit rate 越高越好
+- level: 概念辨析
+  question: 原文如何解释「误解 17：原书说 log everything，就应保存全部原文」？
+  answer: 目标是保留足够调试信息，不是违反隐私。敏感内容需 redact、引用或受控存储。
+  source_heading: 误解 17：原书说 log everything，就应保存全部原文
+- level: 概念辨析
+  question: 原文如何解释「误解 26：Private feedback 总是优于 public feedback」？
+  answer: Private 更 candid，但减少 discoverability/explainability；目标不同。
+  source_heading: 误解 26：Private feedback 总是优于 public feedback

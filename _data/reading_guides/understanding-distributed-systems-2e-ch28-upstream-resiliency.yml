@@ -1,0 +1,153 @@
+source:
+  post: _posts/book-notes/distributed-system/understanding-distributed-system/2026-08-16-understanding-distributed-systems-2e-ch28-upstream-resiliency.md
+  body_sha256: 1328e4fbbe5aa6dae7306bdca4265f5a0b125c672d3ed4bfefe4b264ae6c6c02
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 10
+  question: 原文围绕「0. 本章定位：下游保护解决“我调用谁”，上游保护解决“谁在压我”」建立了怎样的核心认识？
+  question_source: 0. 本章定位：下游保护解决“我调用谁”，上游保护解决“谁在压我”
+  thesis: Shedding基于process local saturation；rate limiting基于global per-principalusage，后者需coordination。
+  thesis_source: 27. 核心结论
+  concepts:
+  - term: 0. 本章定位：下游保护解决“我调用谁”，上游保护解决“谁在压我”
+    meaning: 四者可组合：quota 限制公平份额，local shedding 保护当前实例，queue 吸收允许异步的短峰值，constant-work
+      路径消除极端 mode。
+    source_heading: 0. 本章定位：下游保护解决“我调用谁”，上游保护解决“谁在压我”
+  - term: 6. 28.3 Rate-limiting
+    meaning: Quota 可对应付费 tier：使用更多资源的 users 支付更多。需要可靠 resource attribution、billing/audit，不能只按易伪造
+      IP。
+    source_heading: 6. 28.3 Rate-limiting
+  - term: 12. 其他常见限流算法（背景补充）
+    meaning: 选择取决于 burst semantics、精确性、distributed coordination 和成本。原章重点是 sliding
+      bucket，不指定其他算法。
+    source_heading: 12. 其他常见限流算法（背景补充）
+  - term: 13.4 Atomic get-and-increment / CAS
+    meaning: 如果先 increment 后发现超 quota，被拒 request 是否计入 usage，要明确定义。
+    source_heading: 13.4 Atomic get-and-increment / CAS
+  - term: 19. 预分配最大用户 slots
+    meaning: 预分配 maximum supported users 的 empty config slots。即使当前 users 少，dump size/work
+      按 max 固定。
+    source_heading: 19. 预分配最大用户 slots
+  - term: 28. 一般化的解决问题方法
+    meaning: Edge过滤粗恶意流量，gateway按keyquota，service按local saturation，handler按downstream
+      pool。
+    source_heading: 28. 一般化的解决问题方法
+  logic:
+  - 0. 本章定位：下游保护解决“我调用谁”，上游保护解决“谁在压我”
+  - 6. 28.3 Rate-limiting
+  - 9. 28.3.1 Single-process naive implementation
+  - 13.4 Atomic get-and-increment / CAS
+  - 16. 28.4 Constant work
+  - 24. 如何设计 upstream resilience
+  - 28. 一般化的解决问题方法
+  sections:
+  - title: 0. 本章定位：下游保护解决“我调用谁”，上游保护解决“谁在压我”
+    source_heading: 0. 本章定位：下游保护解决“我调用谁”，上游保护解决“谁在压我”
+    paragraphs:
+    - 即使每个 client 单独行为合理，aggregate load 仍可能压垮 service。
+    - 四者可组合：quota 限制公平份额，local shedding 保护当前实例，queue 吸收允许异步的短峰值，constant-work 路径消除极端
+      mode。
+    - 并优先满足高价值/临近 SLO 的工作。接受超过可完成量的 request 只会制造 queue、timeout、retry 和 cascade。
+  - title: 3. Load shedding 的反馈与容量（前置工程补充）
+    source_heading: 3. Load shedding 的反馈与容量（前置工程补充）
+    paragraphs:
+    - 本节提前讨论 autoscaling 组合与恢复控制；原章在 28.2 Load leveling 之后才正式引出 autoscaling，见本文第 5
+      节。
+    - Autoscaling：检测 hot，增加 instances；但有 detection/provision/warmup delay。Shedding
+      在新 capacity 到达前保护现有 service。
+    - Drain backlog by priority；
+    - Observe latency/saturation；
+  - title: 6. 28.3 Rate-limiting
+    source_heading: 6. 28.3 Rate-limiting
+    paragraphs:
+    - Rate limiting（throttling）在特定 quota 超过时拒绝 request。
+    - 主体通常是：user、API key、IP address、tenant、service identity。
+    - 前提是 limiter 能准确观察 global rate，且 window 平均足够长。Short burst semantics 取决于算法。
+    - Quota 可对应付费 tier：使用更多资源的 users 支付更多。需要可靠 resource attribution、billing/audit，不能只按易伪造
+      IP。
+  - title: 9. 28.3.1 Single-process naive implementation
+    source_heading: 9. 28.3.1 Single-process naive implementation
+    paragraphs:
+    - 新 request append timestamp；
+    - 定期 purge 超过一分钟 entries；
+    - 高 quota/high traffic 时随 requests 增长。每 timestamp 还有 object/node/pointer overhead。
+    - 优点：精确 sliding window。缺点：memory、purge CPU、lock contention、GC/high cardinality。
+  - title: 12. 其他常见限流算法（背景补充）
+    source_heading: 12. 其他常见限流算法（背景补充）
+    paragraphs:
+    - Request 消耗 token。允许 bounded burst B，长期 rate r。
+    - 以固定 rate drain，平滑 output；queue 满则 reject。接近 load leveling/admission。
+    - 选择取决于 burst semantics、精确性、distributed coordination 和成本。原章重点是 sliding bucket，不指定其他算法。
+  - title: 13.4 Atomic get-and-increment / CAS
+    source_heading: 13.4 Atomic get-and-increment / CAS
+    paragraphs:
+    - Atomic check+increment vs increment-then-reject semantics；
+    - Counter overflow；
+    - Store availability。
+    - 如果先 increment 后发现超 quota，被拒 request 是否计入 usage，要明确定义。
+  - title: 16. 28.4 Constant work
+    source_heading: 16. 28.4 Constant work
+    paragraphs:
+    - Overload、configuration change、fault 迫使 application 行为与平时不同，称 multi-modal behavior。
+    - 原章说 data plane 常偏简单 key-value store，因为给定 query performance 更 predictable。Relational
+      optimizer/隐藏优化可能选择不同 plan，产生多种 operational modes。
+    - 这是作者的 reliability 取舍，不是“关系数据库一定不可靠”。合适 index、plan management、capacity test 可控制；具体
+      store 仍按需求选择。
+    - 无论 average load 还是 stress，都做相同 amount work；若 stress 下变化，应是表现更好而非更差。
+  - title: 19. 预分配最大用户 slots
+    source_heading: 19. 预分配最大用户 slots
+    paragraphs:
+    - 预分配 maximum supported users 的 empty config slots。即使当前 users 少，dump size/work
+      按 max 固定。
+    - Production 不超过 tested maximum，因此避免 growth 触发新 mode/brick wall。
+    - 作者指出无论是否 constant work，系统总有 limit。显式上限比未知 collapse point 更可管理。
+    - Max 必须重新 benchmark when schema grows。
+  - title: 24. 如何设计 upstream resilience
+    source_heading: 24. 如何设计 upstream resilience
+    paragraphs:
+    - 按 request mix 测 QPS、concurrency、CPU、memory、threads、sockets、DB pools、p99；选择留
+      headroom 的 admission threshold。
+    - 若 full bounded work 可承受且 variable extreme危险，使用 fixed snapshot/cell slots；版本/checksum/atomic
+      publish/LKG。
+    - 监控 accepted/shed by reason/priority、inflight/queue、429/503、quota usage/overshoot、limiter-store
+      lag/error、backlog age、autoscale、dump cycle/work/checksum/version。
+    - Burst、expensive request、DDoS-like invalid keys、queue saturation、counter race/store
+      down、batch crash/retry、corrupt dump、mass settings change、cell max capacity。
+  - title: 28. 一般化的解决问题方法
+    source_heading: 28. 一般化的解决问题方法
+    paragraphs:
+    - Edge过滤粗恶意流量，gateway按keyquota，service按local saturation，handler按downstream pool。
+    - Bucket、batch、lease都牺牲精度；明确boundary burst、max overshoot和crash undercount。
+    - 它不能成为全业务SPOF。按quota class选择LKG/local lease/fail-closed，并演练恢复reconcile。
+    - 定期做同一全量工作、checksum/version/atomic publish，换取reconciliation和可测worst case。
+  takeaways:
+  - Server 常在 OS connection queue 满前先耗尽 memory/thread/socket/file 等资源并停摆。
+  - Load leveling 用 channel 把 volatile arrival 平滑为 consumer pace，只适合可异步等待的工作。
+  - Shedding基于process local saturation；rate limiting基于global per-principalusage，后者需coordination。
+  - Limiter store down时可按last state保持static stability，但fail-open/closed必须按quota风险分类。
+  - Constant work平均更昂贵，但可换取predictability、self-healing和实现简单性。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念辨析
+  question: 原文如何解释「22.1 Load shedding 与 rate limiting」？
+  answer: Shedding 看本地 saturation；rate limiting 看主体 global quota。一个返回 503，一个常返回 429。
+  source_heading: 22.1 Load shedding 与 rate limiting
+- level: 概念辨析
+  question: 原文如何解释「22.7 Atomic increment 与 transaction」？
+  answer: Atomic increment 可避免 lost update，但不自动实现复杂多 quota、check-and-reserve 或跨 key
+    invariant。
+  source_heading: 22.7 Atomic increment 与 transaction
+- level: 概念辨析
+  question: 原文如何解释「23.2 “接受后排队不会丢”」？
+  answer: Deadline 到期后 work 无价值，queue 占 memory并触发 retry。Bound queue。
+  source_heading: 23.2 “接受后排队不会丢”
+- level: 概念辨析
+  question: 原文如何解释「23.11 “Read-modify-write counter 足够”」？
+  answer: 并发 lost update。用 atomic increment/CAS/transaction。
+  source_heading: 23.11 “Read-modify-write counter 足够”
+- level: 概念辨析
+  question: 原文如何解释「23.17 “Corrupt full dump 会全站坏”」？
+  answer: Data plane 应先验证、保留 LKG；下一周期 full snapshot自愈。
+  source_heading: 23.17 “Corrupt full dump 会全站坏”

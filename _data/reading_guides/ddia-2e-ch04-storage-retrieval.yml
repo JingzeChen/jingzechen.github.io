@@ -1,0 +1,150 @@
+source:
+  post: _posts/book-notes/distributed-system/design-data-intensive-application/2026-08-05-ddia-2e-ch04-storage-retrieval.md
+  body_sha256: ffa98d485d1102dc16c34f5f284da974ce85855b6ef215cfded9c2c465fdfd5f
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 10
+  question: 0. 本章定位：数据库如何把“存进去”变成“找得回来”？
+  question_source: 0. 本章定位：数据库如何把“存进去”变成“找得回来”
+  thesis: compaction、vacuum、materialized view maintenance、index merge、embedding rebuild
+    都让前台快，但后台必须有资源并被监控。
+  thesis_source: 7. 全章知识结构
+  concepts:
+  - term: 0. 本章定位：数据库如何把“存进去”变成“找得回来”
+    meaning: 如果用同一物理布局强行同时优化两者，会遇到冲突：OLTP 希望一行相关字段邻近、点查快速；OLAP 希望同一列连续、压缩和批量扫描高效。
+    source_heading: 0. 本章定位：数据库如何把“存进去”变成“找得回来”
+  - term: 2. 分析场景的数据存储
+    meaning: 现代 CPU 从连续内存预取高效；random pointer chasing 易 cache miss。列式 batch 连续，能充分利用
+      cache line 和 memory bandwidth。
+    source_heading: 2. 分析场景的数据存储
+  - term: 3. 多维、全文与向量索引
+    meaning: 单维有序索引无法自然解决所有检索。低维空间需要同时剪枝多个坐标；全文把 term 映射到 postings；语义检索把内容映射到高维 embedding，再进行
+      exact 或 approximate nearest neighbor。
+    source_heading: 3. 多维、全文与向量索引
+  - term: 7. 全章知识结构
+    meaning: compaction、vacuum、materialized view maintenance、index merge、embedding
+      rebuild 都让前台快，但后台必须有资源并被监控。
+    source_heading: 7. 全章知识结构
+  - term: 8. 综合案例：电商商品、订单、搜索与分析的存储设计
+    meaning: 再加 replication 和 SSD device WA。设备标称 100 MB/s 并不一定有足够余量承受 compaction/checkpoint
+      和故障恢复。
+    source_heading: 8. 综合案例：电商商品、订单、搜索与分析的存储设计
+  - term: 10. 选择与调优存储引擎的一般方法
+    meaning: 每种结构都应回答四个问题：它如何缩小查询候选？写入为此额外维护什么？旧数据何时回收？崩溃后怎样恢复？能够把这四问讲清，才真正理解了存储引擎，而不只是记住
+      B-tree、LSM、columnar 或 HNSW 的名称。
+    source_heading: 10. 选择与调优存储引擎的一般方法
+  logic:
+  - 0. 本章定位：数据库如何把“存进去”变成“找得回来”
+  - 1. OLTP 的存储与索引
+  - 3. 多维、全文与向量索引
+  - 4. 原章总结：从逻辑请求到物理访问路径
+  - 7. 全章知识结构
+  - 9. 核心结论
+  - 10. 选择与调优存储引擎的一般方法
+  sections:
+  - title: 0. 本章定位：数据库如何把“存进去”变成“找得回来”
+    source_heading: 0. 本章定位：数据库如何把“存进去”变成“找得回来”
+    paragraphs:
+    - 如果用同一物理布局强行同时优化两者，会遇到冲突：OLTP 希望一行相关字段邻近、点查快速；OLAP 希望同一列连续、压缩和批量扫描高效。
+    - 代表：LSM-tree、RocksDB、Cassandra、HBase、ScyllaDB。
+    - 通常无法同时把三者都做到最低：增加索引降低读放大，却增加写和空间；延后 compaction 提高当前写吞吐，却增加读和空间。
+    - 索引选择本质上是把已知查询模式编译进存储结构。数据库通常不会默认索引每个字段，因为写入成本可能不可接受。
+  - title: 1. OLTP 的存储与索引
+    source_heading: 1. OLTP 的存储与索引
+    paragraphs:
+    - Size-tiered compaction 把若干大小相近的新小 SSTable 合并成更大、较老 SSTable。例如四个 256 MB 文件可能合并成
+      898 MB，差额来自覆盖、删除和 TTL 过期。
+    - 最小追加日志把写入做到简单，却把读取和空间回收推迟。内存 hash index 解决点查但要求所有 key 入内存且不支持范围。SSTable 通过排序和稀疏索引降低内存，并允许流式合并；memtable
+      解决随机写与有序文件的矛盾；WAL 保护内存状态；tombstone 表达删除；Bloom filter 降低不存在点查的读放大；compaction
+      在后台支付重写和空间回收成本。
+    - LSM 的核心不是“写一次永不再写”，而是把许多随机小写转换为少量顺序大写，并在后台有计划地重写。其性能最终取决于 compaction 是否跟得上，以及读、写、空间放大是否匹配工作负载。
+    - Redis 提供 set、sorted set、priority-like queue、hash 等接口。若在磁盘上高效持久实现这些结构，需要复杂页和恢复设计；全内存实现更直接。
+  - title: 2. 分析场景的数据存储
+    source_heading: 2. 分析场景的数据存储
+    paragraphs:
+    - Polaris、Unity Catalog、Iceberg catalog 可通过 REST 等接口独立运行。查询引擎先向 catalog 解析表，再读
+      table metadata 和文件。
+    - Parquet 不只支持平坦关系行，也可通过 shredding/striping 把嵌套文档拆成列，并用 definition/repetition
+      level 恢复层级。
+    - 现代 CPU 从连续内存预取高效；random pointer chasing 易 cache miss。列式 batch 连续，能充分利用 cache
+      line 和 memory bandwidth。
+    - 云数仓再把 query engine、catalog、table format、storage format 解耦，让多个引擎共享对象数据。每层都提高组合能力，也要求更清晰的兼容、事务和治理契约。
+  - title: 3. 多维、全文与向量索引
+    source_heading: 3. 多维、全文与向量索引
+    paragraphs:
+    - 空间填充曲线（space-filling curve）把二维坐标映射成一维 code，使空间附近点尽量在 code 上邻近，例如 Z-order、Hilbert
+      curve。
+    - 把查询词和允许 edit distance 构造成 Levenshtein automaton，再与 term dictionary automaton
+      求匹配，可跳过大量不可能 term，而非与每个词逐一动态规划。
+    - 单维有序索引无法自然解决所有检索。低维空间需要同时剪枝多个坐标；全文把 term 映射到 postings；语义检索把内容映射到高维 embedding，再进行
+      exact 或 approximate nearest neighbor。
+    - 这些索引仍重复本章主线：用额外空间、构建和写维护换读取候选缩小。索引返回通常只是候选，最终还需精确几何、原文、权限或 reranking 验证。选择应以召回、延迟、更新、空间和正确性共同评估。
+  - title: 4. 原章总结：从逻辑请求到物理访问路径
+    source_heading: 4. 原章总结：从逻辑请求到物理访问路径
+    paragraphs:
+    - SSTable、LSM-tree、RocksDB、Cassandra、HBase、ScyllaDB、Lucene 等属于或借鉴该家族。通常写吞吐高，读与后台
+      compaction 更复杂。
+    - 把磁盘视为固定 page 集，B-tree 在原位置覆盖 page，依赖 WAL 保证恢复。
+    - 它广泛用于关系和非关系 OLTP，通常点查和范围读取响应稳定；随机页写、fragmentation 和多索引维护构成代价。
+    - 设计的关键不是消灭成本，而是把成本放到 workload 能承担的位置，并让后台工作有足够资源保持稳态。
+  - title: 7. 全章知识结构
+    source_heading: 7. 全章知识结构
+    paragraphs:
+    - LSM 合并小写、列存批量写 immutable files、vectorized engine 批量处理值。这是提高设备和 CPU 效率的共同方法。
+    - B-tree、Bloom、bitmap、R-tree、inverted、ANN 都是额外结构。它们减少查询候选，同时增加构建、写维护和空间。
+    - compaction、vacuum、materialized view maintenance、index merge、embedding rebuild
+      都让前台快，但后台必须有资源并被监控。
+  - title: 8. 综合案例：电商商品、订单、搜索与分析的存储设计
+    source_heading: 8. 综合案例：电商商品、订单、搜索与分析的存储设计
+    paragraphs:
+    - 本节是基于原章机制的教学性推演，用于展示怎样从 workload 推导存储和索引。数值不是通用容量建议，实际系统必须用自己的数据分布和硬件验证。
+    - 再加 replication 和 SSD device WA。设备标称 100 MB/s 并不一定有足够余量承受 compaction/checkpoint
+      和故障恢复。
+    - 在加独立内存数据库前，应确认主库 cache hit 和序列化是否已足够。cache invalidation 从商品变更流驱动。
+    - 再由 learned reranker 处理 top candidates。不同 score 尺度需归一化；商业 boost 不能绕过权限或库存硬条件。
+  - title: 9. 核心结论
+    source_heading: 9. 核心结论
+    paragraphs:
+    - 逻辑模型不决定物理布局。 同一 SQL 可落在 B-tree、LSM、row 或 column engine。
+    - 云分析栈由 query engine、catalog、table format、storage format 分层。
+    - 倒排索引把 term 映射为 postings，n-gram 和自动机扩展 substring/typo。
+    - Flat exact 是 ANN 的 ground truth；IVF/HNSW 用近似换速度。
+  - title: 10. 选择与调优存储引擎的一般方法
+    source_heading: 10. 选择与调优存储引擎的一般方法
+    paragraphs:
+    - 不仅看 raw data。十亿 key 的 hash index、HNSW graph 和多个 B-tree 可能比 value 更大。
+    - 按层分开：database WA、filesystem、device WA、replication。不要混为一个数。
+    - 扫描参数画 Pareto curve：latency vs recall vs memory。还要测 metadata filter 和更新后的 recall。
+    - 每种结构都应回答四个问题：它如何缩小查询候选？写入为此额外维护什么？旧数据何时回收？崩溃后怎样恢复？能够把这四问讲清，才真正理解了存储引擎，而不只是记住
+      B-tree、LSM、columnar 或 HNSW 的名称。
+  takeaways:
+  - columnar layout；
+  - 读懂数据库 tuning 文档；
+  - memtable 把随机写收集成有序批量 flush。
+  - clustered、heap 与 covering index 决定回表和复制成本。
+  - 存储选型的统一方法是让读、写、空间和后台工作匹配真实 workload。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念辨析
+  question: 原文如何解释「6.1 存储引擎不等于数据库产品（database product）」？
+  answer: 产品可以包含多个引擎，或让用户选择 B-tree/LSM/columnar。接口、事务、复制与存储引擎是不同层。
+  source_heading: 6.1 存储引擎不等于数据库产品（database product）
+- level: 概念辨析
+  question: 原文如何解释「6.21 size-tiered 不总比 leveled 写快」？
+  answer: 经验上写放大较低，但具体取决于 overwrite、TTL、文件大小、实现和硬件。
+  source_heading: 6.21 size-tiered 不总比 leveled 写快
+- level: 概念辨析
+  question: 原文如何解释「6.39 vacuum 不等于所有数据库的同一操作」？
+  answer: PostgreSQL VACUUM、FULL、其他产品 compaction/rebuild 语义不同。不能凭名字推断缩文件或锁定。
+  source_heading: 6.39 vacuum 不等于所有数据库的同一操作
+- level: 概念辨析
+  question: 原文如何解释「6.60 sort key 不等于 secondary index」？
+  answer: sort order 提供数据 skipping、range locality 和压缩；一个表通常只有有限物理排序，secondary index
+    是额外结构。
+  source_heading: 6.60 sort key 不等于 secondary index
+- level: 概念辨析
+  question: 原文如何解释「6.81 embedding model 升级不等于只替换 query model」？
+  answer: 新旧 embedding space 不兼容时，必须重算文档向量并迁移 index，常需双索引过渡。
+  source_heading: 6.81 embedding model 升级不等于只替换 query model

@@ -7,8 +7,9 @@
       let progressFrame = null;
       const updateProgress = () => {
         progressFrame = null;
-        const start = content.getBoundingClientRect().top + window.scrollY;
-        const distance = Math.max(content.offsetHeight - window.innerHeight, 1);
+        const activePanel = content.closest('article')?.querySelector('[data-learning-panel]:not([hidden])') || content;
+        const start = activePanel.getBoundingClientRect().top + window.scrollY;
+        const distance = Math.max(activePanel.offsetHeight - window.innerHeight, 1);
         const value = Math.min(1, Math.max(0, (window.scrollY - start) / distance));
         progress.style.transform = `scaleX(${value})`;
       };
@@ -21,6 +22,67 @@
     }
 
     if (!content) return;
+
+    const learningArticle = content.closest('[data-learning-guide="true"]');
+    if (learningArticle) {
+      const learningTabs = [...learningArticle.querySelectorAll('[data-learning-mode]')];
+      const learningPanels = [...learningArticle.querySelectorAll('[data-learning-panel]')];
+      const detailOnly = [...learningArticle.querySelectorAll('[data-learning-detail-only]')];
+      const validLearningModes = new Set(learningTabs.map((tab) => tab.dataset.learningMode));
+      const requestedMode = new URLSearchParams(window.location.search).get('mode');
+
+      const showLearningMode = (mode, updateUrl = true) => {
+        const nextMode = validLearningModes.has(mode) ? mode : 'overview';
+        learningArticle.dataset.learningActiveMode = nextMode;
+        learningTabs.forEach((tab) => {
+          const active = tab.dataset.learningMode === nextMode;
+          tab.setAttribute('aria-selected', active.toString());
+          tab.tabIndex = active ? 0 : -1;
+        });
+        learningPanels.forEach((panel) => {
+          panel.hidden = panel.dataset.learningPanel !== nextMode;
+        });
+        detailOnly.forEach((element) => {
+          element.hidden = nextMode !== 'detail';
+        });
+        if (updateUrl) {
+          const nextUrl = new URL(window.location.href);
+          nextMode === 'overview'
+            ? nextUrl.searchParams.delete('mode')
+            : nextUrl.searchParams.set('mode', nextMode);
+          window.history.replaceState({}, '', nextUrl);
+        }
+        learningArticle.dispatchEvent(new CustomEvent('learningmodechange', { detail: { mode: nextMode } }));
+        window.dispatchEvent(new Event('resize'));
+      };
+
+      learningTabs.forEach((tab, index) => {
+        tab.addEventListener('click', () => showLearningMode(tab.dataset.learningMode));
+        tab.addEventListener('keydown', (event) => {
+          if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+          event.preventDefault();
+          let nextIndex = index;
+          if (event.key === 'ArrowLeft') nextIndex = (index - 1 + learningTabs.length) % learningTabs.length;
+          if (event.key === 'ArrowRight') nextIndex = (index + 1) % learningTabs.length;
+          if (event.key === 'Home') nextIndex = 0;
+          if (event.key === 'End') nextIndex = learningTabs.length - 1;
+          learningTabs[nextIndex].focus();
+          showLearningMode(learningTabs[nextIndex].dataset.learningMode);
+        });
+      });
+
+      const showHashTarget = (scroll = false) => {
+        const hashTarget = window.location.hash && document.getElementById(decodeURIComponent(window.location.hash.slice(1)));
+        if (!hashTarget || !content.contains(hashTarget)) return false;
+        showLearningMode('detail');
+        if (scroll) window.requestAnimationFrame(() => hashTarget.scrollIntoView({ block: 'start' }));
+        return true;
+      };
+
+      const hasDetailHash = showHashTarget();
+      if (!hasDetailHash) showLearningMode(requestedMode, false);
+      window.addEventListener('hashchange', () => showHashTarget(true));
+    }
 
     const updateTableOverflow = () => {
       content.querySelectorAll('.table-wrapper').forEach((wrapper) => {
@@ -80,7 +142,12 @@
     if (!progressive || headings.length === 0) return;
 
     document.body.classList.add('progressive-toc');
-    navigation.forEach((element) => { element.hidden = false; });
+    const detailModeActive = () => !learningArticle || learningArticle.dataset.learningActiveMode === 'detail';
+    const updateNavigationVisibility = () => {
+      navigation.forEach((element) => { element.hidden = !detailModeActive(); });
+    };
+    learningArticle?.addEventListener('learningmodechange', updateNavigationVisibility);
+    updateNavigationVisibility();
     currentLabels.forEach((element) => { element.hidden = false; });
 
     const headingId = (link) => decodeURIComponent(link.hash.slice(1));

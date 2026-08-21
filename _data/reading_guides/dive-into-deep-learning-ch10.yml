@@ -1,0 +1,136 @@
+source:
+  post: _posts/book-notes/deep-learning/dive-into-deep-learning/2026-08-12-dive-into-deep-learning-ch10.md
+  body_sha256: ba78aa20dd9eb5d8a9ecbe5fa4385eef9840a006d702204976aae65072e8bf13
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 8
+  question: 原文围绕「1. 从普通 RNN 到现代序列模型」建立了怎样的核心认识？
+  question_source: 1. 从普通 RNN 到现代序列模型
+  thesis: 明确 encoder 输出接口：最终状态、全时间输出、valid length 和 mask 是否都传给 decoder？
+  thesis_source: 14. 核心结论与解决问题的一般思路
+  concepts:
+  - term: 1. 从普通 RNN 到现代序列模型
+    meaning: 本章的 LSTM、GRU 和 seq2seq 都早于 Transformer。它们仍是在线流式处理、小内存推理、时间序列和有限数据任务的重要基线；同时，门控、残差式状态路径、编码器—解码器和自回归解码也深刻影响了后续架构。
+    source_heading: 1. 从普通 RNN 到现代序列模型
+  - term: 4. 深层循环神经网络
+    meaning: 单层 RNN 已沿时间展开 T 次，具有时间深度；但同一时间步从输入到输出只有一层 recurrent 变换。深层 RNN 再沿垂直方向堆叠
+      L 层，以学习更复杂的逐时刻表示。
+    source_heading: 4. 深层循环神经网络
+  - term: 7.1 为什么拆成两个组件
+    meaning: decoder：作为条件语言模型，根据编码状态和目标左侧前缀，逐词预测后续目标。
+    source_heading: 7.1 为什么拆成两个组件
+  - term: 7.2 Encoder 接口
+    meaning: CNN/Transformer 特征。
+    source_heading: 7.2 Encoder 接口
+  - term: 9. 序列搜索：贪心、穷举与束搜索
+    meaning: 每次 top-k 不只重排 token 序列，也必须按所选 parent beam 重排 decoder hidden/cell state。若状态和前缀错配，代码形状合法却计算错误概率。
+    source_heading: 9. 序列搜索：贪心、穷举与束搜索
+  - term: 14. 核心结论与解决问题的一般思路
+    meaning: 本章把第 9 章“固定维状态递推”的思想推进到实际序列转换系统：LSTM 以独立 cell state 和三门精细管理记忆，GRU 用两门获得更轻量的近似；堆叠与双向结构分别增加表征深度和上下文范围；编码器—解码器把未对齐变长序列转成条件语言建模，teacher
+      forcing 让训练可行，mask 让批量公平，束搜索则在指数输出树中保留有限多种未来。每个改进都解决一个具体瓶颈，也引入新的接口、计算或统计代价。
+    source_heading: 14. 核心结论与解决问题的一般思路
+  logic:
+  - 1. 从普通 RNN 到现代序列模型
+  - 4. 深层循环神经网络
+  - 5. 双向循环神经网络
+  - 7.2 Encoder 接口
+  - 8. RNN Seq2Seq 机器翻译
+  - 12. 原章练习与关键推导
+  - 14. 核心结论与解决问题的一般思路
+  sections:
+  - title: 1. 从普通 RNN 到现代序列模型
+    source_heading: 1. 从普通 RNN 到现代序列模型
+    paragraphs:
+    - 深层 RNN沿输入到输出方向堆叠多层；
+    - 编码器—解码器把不对齐、变长输入输出拆成条件编码和自回归解码；
+    - 束搜索在指数级输出树中保留少量高分前缀。
+    - 本章的 LSTM、GRU 和 seq2seq 都早于 Transformer。它们仍是在线流式处理、小内存推理、时间序列和有限数据任务的重要基线；同时，门控、残差式状态路径、编码器—解码器和自回归解码也深刻影响了后续架构。
+  - title: 2. 长短期记忆网络 LSTM
+    source_heading: 2. 长短期记忆网络 LSTM
+    paragraphs:
+    - 普通 tanh RNN 把所有记忆压在同一个隐藏状态中，并在每步整体经过非线性。长期梯度既要乘 recurrent 权重，又要乘 tanh 导数，容易消失；若谱尺度过大，又会爆炸。
+    - 只有 H_t 送入普通输出投影；C_t 在 LSTM cell 内部沿时间传递。
+    - 门是逐坐标软开关，不是整个时间步只有一个布尔开关。不同隐藏维可以同时选择不同时间尺度。
+    - 再切分，提高硬件利用率。PyTorch LSTM 门顺序是 input、forget、cell candidate、output；手写权重复制时必须匹配顺序。
+  - title: 4. 深层循环神经网络
+    source_heading: 4. 深层循环神经网络
+    paragraphs:
+    - 单层 RNN 已沿时间展开 T 次，具有时间深度；但同一时间步从输入到输出只有一层 recurrent 变换。深层 RNN 再沿垂直方向堆叠 L 层，以学习更复杂的逐时刻表示。
+    - 因此反向也沿时间和层两维传播，优化和激活内存更困难。门控结构可替换普通 RNN cell，但不会消除双维深度成本。
+    - 每层有独立状态和参数；不能把同一个 cell 实例重复放入列表，除非有意跨层共享参数。
+    - 常用手段包括门控 cell、层间 dropout、LayerNorm、残差连接、梯度裁剪和更好初始化。
+  - title: 5. 双向循环神经网络
+    source_heading: 5. 双向循环神经网络
+    paragraphs:
+    - 若训练下一词元模型时反向分支看到未来目标，会造成信息泄漏和虚假低困惑度。双向 RNN 常用于 encoder，而 decoder 仍必须因果单向。
+    - 两个方向参数独立，核心计算和状态宽度近似翻倍。反向方向还要求看到完整序列，增加延迟。双向并不是免费的“多看信息”，而是用非因果上下文和资源换更强离线表示。
+  - title: 7.1 为什么拆成两个组件
+    source_heading: 7.1 为什么拆成两个组件
+    paragraphs:
+    - encoder：读取整个变长源序列，产生表示/状态；
+    - decoder：作为条件语言模型，根据编码状态和目标左侧前缀，逐词预测后续目标。
+  - title: 7.2 Encoder 接口
+    source_heading: 7.2 Encoder 接口
+    paragraphs:
+    - attention 所需的序列表示与 mask；
+    - CNN/Transformer 特征。
+  - title: 8. RNN Seq2Seq 机器翻译
+    source_heading: 8. RNN Seq2Seq 机器翻译
+    paragraphs:
+    - 推理时真实目标不可用，只能喂回模型预测。这造成暴露偏差：训练状态分布来自真实前缀，推理状态分布来自模型前缀。替代方案包括 scheduled sampling、序列级训练和更稳健解码，但也各有偏差和优化困难。
+    - 固定上下文 seq2seq 常把最终 encoder state 初始化 decoder，并可把最后 encoder output 作为 context。
+    - 只用 c 初始化 decoder 后，源信息需通过长 decoder 状态链传播；每步拼接 c 提供直接输入路径，减轻遗忘。它仍是同一个固定向量，无法针对当前目标词选择不同源位置，注意力会进一步解决。
+    - 批量推理时每条序列可能不同时间结束，应维护 finished mask；已结束样本不应继续改变输出语义。
+  - title: 9. 序列搜索：贪心、穷举与束搜索
+    source_heading: 9. 序列搜索：贪心、穷举与束搜索
+    paragraphs:
+    - 后者整段概率更高。因为一旦前缀改变，后续条件分布也改变，不能把每步 argmax 交换成序列 argmax。
+    - 每次 top-k 不只重排 token 序列，也必须按所选 parent beam 重排 decoder hidden/cell state。若状态和前缀错配，代码形状合法却计算错误概率。
+    - 批量 beam 需要管理 finished hypotheses、state、父索引和缓存。
+    - 穷举可视为 beam 宽随深度扩展到保留所有前缀的极端，但不存在一个与长度无关的小固定 k 能普遍等价穷举。
+  - title: 12. 原章练习与关键推导
+    source_heading: 12. 原章练习与关键推导
+    paragraphs:
+    - 所以 hidden 输出再使用 tanh 限幅是必要的；内部 cell 仍可能增大，实践可用裁剪、LayerNorm 或稳定门控。
+    - 内存还需保存门和状态用于 BPTT。融合实现可减少常数，但不能消除串行时间依赖。
+    - 若 beam width 至少保留所有前缀并不剪枝，beam 退化为穷举。
+    - 前缀分布不同即 exposure bias。即使每步真实前缀条件概率良好，自由运行也可能进入训练未见错误前缀。
+  - title: 14. 核心结论与解决问题的一般思路
+    source_heading: 14. 核心结论与解决问题的一般思路
+    paragraphs:
+    - LSTM 用 input、forget、output 三门控制独立 cell state，hidden state 是经 output gate 暴露的有界视图。
+    - BLEU 使用 clipped n-gram precision 和 brevity penalty，只衡量表面重叠，不能替代语义和人工评价。
+    - 检查长度偏差和状态重排：束搜索用 log score、EOS 完成集合、parent beam state gather 和验证集调长度惩罚。
+    - 本章把第 9 章“固定维状态递推”的思想推进到实际序列转换系统：LSTM 以独立 cell state 和三门精细管理记忆，GRU 用两门获得更轻量的近似；堆叠与双向结构分别增加表征深度和上下文范围；编码器—解码器把未对齐变长序列转成条件语言建模，teacher
+      forcing 让训练可行，mask 让批量公平，束搜索则在指数输出树中保留有限多种未来。每个改进都解决一个具体瓶颈，也引入新的接口、计算或统计代价。
+  takeaways:
+  - 梯度裁剪只能限制爆炸；LSTM 和 GRU 通过可学习加法状态路径更直接地缓解长期梯度消失。
+  - Teacher forcing 用真实目标前缀加速训练，却与自回归推理前缀分布不同，产生 exposure bias。
+  - 选择门控 cell：在精度、状态复杂度、参数和推理延迟间比较 GRU 与 LSTM。
+  - 若状态不兼容，显式 bridge：投影层数、方向和 hidden/cell，不做隐式 reshape。
+  - 本章把第 9 章“固定维状态递推”的思想推进到实际序列转换系统：LSTM 以独立 cell state 和三门精细管理记忆，GRU 用两门获得更轻量的近似；堆叠与双向结构分别增加表征深度和上下文范围；编码器—解码器把未对齐变长序列转成条件语言建模，teacher
+    forcing 让训练可行，mask 让批量公平，束搜索则在指数输出树中保留有限多种未来。每个改进都解决一个具体瓶颈，也引入新的接口、计算或统计代价。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念辨析
+  question: 原文如何解释「11.1 LSTM hidden state 与 cell state」？
+  answer: H_t 对外暴露并用于输出，C_t 是内部记忆主通路。两者形状常相同，但不能互换；初始化和传递必须成对。
+  source_heading: 11.1 LSTM hidden state 与 cell state
+- level: 概念辨析
+  question: 原文如何解释「11.5 不同 GRU 实现权重可直接复制」？
+  answer: 门顺序、偏置拆分以及 reset 在 recurrent 矩阵乘法前后的位置可能不同。数学名称相同不保证张量参数化兼容。
+  source_heading: 11.5 不同 GRU 实现权重可直接复制
+- level: 概念辨析
+  question: 原文如何解释「11.13 截断与 padding」？
+  answer: 截断永久丢失超长内容；padding 增加无语义占位并需 mask。二者都统一形状，但信息效果相反。
+  source_heading: 11.13 截断与 padding
+- level: 概念辨析
+  question: 原文如何解释「11.16 Encoder 和 decoder 必须同类型同宽度」？
+  answer: 不必。只有直接把 encoder state 当 decoder state 时需形状一致；桥接投影可连接异构组件。
+  source_heading: 11.16 Encoder 和 decoder 必须同类型同宽度
+- level: 概念辨析
+  question: 原文如何解释「11.23 Beam 越大翻译必然越好」？
+  answer: 搜索到的模型概率通常改善，但模型概率与 BLEU/人类质量不完全一致；长度偏差也可能随 beam 放大。
+  source_heading: 11.23 Beam 越大翻译必然越好

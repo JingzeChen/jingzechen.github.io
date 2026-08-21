@@ -1,0 +1,176 @@
+source:
+  post: _posts/book-notes/ai-system/hands-on-llm-serving-and-optimization/2026-08-12-hands-on-llm-serving-and-optimization-ch05.md
+  body_sha256: 00ed91d7a55e6eff2881f5eaf7d57224e72f1dd7525baa54a27ddf556081d852
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 15
+  question: 原文围绕「0. 本章定位、学习目标与分析主线」建立了怎样的核心认识？
+  question_source: 0. 本章定位、学习目标与分析主线
+  thesis: Batching 的硬件本质是复用同一份权重。 小 batch 下 decode intensity 近似随 batch 增长，但受 latency、KV
+    memory 和请求供给约束。
+  thesis_source: 8. 本章知识结构与核心结论
+  concepts:
+  - term: 0. 本章定位、学习目标与分析主线
+    meaning: 规格口径说明：本章 GPU 峰值与价格来自原章写作时的厂商资料和市场数据。Tensor Core 峰值可能依赖特定 precision、矩阵形状、稀疏性或
+      boost 条件；“GB/s”通常是十进制单位，模型内存工具又常显示 GiB。所有规格都是理论或标称值，真实吞吐还受 kernel、利用率、功耗、拓扑、软件版本和
+      workload 影响。
+    source_heading: 0. 本章定位、学习目标与分析主线
+  - term: 1. Why Optimizing LLM Serving Is Important
+    meaning: 同一家族中，大模型通常在多项 benchmark 上更强。原章用 Llama-3 70B 与 8B 对比说明：若未经优化只能用 8B 满足
+      SLO，优化后在相同硬件与 latency/throughput 下可能使用 32B 或 70B，从而提高质量。
+    source_heading: 1. Why Optimizing LLM Serving Is Important
+  - term: 3. Bottlenecks in LLM Model Loading
+    meaning: 14 GB 模型从 1 GB/s SSD 理论至少 14 s，从 32 GB/s PCIe 理论至少 0.44 s；还未计网络下载、文件解析、反序列化、分片、内存分配和
+      warm-up。逐 token 执行若每层都从 CPU 搬权重，会反复支付慢链路，通常无法满足实时 SLO。
+    source_heading: 3. Bottlenecks in LLM Model Loading
+  - term: 4. Bottlenecks in LLM Model Execution
+    meaning: HBM/GDDR 容量大但相对慢；on-chip SRAM（cache/shared）小、贵、快。算法和 kernel 的关键任务之一是提高数据复用，让从
+      HBM 读入的数据在 on-chip memory 中参与更多运算。FlashAttention 正是通过 tiling 避免大 attention matrix
+      反复写回 HBM。
+    source_heading: 4. Bottlenecks in LLM Model Execution
+  - term: 7. 从本章抽象出的通用瓶颈分析方法
+    meaning: 量化权重后可能从 capacity/带宽转成 compute 或 dequant overhead；增大 batch 后 decode 可从
+      bandwidth 转向 compute/latency；多 GPU 解决容量后可能 communication-bound。
+    source_heading: 7. 从本章抽象出的通用瓶颈分析方法
+  - term: 8. 本章知识结构与核心结论
+    meaning: 本章的总方法是：先用业务 SLO 和流量证明优化价值，再将硬件能力拆为容量、计算、带宽、互联与功耗；先按 weights、KV cache
+      和 workspace 判断模型能否以目标并发装入，再按 prefill/decode 的矩阵形状计算 arithmetic intensity，并与
+      hardware roofline 比较形成瓶颈假设；最后用 profiler 和真实 goodput 验证，选择真正改变当前上界的优化，并持续检查瓶颈是否迁移。
+    source_heading: 8. 本章知识结构与核心结论
+  logic:
+  - 0. 本章定位、学习目标与分析主线
+  - 1. Why Optimizing LLM Serving Is Important
+  - 2. The Role of Accelerator Chips in LLM Serving
+  - 4. Bottlenecks in LLM Model Execution
+  - 5. Other AI Accelerators and Trends
+  - 7. 从本章抽象出的通用瓶颈分析方法
+  - 8. 本章知识结构与核心结论
+  sections:
+  - title: 0. 本章定位、学习目标与分析主线
+    source_heading: 0. 本章定位、学习目标与分析主线
+    paragraphs:
+    - 前四章已经回答了模型如何执行、服务如何构建、平台如何分层。本章是后续优化章节的“瓶颈地图”：在学习量化、batching、FlashAttention、PagedAttention、并行和
+      speculative decoding 之前，先知道它们分别在消除哪类约束。
+    - 再分析执行阶段，用 arithmetic intensity 和 roofline 区分 compute-bound 与 memory-bandwidth-bound；
+    - prefill 为什么会随 prompt/batch 变得 compute-bound，而 decode 常受 memory bandwidth 限制？
+    - 规格口径说明：本章 GPU 峰值与价格来自原章写作时的厂商资料和市场数据。Tensor Core 峰值可能依赖特定 precision、矩阵形状、稀疏性或
+      boost 条件；“GB/s”通常是十进制单位，模型内存工具又常显示 GiB。所有规格都是理论或标称值，真实吞吐还受 kernel、利用率、功耗、拓扑、软件版本和
+      workload 影响。
+  - title: 1. Why Optimizing LLM Serving Is Important
+    source_heading: 1. Why Optimizing LLM Serving Is Important
+    paragraphs:
+    - 原章用 TTFT 说明：20 秒到 1 秒会把“几乎不可交互”变成可用；0.1 秒到 0.01 秒虽然数值上快 10 倍，人类却很可能感知不到。这说明目标不是无限最小化延迟，而是先跨过用户体验阈值，再用剩余预算换
+      throughput/cost。
+    - 或其他单调递减曲线。其具体形状必须从产品实验获得；图 5-1 是概念关系，不是通用心理学定律。聊天看 TTFT 和 ITL，Agent 下游必须等完整结果时更看
+      E2E，离线任务则可容忍 latency 换吞吐。
+    - 同一家族中，大模型通常在多项 benchmark 上更强。原章用 Llama-3 70B 与 8B 对比说明：若未经优化只能用 8B 满足 SLO，优化后在相同硬件与
+      latency/throughput 下可能使用 32B 或 70B，从而提高质量。
+    - 原章用 Black Friday 流量增长 400% 或更多说明峰值问题。若“增长 400%”按相对增量解释，峰值是基线的 5 倍；实践中营销材料有时也把它宽泛称为达到
+      400%，容量规划必须澄清口径。
+  - title: 2. The Role of Accelerator Chips in LLM Serving
+    source_heading: 2. The Role of Accelerator Chips in LLM Serving
+    paragraphs:
+    - H100 SXM 的峰值 compute 更高，H100 NVL 的容量与 bandwidth 更大。选择取决于瓶颈：模型装不下时再高 FLOPS 也无用；decode
+      bandwidth-bound 时 NVL 的带宽可能更有价值；长 prefill compute-bound 时 SXM 可能更强。
+    - 原章将 900 GB/s 平均除以 7 得到每个 peer 约 128 GB/s，以帮助理解总带宽共享。这个除法不是实际 topology/per-link
+      性能模型：900 GB/s 通常是每 GPU 双向聚合 NVLink bandwidth，具体每 link、路由、并发和单向/双向口径依平台。不能据此断言每个
+      peer 固定获得 128 GB/s。
+    - NVSwitch 让多 GPU 通过 switch fabric 获得更均匀的 all-to-all connectivity，但“每一对连接都独占完整
+      900 GB/s”也不是准确理解；900 GB/s 仍是 GPU 的聚合注入带宽，不可能同时对每个 peer 各提供完整 900 GB/s。NVSwitch
+      的价值是减少拓扑瓶颈和提供高 bisection bandwidth。
+    - 原章建议考虑 8×H200 + FP8 + NVSwitch。671B 若所有参数以 1 byte 存储，权重约 671 GB；8×141 GB = 1128
+      GB，容量有余量。它是 MoE，总参数决定权重存储与跨 expert placement，每 token 激活参数决定主要计算，不能把 671B dense
+      model 的 FLOPs 直接套用。实际部署还需 expert parallel、KV cache、runtime 和模型支持。
+  - title: 3. Bottlenecks in LLM Model Loading
+    source_heading: 3. Bottlenecks in LLM Model Loading
+    paragraphs:
+    - 14 GB 模型从 1 GB/s SSD 理论至少 14 s，从 32 GB/s PCIe 理论至少 0.44 s；还未计网络下载、文件解析、反序列化、分片、内存分配和
+      warm-up。逐 token 执行若每层都从 CPU 搬权重，会反复支付慢链路，通常无法满足实时 SLO。
+    - CPU offload 不是绝对不可用：显存不足、低流量、离线或部分 expert 按需加载时可用，但它以 latency/throughput 换容量。生产常把权重放本地
+      NVMe/host RAM 缩短冷启动，运行热路径仍尽量驻留 GPU。
+    - 原章“14 GB 估算、文件约 13 GB”并不矛盾：十进制 GB 与二进制 GiB 换算就是约 13.04 GiB；此外参数数是约数，权重 tying、metadata、分片和
+      serialization 也会造成差异。
+    - OOM 可能发生在最后几个 token，因此“短 smoke test 通过”不能证明长生成安全。应压测最大/分位长度、并发、prefix cache、CUDA
+      graph 和 fragmentation。
+  - title: 4. Bottlenecks in LLM Model Execution
+    source_heading: 4. Bottlenecks in LLM Model Execution
+    paragraphs:
+    - HBM/GDDR 容量大但相对慢；on-chip SRAM（cache/shared）小、贵、快。算法和 kernel 的关键任务之一是提高数据复用，让从
+      HBM 读入的数据在 on-chip memory 中参与更多运算。FlashAttention 正是通过 tiling 避免大 attention matrix
+      反复写回 HBM。
+    - 矩阵越大，input/weight tile 能在片上复用越多，compute 相对 bytes 增长更快。但公式假设完美复用；naive 三重循环若每次从
+      HBM 重读，traffic 会大得多。高性能 GEMM 依靠 tiling/shared memory 才接近该下界。
+    - 因此 continuous batching 增大 active sequences，可让同一份 weights 服务更多 token，提高 arithmetic
+      intensity；这正是 batching 能提高 decode throughput 的硬件直觉。要达到 L40S 约 419 crossover，理想公式需要很大
+      batch，实际先受 KV memory、latency SLO、请求供给和 kernel 限制。
+    - 关键方法是“先测量瓶颈，再选改变该上界的技术”。给 bandwidth-bound decode 换更多 FLOPS 而带宽不变，收益可能很小；给 compute-bound
+      长 prefill 只优化 CPU routing，也不会解决核心问题。
+  - title: 5. Other AI Accelerators and Trends
+    source_heading: 5. Other AI Accelerators and Trends
+    paragraphs:
+    - 专用 inference chip 可简化架构、提高能效或 latency，但模型 architecture 快速变化，unsupported op、compiler
+      maturity 和 proprietary toolchain 会成为迁移成本。NVIDIA 的优势很大一部分来自 CUDA、library、framework
+      和社区，而非单个芯片数字。
+    - 将参数和中间值靠近 compute 可降低 latency、提高可预测性。但 SRAM 面积和价格高，容量有限；大模型需要跨更多 chips partition，反而增加
+      inter-chip challenge。适合极低 latency workload，不一定有最低 $/token。
+    - NVL72：36 Grace CPUs + 72 Blackwell GPUs 构成 rack-scale NVLink domain。
+    - 这种系统有利于大 MoE、disaggregated prefill/decode 和 expert parallel，但需要软硬件协同、功耗/冷却、拓扑感知调度和成熟
+      runtime，并非普通 workload 自动受益。
+  - title: 7. 从本章抽象出的通用瓶颈分析方法
+    source_heading: 7. 从本章抽象出的通用瓶颈分析方法
+    paragraphs:
+    - 测 input/output length、active sequences、batch、prefix reuse、模型 mix 和 burst。不要只用一个短
+      prompt 推导硬件。
+    - 分开 prefill、decode、sampling、communication；看 achieved FLOPS、HBM bandwidth、collective
+      和 GPU gaps。
+    - 计算 workload intensity 与 hardware crossover。低于 crossover 假设 bandwidth-bound，高于则
+      compute-bound，再用 profiler 验证，而不是把 roofline 当结论。
+    - 量化权重后可能从 capacity/带宽转成 compute 或 dequant overhead；增大 batch 后 decode 可从 bandwidth
+      转向 compute/latency；多 GPU 解决容量后可能 communication-bound。
+  - title: 8. 本章知识结构与核心结论
+    source_heading: 8. 本章知识结构与核心结论
+    paragraphs:
+    - "“能装下”不等于“能高效服务”。 还需 activation、workspace、fragmentation 和并发 headroom，2× weight
+      只是 heuristic。"
+    - Prefill 和 decode 是两种不同 workload。 长 prefill 可达到高 intensity；batch=1 decode 约 1
+      FLOP/byte，通常强烈 bandwidth-bound。
+    - Batching 的硬件本质是复用同一份权重。 小 batch 下 decode intensity 近似随 batch 增长，但受 latency、KV
+      memory 和请求供给约束。
+    - 本章的总方法是：先用业务 SLO 和流量证明优化价值，再将硬件能力拆为容量、计算、带宽、互联与功耗；先按 weights、KV cache 和 workspace
+      判断模型能否以目标并发装入，再按 prefill/decode 的矩阵形状计算 arithmetic intensity，并与 hardware roofline
+      比较形成瓶颈假设；最后用 profiler 和真实 goodput 验证，选择真正改变当前上界的优化，并持续检查瓶颈是否迁移。
+  takeaways:
+  - 优化的目标是业务可行性，不是追求漂亮的 benchmark。 它让体验跨过阈值、降低生命周期单位成本，并决定峰值和区域部署能否实现。
+  - 多 GPU 后拓扑成为算法的一部分。 单 node NVLink/NVSwitch 远快于跨 node 示例链路，parallel strategy 必须匹配通信特征。
+  - "“能装下”不等于“能高效服务”。 还需 activation、workspace、fragmentation 和并发 headroom，2× weight
+    只是 heuristic。"
+  - Batching 的硬件本质是复用同一份权重。 小 batch 下 decode intensity 近似随 batch 增长，但受 latency、KV
+    memory 和请求供给约束。
+  - 本章的总方法是：先用业务 SLO 和流量证明优化价值，再将硬件能力拆为容量、计算、带宽、互联与功耗；先按 weights、KV cache 和 workspace
+    判断模型能否以目标并发装入，再按 prefill/decode 的矩阵形状计算 arithmetic intensity，并与 hardware roofline
+    比较形成瓶颈假设；最后用 profiler 和真实 goodput 验证，选择真正改变当前上界的优化，并持续检查瓶颈是否迁移。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念辨析
+  question: 原文如何解释「6.1 功能可用 = 生产可行」？
+  answer: 错误。单请求能生成不代表高并发、长 context、峰值和单位成本可行。
+  source_heading: 6.1 功能可用 = 生产可行
+- level: 概念辨析
+  question: 原文如何解释「6.7 显存容量 = 显存带宽」？
+  answer: 错误。容量决定能放多少，带宽决定每秒能搬多少；大显存不保证快，高带宽也不能弥补装不下。
+  source_heading: 6.7 显存容量 = 显存带宽
+- level: 概念辨析
+  question: 原文如何解释「6.15 torch_dtype 足以证明实际显存 dtype」？
+  answer: 错误。checkpoint tensor、量化格式和 runtime cast 可能不同，应检查真实加载配置和 tensors。
+  source_heading: 6.15 torch_dtype 足以证明实际显存 dtype
+- level: 概念辨析
+  question: 原文如何解释「6.21 Roofline crossover 越高越好」？
+  answer: 不一定。它是 compute-to-bandwidth 比；高 crossover 可能意味着 compute 增长远快于 bandwidth，更多
+    workload 落在 bandwidth-bound 区域。
+  source_heading: 6.21 Roofline crossover 越高越好
+- level: 概念辨析
+  question: 原文如何解释「6.27 MoE 总参数等于每 token 计算参数」？
+  answer: 错误。总参数影响存储，路由激活的 experts 决定主要 token compute；通信与 load balance 又是额外约束。
+  source_heading: 6.27 MoE 总参数等于每 token 计算参数

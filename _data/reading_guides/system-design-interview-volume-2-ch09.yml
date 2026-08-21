@@ -1,0 +1,145 @@
+source:
+  post: _posts/book-notes/software-architecture/system-design-interview-volume-2/2026-08-12-system-design-interview-volume-2-ch09.md
+  body_sha256: c1da966363c243a6340c3e50f86dd5b95abafc633f94c1630bf76315747d8765
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 8
+  question: 原文围绕「0. 对象存储的核心拆分」建立了怎样的核心认识？
+  question_source: 0. 对象存储的核心拆分
+  thesis: Durability、Availability、Consistency、Latency 和 Storage Cost 是不同维度。 每个 ACK/Replica/EC
+    决策都在它们之间取舍。
+  thesis_source: 15. 核心结论
+  concepts:
+  - term: 0. 对象存储的核心拆分
+    meaning: 同时带来 Atomicity Gap：Payload 已成功写入，但 Metadata 写失败会形成 Orphan；Metadata 已发布而数据未足够复制会形成
+      Dangling Reference。设计必须规定可见性边界并用 GC/Reconciliation 修复。
+    source_heading: 0. 对象存储的核心拆分
+  - term: 3.3 Write Once, Read Many
+    meaning: Upload 可接受比 Read 更多编码/复制成本。
+    source_heading: 3.3 Write Once, Read Many
+  - term: 5.7 Small Object：为何不能一对象一文件
+    meaning: 问题一：Internal Fragmentation。4 KB Block 上，小于 4 KB 仍占一整块。 问题二：Inode 数固定/Metadata
+      Cache 压力，大量 Small File 会耗尽 Inode 并产生 Random I/O。
+    source_heading: 5.7 Small Object：为何不能一对象一文件
+  - term: 7.2 Object 与 Container Checksum
+    meaning: Checksum 本身也要受 Record Header/Replica/Metadata 保护。
+    source_heading: 7.2 Object 与 Container Checksum
+  - term: 9.1 Delete Marker
+    meaning: 启用 Versioning 时 DELETE 不删旧版本，而插入新 Delete Marker。Current 是 Marker 时普通
+      GET 返回 404；指定旧 Version ID 仍可恢复。
+    source_heading: 9.1 Delete Marker
+  - term: 16. 解决对象存储问题的一般思路
+    meaning: 本章最值得迁移的方法是：先把用户可变命名空间与不可变字节分离，再围绕 Failure Domain、校验和修复定义耐久性；对 Small
+      Object、Prefix Listing、Multipart 和 Versioning 分别承认其特殊访问模式，不试图用一个通用数据库或一种文件布局解决所有问题。
+    source_heading: 16. 解决对象存储问题的一般思路
+  logic:
+  - 0. 对象存储的核心拆分
+  - 3.3 Write Once, Read Many
+  - 4.2 下载对象
+  - 7.2 Object 与 Container Checksum
+  - 8.5 Prefix 不是 Directory
+  - 11.3 并发 Reader 安全
+  - 16. 解决对象存储问题的一般思路
+  sections:
+  - title: 0. 对象存储的核心拆分
+    source_heading: 0. 对象存储的核心拆分
+    paragraphs:
+    - Metadata 可按查询优化，Payload 可按容量/顺序 I/O 优化；
+    - Data Node 只认 UUID，不必解析用户 Key；
+    - Replication/Erasure Coding 可在 Data Plane 独立演进。
+    - 同时带来 Atomicity Gap：Payload 已成功写入，但 Metadata 写失败会形成 Orphan；Metadata 已发布而数据未足够复制会形成
+      Dangling Reference。设计必须规定可见性边界并用 GC/Reconciliation 修复。
+  - title: 1.5 核心术语
+    source_heading: 1.5 核心术语
+    paragraphs:
+    - 对象逻辑容器，Bucket Name 全局唯一。它持有 Owner、Policy、Lifecycle、Versioning 等配置。
+    - Payload 是任意 Byte Sequence，Metadata 是描述它的 Name-value Pairs。
+    - Bucket 级功能，保留同一 Key 的多个 Version，支持恢复误删/覆盖。
+    - 例如 99.999999999% Durability 不代表 99.999999999% 请求都能即时访问。
+  - title: 3.3 Write Once, Read Many
+    source_heading: 3.3 Write Once, Read Many
+    paragraphs:
+    - Small Object Packing 减少随机 I/O；
+    - Upload 可接受比 Read 更多编码/复制成本。
+  - title: 4.2 下载对象
+    source_heading: 4.2 下载对象
+    paragraphs:
+    - Data Store 按 UUID 读取；
+    - 返回 Payload、Metadata、Checksum/ETag。
+    - 数据路径可由 Data Node/CDN 直接 Stream 到 Client，控制面只返回位置/Token，减少 API 带宽瓶颈。
+  - title: 5.7 Small Object：为何不能一对象一文件
+    source_heading: 5.7 Small Object：为何不能一对象一文件
+    paragraphs:
+    - 问题一：Internal Fragmentation。4 KB Block 上，小于 4 KB 仍占一整块。 问题二：Inode 数固定/Metadata
+      Cache 压力，大量 Small File 会耗尽 Inode 并产生 Random I/O。
+    - 解决：把多个 Small Object 顺序 Append 到大 Container File。
+    - 一个 Active File 只能按顺序 Append，多核会争同一锁。作者建议每 Core 一个 Active File，使各 Core 独立顺序写。
+    - 还可按 Size Class 区分：Large Object 独立 extent/part，Small Object Packing，避免一个巨大对象阻塞
+      Small 写。
+  - title: 7.2 Object 与 Container Checksum
+    source_heading: 7.2 Object 与 Container Checksum
+    paragraphs:
+    - 每个 Object Record 后存 Checksum，支持局部验证；
+    - Read-only Container 尾部再存整文件 Checksum，支持 Scrub。
+    - Checksum 本身也要受 Record Header/Replica/Metadata 保护。
+  - title: 8.5 Prefix 不是 Directory
+    source_heading: 8.5 Prefix 不是 Directory
+    paragraphs:
+    - List 用户 Buckets；
+    - 非递归 List：按 Delimiter 把更深 Key Roll Up 为 Common Prefix；
+    - Recursive List：返回 Prefix 下所有 Key。
+  - title: 9.1 Delete Marker
+    source_heading: 9.1 Delete Marker
+    paragraphs:
+    - 启用 Versioning 时 DELETE 不删旧版本，而插入新 Delete Marker。Current 是 Marker 时普通 GET 返回
+      404；指定旧 Version ID 仍可恢复。
+    - Delete Marker 是 Metadata Version，没有 Payload。永久删除某指定 Version 才让对应 Payload 在无引用后进入
+      GC。
+  - title: 11.3 并发 Reader 安全
+    source_heading: 11.3 并发 Reader 安全
+    paragraphs:
+    - File Generation/Epoch；
+    - Reference Count；
+    - Read-copy-update；
+  - title: 16. 解决对象存储问题的一般思路
+    source_heading: 16. 解决对象存储问题的一般思路
+    paragraphs:
+    - 按 Size Distribution 算 Object Count、Byte Capacity、Metadata；按 Small Object Request
+      算 IOPS/CPU，不只算 PB。
+    - End-to-end Checksum、Periodic Scrub、Replica Fallback、Read Repair 和 Corruption
+      Metrics。
+    - Current/Old Version、Delete Marker、Incomplete Upload、Tombstone、GC Candidate、Physically
+      Deleted；每次转换幂等可审计。
+    - 本章最值得迁移的方法是：先把用户可变命名空间与不可变字节分离，再围绕 Failure Domain、校验和修复定义耐久性；对 Small Object、Prefix
+      Listing、Multipart 和 Versioning 分别承认其特殊访问模式，不试图用一个通用数据库或一种文件布局解决所有问题。
+  takeaways:
+  - 对象存储的根本取舍是牺牲原地修改与部分延迟，换海量、耐久和低成本。
+  - Upload 应先让 Data 达到耐久条件，再发布 Metadata。 失败残留 Orphan 比可见坏引用更容易安全回收。
+  - Checksum 负责检测，冗余负责恢复。 Scrub/Repair 才能维持长期冗余。
+  - Versioning 用新 Row + 新 Object ID 保存完整历史。 Delete Marker 是版本，不是物理删。
+  - Durability、Availability、Consistency、Latency 和 Storage Cost 是不同维度。 每个 ACK/Replica/EC
+    决策都在它们之间取舍。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念辨析
+  question: 原文如何解释「13.1 Durability 不等于 Availability」？
+  answer: 数据没丢但服务暂不可访问，是高耐久低可用事件；请求成功率不能代替丢失概率。
+  source_heading: 13.1 Durability 不等于 Availability
+- level: 概念辨析
+  question: 原文如何解释「13.11 4+2 EC 不是两个完整副本」？
+  answer: 它是 4 Data + 2 Parity，需任意 4 健康块恢复；Read/Repair 要跨多节点。
+  source_heading: 13.11 4+2 EC 不是两个完整副本
+- level: 概念辨析
+  question: 原文如何解释「13.17 每 Core 一个 Active File 不等于无限扩写」？
+  answer: 磁盘带宽、Fsync、SQLite Mapping 和 Replication 仍是共享瓶颈。
+  source_heading: 13.17 每 Core 一个 Active File 不等于无限扩写
+- level: 概念辨析
+  question: 原文如何解释「13.23 Versioning 不使用 Delta Patch」？
+  answer: 每次 PUT 是完整新 Immutable Object，存储成本按版本累积。
+  source_heading: 13.23 Versioning 不使用 Delta Patch
+- level: 概念辨析
+  question: 原文如何解释「13.29 可用容量不等于原始磁盘容量」？
+  answer: 要扣 Replica/EC、Headroom、GC、Repair、坏盘和文件系统开销。
+  source_heading: 13.29 可用容量不等于原始磁盘容量

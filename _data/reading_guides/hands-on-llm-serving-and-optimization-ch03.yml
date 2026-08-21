@@ -1,0 +1,156 @@
+source:
+  post: _posts/book-notes/ai-system/hands-on-llm-serving-and-optimization/2026-08-12-hands-on-llm-serving-and-optimization-ch03.md
+  body_sha256: 0f71e7365ba44f66491b0af8f887630a2eb5a2953d282665025bbf7d9d6c9c8a
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 12
+  question: 原文围绕「0. 本章定位、学习目标与设计主线」建立了怎样的核心认识？
+  question_source: 0. 本章定位、学习目标与设计主线
+  thesis: 多模型服务的本质是 metadata-driven routing + resource-aware residency。 model ID 决定
+    worker/backend，cache policy 决定哪些模型留在有限资源中。
+  thesis_source: 7. 本章知识结构与核心结论
+  concepts:
+  - term: 0. 本章定位、学习目标与设计主线
+    meaning: 代码边界说明：原章明确说明代码经过选取和简化，完整上下文在配套仓库。原文片段中还存在缩进、变量名不一致、缺失锁/超时/关闭流程等问题。本笔记保留其架构意图，并在关键处给出可解析的改写或伪代码；它们用于理解职责和数据流，不应直接作为生产实现。
+    source_heading: 0. 本章定位、学习目标与设计主线
+  - term: 1. Build an Online LLM Serving Service from Scratch
+    meaning: 十余行代码能完成 batch，是因为复杂度没有消失，而是移到了 vLLM 内部。团队仍需理解并配置：最大并发序列、batch token
+      budget、GPU memory utilization、模型长度、prefix caching、量化、parallel size 和调度策略。参数名随版本变化，应以所用版本文档为准。
+    source_heading: 1. Build an Online LLM Serving Service from Scratch
+  - term: 2. A General Design for Single-Model LLM Serving
+    meaning: 平台能重启 Pod，却不知道模型何时真正 ready。LLM 启动可能包括下载几十 GB 权重、加载到 GPU、编译 kernel 和 warm-up，因此需要
+      startup/readiness probe、graceful drain 和足够 termination grace period。
+    source_heading: 2. A General Design for Single-Model LLM Serving
+  - term: 4. Trade-offs in Multi-Model Serving Designs
+    meaning: 多个 replica 权重相同，但 KV/prefix cache 内容不同。将共享 system prompt、文档或模板前缀的请求路由到已有
+      cache 的 replica，可减少重复 prefill。此时 routing key 不只有 model ID，还包括可复用 prefix 的 hash/tenant/version。
+    source_heading: 4. Trade-offs in Multi-Model Serving Designs
+  - term: 6. 从本章抽象出的系统设计方法
+    meaning: 分别测 queue、load/cold start、prefill、decode、stream、IPC 与网络，并注入 worker crash、backend
+      timeout、client disconnect、cache stampede 和 load storm。平均 happy-path latency
+      不足以证明生产可用。
+    source_heading: 6. 从本章抽象出的系统设计方法
+  - term: 7. 本章知识结构与核心结论
+    meaning: 本章的总方法是：先将单次推理拆成 API、Sequence 调度、executor 和隔离 worker，用稳定 ID 把客户端请求与设备
+      batch 解耦，再以事件队列把 token 从集中式执行流准确分发给各客户端；随后把同样的“元数据驱动 + 生命周期管理”扩展到多模型 residency，并依据工作集、cold-start
+      代价和 SLO，在共享资源池、独占模型组及两者的混合方案之间选择。
+    source_heading: 7. 本章知识结构与核心结论
+  logic:
+  - 0. 本章定位、学习目标与设计主线
+  - 1. Build an Online LLM Serving Service from Scratch
+  - 2. A General Design for Single-Model LLM Serving
+  - 3. Build a Multi-Model Serving Service from Scratch
+  - 4. Trade-offs in Multi-Model Serving Designs
+  - 6. 从本章抽象出的系统设计方法
+  - 7. 本章知识结构与核心结论
+  sections:
+  - title: 0. 本章定位、学习目标与设计主线
+    source_heading: 0. 本章定位、学习目标与设计主线
+    paragraphs:
+    - 第 1 章给出了端侧、单模型、多模型和平台化服务范式；第 2 章解释了 LLM 的 token-by-token 执行、KV cache、prefill、decode、streaming
+      和 batching。
+    - API Server、LLM Engine、Workload Manager、Model Executor、Model Worker、Model Manager
+      各自拥有哪类状态？
+    - client-side batch、server-side dynamic batch 与 token-level continuous batch 有何区别？
+    - 代码边界说明：原章明确说明代码经过选取和简化，完整上下文在配套仓库。原文片段中还存在缩进、变量名不一致、缺失锁/超时/关闭流程等问题。本笔记保留其架构意图，并在关键处给出可解析的改写或伪代码；它们用于理解职责和数据流，不应直接作为生产实现。
+  - title: 1. Build an Online LLM Serving Service from Scratch
+    source_heading: 1. Build an Online LLM Serving Service from Scratch
+    paragraphs:
+    - 但“多进程会自动让 GPU 不空闲”并不成立。若 scheduler 每次只发一个短任务、IPC 复制巨大 tensor、CPU 预处理太慢或 worker
+      同步等待，GPU 仍会空闲。隔离只是结构基础，利用率来自异步流水、batch 和足够的待执行工作。
+    - FIFO 简单、可解释，按到达顺序避免普通请求被后来的请求插队。但它不感知 prompt 长度、deadline、优先级、预计输出、KV cache 或租户配额，容易产生
+      head-of-line blocking。生产 scheduler 往往在公平性、SLO 和吞吐间做加权选择。
+    - 教学实现揭示了问题，但生产引擎还需高效 KV cache block、continuous batching、异构长度调度、optimized kernels、量化、多
+      GPU、取消和内存压力处理。重写这些机制不仅工作量大，还很容易在并发和正确性上出错。
+    - 十余行代码能完成 batch，是因为复杂度没有消失，而是移到了 vLLM 内部。团队仍需理解并配置：最大并发序列、batch token budget、GPU
+      memory utilization、模型长度、prefix caching、量化、parallel size 和调度策略。参数名随版本变化，应以所用版本文档为准。
+  - title: 2. A General Design for Single-Model LLM Serving
+    source_heading: 2. A General Design for Single-Model LLM Serving
+    paragraphs:
+    - 因此 LLM 不能始终作为完全黑盒。稳定的基础设施能力应与快速演进、模型感知的 execution backend 隔离，避免每换一种 attention
+      就重写鉴权和 autoscaling 平台。
+    - 平台能重启 Pod，却不知道模型何时真正 ready。LLM 启动可能包括下载几十 GB 权重、加载到 GPU、编译 kernel 和 warm-up，因此需要
+      startup/readiness probe、graceful drain 和足够 termination grace period。
+    - autoscaling 也不应只看 CPU。可使用 queue wait、pending/running sequences、token backlog、TTFT、KV
+      cache utilization 和 GPU 指标。扩容有长冷启动时，系统需要最小热副本、预测性扩容或预热池。
+    - 额外边界带来网络 hop、序列化、trace propagation、超时预算分配和更多部署单元。分层的判断标准不是“组件越多越专业”，而是职责是否独立演进、是否需要故障隔离、能否单独扩容，以及边界成本是否可接受。
+  - title: 3. Build a Multi-Model Serving Service from Scratch
+    source_heading: 3. Build a Multi-Model Serving Service from Scratch
+    paragraphs:
+    - 仅 5% miss 就把平均延迟放大近 6 倍，并很可能主导 p99。因此多模型设计不能只汇报平均 cache hit rate，还要按 model/tenant
+      报 cold-start 分布和 timeout。
+    - Triton 替代自定义 framework-specific ModelEngine/Worker 的核心执行部分，承担模型加载、backend 选择、tensor
+      inference、instance management 和部分 batching/metrics。
+    - 还需验证 shape、batch dimension、byte order、string encoding 和最大 payload。图像的 resize/normalize、文本的
+      tokenizer 到底在 client、wrapper、Triton ensemble 还是 Python backend 执行，也必须固定版本，否则同一权重会产生不同语义。
+    - registry 用 reference count/desired state 决定何时真正 unload，并等待在途 inference 完成。控制器还要在进程崩溃后
+      reconcile Triton 实际 loaded state 与期望状态。
+  - title: 4. Trade-offs in Multi-Model Serving Designs
+    source_heading: 4. Trade-offs in Multi-Model Serving Designs
+    paragraphs:
+    - 真实 bin packing 还要同时考虑 CPU、host memory、backend compatibility、安全域、GPU 型号和故障域，是多维约束优化，通常
+      NP-hard，只能用启发式近似。
+    - 这把 cold start 从 prediction critical path 移到显式 provisioning workflow。所谓“没有 cold
+      start”是指成功预置之后的请求；第一次 provision 仍要等待资源和模型加载，必须由产品流程提前触发。
+    - 多个 replica 权重相同，但 KV/prefix cache 内容不同。将共享 system prompt、文档或模板前缀的请求路由到已有 cache
+      的 replica，可减少重复 prefill。此时 routing key 不只有 model ID，还包括可复用 prefix 的 hash/tenant/version。
+    - 必须确保 tokenizer、模型版本、位置/attention 配置和前缀 token 完全兼容；cache-aware affinity 还要与负载均衡折中，不能把所有热门前缀压到一个
+      replica。
+  - title: 6. 从本章抽象出的系统设计方法
+    source_heading: 6. 从本章抽象出的系统设计方法
+    paragraphs:
+    - 标出 async event loop、后台线程、worker 进程、GPU 和远程 backend。每跨一个边界都回答：消息 schema、ownership、serialization、timeout、backpressure、cancel
+      和 failure propagation。
+    - 定义 token event、finish、error、heartbeat、取消和断开；从 worker 到 client 每层都要传播。仅在 API
+      最外层使用 SSE 不等于支持真实 streaming。
+    - 实现 hit/miss/evict 之外，还要 single-flight、pin、atomic load、graceful unload 和 reconcile。按
+      bytes/多资源而非模型个数限制容量。
+    - 分别测 queue、load/cold start、prefill、decode、stream、IPC 与网络，并注入 worker crash、backend
+      timeout、client disconnect、cache stampede 和 load storm。平均 happy-path latency
+      不足以证明生产可用。
+  - title: 7. 本章知识结构与核心结论
+    source_heading: 7. 本章知识结构与核心结论
+    paragraphs:
+    - Streaming 与 batching 可以同时成立。 backend 在每一步批量生成，frontend 将 token 按 Sequence queue
+      分流；一个优化设备，一个优化体验。
+    - 多模型服务的本质是 metadata-driven routing + resource-aware residency。 model ID 决定 worker/backend，cache
+      policy 决定哪些模型留在有限资源中。
+    - Triton 提供统一模型管理和 tensor inference backend，但不是完整业务平台。 外层服务仍负责元数据、身份、placement、工件和组织策略。
+    - 本章的总方法是：先将单次推理拆成 API、Sequence 调度、executor 和隔离 worker，用稳定 ID 把客户端请求与设备 batch
+      解耦，再以事件队列把 token 从集中式执行流准确分发给各客户端；随后把同样的“元数据驱动 + 生命周期管理”扩展到多模型 residency，并依据工作集、cold-start
+      代价和 SLO，在共享资源池、独占模型组及两者的混合方案之间选择。
+  takeaways:
+  - 模型服务的难点不只是运行模型，而是管理并发状态。 请求身份、排队、batch、stream、取消和资源回收决定系统是否正确。
+  - Streaming 与 batching 可以同时成立。 backend 在每一步批量生成，frontend 将 token 按 Sequence queue
+    分流；一个优化设备，一个优化体验。
+  - 单模型通用设计应分离基础设施、业务 frontend 和推理 backend。 稳定能力与模型特定优化可独立演进和扩缩容。
+  - Triton 提供统一模型管理和 tensor inference backend，但不是完整业务平台。 外层服务仍负责元数据、身份、placement、工件和组织策略。
+  - 本章的总方法是：先将单次推理拆成 API、Sequence 调度、executor 和隔离 worker，用稳定 ID 把客户端请求与设备 batch 解耦，再以事件队列把
+    token 从集中式执行流准确分发给各客户端；随后把同样的“元数据驱动 + 生命周期管理”扩展到多模型 residency，并依据工作集、cold-start
+    代价和 SLO，在共享资源池、独占模型组及两者的混合方案之间选择。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念辨析
+  question: 原文如何解释「5.1 Web request = Model execution」？
+  answer: 错误。一个 Web 请求可含多个 prompts，一个 device batch 可混合多个 Web 请求，一个 streaming 请求又会经历多次
+    model steps。Sequence 才是调度和结果关联单位。
+  source_heading: 5.1 Web request = Model execution
+- level: 概念辨析
+  question: 原文如何解释「5.6 独立 worker 进程一定更快」？
+  answer: 错误。它主要提供设备所有权、隔离和并行组织；IPC、复制和调度不足可能让它更慢。性能需测量。
+  source_heading: 5.6 独立 worker 进程一定更快
+- level: 概念辨析
+  question: 原文如何解释「5.11 Unified API = 任意模型输入完全相同」？
+  answer: 错误。可统一 request envelope 和管理协议，模型 tensor 名称、shape、dtype、预处理和输出语义仍由 signature
+    定义。
+  source_heading: 5.11 Unified API = 任意模型输入完全相同
+- level: 概念辨析
+  question: 原文如何解释「5.15 Triton 取代整个多模型平台」？
+  answer: 错误。Triton 专注模型管理和推理 backend；业务鉴权、全局 placement、元数据治理、计费、租户和外部路由通常仍在外层。
+  source_heading: 5.15 Triton 取代整个多模型平台
+- level: 概念辨析
+  question: 原文如何解释「5.20 Multi-model 不适合任何 LLM」？
+  answer: 错误。完整大权重常独占，但 prefix cache affinity、多个 LoRA adapters、小模型路由和长尾微调版本都体现多模型管理思想。
+  source_heading: 5.20 Multi-model 不适合任何 LLM

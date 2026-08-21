@@ -1,0 +1,168 @@
+source:
+  post: _posts/book-notes/ai-system/distributed-ai-system/2026-08-08-distributed-ai-systems-ch04-scaling-with-fsdp.md
+  body_sha256: 05ae78a8fa07e0ef0734c59754010e515930d0da06bc4c66fdca6f5ca629bb98
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 14
+  question: 原文围绕「0. 本章要回答的核心问题」建立了怎样的核心认识？
+  question_source: 0. 本章要回答的核心问题
+  thesis: 恢复线：global tensor metadata → shard writers → committed checkpoint → current
+    template reshard。
+  thesis_source: 19. 本章知识结构
+  concepts:
+  - term: 0. 本章要回答的核心问题
+    meaning: Forward AllGather、backward AllGather 与 gradient ReduceScatter 如何组成一个
+      FSDP unit 的生命周期？
+    source_heading: 0. 本章要回答的核心问题
+  - term: 4. FSDP2：per-parameter sharding API
+    meaning: 减少 parameter communication/compute bytes与使用 Tensor Cores，同时让 gradient
+      reduction 更稳定，但 FP32 reduction 增加通信 bytes。应通过 memory snapshot、DTensor local
+      dtype 和 profiler确认真实状态。
+    source_heading: 4. FSDP2：per-parameter sharding API
+  - term: 9. Performance optimization
+    meaning: 在 before shard、after shard、after forward、after backward、after optimizer标记。每次实验前
+      reset peak；避免每 step打印导致同步。
+    source_heading: 9. Performance optimization
+  - term: 11. Debugging FSDP issues
+    meaning: 正确方式：所有 ranks执行 forward，只有无 collective副作用的日志/保存分支 rank 0限定。Evaluation若只想
+      rank 0运行，不能直接对仍 sharded FSDP model单 rank forward；可导出完整 inference model或让所有 ranks参与。
+    source_heading: 11. Debugging FSDP issues
+  - term: 16. Exercises：五道练习的参考实现与分析
+    meaning: 第二种：raw model以FP32初始化，FSDP在forward/backward把parameters cast到BF16；计算外sharded
+      parameters保持原full precision，reduction FP32，optimizer使用FP32 gradients/state更稳健。
+    source_heading: 16. Exercises：五道练习的参考实现与分析
+  - term: 22. 复习与自测
+    meaning: 完成这些检查后，应能从“FSDP让模型放得下”进一步回答：哪些状态在何时位于哪里、每次为此移动多少数据、峰值为何出现、checkpoint如何跨布局恢复，以及什么时候FSDP已不是下一步正确工具。
+    source_heading: 22. 复习与自测
+  logic:
+  - 0. 本章要回答的核心问题
+  - 4. FSDP2：per-parameter sharding API
+  - 7. Prefetching：隐藏参数物化通信
+  - 11. Debugging FSDP issues
+  - 13. Practical tips
+  - 20. 核心结论
+  - 22. 复习与自测
+  sections:
+  - title: 0. 本章要回答的核心问题
+    source_heading: 0. 本章要回答的核心问题
+    paragraphs:
+    - Forward AllGather、backward AllGather 与 gradient ReduceScatter 如何组成一个 FSDP unit
+      的生命周期？
+    - FSDP1 的 FlatParameter 与 FSDP2 的 per-parameter DTensor 有何差异？
+    - Activation checkpointing、FSDP state sharding 与 CPU offload 分别减少哪项显存？
+    - FSDP 不是把一层矩阵乘法拆给多个 GPU，而是让每个数据并行 rank 仅持久拥有训练状态的一片；计算当前 unit 时临时物化完整参数，再尽快释放。
+  - title: 2. Why FSDP enables larger-than-memory models
+    source_heading: 2. Why FSDP enables larger-than-memory models
+    paragraphs:
+    - 它不是模型可无限大，而是：完整训练状态超过任一单 GPU HBM，但经过分片后，每 rank 的持久 shard 加运行峰值可容纳。
+    - 如果 reduction 使用 SUM 后框架按 data-parallel semantics 完成平均，最终每 shard 对应 global-batch
+      gradient 的 owner 部分。
+    - 这解释了它用更多 memory 换少一次参数通信。真实 FSDP 会将多 parameters 分组 collective、prefetch/overlap，且
+      gradient/parameter dtype 不一定相同；公式用于数量级。
+    - 流量按参数与 gradient bytes 相同估算，未计 protocol、padding 和 multi-channel，仅用于比较两种 reshard
+      policy。
+  - title: 4. FSDP2：per-parameter sharding API
+    source_heading: 4. FSDP2：per-parameter sharding API
+    paragraphs:
+    - Backward AllGather 只需在较小范围恢复，交换 memory 与通信。典型可取 intra-node size，类似 hierarchical
+      parameter sharding 思路。具体合法值、group 构造与 API 行为按当前版本验证。
+    - 减少 parameter communication/compute bytes与使用 Tensor Cores，同时让 gradient reduction
+      更稳定，但 FP32 reduction 增加通信 bytes。应通过 memory snapshot、DTensor local dtype 和 profiler确认真实状态。
+    - Per-parameter design 更容易表达不同 dtype，但一个 communication group 仍需形成可通信的 buffers/collectives。不要从“FSDP2
+      支持 mixed dtype”推出：任意 parameters 可无约束放进同一 group且一次 collective。
+    - 只 shard Transformer blocks，embedding、final norm、output head 等 remaining parameters
+      仍需归属 root FSDP group，否则可能完整复制、未由 FSDP lifecycle 管理或 optimizer/checkpoint layout
+      不一致。
+  - title: 7. Prefetching：隐藏参数物化通信
+    source_heading: 7. Prefetching：隐藏参数物化通信
+    paragraphs:
+    - 所有目标 modules必须已成为 FSDP2 modules/groups；execution order应稳定。Dynamic branch若跳过prefetched
+      module，会浪费memory/communication。
+    - 需按 framework定义的“当前 module应prefetch哪些 modules”配置，并在 trace确认顺序。原章的 index loop表达基本直觉；不同版本的
+      scheduler/automatic prefetch可能变化。
+    - 再加 activation、communication buffers。Depth=2/3继续增加 in-flight full params。Memory-constrained模型可能因
+      prefetch反而 OOM。
+    - 只 shard整个 root时没有有意义的“下一 unit”可prefetch，这再次说明 hierarchical boundaries影响性能。
+  - title: 9. Performance optimization
+    source_heading: 9. Performance optimization
+    paragraphs:
+    - 每 rank输出独立 trace。原章说通常看 rank 0足够，只适合稳定均匀 job；调试 straggler、多节点或 OOM必须比较所有/采样
+      ranks。
+    - 应按 unit/root选择，而非全模型无差别 False。当前 root默认行为还可能已是 False；先读取实际配置/trace，避免“优化”没有改变任何东西。
+    - 这些是高阶 trade-off；必须在每 window末恢复默认，并验证 accumulated gradient layout/scale。API快速变化，按目标版本
+      docstring。
+    - 在 before shard、after shard、after forward、after backward、after optimizer标记。每次实验前
+      reset peak；避免每 step打印导致同步。
+  - title: 11. Debugging FSDP issues
+    source_heading: 11. Debugging FSDP issues
+    paragraphs:
+    - 同一 parameter在 step不同阶段的 local memory/registered representation可能变化，静态打印一次不足以解释峰值。
+    - 正确方式：所有 ranks执行 forward，只有无 collective副作用的日志/保存分支 rank 0限定。Evaluation若只想 rank
+      0运行，不能直接对仍 sharded FSDP model单 rank forward；可导出完整 inference model或让所有 ranks参与。
+    - 机械地每 rank始终同 seed可能让 dropout masks完全相同，减少随机多样性。应分别设计 initialization、data、model-randomness
+      streams。
+    - Floating reduction order/precision产生小误差，用 tolerance和长期 convergence，不要求bitwise相同。
+  - title: 13. Practical tips
+    source_heading: 13. Practical tips
+    paragraphs:
+    - 如 input embedding 与 output projection共享同一 Parameter。若分别落入不同 FSDP groups，参数 swapping/materialization可能破坏alias/sharedness或产生双重ownership。
+    - 简单“所有 ranks同 seed”只有在每 rank以相同 global initialization再一致切片时保证相同global model；若每
+      rank只生成local shard，必须使用 shard-aware deterministic initialization，不能让每 shard用同一
+      seed生成相同 values。
+    - 若只有单文件full checkpoint，可用 DCP conversion/offline reshard，或 coordinator load +
+      distributed state-dict APIs；按模型大小规划host memory。
+    - 周期训练恢复用sharded DCP；最终 inference export才full state。频繁full gather会：rank 0 RAM峰值、网络fan-in、I/O停顿，并破坏scale。
+  - title: 16. Exercises：五道练习的参考实现与分析
+    source_heading: 16. Exercises：五道练习的参考实现与分析
+    paragraphs:
+    - 原题简写“SHARD_GRAD_OP仅shard gradient/optimizer，parameter不shard”描述的是ZeRO阶段语义，不完全反映FSDP1参数在compute外的storage
+      lifecycle。应以当前 FSDP docs/profile为准。
+    - 理论上 FULL_SHARD比 SHARD_GRAD_OP多 backward parameter AllGather；NO_SHARD主要 gradient
+      AllReduce。Prefetch、bucket/group、dtype、root policy会改变数值。
+    - 固定 global batch、precision、checkpoint、unit boundaries与quality。若某strategy需不同 batch才能fit，分别报告“容量最大配置”和“同workload性能配置”，不要混成一张速度排名。
+    - 第二种：raw model以FP32初始化，FSDP在forward/backward把parameters cast到BF16；计算外sharded
+      parameters保持原full precision，reduction FP32，optimizer使用FP32 gradients/state更稳健。
+  - title: 20. 核心结论
+    source_heading: 20. 核心结论
+    paragraphs:
+    - Forward AllGather物化当前unit，backward ReduceScatter直接输出owner gradient shard。
+    - Mixed precision的compute、reduction、persistent/optimizer dtype必须分开描述。
+    - DCP让每rank按global tensor metadata并行保存local shards，rank0只是coordinator。
+    - Meta initialization解决构造峰值，但正确shard-aware initialization/load仍需专门协议。
+  - title: 22. 复习与自测
+    source_heading: 22. 复习与自测
+    paragraphs:
+    - 为目标模型建立parameter/gradient/optimizer/activation ledger。
+    - 比较root-only与block-level peak/collective count。
+    - 对BF16 compute/FP32 vs BF16 reduction做quality实验。
+    - 完成这些检查后，应能从“FSDP让模型放得下”进一步回答：哪些状态在何时位于哪里、每次为此移动多少数据、峰值为何出现、checkpoint如何跨布局恢复，以及什么时候FSDP已不是下一步正确工具。
+  takeaways:
+  - 状态线：full DDP state → persistent shards → temporary full unit → shard update。
+  - Forward后reshard省memory但增加backward AllGather；保留full params反之。
+  - DCP load必须先构造当前sharded template，函数原地填充而非返回新dict。
+  - Gradient accumulation要用当前FSDP sync controls，并考虑parameter reshard。
+  - 稳定知识是state lifecycle与数据移动；具体API必须按PyTorch版本验证。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念辨析
+  question: 原文如何解释「18.1 FSDP 不是把一层计算拆给多卡」？
+  answer: 它分片长期训练状态；每 rank在当前unit计算时仍看到完整parameters并对local batch执行完整layer。单layer compute/latency要靠TP等。
+  source_heading: 18.1 FSDP 不是把一层计算拆给多卡
+- level: 概念辨析
+  question: 原文如何解释「18.18 Integer reshard 不是随便填任意数字」？
+  answer: 通常要求shard mesh size的非平凡divisor，并建立intermediate layout/group。错误值或不匹配topology不可用。
+  source_heading: 18.18 Integer reshard 不是随便填任意数字
+- level: 概念辨析
+  question: 原文如何解释「18.29 AllGather 总时长不降不表示 prefetch 无效」？
+  answer: Prefetch目标是隐藏关键路径时间；总NCCL执行量通常不变。看overlap和exposed tail。
+  source_heading: 18.29 AllGather 总时长不降不表示 prefetch 无效
+- level: 概念辨析
+  question: 原文如何解释「18.44 Full checkpoint不是日常训练checkpoint的默认」？
+  answer: 它让rank0聚合完整model/optimizer，可能OOM并形成I/O热点。Sharded DCP用于频繁恢复，full用于export。
+  source_heading: 18.44 Full checkpoint不是日常训练checkpoint的默认
+- level: 概念辨析
+  question: 原文如何解释「18.56 CUDA不可用时只能验证算法与API，不能报告FSDP性能」？
+  answer: CPU/Gloo可验证手工shard/AllGather和纯计算；FSDP CUDA memory、NCCL overlap、HSDP吞吐必须在目标GPU拓扑实测。
+  source_heading: 18.56 CUDA不可用时只能验证算法与API，不能报告FSDP性能

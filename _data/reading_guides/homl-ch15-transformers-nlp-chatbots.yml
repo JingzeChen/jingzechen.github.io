@@ -1,0 +1,200 @@
+source:
+  post: _posts/book-notes/machine-learning/hands-on-machine-learning/2026-08-02-homl-ch15-transformers-nlp-chatbots.md
+  body_sha256: a2069a336755b216c0ca028e149aed4cb0e94d4b68f3ffae7c86e8762a21b408
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 17
+  question: 原文围绕「阅读导引」建立了怎样的核心认识？
+  question_source: 阅读导引
+  thesis: Agent 循环通常是 plan → act/tool → observe → update → stop。适合 multi-step research/workflow，但步骤越多，error
+    propagation、cost、latency 和 attack surface 越大。应设置 max steps/budget、typed state、tool
+    scope、timeouts/retries、checkpoints、human approval，以及可验证 stop condition。Reasoning
+    model 不必调用工具；agent 也不等于自主可靠。
+  thesis_source: 11. From Chat Model to Full Chatbot System
+  concepts:
+  - term: 阅读导引
+    meaning: 本文纯 PyTorch 示例已在 Python 3.12、PyTorch 2.11.0 CPU 环境验证。Transformers/Datasets/PEFT/TRL
+      当前未安装；相关代码注明安装和联网条件，保存输出引用官方 Notebook。
+    source_heading: 阅读导引
+  - term: 3. Multi-Head Attention
+    meaning: 各 head 学不同 projection subspaces，可同时关注语法、指代、位置和语义关系。不能假设某 head 必然具有人类命名的功能；模型内部表示是涌现且可冗余。
+    source_heading: 3. Multi-Head Attention
+  - term: 8. Turning an LLM into a Chatbot
+    meaning: Prompt 不是安全边界。Jailbreak、indirect prompt injection、data exfiltration 无法仅靠“忽略恶意指令”解决；需要
+      trust boundary、least privilege、tool confirmation、content filtering、sandbox、output
+      validation 与 audit。
+    source_heading: 8. Turning an LLM into a Chatbot
+  - term: 9. SFT and RLHF
+    meaning: Parameter-efficient fine-tuning（LoRA/adapters）冻结大部分 base weights，只训练少量
+      parameters；它降低 optimizer/gradient memory，不等于 inference 时模型主体消失。Quantization
+      + LoRA 可进一步降显存，但训练 stability 和 final quality 需实测。
+    source_heading: 9. SFT and RLHF
+  - term: 13. Encoder-Decoder Models
+    meaning: Encoder bidirectionally 表示完整 source，decoder autoregressively 生成 target
+      并 cross-attend source。对 translation、summarization、source-grounded generation，同规模下往往比把
+      source/target 全塞入 decoder-only 更 data/parameter efficient；但 deployment ecosystem
+      和 general-purpose capabilities 也影响选型。
+    source_heading: 13. Encoder-Decoder Models
+  - term: 18. Chapter Summary
+    meaning: Encoder-only BERT 用 MLM 学双向表示，擅长 NLU/embedding；RoBERTa、DistilBERT、ALBERT、ELECTRA、DeBERTa
+      分别改进 recipe、压缩、sharing、objective 和 position modeling。
+    source_heading: 18. Chapter Summary
+  logic:
+  - 阅读导引
+  - 3. Multi-Head Attention
+  - '6. Encoder-Only Transformers: BERT'
+  - 9. SFT and RLHF
+  - 11. From Chat Model to Full Chatbot System
+  - 16. Common Misconceptions
+  - 18. Chapter Summary
+  sections:
+  - title: 阅读导引
+    source_heading: 阅读导引
+    paragraphs:
+    - Encoder-decoder：先理解 source，再生成 target，代表原始 Transformer/T5/BART。
+    - 随后从 base model 走向完整 chatbot：预训练、SFT、RLHF/DPO、prompt/RAG、工具、memory、MCP 与 structured
+      generation。
+    - Attention 缩短信息路径，但标准实现的时间/内存对 sequence length 为二次复杂度。
+    - 本文纯 PyTorch 示例已在 Python 3.12、PyTorch 2.11.0 CPU 环境验证。Transformers/Datasets/PEFT/TRL
+      当前未安装；相关代码注明安装和联网条件，保存输出引用官方 Notebook。
+  - title: '1. Attention Is All You Need: Original Transformer'
+    source_heading: '1. Attention Is All You Need: Original Transformer'
+    paragraphs:
+    - 原始 Transformer 是 6-layer encoder + 6-layer decoder，约 65M 参数。它没有 recurrence/convolution：token
+      mixing 完全由 attention 完成，per-token feature transformation 由 position-wise feedforward
+      network 完成。
+    - 它不混合 positions；attention 才负责 token 间通信。
+    - Pre-LN 的 identity gradient 路径更直接，深层训练通常更稳定；Post-LN 有不同表示统计和最终 normalization
+      需求，不存在所有场景绝对优者。
+  - title: 3. Multi-Head Attention
+    source_heading: 3. Multi-Head Attention
+    paragraphs:
+    - 不缩放时，维度越大 logits 越极端，softmax 接近 one-hot，Jacobian 很小、训练不稳定。
+    - 各 head 学不同 projection subspaces，可同时关注语法、指代、位置和语义关系。不能假设某 head 必然具有人类命名的功能；模型内部表示是涌现且可冗余。
+    - Head 数改变计算分解和每 head 维度，通常不改变 projection 总参数量。
+  - title: '6. Encoder-Only Transformers: BERT'
+    source_heading: '6. Encoder-Only Transformers: BERT'
+    paragraphs:
+    - BERT（Bidirectional Encoder Representations from Transformers）删除 decoder，仅保留双向
+      encoder。每个 token 能同时看到左右 context，因此特别适合 NLU、分类、抽取和 embedding；它不能像 GPT 那样直接逐
+      token 生成任意长文本。
+    - NSP 原意是学习 sentence relation，但 random negative 太容易。RoBERTa 删除 NSP 反而更好；ALBERT
+      改用更困难的 Sentence Order Prediction。结论不是“sentence-level objective 都没用”，而是 negative
+      construction 决定 objective 是否有效。
+    - 官方保存输出主要 off-diagonal similarities 为 0.6328、0.5841、0.3831。Cosine 是 ranking signal，不是
+      calibrated probability；embedding model/domain、chunking 和 query/document asymmetry
+      都影响 retrieval quality。
+    - 小 generator 用 MLM 生成 replacements，大 discriminator 对每 token 做 Replaced Token
+      Detection。MLM 只从约 15% positions 获得监督，RTD 几乎从所有 positions 获得监督，sample efficiency
+      更高；代价是双模型 joint training 更复杂。
+  - title: 8. Turning an LLM into a Chatbot
+    source_heading: 8. Turning an LLM into a Chatbot
+    paragraphs:
+    - Base LM 学的是“续写最可能文本”，不天然等价于“回答用户”。对 “List some places…” 它可能继续编写一个论坛提问。Chat behavior
+      来自 prompt protocol 和 post-training。
+    - History 超 context window 时需 truncate、summarize 或 retrieval memory，并保留 system
+      policy 与最近 turns。
+    - Prompt engineering 是设计 instructions/context/examples/output constraints，使已有模型更稳定地执行
+      task；它不更新 model weights。
+    - Prompt 不是安全边界。Jailbreak、indirect prompt injection、data exfiltration 无法仅靠“忽略恶意指令”解决；需要
+      trust boundary、least privilege、tool confirmation、content filtering、sandbox、output
+      validation 与 audit。
+  - title: 9. SFT and RLHF
+    source_heading: 9. SFT and RLHF
+    paragraphs:
+    - 这样 capacity 用于生成 answer，而非模仿 user；但某些 setup 会保留 system/format tokens 的 loss。
+    - Dataset quality、diversity、deduplication、license、安全响应和 contamination 比单纯增大数据量更重要。
+    - Parameter-efficient fine-tuning（LoRA/adapters）冻结大部分 base weights，只训练少量 parameters；它降低
+      optimizer/gradient memory，不等于 inference 时模型主体消失。Quantization + LoRA 可进一步降显存，但训练
+      stability 和 final quality 需实测。
+    - 没有 KL constraint，policy 会利用 reward model 漏洞，即 reward hacking。RLHF 能工作，但要同时训练
+      reward model、rollout、PPO，昂贵且不稳定；human preference 也可能有偏见、低 agreement 或只反映短期表面质量。
+  - title: 11. From Chat Model to Full Chatbot System
+    source_heading: 11. From Chat Model to Full Chatbot System
+    paragraphs:
+    - Chat model 只是概率生成器。完整系统通常包含 UI/API、identity/session、orchestrator、model gateway、retrieval/tools、memory、guardrails、observability
+      和 human escalation。
+    - Retriever 失败时 generator 无法凭空修复。应分别评估 Recall@k/MRR/nDCG、answer correctness/faithfulness、citation
+      precision、latency 和 cost。Retrieved document 是不可信数据，不应覆盖 system instructions；这是
+      indirect prompt injection 的核心防线。
+    - 用户应能查看、更正、删除 memory；敏感信息需 consent、encryption、retention policy 和 tenant isolation。不要把模型推断当作事实自动永久存储。
+    - Agent 循环通常是 plan → act/tool → observe → update → stop。适合 multi-step research/workflow，但步骤越多，error
+      propagation、cost、latency 和 attack surface 越大。应设置 max steps/budget、typed state、tool
+      scope、timeouts/retries、checkpoints、human approval，以及可验证 stop condition。Reasoning
+      model 不必调用工具；agent 也不等于自主可靠。
+  - title: 13. Encoder-Decoder Models
+    source_heading: 13. Encoder-Decoder Models
+    paragraphs:
+    - Encoder bidirectionally 表示完整 source，decoder autoregressively 生成 target 并 cross-attend
+      source。对 translation、summarization、source-grounded generation，同规模下往往比把 source/target
+      全塞入 decoder-only 更 data/parameter efficient；但 deployment ecosystem 和 general-purpose
+      capabilities 也影响选型。
+    - Pretraining 使用 masked span corruption：连续 spans 被 sentinel tokens 代替，decoder
+      依次生成被删除 spans。相比 independent MLM，模型学习 span-level reconstruction 和 generation。
+    - BART 是 denoising encoder-decoder：输入可被 mask/delete/insert 或 sentence shuffle，目标恢复原文。它对
+      generation/summarization 很有效；mBART 扩展到 multilingual。
+    - Encoder-decoder 也常见于 detection、segmentation 和 multimodal systems：encoder 表示输入，decoder
+      输出 object queries、masks 或另一 modality sequence。
+  - title: 16. Common Misconceptions
+    source_heading: 16. Common Misconceptions
+    paragraphs:
+    - "“Transformer training/inference 都完全 parallel。” Training positions 可并行；autoregressive
+      decoding 仍 sequential。"
+    - "“DPO 不需要 reward，因此没有 preference bias。” Bias 直接存在于 preference pairs 和 annotation
+      process。"
+    - "“MCP 自动让 LLM 会用所有工具。” MCP 提供 protocol/discovery，selection 和 policy 仍由 host/model
+      负责。"
+    - "“大 benchmark 分数保证 production quality。” Domain shift、latency、cost、safety 和 tail
+      failures 必须单测。"
+  - title: 18. Chapter Summary
+    source_heading: 18. Chapter Summary
+    paragraphs:
+    - Transformer 以 scaled dot-product attention 进行 content-addressed token mixing，以
+      FFN 进行逐 token nonlinear transformation。
+    - Encoder-only BERT 用 MLM 学双向表示，擅长 NLU/embedding；RoBERTa、DistilBERT、ALBERT、ELECTRA、DeBERTa
+      分别改进 recipe、压缩、sharing、objective 和 position modeling。
+    - Greedy、temperature、top-k/top-p、beam search 在 determinism、diversity、quality 和
+      cost 间权衡；KV cache 以 memory 换 decoding speed。
+    - Chat model 通常经历 SFT，再通过 RLHF/DPO 学 human preferences；DPO 将 KL-regularized reward
+      optimization 化为 reference-relative pairwise classification。
+  takeaways:
+  - 本文纯 PyTorch 示例已在 Python 3.12、PyTorch 2.11.0 CPU 环境验证。Transformers/Datasets/PEFT/TRL
+    当前未安装；相关代码注明安装和联网条件，保存输出引用官方 Notebook。
+  - Head 数改变计算分解和每 head 维度，通常不改变 projection 总参数量。
+  - 没有 KL constraint，policy 会利用 reward model 漏洞，即 reward hacking。RLHF 能工作，但要同时训练 reward
+    model、rollout、PPO，昂贵且不稳定；human preference 也可能有偏见、低 agreement 或只反映短期表面质量。
+  - Encoder-decoder 也常见于 detection、segmentation 和 multimodal systems：encoder 表示输入，decoder
+    输出 object queries、masks 或另一 modality sequence。
+  - Chat model 通常经历 SFT，再通过 RLHF/DPO 学 human preferences；DPO 将 KL-regularized reward
+    optimization 化为 reference-relative pairwise classification。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念复述
+  question: 原文如何解释「阅读导引」？
+  answer: 本文纯 PyTorch 示例已在 Python 3.12、PyTorch 2.11.0 CPU 环境验证。Transformers/Datasets/PEFT/TRL
+    当前未安装；相关代码注明安装和联网条件，保存输出引用官方 Notebook。
+  source_heading: 阅读导引
+- level: 边界判断
+  question: 原文如何解释「3. Multi-Head Attention」？
+  answer: 各 head 学不同 projection subspaces，可同时关注语法、指代、位置和语义关系。不能假设某 head 必然具有人类命名的功能；模型内部表示是涌现且可冗余。
+  source_heading: 3. Multi-Head Attention
+- level: 边界判断
+  question: 原文如何解释「9. SFT and RLHF」？
+  answer: Parameter-efficient fine-tuning（LoRA/adapters）冻结大部分 base weights，只训练少量 parameters；它降低
+    optimizer/gradient memory，不等于 inference 时模型主体消失。Quantization + LoRA 可进一步降显存，但训练
+    stability 和 final quality 需实测。
+  source_heading: 9. SFT and RLHF
+- level: 关系解释
+  question: 原文如何解释「13. Encoder-Decoder Models」？
+  answer: Encoder bidirectionally 表示完整 source，decoder autoregressively 生成 target 并
+    cross-attend source。对 translation、summarization、source-grounded generation，同规模下往往比把
+    source/target 全塞入 decoder-only 更 data/parameter efficient；但 deployment ecosystem
+    和 general-purpose capabilities 也影响选型。
+  source_heading: 13. Encoder-Decoder Models
+- level: 概念复述
+  question: 原文如何解释「18. Chapter Summary」？
+  answer: Encoder-only BERT 用 MLM 学双向表示，擅长 NLU/embedding；RoBERTa、DistilBERT、ALBERT、ELECTRA、DeBERTa
+    分别改进 recipe、压缩、sharing、objective 和 position modeling。
+  source_heading: 18. Chapter Summary

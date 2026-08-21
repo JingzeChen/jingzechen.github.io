@@ -1,0 +1,159 @@
+source:
+  post: _posts/book-notes/ai-system/distributed-ai-system/2026-08-08-distributed-ai-systems-ch09-production-llm-serving-stack.md
+  body_sha256: e4221b98a260e9a68df794b595a84c69ba0c43601cbfdd09f2e3836f5f001e60
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 14
+  question: 原文围绕「0. 本章要回答的核心问题」建立了怎样的核心认识？
+  question_source: 0. 本章要回答的核心问题
+  thesis: 高级栈线：Inference Gateway → vLLM → NIXL/cache/PD → variant scaling。
+  thesis_source: 16. 本章知识结构
+  concepts:
+  - term: 0. 本章要回答的核心问题
+    meaning: 如何实现正确的gateway、distributed rate limit、canary controller和trace propagation？
+    source_heading: 0. 本章要回答的核心问题
+  - term: 4. Canary deployments and A/B testing
+    meaning: Gateway多replicas时，内存counter分片；restart丢失。Assignment、exposure和outcome写入shared
+      telemetry/experiment store，使用request/subject/experiment/version ID关联。
+    source_heading: 4. Canary deployments and A/B testing
+  - term: 8. Deploying vLLM on k3d
+    meaning: 还测试streaming、cancel、invalid model/max context、health/readiness、usage和restart后cache。
+    source_heading: 8. Deploying vLLM on k3d
+  - term: 9. Multi-Model and Multi-Engine serving
+    meaning: Gateway加载时校验：duplicate aliases、URL scheme/host allowlist、model/capabilities、health
+      path、timeouts。Config update要atomic/versioned，旧in-flight继续原route。
+    source_heading: 9. Multi-Model and Multi-Engine serving
+  - term: 14. 统一公式与术语速查
+    meaning: Prometheus histogram quantile由bucket累计counts插值，是近似值；SLO附近bucket越粗，p99误差越大。需要同时看bucket设计与sample
+      count。
+    source_heading: 14. 统一公式与术语速查
+  - term: 19. 复习与自测
+    meaning: 完成这些检查后，应能把“把vLLM部署到Kubernetes”提升为可验证的生产协议：请求如何鉴权和分流、容量如何以token work预测、版本如何在统计证据下灰度、每个延迟阶段如何观测、过载和故障如何有界退化、GPU和模型artifact如何被Kubernetes正确调度，以及何时值得采用llm-d的智能调度、分布式cache或PD解耦。
+    source_heading: 19. 复习与自测
+  logic:
+  - 0. 本章要回答的核心问题
+  - 4. Canary deployments and A/B testing
+  - 6. Deploying LLM serving on Kubernetes
+  - 9. Multi-Model and Multi-Engine serving
+  - 11. Summary、Code summary、links 与 references
+  - 17. 核心结论
+  - 19. 复习与自测
+  sections:
+  - title: 0. 本章要回答的核心问题
+    source_heading: 0. 本章要回答的核心问题
+    paragraphs:
+    - Multi-model路由如何验证model alias、backend capability和tenant authorization？
+    - Round-robin、least-connections和weighted balancing为何都不等于LLM work balancing？
+    - Kubernetes Deployment、Pod、Service、Ingress/Gateway、HPA、PDB、probes分别保证什么？
+    - 如何实现正确的gateway、distributed rate limit、canary controller和trace propagation？
+  - title: 2. Request routing and traffic management
+    source_heading: 2. Request routing and traffic management
+    paragraphs:
+    - 生产用显式task/capability优先，classifier为fallback；低confidence进入通用model或拒绝，不静默选择不支持backend。
+    - 确切variant取决于hash，但同输入始终相同。权重dict iteration顺序是route contract的一部分，生产显式排序/配置顺序并版本化。
+    - 若同一用户发很多requests，不能把每request当独立样本夸大显著性。Randomization unit是user/session时，分析应按该unit
+      cluster-robust或先聚合。
+    - Unknown model返回404或documented error；unauthorized返回403，不fallback到另一个model造成语义惊喜。
+  - title: 4. Canary deployments and A/B testing
+    source_heading: 4. Canary deployments and A/B testing
+    paragraphs:
+    - 原章10→25→50→75→100只是示意。每阶段必须满足min duration、min samples、SLO和quality guardrails；峰谷traffic覆盖也重要。
+    - 若stable 0 errors/10、canary 1/10，canary error 10%并不足以稳定断言；小样本方差巨大。需要confidence
+      interval/Bayesian posterior或sequential test。
+    - Rollback可要求canary lower bound超过absolute threshold，或canary-vs-stable风险差posterior足够高；具体policy按风险。
+    - Gateway多replicas时，内存counter分片；restart丢失。Assignment、exposure和outcome写入shared
+      telemetry/experiment store，使用request/subject/experiment/version ID关联。
+  - title: 6. Deploying LLM serving on Kubernetes
+    source_heading: 6. Deploying LLM serving on Kubernetes
+    paragraphs:
+    - 它不自动理解：KV cache、TTFT/TPOT、model parallel process groups、prefix locality、stream
+      drain或model quality。需要serving stack/operator/gateway把LLM语义映射到K8s primitives。
+    - 管理replica Pods、rolling update和ReplicaSet。适合独立model replicas；多节点紧耦合TP/PP可能需要Job、StatefulSet、LeaderWorkerSet或专用operator/gang
+      scheduler。
+    - HPA根据metrics控制replicas。CPU-based HPA常不适合GPU inference；custom/external metrics可用queue/token
+      work。KEDA擅长event/queue-driven scale，包括scale-to-zero，但LLM cold start可能违背interactive
+      SLO。
+    - 多进程PyTorch/IPC可能需要较大shared memory。原章说NCCL/IPC buffers“都通过它”过于笼统：NCCL transport可用P2P/SHM/network，具体路径按topology/config；不足可能导致shared-memory
+      transport或multiprocessing失败，但不是所有collective都必然hang。
+  - title: 8. Deploying vLLM on k3d
+    source_heading: 8. Deploying vLLM on k3d
+    paragraphs:
+    - Shell history/process list风险依命令；更安全用external secret或stdin/file，避免把token提交YAML。
+    - 多个Pods同时写同HF cache需locking/permissions；避免partial weights被当完整。
+    - 只适合本地调试，单client connection、无TLS/HA/public LB。生产使用Gateway/Ingress/Service类型和auth。
+    - 还测试streaming、cancel、invalid model/max context、health/readiness、usage和restart后cache。
+  - title: 9. Multi-Model and Multi-Engine serving
+    source_heading: 9. Multi-Model and Multi-Engine serving
+    paragraphs:
+    - 同server加载/卸载多个models/adapters。提高共享但有cache thrash、cold load、memory fragmentation、noisy
+      neighbor和复杂scheduling。
+    - Gateway加载时校验：duplicate aliases、URL scheme/host allowlist、model/capabilities、health
+      path、timeouts。Config update要atomic/versioned，旧in-flight继续原route。
+    - Production默认必须显式且可观测；unknown engine应400而非silent fallback，否则实验/quality不可归因。
+    - 删除namespace会删namespaced resources，但不必删cluster-scoped CRDs、device plugin、PV、host
+      cache或port-forward。Cleanup应列出scope，避免误删共享cluster组件。
+  - title: 11. Summary、Code summary、links 与 references
+    source_heading: 11. Summary、Code summary、links 与 references
+    paragraphs:
+    - 核心迁移是：engine优化token执行，production stack管理请求、版本、容量和故障。
+    - 60～90% spot discount：region/provider/time-dependent；
+    - 原章KServe、KubeAI、vLLM production-stack、llm-d、IGW、Envoy、NIXL、Istio、RDMA、NVMe等引用分别回答组件能力。最终配置必须回到同一release时点的compatibility
+      matrix；跨项目latest文档可能互不兼容。
+    - 下一章benchmarking应使用本章定义的client/server TTFT、TPOT、input/output TPS、goodput、release/route
+      labels和workload distributions。没有生产请求路径与可观测性，benchmark很容易只测engine microbenchmark而非用户体验。
+  - title: 14. 统一公式与术语速查
+    source_heading: 14. 统一公式与术语速查
+    paragraphs:
+    - 系数由model/kernel/batch/profile拟合；用于routing/autoscaling，不是精确FLOP模型。
+    - 独立性是假设；shared dependencies会形成相关故障。每加一个critical service都消耗availability budget。
+    - 这是HPA控制直觉；LLM custom controller还需warm capacity、traffic forecast和variant constraints。
+    - Prometheus histogram quantile由bucket累计counts插值，是近似值；SLO附近bucket越粗，p99误差越大。需要同时看bucket设计与sample
+      count。
+  - title: 17. 核心结论
+    source_heading: 17. 核心结论
+    paragraphs:
+    - LLM-aware load balancing应考虑queued tokens、decode occupancy、KV和prefix match。
+    - GPU extended resource默认whole-device不可overcommit；engine memory比例不改变scheduler容量。
+    - Multi-model route table还需model registry、authorization、version和capacity。
+    - Exercise中的进程内router/limiter/canary state只适合单实例教学，production需shared control state。
+  - title: 19. 复习与自测
+    source_heading: 19. 复习与自测
+    paragraphs:
+    - Canary 1 error/10，point estimate10%，Wilson 95%约[1.8%,40.4%]；无法精确断言真实错误率就是10%。
+    - 10% canary、10000 unique users，期望canary约1000；实际有binomial波动，不能要求精确1000。
+    - Queue有20个100-token请求与2个10000-token请求：request count22，但input token work22000；long
+      requests占90.9%。Shortest request count无法表示。
+    - 完成这些检查后，应能把“把vLLM部署到Kubernetes”提升为可验证的生产协议：请求如何鉴权和分流、容量如何以token work预测、版本如何在统计证据下灰度、每个延迟阶段如何观测、过载和故障如何有界退化、GPU和模型artifact如何被Kubernetes正确调度，以及何时值得采用llm-d的智能调度、分布式cache或PD解耦。
+  takeaways:
+  - 请求线：auth → validate → route → queue → stream → cancel/usage。
+  - Feature-based routing需要confidence、安全和fallback，不能依赖关键词。
+  - Tail sampling适合保留error/slow/canary，同时控制成本。
+  - Nested k3d nodes看到同一host GPU可能重复计算capacity，必须限制暴露。
+  - Production完成标准是API正确、SLO达标、release安全、failure有界、成本可解释。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念复述
+  question: 原文如何解释「0. 本章要回答的核心问题」？
+  answer: 如何实现正确的gateway、distributed rate limit、canary controller和trace propagation？
+  source_heading: 0. 本章要回答的核心问题
+- level: 边界判断
+  question: 原文如何解释「4. Canary deployments and A/B testing」？
+  answer: Gateway多replicas时，内存counter分片；restart丢失。Assignment、exposure和outcome写入shared
+    telemetry/experiment store，使用request/subject/experiment/version ID关联。
+  source_heading: 4. Canary deployments and A/B testing
+- level: 边界判断
+  question: 原文如何解释「9. Multi-Model and Multi-Engine serving」？
+  answer: Gateway加载时校验：duplicate aliases、URL scheme/host allowlist、model/capabilities、health
+    path、timeouts。Config update要atomic/versioned，旧in-flight继续原route。
+  source_heading: 9. Multi-Model and Multi-Engine serving
+- level: 关系解释
+  question: 原文如何解释「14. 统一公式与术语速查」？
+  answer: Prometheus histogram quantile由bucket累计counts插值，是近似值；SLO附近bucket越粗，p99误差越大。需要同时看bucket设计与sample
+    count。
+  source_heading: 14. 统一公式与术语速查
+- level: 概念复述
+  question: 原文如何解释「19. 复习与自测」？
+  answer: 完成这些检查后，应能把“把vLLM部署到Kubernetes”提升为可验证的生产协议：请求如何鉴权和分流、容量如何以token work预测、版本如何在统计证据下灰度、每个延迟阶段如何观测、过载和故障如何有界退化、GPU和模型artifact如何被Kubernetes正确调度，以及何时值得采用llm-d的智能调度、分布式cache或PD解耦。
+  source_heading: 19. 复习与自测

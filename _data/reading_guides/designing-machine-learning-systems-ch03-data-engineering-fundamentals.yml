@@ -1,0 +1,160 @@
+source:
+  post: _posts/book-notes/ai-system/design-machine-learning-system/2026-08-08-designing-machine-learning-systems-ch03-data-engineering-fundamentals.md
+  body_sha256: d1c63cb725dee0f5a8fc99eda7be06ac74d61a173c8d9d1c6714506a84937b8a
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 13
+  question: 原文围绕「0. 本章要回答的核心问题」建立了怎样的核心认识？
+  question_source: 0. 本章要回答的核心问题
+  thesis: 原章中的常见路径是：数据库中的历史快照通过 batch 生成 static features，实时传输中的持续事件通过 stream engine
+    生成 dynamic features。很多模型同时需要二者；但处理模式由有界性、新鲜度和更新语义决定，不由数据库或 Kafka 的产品名称单独决定。有观点把
+    batch 看作有界 stream 的特例，用统一流引擎处理两类管道。
+  thesis_source: 8. 原章总结的完整还原
+  concepts:
+  - term: 0. 本章要回答的核心问题
+    meaning: 一句话概括：不存在脱离未来访问方式的“最佳数据方案”；每一层都应从数据将被谁、在何时、以什么延迟和一致性要求使用来反推。
+    source_heading: 0. 本章要回答的核心问题
+  - term: 2. Data Sources：数据来源
+    meaning: Apple 在 2021 年初把 IDFA 改为 opt-in，显著减少 iPhone 上可用的第三方数据，迫使公司更多依赖第一方数据。广告行业随后投资规避方案；原章提到中国广告协会支持的
+      CAID 设备指纹方案，以及 TikTok、Tencent 等 App 的追踪争议。
+    source_heading: 2. Data Sources：数据来源
+  - term: 5. Data Storage Engines and Processing：存储引擎与处理
+    meaning: 随着云基础设施和 schema 工具标准化，提前管理结构又变得可行。lakehouse 试图结合 lake 的开放、低成本和灵活性与 warehouse
+      的 schema、事务、元数据和查询管理。原章列 Databricks 与 Snowflake 为例。
+    source_heading: 5. Data Storage Engines and Processing：存储引擎与处理
+  - term: 6. Modes of Dataflow：数据流模式
+    meaning: 原章用“in-memory storage”帮助理解实时传输的低延迟中介角色。现代 Kafka 并不是纯内存队列，而是磁盘支持、依赖页缓存、可复制的持久
+      commit log；Kinesis 也提供持久保留。应把“实时传输”理解为低延迟追加与消费接口，而非实现必须只在 RAM。
+    source_heading: 6. Modes of Dataflow：数据流模式
+  - term: 10. 本章知识结构
+    meaning: 格式把内存对象变成可持久或传输的字节，并影响 I/O 与兼容性。
+    source_heading: 10. 本章知识结构
+  - term: 12. 从本章提炼出的通用数据系统设计方法
+    meaning: 本章最重要的通用思路是：先描述数据在时间和系统中的生命历程，再选择每一层的技术；工具名称会变化，访问模式、结构责任、耦合、状态和失败语义仍然是稳定的判断依据。
+    source_heading: 12. 从本章提炼出的通用数据系统设计方法
+  logic:
+  - 0. 本章要回答的核心问题
+  - 2. Data Sources：数据来源
+  - 4. Data Models：数据模型
+  - 6. Modes of Dataflow：数据流模式
+  - 7. Batch Processing Versus Stream Processing
+  - 11. 核心结论
+  - 12. 从本章提炼出的通用数据系统设计方法
+  sections:
+  - title: 0. 本章要回答的核心问题
+    source_heading: 0. 本章要回答的核心问题
+    paragraphs:
+    - 序列化解决什么问题，JSON、CSV、Parquet、Avro、Protobuf 和 Pickle 怎样选择？
+    - "“schemaless”和“unstructured”为什么不等于没有结构，而是把结构责任移给读取方？"
+    - REST、RPC、事件、pubsub 与 message queue 有什么关系，怎样处理失败、重复和顺序？
+    - 一句话概括：不存在脱离未来访问方式的“最佳数据方案”；每一层都应从数据将被谁、在何时、以什么延迟和一致性要求使用来反推。
+  - title: 1. 开篇：为什么 ML 工程必须理解数据系统
+    source_heading: 1. 开篇：为什么 ML 工程必须理解数据系统
+    paragraphs:
+    - 近年来 ML 的兴起与大数据系统的发展紧密相连。即使没有 ML，大规模数据系统也已经很复杂：缩写众多、问题与方案繁杂、工具和行业标准快速变化，不同公司的数据栈看起来各不相同。
+    - 这些层可以组合。例如，Parquet 是列式文件格式，不是数据库；关系模型可以存成 CSV 或 Parquet；数据库也可能同时支持关系和 JSON 文档；Kafka
+      是数据传输与持久日志系统，不是普通分析数据库。
+    - 生产系统通常有多个进程：特征服务从原始数据计算特征，预测服务消费特征并生成结果。数据必须跨进程传递。原章用一条常见路径建立直觉：落入数据库等持久存储的数据常作为历史数据批量处理，仍通过实时传输持续到达的数据常作为流处理；更准确的边界取决于输入是某时点已经存在的有界快照，还是持续产生、没有预知终点的事件序列，而不只取决于存储产品。
+    - 作者推荐 Martin Kleppmann 的 Designing Data-Intensive Applications 作为更深入的系统读物。若读者已熟悉本章基础，可以直接进入第
+      4 章学习训练数据采样与标签生成。
+  - title: 2. Data Sources：数据来源
+    source_heading: 2. Data Sources：数据来源
+    paragraphs:
+    - 原章脚注给出 2021 年 11 月历史价格对比：毫秒级访问的 S3 Standard 每 GB 约为需 1 分钟至 12 小时恢复的 S3 Glacier
+      的 5 倍。具体价格与产品已变化，结论仍是：访问频率和恢复时间决定存储层级。
+    - 原章的 Amazon 搜索例子：用户输入 “frozen”，模型先判断意图是冷冻食品还是 Disney 的 Frozen IP，再查询内部库存，最后排序并展示可售商品。
+    - 互联网和智能手机曾让跨应用聚合特别容易。iPhone 的 IDFA、Android 的 AAID 作为设备广告标识符，把 App、网站与签到服务中的活动聚合成个人历史。市场可出售社交活动、购买记录、浏览习惯、租车和政治倾向，并细分到年龄、职业和地区。
+    - Apple 在 2021 年初把 IDFA 改为 opt-in，显著减少 iPhone 上可用的第三方数据，迫使公司更多依赖第一方数据。广告行业随后投资规避方案；原章提到中国广告协会支持的
+      CAID 设备指纹方案，以及 TikTok、Tencent 等 App 的追踪争议。
+  - title: 4. Data Models：数据模型
+    source_heading: 4. Data Models：数据模型
+    paragraphs:
+    - 带递归等扩展的 SQL 可以图灵完备，但图灵完备只表示理论表达能力，不保证查询易写、在有限内存和时间内可行。原章脚注给出极端案例：早期 Postgres
+      论文合著者 Greg Kemnitz 曾写约 700 行、访问 27 张表的报表查询，另有约 1000 行注释，耗时三天编写、调试和调优。
+    - 关系模型适用广泛，但严格 schema 管理和专用查询可能成为限制。原章引用 Couchbase 2014 年供应商调查：schema 管理挫折是采用其非关系数据库的首要原因。该调查存在产品与样本偏差，应作为历史动机而非总体市场定律。
+    - 跨文档关系则更难。原章举例找价格低于 25 美元的所有书：若没有嵌套字段索引，必须扫描文档、抽取价格并比较。现代文档数据库可对嵌套字段建索引和做 aggregation；核心限制不是“永远只能全扫”，而是跨文档
+      join 与共享事实通常不如关系模型自然。
+    - 现代 warehouse 也能存半结构化数据，lake 也可用 Parquet 与 table format 管理强 schema，data lakehouse（数据湖仓）则试图同时提供湖的开放存储与仓库的管理能力。所以边界是连续的，不应把产品名称当成绝对分类。
+  - title: 5. Data Storage Engines and Processing：存储引擎与处理
+    source_heading: 5. Data Storage Engines and Processing：存储引擎与处理
+    paragraphs:
+    - 非 ACID 系统有时称 BASE：Basically Available、Soft state、Eventual consistency。原章引用 Kleppmann
+      指出，这个缩写甚至比 ACID 更模糊，不能替代对具体读写语义的说明。
+    - 需要补充边界：Iceberg 更准确地说是分析表格式，不是独立数据库引擎；DuckDB 是嵌入式分析数据库，支持事务语义不等于适合高并发 OLTP。应比较实际负载，而不是只看“支持事务”标签。
+    - 原章脚注说明，作者初稿曾把存储成本列为“不要存一切”的理由，后来认为存储已很便宜。即使字节便宜，目录、治理、隐私、检索、计算和人员认知成本仍不会消失；无管理的数据湖会变成
+      data swamp。
+    - 随着云基础设施和 schema 工具标准化，提前管理结构又变得可行。lakehouse 试图结合 lake 的开放、低成本和灵活性与 warehouse
+      的 schema、事务、元数据和查询管理。原章列 Databricks 与 Snowflake 为例。
+  - title: 6. Modes of Dataflow：数据流模式
+    source_heading: 6. Modes of Dataflow：数据流模式
+    paragraphs:
+    - 跨公司例子：证券交易所提供当前股价，投资机构请求股价并预测未来价格。公司内部把组件做成独立服务，则形成 service-oriented / microservice
+      architecture，使组件可独立开发、测试、部署和维护。
+    - 服务不再互相拉取，而是在产生预测时发布到 broker；消费者订阅最近的司机数、订单数和 surge price。数据单元称为 event，架构称 event-driven，broker
+      也称 event bus。
+    - 原章用“in-memory storage”帮助理解实时传输的低延迟中介角色。现代 Kafka 并不是纯内存队列，而是磁盘支持、依赖页缓存、可复制的持久
+      commit log；Kinesis 也提供持久保留。应把“实时传输”理解为低延迟追加与消费接口，而非实现必须只在 RAM。
+    - 原章概括：逻辑重、按需查询的系统适合 request-driven；数据重、多个消费者共享事件的系统更适合 event-driven。真实系统通常混合使用：命令与立即响应走
+      RPC，事实广播和异步派生走事件流。
+  - title: 7. Batch Processing Versus Stream Processing
+    source_heading: 7. Batch Processing Versus Stream Processing
+    paragraphs:
+    - 原章把进入数据库、lake 或 warehouse 的数据称为 historical data，把仍在 Kafka / Kinesis 等实时传输中到达的数据称为
+      streaming data。这描述了常见系统路径，但不是由存储位置决定的严格定义。
+    - 更准确地说，历史处理通常面对某时点已经存在、范围可界定的快照；流处理面对持续产生、没有预知终点的事件序列。同一事件可以先作为新事件被增量处理，随后作为历史记录被回放；Kafka
+      的一个有限 offset 区间也可作为有界历史输入，数据库 CDC 则能从持久存储变更产生无界流。
+    - 价格模型通常同时需要两类特征。训练时必须按历史预测时点重建动态特征，不能使用之后发生的事件；线上则要保证定义、窗口和时间语义一致，否则产生 point-in-time
+      leakage 与 training-serving skew。
+    - batch 就是对有界流执行计算。流引擎天然能在看到 end-of-input 后产生最终结果；传统 batch 引擎要支持无限输入、持续状态、watermark
+      和 backpressure，则需要更深改造。因此原章说“让流处理器做 batch 往往比让 batch 处理器做 stream 容易”。
+  - title: 10. 本章知识结构
+    source_heading: 10. 本章知识结构
+    paragraphs:
+    - 来源决定数据最初的质量、时效、偏差和法律边界。
+    - 格式把内存对象变成可持久或传输的字节，并影响 I/O 与兼容性。
+    - 存储引擎把格式与模型落实为索引、事务和执行。
+    - 所有选择最终共同决定训练数据与在线特征是否一致、及时和可信。
+  - title: 11. 核心结论
+    source_heading: 11. 核心结论
+    paragraphs:
+    - 数据系统选择必须从来源和访问模式开始。 同一数据在质量、延迟和隐私上的处理取决于它如何产生、怎样被消费。
+    - Schemaless 与 unstructured 都是在移动结构责任。 读取方最终仍需要解释、验证和兼容数据。
+    - OLTP 与 OLAP 边界在融合，工作负载差异仍存在。 存储—计算分离让不同引擎共享数据，也引入网络和元数据协调。
+    - 批处理面向有界历史，流处理面向持续事件和状态。 同一系统通常同时需要 static 与 dynamic features。
+  - title: 12. 从本章提炼出的通用数据系统设计方法
+    source_heading: 12. 从本章提炼出的通用数据系统设计方法
+    paragraphs:
+    - 先确定实体和关系，再为具体读写路径选择 JSON、Parquet、Protobuf 等编码。不要因为已有某格式就让它反向决定错误的数据语义。
+    - 决定 schema-on-write、schema-on-read 或混合；规定字段增加、删除、改类型、默认值、历史回填和旧消费者兼容。
+    - 定义 timeout、重试、幂等、去重、顺序、交付保证、backpressure、dead-letter、保留和重放。只画正常路径不足以证明数据流可靠。
+    - 本章最重要的通用思路是：先描述数据在时间和系统中的生命历程，再选择每一层的技术；工具名称会变化，访问模式、结构责任、耦合、状态和失败语义仍然是稳定的判断依据。
+  takeaways:
+  - 本章建立在第 2 章“数据对 ML 系统至关重要”的基础上。首先应根据未来访问方式选择数据格式，并理解行式/列式、文本/二进制的收益与代价。
+  - 格式把内存对象变成可持久或传输的字节，并影响 I/O 与兼容性。
+  - 用户行为是个人数据。 系统自动采集不消除隐私、同意、保留和删除责任。
+  - Schemaless 与 unstructured 都是在移动结构责任。 读取方最终仍需要解释、验证和兼容数据。
+  - 批可建模为有界流的特例。 统一抽象有价值，不代表所有运行约束完全相同。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念辨析
+  question: 原文如何解释「9.1 数据格式不等于数据模型」？
+  answer: JSON 是编码格式，document 是组织模型；Parquet 是列式文件格式，relation 是逻辑模型。同一模型可用多种格式。
+  source_heading: 9.1 数据格式不等于数据模型
+- level: 概念辨析
+  question: 原文如何解释「9.9 Pickle 方便不等于适合不可信输入」？
+  answer: 反序列化 Pickle 可执行任意代码。只能加载可信来源，并优先选择数据型安全格式。
+  source_heading: 9.9 Pickle 方便不等于适合不可信输入
+- level: 概念辨析
+  question: 原文如何解释「9.17 Data lake 不等于自动保留未来价值」？
+  answer: 没有目录、血缘、质量、权限和删除策略的 raw data 很快变成 data swamp。
+  source_heading: 9.17 Data lake 不等于自动保留未来价值
+- level: 概念辨析
+  question: 原文如何解释「9.26 Kafka 不只是内存消息暂存」？
+  answer: 它通常是磁盘支持、可复制和可重放的持久日志。内存视角只解释低延迟数据流角色。
+  source_heading: 9.26 Kafka 不只是内存消息暂存
+- level: 概念辨析
+  question: 原文如何解释「9.32 “批是流的特例”不等于应强行统一所有基础设施」？
+  answer: 计算模型可以统一，团队技能、成本、SLA 和故障处理仍可能需要不同部署。
+  source_heading: 9.32 “批是流的特例”不等于应强行统一所有基础设施

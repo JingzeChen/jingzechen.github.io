@@ -1,0 +1,138 @@
+source:
+  post: _posts/book-notes/software-architecture/system-design-interview-volume-2/2026-08-12-system-design-interview-volume-2-ch11.md
+  body_sha256: 8e0486212a843f1a1e3cf20af1b6ef801413728994bf1627436c85641442b2f6
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 8
+  question: 原文围绕「0. 支付系统的核心不是吞吐，而是不确定性下的资金正确性」建立了怎样的核心认识？
+  question_source: 0. 支付系统的核心不是吞吐，而是不确定性下的资金正确性
+  thesis: 长耗时支付必须有 PENDING/UNKNOWN。 Webhook + Poll 最终推进状态。
+  thesis_source: 16. 核心结论
+  concepts:
+  - term: 0. 支付系统的核心不是吞吐，而是不确定性下的资金正确性
+    meaning: 任意 RPC 都可能出现三种结果：成功、明确失败、结果未知。网络超时只说明调用方没收到答复，不说明 PSP 没扣款。
+    source_heading: 0. 支付系统的核心不是吞吐，而是不确定性下的资金正确性
+  - term: 2.6 数据库选型
+    meaning: ACID/Constraint/Transaction 便于推理。
+    source_heading: 2.6 数据库选型
+  - term: 5.3 匹配键与金额
+    meaning: 对账必须按 Currency/Timezone/Business Day 规范化，手续费、Chargeback 和 Partial Capture
+      需要独立 Entry。
+    source_heading: 5.3 匹配键与金额
+  - term: 6.3 Webhook 与 Poll 双通道
+    meaning: 不信 Client Redirect。
+    source_heading: 6.3 Webhook 与 Poll 双通道
+  - term: 9.2 Idempotency Record 必须保存什么
+    meaning: 同 Key 不同 Request Hash 必须拒绝，不能返回旧支付结果。
+    source_heading: 9.2 Idempotency Record 必须保存什么
+  - term: 17. 解决支付问题的一般思路
+    meaning: 持久化核心 Payment Order 后用 Transactional Outbox/Event 触发 Wallet/Ledger/Analytics/Notification；每个
+      Consumer 可重放。
+    source_heading: 17. 解决支付问题的一般思路
+  logic:
+  - 0. 支付系统的核心不是吞吐，而是不确定性下的资金正确性
+  - 2.6 数据库选型
+  - 4.2 Hosted Flow 九步
+  - 6.3 Webhook 与 Poll 双通道
+  - 8.2 Retry Queue 与 DLQ
+  - 12.1 补充原则
+  - 17. 解决支付问题的一般思路
+  sections:
+  - title: 0. 支付系统的核心不是吞吐，而是不确定性下的资金正确性
+    source_heading: 0. 支付系统的核心不是吞吐，而是不确定性下的资金正确性
+    paragraphs:
+    - Notification/Analytics/Accounting。
+    - 任意 RPC 都可能出现三种结果：成功、明确失败、结果未知。网络超时只说明调用方没收到答复，不说明 PSP 没扣款。
+    - Retry 提供 At-least-once Attempt；
+    - Idempotency 把重复 Attempt 折叠为一次业务效果；
+  - title: 1.8 非功能需求
+    source_heading: 1.8 非功能需求
+    paragraphs:
+    - 失败支付要明确分类、可重试、可人工调查，不能因 Timeout 随意再扣。
+    - 内部 Payment/Wallet/Ledger 与外部 PSP/Bank 定期比较并修正不一致。它是异步最后防线，不是实时 Transaction 的替代品。
+  - title: 2.6 数据库选型
+    source_heading: 2.6 数据库选型
+    paragraphs:
+    - Monitoring/Investigation/Backup 工具成熟；
+    - ACID/Constraint/Transaction 便于推理。
+  - title: 4.2 Hosted Flow 九步
+    source_heading: 4.2 Hosted Flow 九步
+    paragraphs:
+    - Service 用 Order UUID/Nonce 向 PSP 注册 Amount、Currency、Expiration、Redirect URL；
+    - PSP 异步 Webhook 通知 Payment Service，更新 Order Status。
+    - 页面跳转后本地必须能用 Token 对应 Order；若未持久化就 Redirect，Callback/Webhook 到来时无法关联。
+    - Webhook 是 PSP Server-to-server 通知，应验签、重放保护和幂等；
+  - title: 5.3 匹配键与金额
+    source_heading: 5.3 匹配键与金额
+    paragraphs:
+    - PSP Token/Transaction ID；
+    - Amount/Currency；
+    - Event Time/Settlement Date；
+    - 对账必须按 Currency/Timezone/Business Day 规范化，手续费、Chargeback 和 Partial Capture 需要独立
+      Entry。
+  - title: 6.3 Webhook 与 Poll 双通道
+    source_heading: 6.3 Webhook 与 Poll 双通道
+    paragraphs:
+    - 验证 Signature、Timestamp；
+    - 不信 Client Redirect。
+  - title: 8.2 Retry Queue 与 DLQ
+    source_heading: 8.2 Retry Queue 与 DLQ
+    paragraphs:
+    - Retryable：Network Timeout、5xx、Rate Limit、Temporary Unavailable。 Non-retryable：Invalid
+      Input、Unsupported Currency、Card Definitively Declined（视 Reason Code）。
+    - DLQ 是隔离与调查工具，不是墓地；要有 Owner、Alert、Replay Tool 和 Runbook。
+  - title: 9.2 Idempotency Record 必须保存什么
+    source_heading: 9.2 Idempotency Record 必须保存什么
+    paragraphs:
+    - Status（IN_PROGRESS/COMPLETED/FAILED）；
+    - Original Response/Resource ID；
+    - Owner/Lease Version。
+    - 同 Key 不同 Request Hash 必须拒绝，不能返回旧支付结果。
+  - title: 12.1 补充原则
+    source_heading: 12.1 补充原则
+    paragraphs:
+    - Least Privilege、Key Rotation、HSM/KMS；
+    - Admin Adjustment 双人审批；
+    - Backup 必须演练恢复，而非只宣称存在。
+    - Certificate Pinning 有运维/证书轮换风险，不应作为所有 Web 场景的默认万能解。
+  - title: 17. 解决支付问题的一般思路
+    source_heading: 17. 解决支付问题的一般思路
+    paragraphs:
+    - NOT_STARTED/EXECUTING/PENDING/SUCCESS/FAILED，Terminal State 不回退；所有 Transition
+      留 History/Version。
+    - At-least-once Attempt + At-most-once Effect；入口、PSP、Wallet、Ledger、Consumer 每层都有
+      Unique Effect Key。
+    - 持久化核心 Payment Order 后用 Transactional Outbox/Event 触发 Wallet/Ledger/Analytics/Notification；每个
+      Consumer 可重放。
+    - 本章最值得迁移的方法是：不要尝试消灭网络重试和异步状态，而要让每一步都能被唯一标识、重复执行、查询和审计；支付正确性来自“可恢复状态机 + 零和账本 +
+      端到端幂等 + 独立对账”，而不是某次 RPC 恰好成功。
+  takeaways:
+  - 支付设计优先 Correctness，不优先吞吐。 10 TPS 仍需完整状态、幂等、账本和对账。
+  - 金额传 String、算 Decimal/Minor Unit。 始终携带 Currency，禁止 Float。
+  - 长耗时支付必须有 PENDING/UNKNOWN。 Webhook + Poll 最终推进状态。
+  - Retry Queue 与 DLQ 让失败可分类、隔离、调查。 不可无限盲重试。
+  - 安全与合规是架构主体。 Tokenization、PCI、Webhook 验签、TLS、Fraud、Backup/Restore 都必须设计。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念辨析
+  question: 原文如何解释「14.1 Pay-in 不等于 Seller 已收到钱」？
+  answer: 资金先到平台/托管账户；Pay-out 条件满足后才到 Seller Bank。
+  source_heading: 14.1 Pay-in 不等于 Seller 已收到钱
+- level: 概念辨析
+  question: 原文如何解释「14.6 Hosted Page 不等于无需 PCI/Security」？
+  answer: 它缩小 Scope，不消除 Redirect、Webhook、Token 和配置风险。
+  source_heading: 14.6 Hosted Page 不等于无需 PCI/Security
+- level: 概念辨析
+  question: 原文如何解释「14.14 HTTP 429 不是唯一正确的重复进行中响应」？
+  answer: 可用 202/409；重点是 API Contract 与 Retry Guidance 清楚。
+  source_heading: 14.14 HTTP 429 不是唯一正确的重复进行中响应
+- level: 概念辨析
+  question: 原文如何解释「14.20 Reconciliation 不是只比较总金额」？
+  answer: 总数相同仍可能一笔重复、一笔遗漏；应逐 Order/Provider Transaction 匹配。
+  source_heading: 14.20 Reconciliation 不是只比较总金额
+- level: 概念辨析
+  question: 原文如何解释「14.26 Payment SUCCESS 不等于订单 Fulfillment 一定成功」？
+  answer: 库存/发货是另一 Saga；失败可能 Refund，而不是修改支付历史为不存在。
+  source_heading: 14.26 Payment SUCCESS 不等于订单 Fulfillment 一定成功

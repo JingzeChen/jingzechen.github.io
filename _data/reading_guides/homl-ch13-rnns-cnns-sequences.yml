@@ -1,0 +1,144 @@
+source:
+  post: _posts/book-notes/machine-learning/hands-on-machine-learning/2026-08-02-homl-ch13-rnns-cnns-sequences.md
+  body_sha256: 1156d5b3bfaa5bdedcd159c7d7f4b5a313e5981c45fbbaddafacd1bee78b7920
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 8
+  question: 本章要解决什么问题？
+  question_source: 本章要解决什么问题
+  thesis: 将每个四音 chord 展成 note sequence，加入 SOS token，把音高映射为 48 类；训练 causal seq-to-seq
+    next-note classifier。官方 Conv1d+LSTM 模型 5 epochs 测试 accuracy 约 0.8254。
+  thesis_source: 19. 章末练习与参考答案
+  concepts:
+  - term: 本章要解决什么问题
+    meaning: 如何缓解长序列中的梯度不稳定和短期记忆，并何时改用 1D CNN？
+    source_heading: 本章要解决什么问题
+  - term: 4. Training RNNs
+    meaning: 长 Jacobian 乘积导致消失/爆炸。若每个时间步都有 loss，早期层收到更短的梯度路径，这也是 seq2seq supervision
+      常更易训练的原因。
+    source_heading: 4. Training RNNs
+  - term: 11. Forecasting Multivariate Time Series
+    meaning: 官方多变量单 rail MAE 约 23,227；联合预测 rail/bus MAE 约 26,441/26,178。
+    source_heading: 11. Forecasting Multivariate Time Series
+  - term: 12. Forecasting Several Time Steps Ahead
+    meaning: 优点是只训练一个单步模型；缺点是 exposure bias 和 error accumulation：训练看到真值历史，推理看到自己的有误预测。适合短
+      horizon。
+    source_heading: 12. Forecasting Several Time Steps Ahead
+  - term: 17. Using 1D Convolutions to Process Sequences
+    meaning: Kernel 学局部短模式；stride 下采样缩短 RNN 时间长度，使同样 recurrent steps 覆盖更长原始历史。
+    source_heading: 17. Using 1D Convolutions to Process Sequences
+  - term: 工程能力
+    meaning: 能处理 known-future exogenous features
+    source_heading: 工程能力
+  logic:
+  - 本章要解决什么问题
+  - 4. Training RNNs
+  - 6. The ARMA Model Family
+  - 12. Forecasting Several Time Steps Ahead
+  - 15. Fighting the Unstable Gradients Problem
+  - 19. 章末练习与参考答案
+  - 工程能力
+  sections:
+  - title: 本章要解决什么问题
+    source_heading: 本章要解决什么问题
+    paragraphs:
+    - 如何用共享状态压缩任意长度历史？
+    - 如何训练跨时间共享参数的模型并预测未来？
+    - 如何缓解长序列中的梯度不稳定和短期记忆，并何时改用 1D CNN？
+  - title: 0. 必要基础与记号
+    source_heading: 0. 必要基础与记号
+    paragraphs:
+    - T：sequence/window length；
+    - D：每个时间步的 features/input size。
+    - L 是 recurrent layers 数；双向 RNN 还需乘 directions 数。
+    - 训练时 target 可来自未来，但 forward 的输入路径不能偷看未来。
+  - title: 4. Training RNNs
+    source_heading: 4. Training RNNs
+    paragraphs:
+    - 长 Jacobian 乘积导致消失/爆炸。若每个时间步都有 loss，早期层收到更短的梯度路径，这也是 seq2seq supervision 常更易训练的原因。
+    - Detach 截断跨 chunk 梯度，但保留数值 state。K 越大越能学长依赖，也越耗内存且梯度更不稳定。
+  - title: 6. The ARMA Model Family
+    source_heading: 6. The ARMA Model Family
+    paragraphs:
+    - MA(q)：过去 q 个 innovation/forecast errors 的修正；
+    - 2019-06-01 单日预测 427,759，真值 379,044，误差 12.9%；但对 2019-03 至 05 滚动重训的 MAE 约 32,041，显著优于
+      weekly naive 42,143。
+    - 这说明不能用一个日期判断模型，也不能只拟合一次后用未来数据更新。真实 backtest 必须按时间滚动，任何时刻只使用当时可获得数据。
+    - 超参数可 time-series CV/grid search，也可参考 ACF/PACF、AIC/BIC。普通随机 K-fold 会泄漏未来。
+  - title: 11. Forecasting Multivariate Time Series
+    source_heading: 11. Forecasting Multivariate Time Series
+    paragraphs:
+    - Rail forecast 可输入历史 rail、bus，以及已知的明日 day type。
+    - 官方多变量单 rail MAE 约 23,227；联合预测 rail/bus MAE 约 26,441/26,178。
+  - title: 12. Forecasting Several Time Steps Ahead
+    source_heading: 12. Forecasting Several Time Steps Ahead
+    paragraphs:
+    - 优点是只训练一个单步模型；缺点是 exposure bias 和 error accumulation：训练看到真值历史，推理看到自己的有误预测。适合短
+      horizon。
+    - 不累积 autoregressive error，但输出维增大、远 horizon 更难，且没有显式保证预测轨迹一致。
+    - 可组合两者：每次直接预测 14 天，再递归生成下一个 14 天；但若输入含未预测的 bus 等协变量，必须同时预测或提供其未来值。
+  - title: 15. Fighting the Unstable Gradients Problem
+    source_heading: 15. Fighting the Unstable Gradients Problem
+    paragraphs:
+    - ReLU 正区导数 1 且输出无界，如果 W_h spectral radius 大于 1，状态和梯度都可能指数增长。Tanh 输出有界但饱和时导数接近
+      0。没有一个激活能单独解决全部问题。
+    - BN 依赖 batch 统计，同一 BN 参数跨不同时间分布复用通常效果有限；可在 recurrent layers 之间垂直使用，但不适合 hidden-to-hidden
+      每步内部归一化。
+    - 若要 cell 内 dropout，需手写循环。对同一 sequence 每步使用同一个 mask（variational/locked dropout）常比每步随机
+      mask 更稳定，因为后者给状态转移持续注入不同噪声。
+    - 预测区间可用 MC dropout，但只近似 epistemic uncertainty；时间序列还存在 observation noise 和 regime
+      shift。
+  - title: 17. Using 1D Convolutions to Process Sequences
+    source_heading: 17. Using 1D Convolutions to Process Sequences
+    paragraphs:
+    - Kernel 学局部短模式；stride 下采样缩短 RNN 时间长度，使同样 recurrent steps 覆盖更长原始历史。
+    - 改变 kernel/stride/padding 必须重新推导对齐，不能硬编码 3。
+  - title: 19. 章末练习与参考答案
+    source_heading: 19. 章末练习与参考答案
+    paragraphs:
+    - 日单变量序列，推荐 sequence-to-vector RNN/GRU/LSTM，output size 7，直接一次预测七天，避免单步递归误差积累。
+    - 每帧用 CNN/ViT 提取 embedding，再用 GRU/LSTM/temporal Conv/Transformer 做 sequence-to-vector
+      分类。短视频也可 3D CNN 同时卷积空间和时间。长视频常分 clip、层次聚合；实时场景必须 causal。
+    - 官方 Notebook 对两条序列、所有时间步和 horizon 合并计算的验证 MAE 约为 47,222；它没有分别报告 rail/bus 的该模型
+      MAE。
+    - 将每个四音 chord 展成 note sequence，加入 SOS token，把音高映射为 48 类；训练 causal seq-to-seq next-note
+      classifier。官方 Conv1d+LSTM 模型 5 epochs 测试 accuracy 约 0.8254。
+  - title: 工程能力
+    source_heading: 工程能力
+    paragraphs:
+    - 能建立 naive/SARIMA/linear baseline
+    - 能实现 simple/deep/multivariate RNN
+    - 能处理 known-future exogenous features
+    - 能正确使用 RNN/LSTM/GRU API shape
+  takeaways:
+  - 如何缓解长序列中的梯度不稳定和短期记忆，并何时改用 1D CNN？
+  - Detach 截断跨 chunk 梯度，但保留数值 state。K 越大越能学长依赖，也越耗内存且梯度更不稳定。
+  - 可组合两者：每次直接预测 14 天，再递归生成下一个 14 天；但若输入含未预测的 bus 等协变量，必须同时预测或提供其未来值。
+  - 改变 kernel/stride/padding 必须重新推导对齐，不能硬编码 3。
+  - 能正确使用 RNN/LSTM/GRU API shape
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念复述
+  question: 本章要解决什么问题？
+  answer: 如何缓解长序列中的梯度不稳定和短期记忆，并何时改用 1D CNN？
+  source_heading: 本章要解决什么问题
+- level: 边界判断
+  question: 原文如何解释「4. Training RNNs」？
+  answer: 长 Jacobian 乘积导致消失/爆炸。若每个时间步都有 loss，早期层收到更短的梯度路径，这也是 seq2seq supervision
+    常更易训练的原因。
+  source_heading: 4. Training RNNs
+- level: 边界判断
+  question: 原文如何解释「12. Forecasting Several Time Steps Ahead」？
+  answer: 优点是只训练一个单步模型；缺点是 exposure bias 和 error accumulation：训练看到真值历史，推理看到自己的有误预测。适合短
+    horizon。
+  source_heading: 12. Forecasting Several Time Steps Ahead
+- level: 关系解释
+  question: 原文如何解释「17. Using 1D Convolutions to Process Sequences」？
+  answer: Kernel 学局部短模式；stride 下采样缩短 RNN 时间长度，使同样 recurrent steps 覆盖更长原始历史。
+  source_heading: 17. Using 1D Convolutions to Process Sequences
+- level: 概念复述
+  question: 原文如何解释「工程能力」？
+  answer: 能处理 known-future exogenous features
+  source_heading: 工程能力

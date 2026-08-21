@@ -1,0 +1,169 @@
+source:
+  post: _posts/book-notes/distributed-system/design-data-intensive-application/2026-08-05-ddia-2e-ch05-encoding-evolution.md
+  body_sha256: b5f48d9b09e2465b434b86b5e0e5421da89cfc667c134eb419e0843a7b503c58
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 13
+  question: 原文围绕「0. 本章定位：变化不可避免，兼容性让变化可分阶段发生」建立了怎样的核心认识？
+  question_source: 0. 本章定位：变化不可避免，兼容性让变化可分阶段发生
+  thesis: writer encode，reader decode。数据长期存在、rolling node 新旧并存，因此两个兼容方向都重要。archive
+    可统一重编码到当前 schema/column format。
+  thesis_source: 7. 原章总结：编码格式决定系统能怎样变化
+  concepts:
+  - term: 0. 本章定位：变化不可避免，兼容性让变化可分阶段发生
+    meaning: 第 2 章把可演化性（evolvability）定义为系统适应变化的容易程度。本章追问：当代码、数据和服务不能在同一时刻全部切换时，怎样仍保持系统正确运行？
+    source_heading: 0. 本章定位：变化不可避免，兼容性让变化可分阶段发生
+  - term: 2. 数据流方式（Modes of Dataflow）：谁编码，谁解码
+    meaning: event/message：producer → broker/actor → consumer。
+    source_heading: 2. 数据流方式（Modes of Dataflow）：谁编码，谁解码
+  - term: 5. 持久执行与工作流
+    meaning: 定义可用 general-purpose language、DSL、Business Process Execution Language（BPEL）或
+      Business Process Model and Notation（BPMN）图形。
+    source_heading: 5. 持久执行与工作流
+  - term: 6. 事件驱动架构
+    meaning: queue/topic、broker/log、actor 都传递 bytes，schema compatibility 仍是独立升级前提。尤其
+      retained message、新 consumer replay、republish 和 actor rolling upgrade 会同时要求新旧
+      reader/writer 组合。异步不会消除兼容问题，只会让版本共存时间更长、调用链更隐蔽。
+    source_heading: 6. 事件驱动架构
+  - term: 11. 综合案例：支付 API 从 v1 演化到 v2
+    meaning: server request 可更严格，但 rolling client 新增 optional field 时，新 server 应先上线。对未知
+      request field 是忽略还是拒绝，要按安全和 typo 风险决定。
+    source_heading: 11. 综合案例：支付 API 从 v1 演化到 v2
+  - term: 13. 设计编码与演化的一般方法
+    meaning: 面对任何格式变更，都应明确回答：谁会写新数据，谁仍用旧代码读取，未知内容怎样跳过和保留，语义能否降级，数据会活多久，以及失败后能否回滚。只有这些问题都有答案，“兼容”才不是一句模糊承诺，而是可验证的演化机制。
+    source_heading: 13. 设计编码与演化的一般方法
+  logic:
+  - 0. 本章定位：变化不可避免，兼容性让变化可分阶段发生
+  - 2. 数据流方式（Modes of Dataflow）：谁编码，谁解码
+  - 4. 通过服务的数据流：REST 与 RPC
+  - 6. 事件驱动架构
+  - 7. 原章总结：编码格式决定系统能怎样变化
+  - 12. 核心结论
+  - 13. 设计编码与演化的一般方法
+  sections:
+  - title: 0. 本章定位：变化不可避免，兼容性让变化可分阶段发生
+    source_heading: 0. 本章定位：变化不可避免，兼容性让变化可分阶段发生
+    paragraphs:
+    - 第 2 章把可演化性（evolvability）定义为系统适应变化的容易程度。本章追问：当代码、数据和服务不能在同一时刻全部切换时，怎样仍保持系统正确运行？
+    - 读取代码根据字段、版本或类型解释。变化灵活，但兼容逻辑分散到读取者，不能理解为没有 schema。
+    - 例如新增 field tag 99：旧解析器若能根据 wire type 跳过长度，就可继续；若编码只有裸值、无边界，旧解析器会错位。
+    - 同一种 protobuf/Avro/JSON，在不同数据流中的 writer/reader 生命周期和兼容方向不同。
+  - title: 1. 数据编码格式
+    source_heading: 1. 数据编码格式
+    paragraphs:
+    - 编码是 CPU-friendly object 与 self-contained bytes 之间的翻译。语言私有格式最方便，却带来语言锁定、反序列化安全和版本风险；JSON/XML/CSV
+      的优势是普及和互操作，代价是类型歧义、binary 支持与 schema 复杂性；binary JSON 只改变编码，不改变无 schema 必须携带字段名的事实。
+    - 给 reader union 新增 branch：新 reader 通常能读旧 writer，是 backward compatible；旧 reader
+      不认识新 writer 可能选择的新 branch，forward compatibility 可能破坏。
+    - protobuf 用稳定 field tag 让旧 parser 跳过未来字段，Avro 用准确 writer schema 与当前 reader schema
+      做 name-based resolution。两者都通过显式 schema 获得 compact bytes、codegen 和可自动检查的演化规则，但兼容方向不同。
+    - 真正安全的 schema change 必须同时检查 writer/reader 组合、unknown field 的端到端保留、默认值与业务含义，以及历史数据如何找到
+      writer schema。格式提供机制，组织纪律决定机制是否被正确使用。
+  - title: 2. 数据流方式（Modes of Dataflow）：谁编码，谁解码
+    source_heading: 2. 数据流方式（Modes of Dataflow）：谁编码，谁解码
+    paragraphs:
+    - 数据库：writer process → storage → reader process；
+    - REST/RPC：client request → server response；
+    - durable workflow：当前代码 → 历史执行日志 → replay code；
+    - event/message：producer → broker/actor → consumer。
+  - title: 4. 通过服务的数据流：REST 与 RPC
+    source_heading: 4. 通过服务的数据流：REST 与 RPC
+    paragraphs:
+    - code-first 快速同步实现与文档；schema-first 强化设计 review 和多团队契约。两者都需防生成定义与真实 middleware
+      行为不一致。
+    - EJB/RMI 受 Java 限制，DCOM 受 Microsoft 平台限制，CORBA 复杂且兼容差，SOAP/WS-* 追求 vendor interoperability
+      但也非常复杂。
+    - 服务接口通过限制业务操作提供封装，并以兼容契约换团队独立部署。REST、gRPC 和 Avro RPC 都能演化，但兼容方向必须按 request/response
+      和 server/client rollout 说明。
+    - 远程调用永远不同于本地函数：它有 timeout 不确定性、重试重复、可变 latency、byte encoding 和跨语言类型。load balancer、discovery
+      与 mesh 解决 endpoint 和流量，不会消除协议与业务兼容责任。
+  - title: 5. 持久执行与工作流
+    source_heading: 5. 持久执行与工作流
+    paragraphs:
+    - 定义可用 general-purpose language、DSL、Business Process Execution Language（BPEL）或
+      Business Process Model and Notation（BPMN）图形。
+    - 新 code 改成 debit 先于 fraud。replay 到 history step 1 期待 debit，却看到 check_fraud，可能
+      nondeterminism error 或错误匹配。
+    - 持久执行通过记录 workflow history，把崩溃后的“从头猜测”变为确定 replay。它能避免重新发出 history 中已确认的调用，但无法绕过外部系统的
+      idempotency。
+    - 工作流代码本身成为长期协议：调用顺序、随机性、时间和 payload schema 都要版本化。exactly-once 是由 history、幂等外部
+      API 和补偿共同实现的可观察效果，而不是网络只发送一次。
+  - title: 6. 事件驱动架构
+    source_heading: 6. 事件驱动架构
+    paragraphs:
+    - producer 新增 field 时，旧 consumer 必须 ignore；consumer 升级读取旧 retained events 时要有
+      default/旧 reader。
+    - actor model 本来就假设 asynchronous message，甚至本进程也可能不保证 delivery；因此远程 loss 不是从“可靠本地函数”突然变来的全新语义。
+    - message broker 用持久/临时 buffer 把 producer 和 consumer 在时间与位置上解耦，并支持 redelivery
+      和 fan-out；代价是 duplicate、lag、ordering、eventual consistency 和更复杂的观察。
+    - queue/topic、broker/log、actor 都传递 bytes，schema compatibility 仍是独立升级前提。尤其 retained
+      message、新 consumer replay、republish 和 actor rolling upgrade 会同时要求新旧 reader/writer
+      组合。异步不会消除兼容问题，只会让版本共存时间更长、调用链更隐蔽。
+  - title: 7. 原章总结：编码格式决定系统能怎样变化
+    source_heading: 7. 原章总结：编码格式决定系统能怎样变化
+    paragraphs:
+    - writer encode，reader decode。数据长期存在、rolling node 新旧并存，因此两个兼容方向都重要。archive 可统一重编码到当前
+      schema/column format。
+    - workflow code 与持久 history 形成协议。replay 需要 deterministic code，外部 activity 需要 idempotency，long-running
+      execution 需要代码和 payload 版本共存。
+    - sender encode，consumer/actor decode。broker 提供 buffering、redelivery、fan-out 和
+      time decoupling；代价是 duplicate、lag、order 和 schema governance。
+    - 只要有清晰 schema evolution、unknown field 处理、双向测试和发布纪律，forward/backward compatibility
+      与 rolling upgrade 完全可实现。
+  - title: 11. 综合案例：支付 API 从 v1 演化到 v2
+    source_heading: 11. 综合案例：支付 API 从 v1 演化到 v2
+    paragraphs:
+    - 发布前必须测试全部受支持 language/runtime。若旧 UI 无法安全展示，server 不应立即向旧 client 返回该状态，可按 client
+      capability/version 映射。
+    - public response schema 应让旧 client 忽略新 response field；client decoder 不应 closed
+      reject。
+    - server request 可更严格，但 rolling client 新增 optional field 时，新 server 应先上线。对未知 request
+      field 是忽略还是拒绝，要按安全和 typo 风险决定。
+    - 一次“加字段、改金额、加状态”的变化跨越五种时间轴：deployment、database history、public client、workflow
+      execution、event retention。
+  - title: 12. 核心结论
+    source_heading: 12. 核心结论
+    paragraphs:
+    - JSON Schema open/closed model 在 typo 检测与 forward compatibility 间权衡。
+    - Avro 用 writer/reader schema resolution 匹配 name/default/alias。
+    - 复杂 migration 要 expand、backfill、validate、cutover、contract。
+    - broker 提供缓冲、redelivery、fan-out，也引入 duplicate、lag、order。
+  - title: 13. 设计编码与演化的一般方法
+    source_heading: 13. 设计编码与演化的一般方法
+    paragraphs:
+    - backward/forward/full/transitive policy；
+    - 断言 unknown field、numeric precision、enum、default 和 identity 仍正确。
+    - 是否对全部 retained history transitive compatible？
+    - 面对任何格式变更，都应明确回答：谁会写新数据，谁仍用旧代码读取，未知内容怎样跳过和保留，语义能否降级，数据会活多久，以及失败后能否回滚。只有这些问题都有答案，“兼容”才不是一句模糊承诺，而是可验证的演化机制。
+  takeaways:
+  - rolling upgrade；
+  - workflow code 与持久 history 形成协议。replay 需要 deterministic code，外部 activity 需要 idempotency，long-running
+    execution 需要代码和 payload 版本共存。
+  - 编码/事务 serialization 是不同概念。
+  - Avro 添加/删除 field 的兼容取决于 default 和方向。
+  - 兼容性必须端到端测试，而非只信格式规范。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念辨析
+  question: 原文如何解释「9.2 rolling upgrade 不等于所有节点很快一致」？
+  answer: 部署中明确新旧并存；失败回滚后旧版本可能更久存在。client 甚至多年不升级。
+  source_heading: 9.2 rolling upgrade 不等于所有节点很快一致
+- level: 概念辨析
+  question: 原文如何解释「9.21 closed content 不一定更安全兼容」？
+  answer: 它发现 typo，但旧 validator 会拒绝新 field，rolling upgrade 更难。安全与演化需共同设计。
+  source_heading: 9.21 closed content 不一定更安全兼容
+- level: 概念辨析
+  question: 原文如何解释「9.41 schema 是文档不等于文档已完整」？
+  answer: type 不能说明单位、PII、来源、状态转换和 SLO。应补 description 和 domain docs。
+  source_heading: 9.41 schema 是文档不等于文档已完整
+- level: 概念辨析
+  question: 原文如何解释「9.63 “只添加字段”不总是 API-safe」？
+  answer: closed decoder、strict equality、signature、response size、字段名冲突和 enum exhaustive
+    handling 都可能破坏 client。
+  source_heading: 9.63 “只添加字段”不总是 API-safe
+- level: 概念辨析
+  question: 原文如何解释「9.82 新 consumer 能 replay 不等于所有历史都兼容」？
+  answer: registry 必须保留旧 schema，decoder 支持历史逻辑，外部 reference 和删除数据也可能缺失。
+  source_heading: 9.82 新 consumer 能 replay 不等于所有历史都兼容

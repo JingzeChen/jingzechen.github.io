@@ -1,0 +1,165 @@
+source:
+  post: _posts/book-notes/distributed-system/the-fenix-project/2026-08-08-the-fenix-project-immutable-infrastructure.md
+  body_sha256: 74e3c65f26452140354b73bdbd4e1ecd9ee3e2562d08ff5871bcc1d269a24900
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 14
+  question: 1. 本章要解决什么问题？
+  question_source: 1. 本章要解决什么问题
+  thesis: 资源模型和控制器构成 Kubernetes 核心：用户描述期望，控制器持续协调。
+  thesis_source: 13. 本章知识结构总结
+  concepts:
+  - term: 1. 本章要解决什么问题
+    meaning: 不可变基础设施并不是说磁盘、配置和业务数据永远不能变化，而是说：已经进入运行环境的计算实例不再被原地修补；要变更程序、依赖或基础配置，就由新制品创建新实例，再替换旧实例。
+    source_heading: 1. 本章要解决什么问题
+  - term: 4. 以容器构建系统
+    meaning: Pause / Infra Container 先创建并持有 Pod 的 Namespace，其他容器加入这些 Namespace。即使业务容器重启，Pod
+      网络身份仍可由 Sandbox 维持。现代 CRI 实现把它称为 Pod Sandbox，具体 Pause 镜像和实现属于运行时细节。
+    source_heading: 4. 以容器构建系统
+  - term: 6. 容器间网络
+    meaning: 当前 Linux 还广泛使用 nftables。截至 Kubernetes 1.36，原生 kube-proxy 模式包括 iptables、已稳定的
+      nftables，以及已被标记为 Deprecated 的 IPVS；nftables 是原生数据面替代 IPVS 的推荐方向。eBPF 通常由 Cilium
+      等产品实现并取代 kube-proxy，不是 kube-proxy 自带的一种模式。理解 Netfilter 的价值在于掌握包经过何处，而不是记住某个版本生成的全部规则。
+    source_heading: 6. 容器间网络
+  - term: 8. 资源与调度
+    meaning: 驱逐排序不是简单“BestEffort -> Burstable -> Guaranteed”：kubelet 还考虑 Pod 是否超过
+      Request、Priority 以及超出程度。超过 Memory Limit 的容器可能由内核 OOM Kill，这与 kubelet Node Pressure
+      Eviction 也不同。
+    source_heading: 8. 资源与调度
+  - term: 10. 本章各部分如何连接
+    meaning: 任何一步失败都应通过 Event、Condition、日志和指标显式呈现。自动化不意味着故障消失，而是故障处理路径被标准化。
+    source_heading: 10. 本章各部分如何连接
+  - term: 14. 主动回忆题
+    meaning: Priority、Preemption 与 Node Pressure Eviction 有何区别？
+    source_heading: 14. 主动回忆题
+  logic:
+  - 1. 本章要解决什么问题
+  - 4. 以容器构建系统
+  - 5. 以应用为中心的封装
+  - 8. 资源与调度
+  - 9. 服务网格
+  - 13. 本章知识结构总结
+  - 14. 主动回忆题
+  sections:
+  - title: 1. 本章要解决什么问题
+    source_heading: 1. 本章要解决什么问题
+    paragraphs:
+    - 不可变基础设施并不是说磁盘、配置和业务数据永远不能变化，而是说：已经进入运行环境的计算实例不再被原地修补；要变更程序、依赖或基础配置，就由新制品创建新实例，再替换旧实例。
+    - 动态配置：通过 ConfigMap、Secret、控制面或外部配置服务管理，变更过程可审计、可回滚。
+    - 它解决的是配置漂移和“雪花服务器”问题。若同一版本在不同机器上经历了不同人工操作，便很难重现故障，也无法证明测试环境与生产环境一致。
+    - 分布式环境中状态随时会再次偏离，因此协调不是一次安装脚本，而是持续控制循环。
+  - title: 2. 从微服务到云原生
+    source_heading: 2. 从微服务到云原生
+    paragraphs:
+    - 2012 年 Martin Fowler 提出 Phoenix Server，2013 年 Chad Fowler 系统阐述 Immutable Infrastructure。它们最初用于改善部署和运维，云原生时代则进一步承担隐藏分布式复杂度的职责。
+    - Kubernetes 把容器集群抽象成声明式运行平台；
+    - 不可变模式把问题转成“能否从同一制品重新创建”，牺牲少量启动和替换成本，换取可复制性、可审计性和回滚确定性。
+    - 无状态计算最适合不可变替换；数据库等有状态工作负载也可使用不可变程序实例，但数据迁移、Schema、法定留存和恢复不能简单删除重建。不可变的是计算节点与部署制品，不是所有状态。
+  - title: 4. 以容器构建系统
+    source_heading: 4. 以容器构建系统
+    paragraphs:
+    - "“一个容器一个主进程”便于封装，但一个应用往往由多个紧密进程和大量松耦合服务组成。容器编排首先要重新引入“进程组”与持续控制概念。"
+    - Pause / Infra Container 先创建并持有 Pod 的 Namespace，其他容器加入这些 Namespace。即使业务容器重启，Pod
+      网络身份仍可由 Sandbox 维持。现代 CRI 实现把它称为 Pod Sandbox，具体 Pause 镜像和实现属于运行时细节。
+    - Sidecar 适合与主容器同生命周期、同故障和调度边界的辅助能力，例如代理和日志 Agent。但把所有 Agent 都放进每个 Pod 会放大资源开销；节点级
+      DaemonSet 或 OpenTelemetry Collector 可能更合适。
+    - 零停机不仅依赖副本交替，还依赖 Readiness Probe：新 Pod 未就绪前不能接流量，旧 Pod 要经过 PreStop、Endpoint 摘除和
+      Termination Grace Period 才退出。
+  - title: 5. 以应用为中心的封装
+    source_heading: 5. 以应用为中心的封装
+    paragraphs:
+    - Kubernetes 封装资源，却没有天然定义“整个应用”。一个微服务系统会产生大量 Deployment、Service、ConfigMap、Secret、HPA、Ingress
+      和策略，开发、运维、平台关注点混在 YAML 中。
+    - StatefulSet 提供稳定名称、稳定 PVC、顺序创建/删除等基础能力，但不知道 Elasticsearch 如何迁移分片、etcd 如何变更成员、数据库如何安全备份。Operator
+      将这些 Runbook 变成可重复程序。
+    - 它希望避免开发、运维和平台人员共同修改一个 All-in-One YAML。原书中的六类 Workload、Rudr 与早期 Crossplane 属于
+      2019 至 2020 年历史快照。截至 2026 年，OAM 没有成为 Kubernetes 通用应用接口；KubeVela 延续其面向应用和 Trait
+      的思想，Crossplane 主要发展为基础设施与控制平面组合框架。应学习关注点分离，而不是把早期资源模型视为现行标准。
+    - 它们可以组合：Helm 安装 Operator，Operator 管理 CR；Kustomize 为不同集群调整 Helm 之外的策略。工具重叠时要明确唯一所有者，避免
+      Helm 与 Operator 同时改同一字段产生控制器争夺。
+  - title: 6. 容器间网络
+    source_heading: 6. 容器间网络
+    paragraphs:
+    - 当前 Linux 还广泛使用 nftables。截至 Kubernetes 1.36，原生 kube-proxy 模式包括 iptables、已稳定的
+      nftables，以及已被标记为 Deprecated 的 IPVS；nftables 是原生数据面替代 IPVS 的推荐方向。eBPF 通常由 Cilium
+      等产品实现并取代 kube-proxy，不是 kube-proxy 自带的一种模式。理解 Netfilter 的价值在于掌握包经过何处，而不是记住某个版本生成的全部规则。
+    - Kubernetes 早期使用 kubenet，并故意与 Docker 网络解耦。CNM 与 Docker 模型紧密绑定、依赖 libnetwork/libkv，难以满足
+      Kubernetes 已有 etcd、Pod 身份和多运行时目标；Kubernetes 与 CoreOS 因而推动 CNI。
+    - Flannel VXLAN、Calico IP-in-IP / VXLAN 等通过隧道跨越受限 Underlay。原书列举的 Weave Net 已于
+      2024 年归档，只适合作为历史方案理解。Overlay 易部署、与物理拓扑解耦，代价是封装、MTU 和 CPU 开销。
+    - 截至 2026 年，Calico、Cilium、Flannel 等仍代表不同取舍；Cilium 以 eBPF 实现网络、策略、Service 和观测，说明插件边界已超越“接一根虚拟网线”。选型顺序应是：环境可行性、安全策略、可观测性、运维能力，最后才是孤立吞吐基准。
+  - title: 8. 资源与调度
+    source_heading: 8. 资源与调度
+    paragraphs:
+    - Request 用于调度和资源保证基线；Limit 用于运行时上限。CPU Limit 可能引发 CFS Throttling，内存 Limit 越界可能
+      OOM Kill。没有 Limit 不等于没有 Node 总资源限制。
+    - 启用 Pod-level Resources 后，Pod 级 Request / Limit 也可能在单个容器未声明时决定调度预算和 QoS，所以上述三条不再是所有版本、所有配置下的完整判定算法。
+    - QoS 影响资源压力下的保护，但不是绝对存活契约。PriorityClass 表达业务优先级；高优先级 Pending Pod 可以触发 Preemption，选择较低优先级
+      Victim 腾资源。
+    - 驱逐排序不是简单“BestEffort -> Burstable -> Guaranteed”：kubelet 还考虑 Pod 是否超过 Request、Priority
+      以及超出程度。超过 Memory Limit 的容器可能由内核 OOM Kill，这与 kubelet Node Pressure Eviction 也不同。
+  - title: 9. 服务网格
+    source_heading: 9. 服务网格
+    paragraphs:
+    - 当前服务网格不只 Sidecar。Istio Ambient Mesh 使用每节点 ztunnel 提供 L4 安全和连接，再按需用 Waypoint
+      Proxy 提供 L7 策略，试图降低每 Pod Sidecar 成本；这说明“服务网格通常由 Sidecar 实现”是历史主流，不是定义要求。
+    - 经典 Istio 使用 Init Container 或 Istio CNI 配置 iptables，把应用流量重定向到 Envoy。原书说安装 Istio
+      CNI 后不再依赖 iptables，这并不准确：Istio CNI 的主要价值是由节点插件代替特权 Init Container 配置重定向，具体数据路径仍可能使用
+      iptables；eBPF 是另一类可选的包捕获与重定向机制。
+    - Ambient Mesh 则是代理部署架构，不是与 eBPF 并列的 Hook 技术：当前 Istio Ambient 仍由 Istio CNI 配置
+      Pod 内的 iptables / TPROXY，把流量引向节点 ztunnel，只是移除了每 Pod Sidecar。
+    - 原书描述的是 SMI 0.5 Alpha 与 OSM 兴起时期。CNCF 已于 2023 年正式归档 SMI，OSM 等项目也已停止活跃发展；当前 Kubernetes
+      Gateway API 以及面向 Mesh 的 GAMMA 倡议更值得关注，Gateway API 已定义具体的 Mesh Conformance Profile，Istio、Cilium
+      等实现已参与符合性生态。历史教训是：仅有共同字段还不够，不同产品的路由、安全和故障语义难以完全取交集。
+  - title: 10. 本章各部分如何连接
+    source_heading: 10. 本章各部分如何连接
+    paragraphs:
+    - API Admission 在持久化 Pod 之前完成默认值、校验和变更：Sidecar 模式可在此注入代理，Ambient 模式不会注入 Pod 代理；
+    - Scheduler 根据 Effective Request、拓扑、卷和策略选择 Node 并完成 Binding；
+    - kubelet 启动 Init、Sidecar（若已注入）和业务容器；Ambient 数据面则由节点 ztunnel 等外部组件接管相应流量；
+    - 任何一步失败都应通过 Event、Condition、日志和指标显式呈现。自动化不意味着故障消失，而是故障处理路径被标准化。
+  - title: 13. 本章知识结构总结
+    source_heading: 13. 本章知识结构总结
+    paragraphs:
+    - Docker 的决定性贡献是应用镜像、分层分发和生态；Kubernetes 进一步封装集群。
+    - Kustomize、Helm、Operator 分别处理配置派生、Release 管理和领域运维复杂度。
+    - 容器网络由 Linux 设备、Netfilter、路由和 CNI 组合；Overlay 以性能换灵活，Underlay 以环境约束换性能。
+    - 调度以 Request 做硬约束，以 Score 优化目标；QoS、Priority 与 Eviction 共同处理超额承诺。
+  - title: 14. 主动回忆题
+    source_heading: 14. 主动回忆题
+    paragraphs:
+    - Operator 为什么比 StatefulSet 更懂数据库或 Elasticsearch？
+    - Linux 发送网络包要经过 Socket、L4、IP、Device、Driver 哪些步骤？
+    - Bind Mount、Docker Volume 与 Kubernetes PV 有什么层次差异？
+    - Priority、Preemption 与 Node Pressure Eviction 有何区别？
+  takeaways:
+  - 不可变基础设施要求替换实例而非原地修补，持久数据必须外置并有独立生命周期。
+  - Pod 恢复了进程组语义，是 Namespace 共享与原子调度单位。
+  - 容器网络由 Linux 设备、Netfilter、路由和 CNI 组合；Overlay 以性能换灵活，Underlay 以环境约束换性能。
+  - 调度以 Request 做硬约束，以 Score 优化目标；QoS、Priority 与 Eviction 共同处理超额承诺。
+  - 每次复杂度下沉都会增加平台责任，只有规模复用足以覆盖运维成本时才值得采用。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念辨析
+  question: 原文如何解释「11.1 容器不是轻量虚拟机的简单同义词」？
+  answer: 容器共享宿主内核，主要隔离用户空间；虚拟机拥有 Guest Kernel。启动和密度不同，安全边界也不同。
+  source_heading: 11.1 容器不是轻量虚拟机的简单同义词
+- level: 概念辨析
+  question: 原文如何解释「11.8 Helm、Kustomize 与 Operator 不是互斥替代品」？
+  answer: 它们分别擅长环境派生、Release 打包和领域运维，可组合，但同一字段应有唯一控制者。
+  source_heading: 11.8 Helm、Kustomize 与 Operator 不是互斥替代品
+- level: 概念辨析
+  question: 原文如何解释「11.12 CNI 不自动等于 NetworkPolicy」？
+  answer: CNI 定义网络插件调用，策略需要插件额外实现。Flannel 等基础网络与 Calico/Cilium 的策略能力不同。
+  source_heading: 11.12 CNI 不自动等于 NetworkPolicy
+- level: 概念辨析
+  question: 原文如何解释「11.17 QoS、Priority、Preemption 和 Eviction 不是同一机制」？
+  answer: QoS 来源于资源声明，Priority 来源于业务类，Preemption 为 Pending Pod 腾资源，Eviction 由 Node
+    压力回收运行 Pod。
+  source_heading: 11.17 QoS、Priority、Preemption 和 Eviction 不是同一机制
+- level: 概念辨析
+  question: 原文如何解释「11.22 SMI、UDPA 是历史探索，不是今天必须采用的标准」？
+  answer: 当前更应关注 xDS v3、Gateway API / GAMMA 和具体产品 API 的成熟度。
+  source_heading: 11.22 SMI、UDPA 是历史探索，不是今天必须采用的标准

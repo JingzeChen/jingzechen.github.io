@@ -1,0 +1,205 @@
+source:
+  post: _posts/book-notes/distributed-system/design-data-intensive-application/2026-08-05-ddia-2e-ch12-stream-processing.md
+  body_sha256: 8919d418e46c3dbeba24da7c0e62cb819600aae661f921e9286af5fb2efcb764
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 22
+  question: 原文围绕「0. 本章定位：从 bounded batch 转向 unbounded events」建立了怎样的核心认识？
+  question_source: 0. 本章定位：从 bounded batch 转向 unbounded events
+  thesis: 恢复时restore state、rewind到paired offsets，并隐藏/abort c之后uncommitted outputs。external
+    effect若不能加入commit，就必须idempotent/compensatable。
+  thesis_source: 6. 知识结构与证据地图
+  concepts:
+  - term: 0. 本章定位：从 bounded batch 转向 unbounded events
+    meaning: batch擅长full recomputation、backfill、audit与bootstrap；stream擅长low-latency
+      incremental update。production常以batch snapshot初始化，再从某offset继续stream changes。
+    source_heading: 0. 本章定位：从 bounded batch 转向 unbounded events
+  - term: 2. Databases and Streams
+    meaning: dual writes因independent order/partial failure失效；CDC让one database决定order并把others变followers；snapshot+offset或compacted
+      log支持bootstrap；event sourcing进一步把domain history作为authority。
+    source_heading: 2. Databases and Streams
+  - term: 4. Summary：用可重放日志持续维护derived state
+    meaning: stream永不complete，不能等task结束才publish。microbatch/checkpoint建立fine-grained
+      recovery boundary；offset、state、outputs与effects需atomic commit，或借stable IDs/offsets实现idempotence并用fencing阻止old
+      owner。
+    source_heading: 4. Summary：用可重放日志持续维护derived state
+  - term: 6. 知识结构与证据地图
+    meaning: 恢复时restore state、rewind到paired offsets，并隐藏/abort c之后uncommitted outputs。external
+      effect若不能加入commit，就必须idempotent/compensatable。
+    source_heading: 6. 知识结构与证据地图
+  - term: 8. 核心结论
+    meaning: robust architecture组合batch snapshot/backfill与stream delta：batch保证full
+      correction，stream保证incremental freshness。
+    source_heading: 8. 核心结论
+  - term: 10. References
+    meaning: 'Tyler Akidau et al. “The Dataflow Model: A Practical Approach to Balancing
+      Correctness, Latency, and Cost in Massive-Scale, Unbounded, Out-of-Order Data
+      Processing.” PVLDB, August 2015. doi:10.14778/2824032.2824076'
+    source_heading: 10. References
+  logic:
+  - 0. 本章定位：从 bounded batch 转向 unbounded events
+  - 2. Databases and Streams
+  - 3. Processing Streams
+  - 6. 知识结构与证据地图
+  - 7. 综合案例：实时支付风控与商户经营视图
+  - 9. 设计流处理系统的一般方法
+  - 10. References
+  sections:
+  - title: 0. 本章定位：从 bounded batch 转向 unbounded events
+    source_heading: 0. 本章定位：从 bounded batch 转向 unbounded events
+    paragraphs:
+    - 若 daily output太慢，可每second处理上一second，甚至取消fixed slices，每个event到达就处理。后者就是 stream
+      processing：对incrementally available data持续执行computation。
+    - event可用text、JSON、Avro、Protobuf等编码。encoding同时服务于storage与network transport，并需要schema
+      evolution、compatibility和unknown-field policy。
+    - relational triggers可响应row changes，但通常功能受限、耦合transaction path、难以fan-out与跨system
+      replay。它们长期不是general event-notification substrate。
+    - batch擅长full recomputation、backfill、audit与bootstrap；stream擅长low-latency incremental
+      update。production常以batch snapshot初始化，再从某offset继续stream changes。
+  - title: 1. Transmitting Event Streams
+    source_heading: 1. Transmitting Event Streams
+    paragraphs:
+    - producer对registered callback URL发HTTP/RPC，即webhook。适合service integration，但需处理receiver
+      downtime、timeouts、retry、authentication、duplicate delivery与endpoint lifecycle。
+    - Apache Kafka、Amazon Kinesis Streams采用log-based model。Google Cloud Pub/Sub architecture近似，但暴露更JMS-style
+      API。sharding与replication使disk-persisted messaging仍可达millions messages/s。
+    - Kafka、Redpanda可通过 tiered storage 把old segments放object storage；WarpStream、Confluent
+      Freight、Bufstream等可all-data-on-object-store。容量/cost更优，old-read latency与object
+      requests则不同。
+    - direct messaging优化low latency但offline durability弱；traditional broker以queue/ack提供temporal
+      decoupling和message-level work sharing；log broker以partition/order/offset/retention提供high
+      throughput与replay。
+  - title: 2. Databases and Streams
+    source_heading: 2. Databases and Streams
+    paragraphs:
+    - 历史上WAL/binlog被视为database implementation detail，format undocumented；clients只能query
+      tables。CDC把logical changes转成stable interface，使heterogeneous systems能follow database。
+    - Kafka Connect把source CDC送入Kafka，再由sink connectors更新indexes/databases或交给stream
+      processors。connector ecosystem降低plumbing成本，但end-to-end contracts仍跨source schema、topic和sink。
+    - copies可能存在log segments、replicas、indexes、caches、exports、backups、SSD remapped
+      blocks。copy-on-write systems故意避免in-place overwrite；immutable backup又为ransomware/recovery提供保护。
+    - dual writes因independent order/partial failure失效；CDC让one database决定order并把others变followers；snapshot+offset或compacted
+      log支持bootstrap；event sourcing进一步把domain history作为authority。
+  - title: 3. Processing Streams
+    source_heading: 3. Processing Streams
+    paragraphs:
+    - analytics常只保last L minutes；current database view可能依赖beginning-of-time以来所有non-obsolete
+      changes。其logical window近似infinite，只能通过compaction/snapshot缩小physical recovery
+      work。
+    - XA跨heterogeneous technologies昂贵/fragile；Google Cloud Dataflow、VoltDB、Kafka等在controlled
+      framework内同时管理state与messaging，可高效transaction，并amortize many events per transaction。
+    - consumer读取input partitions，在transaction内publish output records并commit consumed
+      offsets。abort时outputs/offset都不可见；retry重读input。只覆盖transaction-compatible Kafka
+      resources，不自动包含email/arbitrary DB。
+    - stream processing把unbounded events变成alerts、aggregates、views与derived streams。time
+      model决定window membership，join model决定state/version，fault model决定offset/state/output怎样一致恢复。
+  - title: 4. Summary：用可重放日志持续维护derived state
+    source_heading: 4. Summary：用可重放日志持续维护derived state
+    paragraphs:
+    - broker把individual messages分配给consumers，consumer逐message ack，success后delete。适合asynchronous
+      RPC/task queue：per-message work较重、processing order不关键、无需history replay。
+    - dual writes缺少shared order；CDC让database成为leader，search/cache/warehouse成为followers。initial
+      snapshot必须配change-log offset，compacted log可保current full contents。
+    - cross-stream无global order时，join current changing state可能replay nondeterministic。SCD
+      version ID或在event中denormalizehistorical value可固定point-in-time semantics，代价是保留versions/增加payload。
+    - stream永不complete，不能等task结束才publish。microbatch/checkpoint建立fine-grained recovery
+      boundary；offset、state、outputs与effects需atomic commit，或借stable IDs/offsets实现idempotence并用fencing阻止old
+      owner。
+  - title: 6. 知识结构与证据地图
+    source_heading: 6. 知识结构与证据地图
+    paragraphs:
+    - 每层有独立failure/semantic contract；end-to-end guarantee取最弱边界。
+    - partition order是storage append order；event-time order是semantic reorder，二者不可混淆。
+    - terms可overlap，公式用作diagnostic decomposition。只测operator compute会漏掉queue/commit/sink
+      dominant latency。
+    - 恢复时restore state、rewind到paired offsets，并隐藏/abort c之后uncommitted outputs。external
+      effect若不能加入commit，就必须idempotent/compensatable。
+  - title: 7. 综合案例：实时支付风控与商户经营视图
+    source_heading: 7. 综合案例：实时支付风控与商户经营视图
+    paragraphs:
+    - payment event time来自server-side commit/authorization time；device event同时保device
+      event/send/server receive times。blocking decision强调low processing latency，但historical
+      analytics按corrected event time。
+    - periodic batch job对比source payment ledger、decision log、card API outcomes与merchant
+      view totals。stream low latency不替代full audit；batch发现missed/duplicate/corrupt
+      derived state并触发rebuild。
+    - cross-partition global order不提供；device time仅估计；very late event可能无法retroactively
+      unblock a card；external API exactly-once依赖receiver contract；privacy deletion难覆盖offline
+      copies；fraud rules仍有false positives/negatives。
+    - 可靠实时风控不是“Kafka + Flink”产品组合，而是从source transaction到external effect的证据链：outbox保证event
+      creation，partition保证per-key order，event-time state定义decision，checkpoint/transaction保证recovery，idempotency/fencing保护外部action，batch
+      reconciliation兜底。
+  - title: 8. 核心结论
+    source_heading: 8. 核心结论
+    paragraphs:
+    - CDC描述low-level mutable row changes；event sourcing显式保存domain intent events，adoption与compaction
+      semantics不同。
+    - transactional outbox在same database transaction中创建domain update与public event，避免跨system
+      dual-write gap。
+    - CEP匹配standing event patterns；stream analytics计算windowed metrics；stream search让documents匹配stored
+      queries。
+    - robust architecture组合batch snapshot/backfill与stream delta：batch保证full correction，stream保证incremental
+      freshness。
+  - title: 9. 设计流处理系统的一般方法
+    source_heading: 9. 设计流处理系统的一般方法
+    paragraphs:
+    - 声明join type、key、partitioning、window/unmatched behavior、current或point-in-time
+      table version、delete/retraction与cross-stream order。historical join需要SCD/version
+      retention。
+    - data contract定义field meaning/compatibility；rules、tax/profile versions、timezone/calendar与UDF/container
+      digest进入lineage。replay不能偷偷读取today’s mutable reference。
+    - 优先transaction-compatible sink；否则stable event/decision ID + atomic sink dedup/upsert
+      + fencing。email/payment等unknown outcome需status lookup、idempotency key或compensation。
+    - 方法的核心顺序是：先让事实以stable immutable event原子进入durable log，再明确partition order与event-time
+      policy；把所有state和recovery frontier显式化，最后让external effect与offset通过transaction或idempotence/fencing闭合。
+  - title: 10. References
+    source_heading: 10. References
+    paragraphs:
+    - 'Tyler Akidau et al. “The Dataflow Model: A Practical Approach to Balancing
+      Correctness, Latency, and Cost in Massive-Scale, Unbounded, Out-of-Order Data
+      Processing.” PVLDB, August 2015. doi:10.14778/2824032.2824076'
+    - 'Philippe Dobbelaere and Kyumars Sheykh Esmaili. “Kafka Versus RabbitMQ: A Comparative
+      Study of Two Industry Reference Publish/Subscribe Implementations.” DEBS, June
+      2017. doi:10.1145/3093742.3093908'
+    - 'Mihai Budiu, Tej Chajed, Frank McSherry, Leonid Ryzhyk, and Val Tannen. “DBSP:
+      Incremental Computation on Streams and Its Applications to Databases.” SIGMOD
+      Record, March 2024. doi:10.1145/3665252.3665271'
+    - E. N. Elnozahy, Lorenzo Alvisi, Yi-Min Wang, and David B. Johnson. “A Survey
+      of Rollback-Recovery Protocols in Message-Passing Systems.” ACM Computing Surveys,
+      September 2002. doi:10.1145/568522.568525
+  takeaways:
+  - 每层有独立failure/semantic contract；end-to-end guarantee取最弱边界。
+  - out-of-order/duplicate/late-event tests；
+  - batch snapshot/backfill补足bootstrap与full correction。
+  - CDC描述low-level mutable row changes；event sourcing显式保存domain intent events，adoption与compaction
+    semantics不同。
+  - robust architecture组合batch snapshot/backfill与stream delta：batch保证full correction，stream保证incremental
+    freshness。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念辨析
+  question: 原文如何解释「5.1 “stream processing 就是毫秒级 real-time”」？
+  answer: 错误。stream表示unbounded incremental input；latency可milliseconds也可minutes。microbatch、window、watermark与sink
+    commit都会增加delay。
+  source_heading: 5.1 “stream processing 就是毫秒级 real-time”
+- level: 概念辨析
+  question: 原文如何解释「5.12 “retention 越长就等于durability越强”」？
+  answer: 错误。retention描述保多久；durability描述failure后是否还在。未replicated broker保一年也可能disk
+    crash即全丢。
+  source_heading: 5.12 “retention 越长就等于durability越强”
+- level: 概念辨析
+  question: 原文如何解释「5.22 “immutable log 意味着永远不能删除”」？
+  answer: 错误。legal/privacy要求可能需excision、retention、crypto-shredding。immutability是default
+    model，不是凌驾于all constraints的绝对法则。
+  source_heading: 5.22 “immutable log 意味着永远不能删除”
+- level: 概念辨析
+  question: 原文如何解释「5.31 “session window 有固定长度”」？
+  answer: 错误。它由per-key inactivity gap结束，duration variable；late event还可能merge sessions。
+  source_heading: 5.31 “session window 有固定长度”
+- level: 概念辨析
+  question: 原文如何解释「5.41 误区的统一根源」？
+  answer: 正确做法是逐层声明 ordering scope、time semantics、state lifetime、retention、offset/commit
+    boundary与external effect contract。
+  source_heading: 5.41 误区的统一根源

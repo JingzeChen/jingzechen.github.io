@@ -1,0 +1,186 @@
+source:
+  post: _posts/book-notes/ai-system/distributed-ai-system/2026-08-08-distributed-ai-systems-ch02-gpu-networking-and-parallelism.md
+  body_sha256: 8a67bb4e6f3ba9ef09108b29a18696d59ddba25c13d2cb3e840f1c9c1c8ce422
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 16
+  question: 原文围绕「0. 本章要回答的核心问题」建立了怎样的核心认识？
+  question_source: 0. 本章要回答的核心问题
+  thesis: 扩展效率下降不自动等于 network bottleneck。 Local batch、input、imbalance 和 kernel efficiency
+    都可能主导。
+  thesis_source: 19. 核心结论
+  concepts:
+  - term: 0. 本章要回答的核心问题
+    meaning: 数据并行、FSDP/ZeRO、tensor、pipeline、sequence/context 与 expert parallelism
+      分别切什么？
+    source_heading: 0. 本章要回答的核心问题
+  - term: 5. Graphics Processing Unit：吞吐、数据复用与内存层级
+    meaning: 规格尤其需要时间戳。原章写作时列 H100 80 GB、H200 141 GB、B200 192 GB 以及更高容量 Blackwell
+      variants；到具体采购日期应检查 vendor datasheet，确认 SXM/PCIe/NVL form factor 与 dense/sparse
+      precision 口径。
+    source_heading: 5. Graphics Processing Unit：吞吐、数据复用与内存层级
+  - term: 9. Chip programming systems：SPMD、SIMT 与 CUDA
+    meaning: AMD ROCm/HIP 提供 CUDA-like programming model，hardware 以 wavefront/SIMD
+      units、Compute Units 等组织执行。原章把 AMD 描述成“SIMD 而非 SIMT”容易制造过强二分；HIP threads 同样提供
+      SPMD/SIMT-like abstraction，底层 wavefront/SIMD width 和 scheduling 与 NVIDIA 不同。
+    source_heading: 9. Chip programming systems：SPMD、SIMT 与 CUDA
+  - term: 12. Strategy selection：从约束推导训练与推理方案
+    meaning: 原章建议先试全状态分片再加 model parallel，因为它保持 data-parallel computation model，相对易于迁移现有
+      training loop。但它不保证 throughput 更高；AllGather/ReduceScatter 与 smaller local compute
+      可能使训练变慢。
+    source_heading: 12. Strategy selection：从约束推导训练与推理方案
+  - term: 17.3 MFU、HFU、GPU utilization 和 tokens/s 不是同义词
+    meaning: Checkpoint recomputation 可能让 HFU 高于 MFU；padding 可让 GPU utilization 很高却有效
+      tokens/s 低。
+    source_heading: 17.3 MFU、HFU、GPU utilization 和 tokens/s 不是同义词
+  - term: 21. 复习与自测
+    meaning: 完成后，应能把“这台机器有几张什么 GPU”提升为“这套 stack 在目标 workload 下，哪些 bytes 经过哪些 links，为什么选择这个
+      parallelism，以及证据能否支持该选择”。这正是第 3 章进入 DDP 实现与调优前需要建立的硬件直觉。
+    source_heading: 21. 复习与自测
+  logic:
+  - 0. 本章要回答的核心问题
+  - 5. Graphics Processing Unit：吞吐、数据复用与内存层级
+  - 7. Neural Processing Unit：专用化程度与生态的权衡
+  - 12. Strategy selection：从约束推导训练与推理方案
+  - 15. Notes and references：数字的证据边界
+  - 19. 核心结论
+  - 21. 复习与自测
+  sections:
+  - title: 0. 本章要回答的核心问题
+    source_heading: 0. 本章要回答的核心问题
+    paragraphs:
+    - GPU 为什么擅长深度学习，Tensor Core、SM、warp 与 memory hierarchy 分别做什么？
+    - TPU 的 systolic array、NPU 的 domain-specific design 与 GPU 的通用并行架构有何差异？
+    - NVLink、NVSwitch、PCIe、InfiniBand、RoCE 与 Ethernet 各位于哪一层？
+    - 数据并行、FSDP/ZeRO、tensor、pipeline、sequence/context 与 expert parallelism 分别切什么？
+  - title: 2. Computational power：AI 集群为何存在
+    source_heading: 2. Computational power：AI 集群为何存在
+    paragraphs:
+    - 同一芯片可能同时给出 FP64、TF32、FP32、BF16、FP16、FP8、INT8、FP4 等峰值，而且 Tensor Core 与普通 CUDA
+      core 的数字不同；结构化 sparsity 还可能把宣传峰值再放大。
+    - 如果 activation checkpointing 让硬件执行更多 forward 重计算，GPU 可能很忙，achieved hardware FLOPS
+      很高，但每秒完成的有用 token 未必同比提高。这正是后文 MFU 比单纯 GPU utilization 更有解释力的原因。
+    - 原章用“传统 HPC 常做大而不频繁的交换，AI 每 step 做频繁梯度同步”建立直觉。它揭示了 AI 训练对 collective 的高度依赖，但不是所有
+      HPC workload 的普遍事实：stencil、FFT、天气模拟等也可能频繁通信。
+    - "“训练只关心 bandwidth、推理只关心 latency”是过度简化。大 tensor 推理并行仍需要带宽，训练中的大量小 control/collective
+      也受 latency 影响。区别是目标权重与 workload shape 不同。"
+  - title: 5. Graphics Processing Unit：吞吐、数据复用与内存层级
+    source_heading: 5. Graphics Processing Unit：吞吐、数据复用与内存层级
+    paragraphs:
+    - 输入可使用 BF16、FP16、TF32、FP8 等格式，accumulator 常采用更高精度，具体组合取决于 GPU generation 和 instruction。Tensor
+      Core 的峰值只有在 shape、layout、alignment、dtype 与 library kernel 都匹配时才能接近。
+    - 一个只有 2 FLOPs、读写约 4～8 bytes 的 elementwise operation，I 远低于 330，必然偏 memory-bound。大型
+      tiled GEMM 通过重复使用 tile，可将 I 提高到数百或数千 FLOP/byte，才有机会接近 Tensor Core peak。
+    - 规格尤其需要时间戳。原章写作时列 H100 80 GB、H200 141 GB、B200 192 GB 以及更高容量 Blackwell variants；到具体采购日期应检查
+      vendor datasheet，确认 SXM/PCIe/NVL form factor 与 dense/sparse precision 口径。
+    - 原章强调 NVL72 被营销为“一个巨大 GPU”，但编程上仍是许多 devices：仍需 rank、collective、TP/PP/DP 与 tensor
+      placement。高带宽统一 fabric 缩小了分布式代价，不会把 72 张 GPU 变成一个无需分片的 CUDA device。
+  - title: 7. Neural Processing Unit：专用化程度与生态的权衡
+    source_heading: 7. Neural Processing Unit：专用化程度与生态的权衡
+    paragraphs:
+    - 原章给出 mental model：CPU 偏 general-purpose control，GPU 偏 parallel throughput，NPU
+      偏 AI-first efficiency。但现代 GPU Tensor Cores 本身就是 domain-specific matrix engines；AMD
+      datacenter accelerators 也围绕 matrix units 与 HBM；NPU 又常包含 vector/scalar units
+      以处理非矩阵 operation。
+    - 若只提高 matrix peak，却没有足够 vector、HBM 和 network，Transformer 的 normalization、softmax、routing
+      或 collective 会成为 Amdahl bottleneck。
+    - 代价是 compiler/programmer 必须正确安排 tile 和 lifetime；unsupported/dynamic pattern 可能性能骤降。原章说“memory
+      subsystem 往往更简单”是架构倾向，不是所有 NPU 的统一事实。
+    - "“同一 chip 很少同时最擅长两者”来自目标冲突：训练需要 precision、memory、interconnect 和 flexibility；edge
+      inference 追求低功耗、低成本和 deterministic latency。"
+  - title: 9. Chip programming systems：SPMD、SIMT 与 CUDA
+    source_heading: 9. Chip programming systems：SPMD、SIMT 与 CUDA
+    paragraphs:
+    - NVIDIA 把 threads 组成通常 32-thread warps，warp scheduler 发射 instruction。每个 lane
+      有自己的 registers、predicate 和 address，因而编程上像独立 scalar threads；硬件执行资源则按 warp 组织。这就是
+      Single Instruction, Multiple Threads（SIMT）的核心。
+    - SIMT 与 SIMD 的边界不应绝对化：两者都可能以一个 instruction 控制多个 lanes，也都通过 masking/predication
+      处理分支。SIMT 主要强调 thread state 与 scalar-thread programming abstraction；CPU SIMD
+      主要强调显式/编译器向量 instruction 和 vector registers。
+    - 减少一次 intermediate write/read 与一次 launch，尤其有利于 memory-bound elementwise chain。局限：融合
+      kernel 可能 register pressure 高、compile time 增加，且不能跨任意 synchronization/side effect。
+    - AMD ROCm/HIP 提供 CUDA-like programming model，hardware 以 wavefront/SIMD units、Compute
+      Units 等组织执行。原章把 AMD 描述成“SIMD 而非 SIMT”容易制造过强二分；HIP threads 同样提供 SPMD/SIMT-like
+      abstraction，底层 wavefront/SIMD width 和 scheduling 与 NVIDIA 不同。
+  - title: 12. Strategy selection：从约束推导训练与推理方案
+    source_heading: 12. Strategy selection：从约束推导训练与推理方案
+    paragraphs:
+    - 原章建议先试全状态分片再加 model parallel，因为它保持 data-parallel computation model，相对易于迁移现有
+      training loop。但它不保证 throughput 更高；AllGather/ReduceScatter 与 smaller local compute
+      可能使训练变慢。
+    - Quantization 不一定“无需 retraining 且无质量损失”。Post-training quantization 的 calibration、outliers、kernel
+      support 与 task quality 都要验证；某些模型需要 quantization-aware/fine-tuning。
+    - 原章说 PP 可用于“very large models where you want to keep latency low”应理解为在模型必须跨设备时的一种折中，不是
+      PP 相对单卡天然降低 latency。
+    - 因此“2 卡能装下”与“2 卡是最佳服务配置”不是同一结论。应比较 2-TP、4-TP、quantized 1-GPU replicas 的 TTFT、ITL、throughput、quality
+      和 cost。
+  - title: 15. Notes and references：数字的证据边界
+    source_heading: 15. Notes and references：数字的证据边界
+    paragraphs:
+    - 例如 175B 约 350 GB、70B 约 140 GB。图的作用是展示单 GPU HBM 与模型权重间 gap；它不包含 gradients、optimizer、activation、KV、temporary。
+    - 闭源或未来模型 parameter counts 若为估计，应与 disclosed counts 分开。MoE 还要写 total 与 active
+      parameters。
+    - 它适合 MFU 数量级；attention 非参数项、embedding、MoE、recompute 和具体 architecture 会改变真实计算。
+    - MLPerf 也要确认 benchmark version、quality target、closed/open division、system scale
+      与 submission date。
+  - title: 17.3 MFU、HFU、GPU utilization 和 tokens/s 不是同义词
+    source_heading: 17.3 MFU、HFU、GPU utilization 和 tokens/s 不是同义词
+    paragraphs:
+    - MFU：有用模型 FLOPs 相对硬件 peak；
+    - HFU：硬件实际执行 FLOPs 相对 peak；
+    - GPU utilization：采样窗口内是否有 kernel 活跃；
+    - Checkpoint recomputation 可能让 HFU 高于 MFU；padding 可让 GPU utilization 很高却有效 tokens/s
+      低。
+  - title: 19. 核心结论
+    source_heading: 19. 核心结论
+    paragraphs:
+    - 扩展效率下降不自动等于 network bottleneck。 Local batch、input、imbalance 和 kernel efficiency
+      都可能主导。
+    - CPU、NUMA、PCIe 和 storage 决定 GPU 能否持续获得数据。 Accelerator 采购不能忽略 host design。
+    - GPU 性能由 compute 与 data movement 共同限制；Roofline 用 arithmetic intensity 连接二者。
+    - 大 GEMM 靠 tiling/reuse 接近 Tensor Core peak，elementwise/sparse operations 常受 memory
+      限制。
+  - title: 21. 复习与自测
+    source_heading: 21. 复习与自测
+    paragraphs:
+    - 设备 peak 1000 TFLOPS、HBM 4 TB/s，ridge point 是多少？Arithmetic intensity 50 FLOP/byte
+      时上界多少？
+    - 权重 100 GB、gradient 100 GB、optimizer 600 GB，DP=8。求 DDP、ZeRO-1、2、3 的每 rank 理想持久状态。
+    - 8 stages、32 microbatches，按简化 forward pipeline 求 utilization 与 bubble fraction。
+    - 完成后，应能把“这台机器有几张什么 GPU”提升为“这套 stack 在目标 workload 下，哪些 bytes 经过哪些 links，为什么选择这个
+      parallelism，以及证据能否支持该选择”。这正是第 3 章进入 DDP 实现与调优前需要建立的硬件直觉。
+  takeaways:
+  - 性能线：peak -> achieved -> MFU/throughput -> time/cost。
+  - MFU 衡量有用模型计算转化率；GPU utilization 只能告诉设备是否活跃。
+  - NPU 是宽泛类别，实际价值取决于具体 chip + compiler + collective + ecosystem。
+  - TP 通信频率最高之一，应优先留在 NVLink domain；PP、DP 的放置也要按真实 payload 计算。
+  - 最可靠的策略是从简单 baseline 开始，每次只加入解决已证实约束的一种复杂度。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念辨析
+  question: 原文如何解释「17.1 FLOPS 数字不带 precision 就没有可比性」？
+  answer: FP64、FP32、TF32、BF16、FP16、FP8、INT8 和 FP4 峰值可能相差多个倍数；dense 与 structured-sparse
+    又可能再差一倍。比较 cluster 时必须写清 precision、Tensor Core/普通 core、dense/sparse 与 per-device/aggregate。
+  source_heading: 17.1 FLOPS 数字不带 precision 就没有可比性
+- level: 概念辨析
+  question: 原文如何解释「17.12 “NV18”不表示任意 pair 都独享某个固定 GB/s」？
+  answer: 它描述 NVLink connectivity 数量/类型，实际 bandwidth 受 generation、routing、并发和 GPU
+    injection limit 影响。Topology label 必须配实测。
+  source_heading: 17.12 “NV18”不表示任意 pair 都独享某个固定 GB/s
+- level: 概念辨析
+  question: 原文如何解释「17.23 Occupancy 100% 不保证最快」？
+  answer: 高 occupancy 有助于隐藏 latency，但更多 registers/shared memory 可能提高 reuse 并减少 HBM
+    traffic，即使 occupancy 降低仍更快。应优化 kernel time，不是单一 occupancy 百分比。
+  source_heading: 17.23 Occupancy 100% 不保证最快
+- level: 概念辨析
+  question: 原文如何解释「17.32 Tensor parallel 不固定“每层一次 AllGather”」？
+  answer: Column/row layouts 可用 AllGather、AllReduce、ReduceScatter 或保持 sharded output。要看相邻
+    layers 如何组合，不能按策略名推原语。
+  source_heading: 17.32 Tensor parallel 不固定“每层一次 AllGather”
+- level: 概念辨析
+  question: 原文如何解释「17.43 Hardware recommendation 缺少 phase/SLO 就不完整」？
+  answer: 同一 70B 模型在 pretraining、LoRA、低延迟 chat、高吞吐离线和长上下文服务中答案不同。推荐必须包含 phase、state
+    ledger、usable HBM、topology、quality 和 cost。
+  source_heading: 17.43 Hardware recommendation 缺少 phase/SLO 就不完整

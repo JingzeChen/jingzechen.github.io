@@ -1,0 +1,153 @@
+source:
+  post: _posts/book-notes/ai-system/design-deep-learning-system/2026-08-08-designing-deep-learning-systems-ch03-model-training-service.md
+  body_sha256: 7d2568d5502ce4af84687a5c84a6424dcd8e56e6084e428241a5e44a0723a46f
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 12
+  question: 原文围绕「本章要回答的核心问题」建立了怎样的核心认识？
+  question_source: 本章要回答的核心问题
+  thesis: 服务化的根因是共享稀缺资源治理。 远程启动只是起点，队列、公平、隔离、弹性和持久状态才是核心。
+  thesis_source: 核心结论
+  concepts:
+  - term: 本章要回答的核心问题
+    meaning: 本章以软件系统设计为主，只介绍理解训练服务所需的基本优化过程。本文会补充损失函数、梯度更新、资源利用率、排队和可复现性的形式化表达，用来解释作者的工程论证；这些补充并非原章另行提出的算法。原章中的云价格和
+      Kubeflow 组件状态带有成书时点，阅读时应把它们视为决策方法的例证，而不是 2026 年的实时产品报价或版本说明。
+    source_heading: 本章要回答的核心问题
+  - term: 3.2 深度学习训练代码的通用模式
+    meaning: 原章说训练在完成预期轮数或达到预期模型准确率时结束。实践中不应直接用训练集 accuracy 决定停止，因为继续拟合可能降低未见数据上的效果。更常见的是观察验证损失
+      / 指标，使用 patience 早停，并在独立测试集上只做最终评价。
+    source_heading: 3.2 深度学习训练代码的通用模式
+  - term: 3.3 样例模型训练服务
+    meaning: 如果容器启动成功、服务却在记录映射前崩溃，会产生仍在消耗 GPU 的孤儿容器；如果先标记 launching、Docker create
+      失败，则作业会卡在错误状态。可靠实现应使用幂等标签、期望状态记录和周期性 reconciliation 来收敛，而不是依赖一次跨系统操作原子成功。
+    source_heading: 3.3 样例模型训练服务
+  - term: 3.5 何时使用公有云
+    meaning: Amazon SageMaker、Google Vertex AI、Azure Machine Learning 等托管平台不仅提供训练，还覆盖数据处理、存储、版本、排障和部署。作者不比较哪家最好，而是从企业阶段与约束判断“买”还是“建”。
+    source_heading: 3.5 何时使用公有云
+  - term: 核心结论
+    meaning: Kubernetes Operator 通过持续调和期望与实际状态，把训练框架运维知识编码成控制器。 CR spec 是请求，status
+      是观察结果。
+    source_heading: 核心结论
+  - term: 复习与自测
+    meaning: Kubernetes controller 的 desired state、observed state 和 reconcile 分别是什么？
+    source_heading: 复习与自测
+  logic:
+  - 本章要回答的核心问题
+  - 3.1 模型训练服务：设计概览
+  - 3.3 样例模型训练服务
+  - 3.4 Kubeflow Training Operator：开源方案
+  - 3.5 何时使用公有云
+  - 从本章提炼出的通用解题方法
+  - 复习与自测
+  sections:
+  - title: 本章要回答的核心问题
+    source_heading: 本章要回答的核心问题
+    paragraphs:
+    - 怎样让一个 API 支持不同框架、模型结构和算法版本？
+    - 普遍的 mini-batch 训练循环包含哪些数学步骤？
+    - Kubeflow Training Operator 如何用 CRD 和调和循环执行训练？
+    - 本章以软件系统设计为主，只介绍理解训练服务所需的基本优化过程。本文会补充损失函数、梯度更新、资源利用率、排队和可复现性的形式化表达，用来解释作者的工程论证；这些补充并非原章另行提出的算法。原章中的云价格和
+      Kubeflow 组件状态带有成书时点，阅读时应把它们视为决策方法的例证，而不是 2026 年的实时产品报价或版本说明。
+  - title: 3.1 模型训练服务：设计概览
+    source_heading: 3.1 模型训练服务：设计概览
+    paragraphs:
+    - 模型训练服务（model training service）是执行训练代码的基础设施控制面。它接收训练请求，将请求变成作业，分配 CPU、内存、GPU
+      等资源，在隔离环境中运行训练代码，并跟踪结果。
+    - 共享方案把服务器组成可伸缩资源池，所有用户提交作业，由服务统一调度。其经济性来自统计复用：不同用户的峰值通常不完全同时出现，因此总容量可以小于每个人峰值容量之和。
+    - 目标检测、语音识别和意图分类的算法不同，但对平台的生命周期动作相同：提交、排队、启动、查询、取消和获取结果。因此外部应提供稳定的训练 API，而不是为每种模型重建服务。
+    - 只要训练镜像满足协议，服务不必知道它用的是 CNN、Transformer、PyTorch 还是 TensorFlow。统一入口也使算法 A/B 测试容易自动化：两个算法使用同一数据版本和评价流程，只改变算法
+      / 镜像与参数。
+  - title: 3.2 深度学习训练代码的通用模式
+    source_heading: 3.2 深度学习训练代码的通用模式
+    paragraphs:
+    - 平台工程师无需掌握每种网络的研究细节，但必须理解训练程序的共性，才能定义资源、重试、checkpoint、参数和指标协议。所谓“黑盒”是隐藏内部算法差异，不是放弃输入输出契约和可观测性。
+    - 原章说训练在完成预期轮数或达到预期模型准确率时结束。实践中不应直接用训练集 accuracy 决定停止，因为继续拟合可能降低未见数据上的效果。更常见的是观察验证损失
+      / 指标，使用 patience 早停，并在独立测试集上只做最终评价。
+    - 若训练服务直接在宿主机启动 Python 进程，它必须为每个算法安装特定版本的框架、CUDA、Python 库和系统依赖。两个项目可能分别要求不兼容的
+      PyTorch 或驱动组合，升级一方会破坏另一方。
+    - 环境变量适合少量标量配置；复杂嵌套参数更适合版本化配置文件或结构化请求。敏感凭据不应作为普通环境变量长期保存或出现在日志中，应通过短期身份、secret
+      volume 或工作负载身份注入。
+  - title: 3.3 样例模型训练服务
+    source_heading: 3.3 样例模型训练服务
+    paragraphs:
+    - 服务收到请求后，再通过这个 socket 创建训练容器。实验容易在本机运行，但 Docker socket 几乎赋予容器控制宿主 Docker 的高权限；生产系统不能把它当作普通文件挂载，应采用受控调度
+      API、最小权限身份和隔离节点。
+    - 如果容器启动成功、服务却在记录映射前崩溃，会产生仍在消耗 GPU 的孤儿容器；如果先标记 launching、Docker create 失败，则作业会卡在错误状态。可靠实现应使用幂等标签、期望状态记录和周期性
+      reconciliation 来收敛，而不是依赖一次跨系统操作原子成功。
+    - Docker 能隔离进程和依赖，但如果所有用户共享一个 FIFO，用户 A 先提交 100 个作业，之后 B、C 各提交一个，那么 B、C 可能等待 A
+      的全部任务。这叫 head-of-line blocking / 资源垄断问题。
+    - 原章推荐用 Kubernetes：为每个团队创建 namespace，设置 CPU、内存和 GPU quota，训练服务按用户映射 namespace，再通过
+      Kubernetes API 创建作业。quota 满时，新 workload 无法获得资源。
+  - title: 3.4 Kubeflow Training Operator：开源方案
+    source_heading: 3.4 Kubeflow Training Operator：开源方案
+    paragraphs:
+    - 自建生产训练后端需要理解不同框架的分布式角色、Pod 编排、失败恢复和状态同步。作者因此介绍 Kubeflow Training Operators：它们把这些框架知识封装成
+      Kubernetes Operator，可单独安装到 Kubernetes 集群，并作为现有平台的训练执行后端。
+    - 版本边界：本节按原章成书时的 TensorFlow、PyTorch、MXNet、MPI operator 与相应 CRD 讲解。Kubeflow 项目的组件名称、API
+      version、安装方式和整合状态会演进；实际部署必须以目标版本官方文档和 CRD schema 为准。本章真正可迁移的是 Operator / reconciliation
+      设计，而不是某条历史安装命令。
+    - Kubeflow 是原生运行在 Kubernetes 上的开源机器学习平台，覆盖 Notebook、Pipeline、训练和服务等生命周期能力。用户可以采用完整平台，也可以只安装
+      Training Operator 或超参数优化等独立组件。
+    - 每个 operator 理解一种训练框架的角色与启动方式，例如 PyTorch 的 master / worker 或 TensorFlow 的不同 replica
+      spec，并把用户声明转换为 Pod、Service 等 Kubernetes 资源。
+  - title: 3.5 何时使用公有云
+    source_heading: 3.5 何时使用公有云
+    paragraphs:
+    - Amazon SageMaker、Google Vertex AI、Azure Machine Learning 等托管平台不仅提供训练，还覆盖数据处理、存储、版本、排障和部署。作者不比较哪家最好，而是从企业阶段与约束判断“买”还是“建”。
+    - 原章建议只使用 VM、存储等基础服务，在其上建立 Kubernetes 和自有训练 API。例如在 AWS 使用 EKS / EC2，在 GCP 使用
+      GKE，迁移时复用训练服务和工作负载定义。
+    - 但云无关不是二元属性。负载均衡、身份、对象存储语义、GPU 型号、网络和托管 Kubernetes 都有差异。应明确要移植的是哪一层，并通过适配器、IaC
+      和跨环境测试验证，而不是因为“用了容器”就宣称零迁移成本。
+    - 自有 Training API 可以更自然地接入内部 auth，并把后端凭据隐藏在平台后面。但自建认证本身也很难；应复用 OIDC、企业 IAM 和工作负载身份，不应自行设计密码或长期密钥系统。
+  - title: 核心结论
+    source_heading: 核心结论
+    paragraphs:
+    - 样例服务用四个集合实现作业状态机，Docker tracker 负责启动和轮询。 这种设计便于教学，但内存状态和单并发不适合生产。
+    - 共享集群要优化公平与吞吐，而不只是 FIFO 和利用率。 namespace + quota 是治理基础，不是完整调度方案。
+    - Kubernetes Operator 通过持续调和期望与实际状态，把训练框架运维知识编码成控制器。 CR spec 是请求，status 是观察结果。
+    - Kubeflow Training Operator 是成熟执行后端，不是完整用户平台。 Wrapper 能统一 API、身份、策略和 CRD 版本。
+  - title: 从本章提炼出的通用解题方法
+    source_heading: 从本章提炼出的通用解题方法
+    paragraphs:
+    - 为团队定义保证配额、最大并发和优先级；允许空闲容量借用；为分布式作业考虑 gang scheduling；同时观察利用率和 queue latency。
+    - 识别容器、节点、网络、数据和用户代码故障。定义 checkpoint 周期、持久位置、恢复入口、最大重试和幂等输出。不要把重启 Pod 当成恢复完成。
+    - 若运行在 Kubernetes，先评估 Kubeflow Training Operator 及适用的批调度组件；在其上建设薄 wrapper，而不是从零实现框架角色和
+      Pod 调和。
+    - 把 time-to-market、使用量、团队成本、锁定、合规和身份纳入同一决策。先做可逆 POC，保留不可变镜像和数据契约，避免过早绑定不可迁移接口。
+  - title: 复习与自测
+    source_heading: 复习与自测
+    paragraphs:
+    - 为什么专属 GPU 工作站容易造成低利用率，又为什么共享池不会自动高效？
+    - Kubernetes controller 的 desired state、observed state 和 reconcile 分别是什么？
+    - 为什么 Operator 重建 worker Pod 不一定能继续原训练？
+    - Wrapper Training Service 如何隔离现有平台与 CRD 细节？
+  takeaways:
+  - 模型训练由算法和系统工程共同完成。 数据科学家定义如何学习，训练服务负责让学习过程可靠、经济、规模化地执行。
+  - 容器化解决依赖与进程隔离，但不自动解决资源公平、安全、数据权限和模型复现。
+  - 执行成功、运行健康、训练进度和模型质量是四个不同维度。 指标和状态模型必须分别表达。
+  - Pod 自愈不等于训练状态恢复。 长任务还必须使用持久 checkpoint 和恢复协议。
+  - 实例单价不是总成本，Kubernetes 也不是自动云无关。 所有决策都需在真实用量和目标环境中验证。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念辨析
+  question: 原文如何解释「1. 训练算法就是训练服务」？
+  answer: 错误。算法定义怎样从数据学习参数；服务管理算法在哪里、何时、用多少资源执行，以及怎样追踪结果。模型成功依赖算法与系统工程两根支柱。
+  source_heading: 1. 训练算法就是训练服务
+- level: 概念辨析
+  question: 原文如何解释「7. 容器就是虚拟机，也是完整安全沙箱」？
+  answer: 错误。容器共享宿主内核，主要提供进程、文件系统和依赖边界。强多租户还需运行时加固、权限、网络、节点和 secret 策略。
+  source_heading: 7. 容器就是虚拟机，也是完整安全沙箱
+- level: 概念辨析
+  question: 原文如何解释「14. FIFO 对所有用户都公平」？
+  answer: 错误。先提交大量作业的用户可阻塞其他团队。需要配额、用户并发、加权公平或分层队列。
+  source_heading: 14. FIFO 对所有用户都公平
+- level: 概念辨析
+  question: 原文如何解释「20. CRD 和 Custom Resource 是同一对象」？
+  answer: 错误。CRD 定义一种 API 类型；CR 是该类型的实例。还需要 Operator 才会产生训练行为。
+  source_heading: 20. CRD 和 Custom Resource 是同一对象
+- level: 概念辨析
+  question: 原文如何解释「26. 使用 Kubernetes 就完全云无关」？
+  answer: 错误。身份、存储、网络、GPU、托管控制面和运维接口仍有云差异。可移植性必须实测。
+  source_heading: 26. 使用 Kubernetes 就完全云无关

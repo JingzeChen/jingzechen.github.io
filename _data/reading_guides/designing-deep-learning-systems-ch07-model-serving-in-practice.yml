@@ -1,0 +1,184 @@
+source:
+  post: _posts/book-notes/ai-system/design-deep-learning-system/2026-08-08-designing-deep-learning-systems-ch07-model-serving-in-practice.md
+  body_sha256: 1a069cc731514e692b902e3d997e7426d3f0a78de8613c009480252a110fe3a3
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 17
+  question: 原文围绕「本章要回答的核心问题」建立了怎样的核心认识？
+  question_source: 本章要回答的核心问题
+  thesis: TensorFlow Serving 的核心是 Servable lifecycle 与 SavedModel；TorchServe 的核心是
+    MAR、handler 和 management API；Triton 的核心是多 backend、scheduler/batching 和 ModelConfig；KServe
+    的核心是 Kubernetes serving abstraction 与协议。
+  thesis_source: 核心结论
+  concepts:
+  - term: 本章要回答的核心问题
+    meaning: 本章原代码以教学片段为主，包含省略号、排印错误和成书时 API。本文会按原章意图解释代码，并在必要处给出语法完整的伪代码或现代工程边界；不会把整理后的代码冒充原书可直接运行版本。TorchServe、KServe、Triton
+      等项目能力和维护状态具有时效性，实际选型必须以目标版本文档、许可证和支持策略为准。
+    source_heading: 本章要回答的核心问题
+  - term: 7.2 TorchServe Model Server 样例
+    meaning: 原章说无需编写 predictor service code，强调不用重造 HTTP/gRPC server、worker 与 model
+      lifecycle。但复杂模型仍需 handler，且 handler 本身包含 architecture、preprocess、inference、postprocess。工作从平台服务代码移到可部署模型包。
+    source_heading: 7.2 TorchServe Model Server 样例
+  - term: 7.4 开源 Model Serving 工具巡览
+    meaning: NVIDIA Triton 是面向 CPU / GPU、cloud / data center / edge 的多 backend inference
+      server。原章强调它比 TensorFlow Serving / TorchServe 覆盖更多 frameworks，例如 TensorFlow、TensorRT、PyTorch、ONNX、XGBoost。
+    source_heading: 7.4 开源 Model Serving 工具巡览
+  - term: 7.5 发布模型
+    meaning: Rollback 也要 preload / readiness、原子 routing 和 cache invalidation。若 v2
+      改变 input schema 或 application behavior，模型 pointer rollback 可能不够，需要兼容 API / feature
+      rollout。
+    source_heading: 7.5 发布模型
+  - term: 核心结论
+    meaning: TensorFlow Serving 的核心是 Servable lifecycle 与 SavedModel；TorchServe 的核心是
+      MAR、handler 和 management API；Triton 的核心是多 backend、scheduler/batching 和 ModelConfig；KServe
+      的核心是 Kubernetes serving abstraction 与协议。
+    source_heading: 核心结论
+  - term: 复习与自测
+    meaning: Existing API + sidecar + third-party server 为什么是 anti-corruption layer？
+    source_heading: 复习与自测
+  logic:
+  - 本章要回答的核心问题
+  - 7.2 TorchServe Model Server 样例
+  - 7.3 Model Server 与 Model Service 的选择
+  - 7.5 发布模型
+  - 7.6 生产后模型监控
+  - 从本章提炼出的通用解题方法
+  - 复习与自测
+  sections:
+  - title: 本章要回答的核心问题
+    source_heading: 本章要回答的核心问题
+    paragraphs:
+    - Predictor connection manager 如何根据模型算法路由到不同 serving backends？
+    - Kubernetes sidecar 怎样作为现有 API 与第三方 model server 之间的 adapter？
+    - TensorFlow Serving、TorchServe、Triton 与 KServe 的核心抽象和适用边界分别是什么？
+    - 本章原代码以教学片段为主，包含省略号、排印错误和成书时 API。本文会按原章意图解释代码，并在必要处给出语法完整的伪代码或现代工程边界；不会把整理后的代码冒充原书可直接运行版本。TorchServe、KServe、Triton
+      等项目能力和维护状态具有时效性，实际选型必须以目标版本文档、许可证和支持策略为准。
+  - title: 7.1 自建 Model Service 样例
+    source_heading: 7.1 自建 Model Service 样例
+    paragraphs:
+    - 样例采用第 6 章的 model service 策略：一个 frontend prediction service 对外提供稳定 API，一个自建 intent
+      predictor 专门执行意图分类。Predictor 又增加多模型 cache，因此既可服务单模型应用，也可服务“同一算法、不同 tenant /
+      training run 模型”的多租户应用。
+    - Metadata store 保存 model ID、name、version、algorithm、framework 与 artifact URL；实际大文件位于
+      cloud object storage。Shared volume 是 frontend 与 predictor 之间的本地数据面。
+    - 仅以 algorithm 名路由过于粗糙。生产 metadata 还应考虑 framework、model format、serving runtime
+      / version、custom handler、resource、region 与 deployment readiness。
+    - 原样例没有实现多 architecture version。Model service 方案通常需要多个 predictor versions；model
+      server 通过把 handler / graph 打进 model package 降低服务代码与训练代码的外部耦合，但 package 内仍存在这种关系。
+  - title: 7.2 TorchServe Model Server 样例
+    source_heading: 7.2 TorchServe Model Server 样例
+    paragraphs:
+    - 原章说无需编写 predictor service code，强调不用重造 HTTP/gRPC server、worker 与 model lifecycle。但复杂模型仍需
+      handler，且 handler 本身包含 architecture、preprocess、inference、postprocess。工作从平台服务代码移到可部署模型包。
+    - 统一 bytes API 只是 transport 通用；handler 仍需知道 bytes 表示文本、图片还是其他数据。Frontend 必须限制大小和
+      content type，TorchServe response 也应被解析为 typed public response，而不是不透明字符串透传。
+    - Server 不需在自身源码中硬编码 intent architecture；它按 manifest 创建 Python worker，再调用 handler
+      entrypoint。Algorithm-specific knowledge 仍然存在，只是变成 package-owned plugin。
+    - Handler 需要相同 architecture、tokenizer、vocabulary 和 output schema。与训练代码共仓可减少漂移，但发布单位仍应分离：Training
+      image 不必包含 serving server，MAR package 则包含 serving 所需最小内容。
+  - title: 7.3 Model Server 与 Model Service 的选择
+    source_heading: 7.3 Model Server 与 Model Service 的选择
+    paragraphs:
+    - 代价是学习、配置、包装、运行和 debug 第三方复杂系统，还要集成现有 metadata / artifact / API。
+    - Serving platform / 500 model types：Model server 显然更可管理；
+    - 支持超过约 5–10 model types / applications 时可转 model server。
+    - 可以混合：少数特殊模型保留 custom services，大多数标准模型进入 model server，frontend router 统一两类 backends。
+  - title: 7.4 开源 Model Serving 工具巡览
+    source_heading: 7.4 开源 Model Serving 工具巡览
+    paragraphs:
+    - 原章优点：production-ready、REST/gRPC、GPU、minibatching、edge、版本发现。缺点：advanced metrics、灵活
+      management / deployment strategy 较弱，并锁定 TensorFlow model format。
+    - NVIDIA Triton 是面向 CPU / GPU、cloud / data center / edge 的多 backend inference
+      server。原章强调它比 TensorFlow Serving / TorchServe 覆盖更多 frameworks，例如 TensorFlow、TensorRT、PyTorch、ONNX、XGBoost。
+    - 每模型有 scheduler，可配置 batching；Core 把请求交给对应 backend。Backend C API 允许新增 framework
+      或 custom pre/postprocess。Model management API 可查询和控制 repository models。
+    - 原章还提到 Seldon Core、BentoML：BentoML 偏轻量易用，Seldon Core / KServe 强调 Kubernetes deployment。共同点仍是
+      model format、wrapper/config、repository 和 HTTP/gRPC endpoint。
+  - title: 7.5 发布模型
+    source_heading: 7.5 发布模型
+    paragraphs:
+    - Metadata store：保存 model ID、canonical name、version、algorithm、dataset、training
+      run、metrics、artifact URI 和状态；
+    - 原章图 7.13 中，Model A versions 1.0.0 和 1.1.0 分别指向 metadata IDs 12345、12346。Lookup
+      是索引，metadata object 是事实记录，artifact bytes 外置。
+    - 若 metadata 成功但 artifact 上传失败，会有悬空引用；反之会有 orphan object。可用 staging state、idempotency
+      key、事务型 index 和 garbage collection 处理。
+    - Rollback 也要 preload / readiness、原子 routing 和 cache invalidation。若 v2 改变 input
+      schema 或 application behavior，模型 pointer rollback 可能不够，需要兼容 API / feature rollout。
+  - title: 7.6 生产后模型监控
+    source_heading: 7.6 生产后模型监控
+    paragraphs:
+    - 数据科学家需要 production data 分析 drift，工程师负责把 serving events 与后来的 observations 可靠交付。
+    - Fraud 等长窗口预测可能聚合多日活动，event time、feature-window end、request start、prediction
+      completion 都不同。
+    - 原章建议 feedback / investigation API，让客户提交 model ID、expected result、current result。API
+      需要防 abuse、权限与 privacy，并区分投诉样本和随机抽样：投诉集通常严重 selection bias，不能直接估计总体 accuracy。
+    - Model quality drop 与 service latency spike 可能同源，例如 preprocessing bug；统一 trace
+      可加速诊断。
+  - title: 核心结论
+    source_heading: 核心结论
+    paragraphs:
+    - 自建样例由 frontend 与 intent predictor 解耦组成。 Frontend 负责 public API、metadata、artifact
+      准备和 backend routing；predictor 负责模型执行。
+    - Handler 的 initialize / preprocess / inference / postprocess 与自建 ModelManager
+      的逻辑同构。 差别在标准 runtime 与 lifecycle。
+    - Sidecar 作为 adapter 隐藏第三方 model server 的下载、注册和 protocol，并保留已有 public API。 它不自动解决
+      placement、cold start 和 autoscaling。
+    - TensorFlow Serving 的核心是 Servable lifecycle 与 SavedModel；TorchServe 的核心是 MAR、handler
+      和 management API；Triton 的核心是多 backend、scheduler/batching 和 ModelConfig；KServe
+      的核心是 Kubernetes serving abstraction 与协议。
+  - title: 从本章提炼出的通用解题方法
+    source_heading: 从本章提炼出的通用解题方法
+    paragraphs:
+    - 列出 weights / graph、architecture / handler、pre/postprocess、vocab / labels、runtime、schema、metadata、digest
+      和 signature。确保 training pipeline 可重复生成 package。
+    - 分别管理 metadata、artifact files、loaded models 和 connections。测量 loaded footprint
+      / cold latency；实现 single-flight、byte budget、pin、eviction、preload 和 model-aware
+      routing。
+    - 保留 existing API、metadata 与 storage，在 Pod 内适配第三方 model repository、management
+      和 inference protocol。限制 management 权限，协调 sidecar/backend readiness，并记录 protocol
+      versions。
+    - 定义 event schemas 和 stable IDs，记录 model / graph / executor versions 与 timestamps；建立
+      delayed join、coverage / bias 分析和 quality gates；把根因路由回 data、training、serving
+      code 或 infrastructure。
+  - title: 复习与自测
+    source_heading: 复习与自测
+    paragraphs:
+    - 为什么 TorchServe 是 algorithm-agnostic 而不是 framework-agnostic？
+    - TensorFlow Serving 的 Servable、Source、Loader、Manager 分别是什么？
+    - Existing API + sidecar + third-party server 为什么是 anti-corruption layer？
+    - Fraud 场景为什么要区分 event、prediction start/completion 与 observation time？
+  takeaways:
+  - 模型服务实践不只包含构建 predictor，还包含模型打包、注册、扩缩、发布、回滚和持续质量监控。
+  - Model Manager 要以原子 cache entry 管理 model、vocab 和 classes，并处理 single-flight、readiness、in-flight
+    pin 与 eviction。
+  - Sidecar 作为 adapter 隐藏第三方 model server 的下载、注册和 protocol，并保留已有 public API。 它不自动解决
+    placement、cold start 和 autoscaling。
+  - 单 alias 不等于 canary / A/B。
+  - Production feedback 的根因可能在数据、训练、handler、routing 或 infrastructure。 完整 lineage 决定正确修复路径。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念辨析
+  question: 原文如何解释「1. Frontend 与 Predictor API 字段相同，就应该共享同一个 Contract」？
+  answer: 错误。Frontend 面向业务稳定性，predictor 面向执行协议；今天字段相同只是样例简化，未来 batch、tensor、认证和错误语义会独立演进。
+  source_heading: 1. Frontend 与 Predictor API 字段相同，就应该共享同一个 Contract
+- level: 概念辨析
+  question: 原文如何解释「16. .mar 只是重命名后的 model.pth」？
+  answer: 错误。MAR 还包含 TorchServe manifest、handler、extra files 和 runtime metadata，是完整
+    model package。
+  source_heading: 16. .mar 只是重命名后的 model.pth
+- level: 概念辨析
+  question: 原文如何解释「30. SavedModel 只有一个 saved_model.pb」？
+  answer: 错误。还可能包含 variables、assets 和 signatures；完整 version directory 才是可加载 package。
+  source_heading: 30. SavedModel 只有一个 saved_model.pb
+- level: 概念辨析
+  question: 原文如何解释「45. 更新 PROD Lookup Pointer 自动等于安全 Canary」？
+  answer: 错误。单 pointer 通常是全量切换。Canary / A/B 还要 traffic policy、stable assignment 和
+    metrics gate。
+  source_heading: 45. 更新 PROD Lookup Pointer 自动等于安全 Canary
+- level: 概念辨析
+  question: 原文如何解释「58. Release 和 Monitoring 是系统建完后再补的 Operations 细节」？
+  answer: 错误。没有 model version、request trace、alias、readiness 和 metrics hook，后续无法安全补齐生产闭环。
+  source_heading: 58. Release 和 Monitoring 是系统建完后再补的 Operations 细节

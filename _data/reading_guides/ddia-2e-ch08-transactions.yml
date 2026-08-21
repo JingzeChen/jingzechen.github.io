@@ -1,0 +1,217 @@
+source:
+  post: _posts/book-notes/distributed-system/design-data-intensive-application/2026-08-05-ddia-2e-ch08-transactions.md
+  body_sha256: 265cb1058183ab13f3ad07de0fd8f3e7cc810777c22ab4851f3595c97c05a8d2
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 22
+  question: 原文围绕「0. 本章定位：事务把故障与并发复杂度封装成可依赖的安全保证」建立了怎样的核心认识？
+  question_source: 0. 本章定位：事务把故障与并发复杂度封装成可依赖的安全保证
+  thesis: transaction 不是“开或关”的一个功能，而是 atomicity、isolation level、durability boundary
+    与 distributed scope 的组合 contract。设计时应以 anomaly/invariant/failure outcome 为语言，而不是只写
+    ACID、repeatable read、exactly once 等标签。
+  thesis_source: 5. 原章总结：事务把大量故障与并发状态压缩为 commit 或 abort
+  concepts:
+  - term: 0. 本章定位：事务把故障与并发复杂度封装成可依赖的安全保证
+    meaning: 原章依次回答：transaction 到底承诺什么；ACID 各字母的准确边界；single/multi-object operation；read
+      committed、snapshot isolation、lost update、write skew；三种 serializable implementation；最后是
+      two-phase commit、XA、database-internal distributed transaction 与 exactly-once
+      processing。
+    source_heading: 0. 本章定位：事务把故障与并发复杂度封装成可依赖的安全保证
+  - term: 2. Weak Isolation Levels：用 anomaly 而不是名称理解隔离
+    meaning: read committed 保住 committed boundary；snapshot isolation 再固定 read snapshot；lost-update
+      detection/CAS 保护 stale same-object RMW。然而 snapshot isolation 仍允许 transactions
+      根据同一 stale predicate 写不同 objects，形成 write skew 和 phantom。
+    source_heading: 2. Weak Isolation Levels：用 anomaly 而不是名称理解隔离
+  - term: 4. Distributed Transactions：跨节点实现统一 commit/abort
+    meaning: database-internal systems 可用 replicated coordinator、direct shard communication
+      和 integrated concurrency control 改善。message processing 常可用 DB inbox/dedup +
+      commit-before-ack 获得 effective exactly once，无需 broker+DB XA，但 external effects
+      仍需 outbox/idempotency。
+    source_heading: 4. Distributed Transactions：跨节点实现统一 commit/abort
+  - term: 5. 原章总结：事务把大量故障与并发状态压缩为 commit 或 abort
+    meaning: transaction 不是“开或关”的一个功能，而是 atomicity、isolation level、durability boundary
+      与 distributed scope 的组合 contract。设计时应以 anomaly/invariant/failure outcome 为语言，而不是只写
+      ACID、repeatable read、exactly once 等标签。
+    source_heading: 5. 原章总结：事务把大量故障与并发状态压缩为 commit 或 abort
+  - term: 9. 综合案例：订单、库存、账务、支付与消息的事务设计
+    meaning: 监控：transaction latency/abort/deadlock、lock wait、SSI conflict、2PC prepare/in-doubt
+      age、cross-shard participant count、idempotency hit、outbox lag、inbox duplicate、provider
+      unknown outcome、workflow stuck state、ledger reconciliation delta。
+    source_heading: 9. 综合案例：订单、库存、账务、支付与消息的事务设计
+  - term: 11. 设计事务系统的一般方法
+    meaning: 方法的核心顺序是：先定义 invariant 和 bad history，再选择最小但充分的 atomicity/isolation scope；随后声明
+      durability 与 distributed commit，最后用 idempotency、recovery、reconciliation 和 fault
+      testing 把边界闭合。
+    source_heading: 11. 设计事务系统的一般方法
+  logic:
+  - 0. 本章定位：事务把故障与并发复杂度封装成可依赖的安全保证
+  - 2. Weak Isolation Levels：用 anomaly 而不是名称理解隔离
+  - 3. Serializability：让并发结果等价于某个串行顺序
+  - 5. 原章总结：事务把大量故障与并发状态压缩为 commit 或 abort
+  - 8. 全章知识结构
+  - 10. 核心结论
+  - 11. 设计事务系统的一般方法
+  sections:
+  - title: 0. 本章定位：事务把故障与并发复杂度封装成可依赖的安全保证
+    source_heading: 0. 本章定位：事务把故障与并发复杂度封装成可依赖的安全保证
+    paragraphs:
+    - transaction 是为简化 database programming model 而创造的 abstraction，不是所有 storage 都必然具备的属性。其实现需要
+      logging、locking/versioning、conflict detection、coordination 与 recovery。
+    - 有些 operations 天然独立、可交换、幂等或可从 immutable log 重建，未必需要 multi-object transaction。某些
+      safety property 也能用 conditional write、unique ownership、CRDT 或 workflow 实现。
+    - 反过来，账务、权限、库存和关联索引若缺乏正确原子性/隔离，极易留下难以修复的状态。原章以英国 Post Office Horizon scandal 为警示背景：底层
+      accounting system 缺乏可靠 ACID 行为可能带来严重现实后果。
+    - 原章依次回答：transaction 到底承诺什么；ACID 各字母的准确边界；single/multi-object operation；read committed、snapshot
+      isolation、lost update、write skew；三种 serializable implementation；最后是 two-phase
+      commit、XA、database-internal distributed transaction 与 exactly-once processing。
+  - title: 1. What Exactly Is a Transaction?
+    source_heading: 1. What Exactly Is a Transaction?
+    paragraphs:
+    - 几乎所有 relational databases 和部分 nonrelational databases 支持 transaction。现代 SQL
+      transaction 风格可追溯到 IBM System R（1975，第一批 SQL database system）；MySQL、PostgreSQL、Oracle、SQL
+      Server 等的核心 model 与其高度相似。
+    - full serializability 会带来 lock waiting、conflict abort、tracking overhead 或减少 concurrency。为提高
+      throughput/latency，许多 databases 默认提供 weaker levels，只阻止部分 anomalies。
+    - Aerospike strong-consistency mode、Cassandra/ScyllaDB lightweight transactions
+      等可提供 single object 的 linearizable read/conditional write，但不自动保证多个 objects 的共同
+      atomic/isolation。
+    - transaction 的价值不是一句“ACID”，而是把 multi-object operation 变成明确 commit/abort unit，并声明
+      concurrency 与 durability guarantee。single-object atomicity 很有用，却不能替代跨 object
+      invariant。
+  - title: 2. Weak Isolation Levels：用 anomaly 而不是名称理解隔离
+    source_heading: 2. Weak Isolation Levels：用 anomaly 而不是名称理解隔离
+    paragraphs:
+    - PostgreSQL、MySQL/InnoDB、Oracle、SQL Server 等支持 SI variants，细节不同。Oracle、TiDB、Aurora
+      DSQL 等甚至把 snapshot isolation 作为最高或主要 isolation level；BigQuery 等 cloud warehouse
+      也常用 point-in-time snapshot。
+    - read committed 只需 old committed + current tentative version；SI 可能同时有多个 active
+      snapshots，各自需要不同历史。因此 database 保留多个 committed row versions，称 multiversion concurrency
+      control（MVCC）。
+    - snapshot isolation 把 transaction 内所有 reads 固定到同一 consistent snapshot，解决 read
+      committed 的 mixed-time view。MVCC 通过多版本与 visibility rules 实现 nonblocking historical
+      reads。
+    - read committed 保住 committed boundary；snapshot isolation 再固定 read snapshot；lost-update
+      detection/CAS 保护 stale same-object RMW。然而 snapshot isolation 仍允许 transactions
+      根据同一 stale predicate 写不同 objects，形成 write skew 和 phantom。
+  - title: 3. Serializability：让并发结果等价于某个串行顺序
+    source_heading: 3. Serializability：让并发结果等价于某个串行顺序
+    paragraphs:
+    - single serial thread 不能让 active transaction 在 application/network/user input
+      上长时间等待。application 必须提交单 statement，或预先把完整 transaction code 送到 database，以 stored
+      procedure 执行。
+    - VoltDB 不只复制 write set，而是在每 replica 执行同一 stored procedure/command sequence。若
+      initial state 与 command order 相同，deterministic transition 应得到相同 final state，称
+      state machine replication。
+    - procedure 不能直接读取各 node 不同的 wall clock、random、thread schedule 或 external service。需要
+      database 提供 deterministic time/random API，或把 nondeterministic value 作为 command
+      input 一起复制。
+    - 2PL 通过 pessimistic S/X locks 在 dangerous interleaving 发生前等待，并用 predicate/index-range
+      locks 覆盖 phantom；它成熟且 serializable，却让 readers/writers 互相阻塞、产生 deadlock 与 unstable
+      tail。
+  - title: 4. Distributed Transactions：跨节点实现统一 commit/abort
+    source_heading: 4. Distributed Transactions：跨节点实现统一 commit/abort
+    paragraphs:
+    - 2PC inherent cost 包括 extra network rounds、participant prepare fsync、coordinator
+      decision fsync，以及 locks/resources 持有更久。heterogeneous driver/coordinator 还增加
+      serialization、connection 与 recovery overhead。
+    - XA 让 unrelated systems 共享 2PC atomic outcome，能实现 broker ack + DB write 的 effective
+      exactly-once；代价是 application-local coordinator recovery、in-doubt locks、manual/heuristic
+      risk 和无法统一 deadlock/SSI。
+    - distributed transaction 要同时处理 distributed isolation 与 atomic commitment。2PC
+      用 durable promises 保证 all commit/all abort，却会在 coordinator uncertainty 下 blocking；generic
+      XA 因 application-local recovery 与 lowest-common-denominator coordination 尤其难运营。
+    - database-internal systems 可用 replicated coordinator、direct shard communication
+      和 integrated concurrency control 改善。message processing 常可用 DB inbox/dedup +
+      commit-before-ack 获得 effective exactly once，无需 broker+DB XA，但 external effects
+      仍需 outbox/idempotency。
+  - title: 5. 原章总结：事务把大量故障与并发状态压缩为 commit 或 abort
+    source_heading: 5. 原章总结：事务把大量故障与并发状态压缩为 commit 或 abort
+    paragraphs:
+    - process crash、network interruption、power outage、disk full 和 unexpected concurrency
+      会让 multi-step update 停在任意 subset。source 与 denormalized copies/indexes 很容易失步。
+    - 同一 database 内部可复制 coordinator、直接 shard RPC、统一 isolation，distributed transaction
+      可运作良好。XA 跨 technologies 受 application-local coordinator 与 lowest common denominator
+      限制，更难运营。
+    - 本章例子多用 relational model，但 transaction 的价值不依赖 tables。documents、graphs、key-value、indexes、stream
+      state 只要有 multi-object invariant、failure 或 concurrency，同样需要相应 guarantee。
+    - transaction 不是“开或关”的一个功能，而是 atomicity、isolation level、durability boundary 与
+      distributed scope 的组合 contract。设计时应以 anomaly/invariant/failure outcome 为语言，而不是只写
+      ACID、repeatable read、exactly once 等标签。
+  - title: 8. 全章知识结构
+    source_heading: 8. 全章知识结构
+    paragraphs:
+    - 它们分别指向 atomicity、isolation、durability 与 distributed atomic commit。
+    - 选择依据是 contention、duration、core/shard locality、tail 与 retry cost。
+    - commit 后 ack 丢失只造成 duplicate attempt，inbox unique ID 阻止 duplicate effect。
+    - 事务设计的核心不是背术语，而是把每个 bad history 变成 protocol 明确禁止或 application 明确补偿的结果。
+  - title: 9. 综合案例：订单、库存、账务、支付与消息的事务设计
+    source_heading: 9. 综合案例：订单、库存、账务、支付与消息的事务设计
+    paragraphs:
+    - search/analytics 从 CDC/outbox 建 materialized views，允许 lag。authoritative command
+      不依赖 stale search result维护 invariant；UI 对刚提交 order 直接合并 local result或等待 watermark。
+    - 监控：transaction latency/abort/deadlock、lock wait、SSI conflict、2PC prepare/in-doubt
+      age、cross-shard participant count、idempotency hit、outbox lag、inbox duplicate、provider
+      unknown outcome、workflow stuck state、ledger reconciliation delta。
+    - hot SKU/coupon 可让 s 降低并形成 retry storm。对 hot resource 使用 queue/admission、atomic
+      operation、reservation partition 或 pessimistic serialization，而非无限 optimistic
+      retry。
+    - 完整 correctness 不是一个超大 XA transaction，而是层次化 boundaries：database 内强 atomic/serializable
+      transaction 保护核心 invariants；outbox/inbox 与 idempotency 跨 broker；durable workflow/compensation
+      跨 payment；snapshot/report/reconciliation 验证长期状态。
+  - title: 10. 核心结论
+    source_heading: 10. 核心结论
+    paragraphs:
+    - safe retry 需要 transient classification、fresh reread、budget/backoff 与 idempotency。
+    - SSI 在 snapshot 上 optimistic 执行，以 dependency validation/abort 换 nonblocking reads。
+    - XA 跨异构 systems 受 application-local coordinator 与 lowest common denominator 限制。
+    - database-internal distributed transaction 可用 consensus coordinator和统一 concurrency
+      control 改善。
+  - title: 11. 设计事务系统的一般方法
+    source_heading: 11. 设计事务系统的一般方法
+    paragraphs:
+    - prepared state、decision log、locks/intents 必须 crash-safe。监控 in-doubt age，演练 coordinator
+      failover/log recovery，准备 manual/heuristic runbook 但不常规破坏 atomicity。
+    - 监控 abort/deadlock/lock wait/SSI conflict/2PC prepare/outbox/inbox/unknown outcomes；用
+      ledger、checksum、source-vs-view reconciliation 捕获 transaction boundary 外错误。
+    - 构造 dirty/read skew、lost update、write skew、phantom histories；注入 commit-response
+      loss、disk full、node pause、coordinator crash、duplicate message。断言 invariants
+      与最终 recovery。
+    - 方法的核心顺序是：先定义 invariant 和 bad history，再选择最小但充分的 atomicity/isolation scope；随后声明
+      durability 与 distributed commit，最后用 idempotency、recovery、reconciliation 和 fault
+      testing 把边界闭合。
+  takeaways:
+  - transaction 让 application 在一定范围内假装某些 hardware/software fault 与 concurrency race
+    不存在。database 把大量错误统一成 abort，application 只需分类并在安全时 retry。
+  - 2PL：危险前 pessimistic wait，成熟但 blocking/deadlock/tail 差；
+  - 选择依据是 contention、duration、core/shard locality、tail 与 retry cost。
+  - lost update 来自 stale read-modify-write，可用 atomic op、lock、detection 或 CAS。
+  - transaction 不能替代 audit、reconciliation、external compensation 与 fault testing。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念辨析
+  question: 原文如何解释「7.1 误区：transaction 是数据库天生具有的性质」？
+  answer: 它是人为实现的 abstraction，需要 WAL、locks/MVCC、conflict detection 与 recovery。不同系统的
+    scope/guarantee 差异很大。
+  source_heading: 7.1 误区：transaction 是数据库天生具有的性质
+- level: 概念辨析
+  question: 原文如何解释「7.9 误区：single-key linearizability 推出跨 keys ACID」？
+  answer: 每 key conditional write 很强，也无法原子维护两个 keys 的 invariant。composition 需要 multi-object
+    protocol。
+  source_heading: 7.9 误区：single-key linearizability 推出跨 keys ACID
+- level: 概念辨析
+  question: 原文如何解释「7.17 误区：CAS 可以解决所有 concurrency race」？
+  answer: CAS 保护某 object version，不能锁“没有 booking/username”这样的 predicate，也不自动保护 multi-object
+    invariant。
+  source_heading: 7.17 误区：CAS 可以解决所有 concurrency race
+- level: 概念辨析
+  question: 原文如何解释「7.25 误区：SSI 完全没有 coordination cost」？
+  answer: 它不 blocking readers/writers，但要跟踪 dependencies、commit validation，并在 conflict
+    时 abort/retry。high contention 可能性能很差。
+  source_heading: 7.25 误区：SSI 完全没有 coordination cost
+- level: 概念辨析
+  question: 原文如何解释「7.32 误区：transaction 可跨整个用户操作流程长期保持」？
+  answer: human/web multi-request workflow 太长，会持 locks/snapshot/resources。database
+    transaction 应短，跨请求使用 reservation/durable workflow/compensation。
+  source_heading: 7.32 误区：transaction 可跨整个用户操作流程长期保持

@@ -1,0 +1,146 @@
+source:
+  post: _posts/book-notes/distributed-system/understanding-distributed-system/2026-08-16-understanding-distributed-systems-2e-ch04-discovery.md
+  body_sha256: 33da997a9d17884fe6736a4103ca223f371629dd8a672e710e762d7d02a1b848
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 9
+  question: 原文围绕「0. 本章定位：建立连接之前，先找到对方」建立了怎样的核心认识？
+  question_source: 0. 本章定位：建立连接之前，先找到对方
+  thesis: 多层缓存是 DNS 能够全球扩展的核心。 浏览器、操作系统和 resolver 都能吸收查询，委派记录本身也可缓存。
+  thesis_source: 12. 核心结论
+  concepts:
+  - term: 0. 本章定位：建立连接之前，先找到对方
+    meaning: 记录更新不会瞬间推送到全球所有缓存。旧值会在不同缓存中保留到 TTL 到期，随后各缓存才在不同时间重新查询。因此，变更后的某段时间内，不同客户端可能看到不同结果；当旧缓存逐渐过期且系统不再继续更新时，它们最终趋向新值。
+    source_heading: 0. 本章定位：建立连接之前，先找到对方
+  - term: 4. DNS 消息传输与安全
+    meaning: DNSSEC 让 validating resolver 从配置的信任锚沿连续签名链，验证已签名区域中的记录确由相应 zone 签发且未被篡改。若委派明确进入未签名区域，结果通常是
+      insecure，而不是“已验证安全”；签名链断裂或验证失败才是 bogus。DNSSEC 不加密查询。DoT/DoH 加密“怎么问 resolver”，DNSSEC
+      验证“答案是否有可验证来源”；两者可以组合。
+    source_heading: 4. DNS 消息传输与安全
+  - term: 7. DNS 故障与单点风险
+    meaning: 理想情况下，控制面故障不应让已发布记录的数据面立即停止回答。反过来，控制面可用也不代表全球查询路径健康。监控既要检查 API/控制台变更，也要从多个网络位置执行真实权威与递归查询。
+    source_heading: 7. DNS 故障与单点风险
+  - term: 9. DNS 与分布式系统核心概念的关系
+    meaning: 权威服务器、resolver 或某段网络路径可能失败，而其他 DNS 层级和业务服务器仍健康。缓存和多 NS 让部分故障不必立即成为全局故障。
+    source_heading: 9. DNS 与分布式系统核心概念的关系
+  - term: 10.3 递归与迭代
+    meaning: 不是浏览器亲自依次查询所有层级。
+    source_heading: 10.3 递归与迭代
+  - term: 13. 从本章提炼出的通用解题方法
+    meaning: 从客户端、resolver、根、TLD 到权威服务器，逐步问每一跳知道什么、返回最终答案还是 referral、下一跳地址从哪里来。这样能发现循环依赖和缺失
+      glue。
+    source_heading: 13. 从本章提炼出的通用解题方法
+  logic:
+  - 0. 本章定位：建立连接之前，先找到对方
+  - 4. DNS 消息传输与安全
+  - 5. 缓存：让层级解析能够扩展
+  - 9. DNS 与分布式系统核心概念的关系
+  - 10.2 resolver 与 name server
+  - 10.6 NXDOMAIN、NODATA 与临时失败
+  - 13. 从本章提炼出的通用解题方法
+  sections:
+  - title: 0. 本章定位：建立连接之前，先找到对方
+    source_heading: 0. 本章定位：建立连接之前，先找到对方
+    paragraphs:
+    - DNS 失败时，即使服务器进程、网络路径、TCP 和 TLS 全部正常，客户端仍可能无法开始连接。这说明发现系统位于业务请求的关键路径上。
+    - 这层间接性降低了调用方与物理位置的耦合，但也增加了一个需要缓存、一致性、安全和高可用设计的分布式依赖。
+    - 记录更新不会瞬间推送到全球所有缓存。旧值会在不同缓存中保留到 TTL 到期，随后各缓存才在不同时间重新查询。因此，变更后的某段时间内，不同客户端可能看到不同结果；当旧缓存逐渐过期且系统不再继续更新时，它们最终趋向新值。
+    - DNS 自己也需要网络通信，并且可能使用 UDP、TCP、TLS 或 HTTPS。于是“发现目标”本身也依赖其他可发现或预配置的网络端点，例如本地递归解析器地址和根服务器提示。
+  - title: 2. 六步 DNS 解析过程
+    source_heading: 2. 六步 DNS 解析过程
+    paragraphs:
+    - 若最终答案仍然新鲜，resolver 直接返回，不需要访问根、TLD 或权威服务器。若只缓存了部分委派信息，也可以从已知的最接近层级开始，而不是每次都从根开始。
+    - 实现通常包含一份 root hints（根提示），列出根服务器名称和地址。它是引导信息，不是每个域名的完整目录。resolver 可以用它联系根系统，之后缓存更具体的委派。
+    - "“根只有少数逻辑名称”不等于全球只有少数物理机器。根服务通过复制和 anycast 等技术部署在许多地点，使同一个服务地址可被路由到较近或可达的实例。原章关注的是逻辑层级，而不是物理部署拓扑。"
+    - resolver 缓存响应并把地址返回客户端。客户端可能得到多个地址并按自己的连接策略尝试。DNS 只提供候选地址，不保证对应服务健康，也不保证 TCP/TLS
+      一定成功。
+  - title: 4. DNS 消息传输与安全
+    source_heading: 4. DNS 消息传输与安全
+    paragraphs:
+    - 现代 EDNS 扩展了 UDP 可承载的 DNS 消息能力，但过大的 UDP 响应会增加 IP 分片、丢包和中间设备兼容风险。
+    - 传统 UDP/TCP DNS 没有传输加密。路径上的网络运营者、Wi-Fi 观察者或中间设备可以看到查询名称和响应，并可能注入或修改消息。
+    - 但安全边界必须说清：客户端到 resolver 被保护，不代表 resolver 到各权威服务器的每一跳自动加密，也不代表 resolver 不知道客户端查了什么。
+    - DNSSEC 让 validating resolver 从配置的信任锚沿连续签名链，验证已签名区域中的记录确由相应 zone 签发且未被篡改。若委派明确进入未签名区域，结果通常是
+      insecure，而不是“已验证安全”；签名链断裂或验证失败才是 bogus。DNSSEC 不加密查询。DoT/DoH 加密“怎么问 resolver”，DNSSEC
+      验证“答案是否有可验证来源”；两者可以组合。
+  - title: 5. 缓存：让层级解析能够扩展
+    source_heading: 5. 缓存：让层级解析能够扩展
+    paragraphs:
+    - 一次命中越靠左，延迟越低，对后续层的负载削减越大。现实中还可能有应用运行时、代理、本地网络设备等额外缓存。
+    - 这个模型忽略多层缓存和长尾，只用于说明命中率的杠杆效应。生产系统还应观察 p95/p99、超时和 SERVFAIL 比例。
+    - 不存在的名字也可以缓存，例如 NXDOMAIN。否则随机或反复查询一个不存在名字，会不断穿透到权威服务器。
+    - 代价是：如果刚创建一个此前不存在的记录，客户端可能继续看到负面缓存直到其 TTL 到期。因此，“新建名字”也有传播等待，不只是修改已有地址。负缓存时长通常受权威响应中的
+      SOA 记录控制，经典规则取 SOA RR 的 TTL 与 SOA.MINIMUM 的较小值；NXDOMAIN 与 NODATA 的缓存键范围也不同，resolver
+      实现不能把“名字不存在”和“名称存在但无该类型”混为一谈。
+  - title: 7. DNS 故障与单点风险
+    source_heading: 7. DNS 故障与单点风险
+    paragraphs:
+    - DNS 的层级结构本身有冗余，但一个具体域的权威托管、注册配置、网络路径或控制面仍可能形成共同故障域。
+    - 原章以 2016 年 Dyn 遭受 DDoS 的事故作为“DNS 可导致大范围中断”的例子。事故机制并不是所有被影响网站服务器同时崩溃，而是大量用户无法把域名解析为地址。
+    - 一次故障仍可能全部击穿。高关键度系统可以评估多地域 anycast、独立次级 DNS 或多提供商，但多提供商也会增加记录同步、DNSSEC、变更和监控复杂度。
+    - 理想情况下，控制面故障不应让已发布记录的数据面立即停止回答。反过来，控制面可用也不代表全球查询路径健康。监控既要检查 API/控制台变更，也要从多个网络位置执行真实权威与递归查询。
+  - title: 9. DNS 与分布式系统核心概念的关系
+    source_heading: 9. DNS 与分布式系统核心概念的关系
+    paragraphs:
+    - DNS 名称空间按层级和 zone 分区。不同权威服务器管理不同子树，避免单节点保存和处理全球所有名称。
+    - 一个 zone 通常由多台权威服务器提供。根和大型 DNS 服务还会跨地域部署。复制提升读取容量与故障韧性，但要求区域数据正确同步。
+    - 权威服务器、resolver 或某段网络路径可能失败，而其他 DNS 层级和业务服务器仍健康。缓存和多 NS 让部分故障不必立即成为全局故障。
+    - 它说明一个系统能达到全球规模，往往不是靠每次读取都访问最新权威状态，而是靠委派、复制、缓存和对暂时陈旧的容忍。
+  - title: 10.2 resolver 与 name server
+    source_heading: 10.2 resolver 与 name server
+    paragraphs:
+    - resolver 代表客户端查找答案，可缓存并逐级查询；
+    - name server 回答自己负责或缓存的数据；
+    - authoritative name server 对某 zone 提供权威回答；
+    - 同一软件可以具备多种能力，但生产部署常分离递归与权威角色。
+  - title: 10.3 递归与迭代
+    source_heading: 10.3 递归与迭代
+    paragraphs:
+    - 客户端对 recursive resolver 要最终答案；
+    - resolver 对根/TLD/权威服务器通常逐步接收 referral 并自行继续；
+    - 不是浏览器亲自依次查询所有层级。
+  - title: 10.6 NXDOMAIN、NODATA 与临时失败
+    source_heading: 10.6 NXDOMAIN、NODATA 与临时失败
+    paragraphs:
+    - NXDOMAIN：所问名称不存在；
+    - NODATA：名称存在，但没有所问类型的记录；
+    - SERVFAIL：服务器无法完成查询，可能是临时故障或验证失败。
+    - 把 SERVFAIL 长期缓存成“名称不存在”会把暂时故障固化为错误事实。
+  - title: 13. 从本章提炼出的通用解题方法
+    source_heading: 13. 从本章提炼出的通用解题方法
+    paragraphs:
+    - 从客户端、resolver、根、TLD 到权威服务器，逐步问每一跳知道什么、返回最终答案还是 referral、下一跳地址从哪里来。这样能发现循环依赖和缺失
+      glue。
+    - 多个 NS 是否共享提供商、网络、控制面、凭据和配置？resolver 是否只有一个？客户端在 resolver 失败时怎样切换？名义冗余必须经得住同因故障检查。
+    - 判断哪些旧状态在故障时仍安全可用，设置有界 stale 窗口、后台刷新和监控。让系统依靠已有状态继续运行，而不是要求故障时立即依赖另一个控制面动作。
+    - 本章最重要的方法论是：发现系统通过名字与位置的间接层降低耦合，再用层级委派和缓存换取全球规模；设计时必须同时管理这层间接性带来的陈旧性、安全边界和故障依赖。
+  takeaways:
+  - 可靠、安全的网络链路仍需要发现目标地址。 DNS 把人和应用使用的主机名映射为连接所需的 IP 地址。
+  - 只需预知根入口即可沿层级发现任意公共域。 root hints 提供引导，缓存让 resolver 不必每次从根开始。
+  - DoT/DoH 与 DNSSEC 解决不同问题。 前者保护到 resolver 的传输，后者验证 DNS 数据；加密传输不会消灭 resolver 信任。
+  - 计划迁移必须提前降低 TTL。 降低后等待一个旧 TTL，再切换记录，并保持新旧端点并行直到残余流量消失。
+  - 受限地返回 stale 数据可以实现 static stability。 依赖受损时使用已有状态通常比立即完全失败更稳健，但必须限制陈旧窗口并评估安全风险。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念辨析
+  question: 原文如何解释「10.1 域名、主机名、zone 与记录」？
+  answer: 名称层级不自动等于 zone 边界，只有委派处才形成 zone cut。
+  source_heading: 10.1 域名、主机名、zone 与记录
+- level: 概念辨析
+  question: 原文如何解释「10.3 递归与迭代」？
+  answer: 不是浏览器亲自依次查询所有层级。
+  source_heading: 10.3 递归与迭代
+- level: 概念辨析
+  question: 原文如何解释「10.4 TTL 与一致性」？
+  answer: TTL 是缓存新鲜度上限，不是全局同步协议。它限制合规缓存的旧值寿命，却不保证所有观察者同一时刻看见新值。
+  source_heading: 10.4 TTL 与一致性
+- level: 概念辨析
+  question: 原文如何解释「10.6 NXDOMAIN、NODATA 与临时失败」？
+  answer: 把 SERVFAIL 长期缓存成“名称不存在”会把暂时故障固化为错误事实。
+  source_heading: 10.6 NXDOMAIN、NODATA 与临时失败
+- level: 概念辨析
+  question: 原文如何解释「10.7 stale 与错误」？
+  answer: stale 表示数据曾经由可信来源获得，但已超过正常新鲜期；错误数据则可能从未正确。serve stale 是对“旧但可能仍有效”的有界容忍，不是返回任意历史值。
+  source_heading: 10.7 stale 与错误

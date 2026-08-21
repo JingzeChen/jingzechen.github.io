@@ -1,0 +1,155 @@
+source:
+  post: _posts/book-notes/distributed-system/understanding-distributed-system/2026-08-16-understanding-distributed-systems-2e-ch22-control-planes-and-data-planes.md
+  body_sha256: a21d3690331b17abf7e9012f6b2b25b0ff08fe0d468fb9ba4b67a67fff62b446
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 10
+  question: 0. 导读：把“决定怎么运行”与“执行每个请求”分开？
+  question_source: 0. 导读：把“决定怎么运行”与“执行每个请求”分开
+  thesis: 设计 control plane 时，核心问题是：还缺少什么才能关闭反馈环？
+  thesis_source: 22. 核心结论
+  concepts:
+  - term: 0. 导读：把“决定怎么运行”与“执行每个请求”分开
+    meaning: 如果 control plane 一失效，data plane 立即停止，物理上虽拆成两个组件，availability 上仍是串联 hard
+      dependency。
+    source_heading: 0. 导读：把“决定怎么运行”与“执行每个请求”分开
+  - term: 6. 22.1 Scale imbalance
+    meaning: 远高于均匀 poll 的 1,667/s。Massive scale-out、zone recovery、deploy 或 certificate
+      rotation 都可能触发。
+    source_heading: 6. 22.1 Scale imbalance
+  - term: 11.1 Configuration 是代码一样危险的输入
+    meaning: Circular dependency。
+    source_heading: 11.1 Configuration 是代码一样危险的输入
+  - term: 12. 22.2 Control theory
+    meaning: Control theory 提供另一种视角：controller 监控 dynamic system，把 actual state 与
+      desired state 比较，施加 corrective action，使系统靠近目标并尽量减少 instability。
+    source_heading: 12. 22.2 Control theory
+  - term: 14. CI/CD pipeline 也是 control plane
+    meaning: 需要 backward-compatible expand/migrate/contract、feature flag、data repair
+      和 forward-fix plan。
+    source_heading: 14. CI/CD pipeline 也是 control plane
+  - term: 23. 一般化的解决问题方法
+    meaning: Delay、hysteresis、cooldown、bounded step、disruption budget、multi-controller
+      coordination 与 safe rollback 都是控制算法的一部分。
+    source_heading: 23. 一般化的解决问题方法
+  logic:
+  - 0. 导读：把“决定怎么运行”与“执行每个请求”分开
+  - 6. 22.1 Scale imbalance
+  - 8. 方案二：Control plane 主动 push
+  - 12. 22.2 Control theory
+  - 13.3 Applied ack 的语义
+  - 19. 如何设计 control/data plane 系统
+  - 23. 一般化的解决问题方法
+  sections:
+  - title: 0. 导读：把“决定怎么运行”与“执行每个请求”分开
+    source_heading: 0. 导读：把“决定怎么运行”与“执行每个请求”分开
+    paragraphs:
+    - 若用同一服务、同一存储和同一一致性路径处理两类工作，会让彼此竞争：高频 data traffic 可能压垮管理状态；强一致管理协调也可能拖慢每个业务请求。
+    - Control plane：管理 metadata/configuration，协调复杂、低频 operations，帮助 data plane 工作。
+    - Control plane 告诉 data plane 应该如何工作，但不应成为 data plane 每个请求的同步前置条件。
+    - 如果 control plane 一失效，data plane 立即停止，物理上虽拆成两个组件，availability 上仍是串联 hard dependency。
+  - title: 3. 本书前面已经出现的 control planes
+    source_heading: 3. 本书前面已经出现的 control planes
+    paragraphs:
+    - Data plane 不应为每个 write 向 control plane 请求“下一跳是谁”，而应缓存 versioned chain config。
+    - Partition Manager：index partition -> partition server；
+    - Storage/partition/front-end servers 是 data planes，manager 发布 placement/configuration。
+    - 多个 controllers 同时改变 capacity/config/release 时，必须避免相互对抗。
+  - title: 6. 22.1 Scale imbalance
+    source_heading: 6. 22.1 Scale imbalance
+    paragraphs:
+    - Data plane instance 数可能为 N，每秒处理数百万 requests；control plane 每分钟只发生少量 config writes。
+    - 即使 management writes 只有每分钟一次，control plane 也要回答大量 identical reads。
+    - 远高于均匀 poll 的 1,667/s。Massive scale-out、zone recovery、deploy 或 certificate rotation
+      都可能触发。
+    - 更稳健原则是：put the smaller service in control of work pace，并用 buffer/indirection
+      吸收 fan-out。
+  - title: 8. 方案二：Control plane 主动 push
+    source_heading: 8. 方案二：Control plane 主动 push
+    paragraphs:
+    - Direct periodic pull 中，data plane 决定何时请求，小 control plane 被动承受 burst。
+    - Slow consumers 被 queue/coalesce/disconnect/resync。
+    - 这是 overload control：牺牲 freshness，保持 control plane alive。
+    - 原章脚注明确：control plane 若要维持太多 connections 仍会 overload。
+  - title: 11.1 Configuration 是代码一样危险的输入
+    source_heading: 11.1 Configuration 是代码一样危险的输入
+    paragraphs:
+    - Route all traffic to one backend；
+    - Invalid regex consumes CPU；
+    - Delete all chain members；
+    - Circular dependency。
+  - title: 12. 22.2 Control theory
+    source_heading: 12. 22.2 Control theory
+    paragraphs:
+    - Control theory 提供另一种视角：controller 监控 dynamic system，把 actual state 与 desired
+      state 比较，施加 corrective action，使系统靠近目标并尽量减少 instability。
+    - Actuator/action：push config、restart、exclude、scale、rollback。
+    - 原书脚注明确：有 closed loop 不保证达到 desired state，只是 prerequisite。
+    - Control-plane write success 只表示 desired state 持久化，不表示 fleet actual state 已达到目标。
+  - title: 13.3 Applied ack 的语义
+    source_heading: 13.3 Applied ack 的语义
+    paragraphs:
+    - Healthy under new config。
+    - 只 ack received 不能闭合“data plane 正在按 desired state 工作”的 loop。
+  - title: 14. CI/CD pipeline 也是 control plane
+    source_heading: 14. CI/CD pipeline 也是 control plane
+    paragraphs:
+    - Actual：fleet 中各 instance versions/health；
+    - Monitor：startup, errors, latency, saturation。
+    - 原章建议 incremental release，一边 monitor，一旦有明确异常则 stop rollout，可能自动 rollback。
+    - 需要 backward-compatible expand/migrate/contract、feature flag、data repair 和 forward-fix
+      plan。
+  - title: 19. 如何设计 control/data plane 系统
+    source_heading: 19. 如何设计 control/data plane 系统
+    paragraphs:
+    - 列出每个 client request 必须同步经过的 components 和 calls。它们属于 data path，按 request scale/availability
+      设计。
+    - 识别 route、key、quota、placement、scale、version、repair 等 metadata/config operations，并定义
+      consistent owner。
+    - Validate、checksum/sign、immutable snapshot、atomic install、retain previous、canary、audit。Candidate
+      failure 不得破坏 active LKG。
+    - 加入 hysteresis、cooldown、sustained windows、bounded step、disruption budget 和 multi-controller
+      conflict policy。
+  - title: 23. 一般化的解决问题方法
+    source_heading: 23. 一般化的解决问题方法
+    paragraphs:
+    - Control plane 持有 authoritative desired state；data plane 持有 validated、versioned、immutable
+      serving copy。
+    - 避免大 fleet 自主同步 pull。使用 durable buffer、server push、queue、backpressure 和 bounded
+      concurrency。
+    - Full snapshot 建立简单可靠 recovery baseline；只有 state/latency 数据证明必要时，才加入 delta，并保留
+      snapshot resync。
+    - Delay、hysteresis、cooldown、bounded step、disruption budget、multi-controller coordination
+      与 safe rollback 都是控制算法的一部分。
+  takeaways:
+  - API gateway 的业务请求与管理请求具有不同 scale、latency、availability 和 consistency 需求。
+  - 串联 required dependencies 的理论可用性是乘积，且不高于最差依赖。
+  - Snapshot 方案增加 propagation latency 和 bytes，并形成 eventual read model/CQRS。
+  - Control theory 将 data plane 看作 dynamic system、control plane 看作 controller。
+  - 设计 control plane 时，核心问题是：还缺少什么才能关闭反馈环？
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念辨析
+  question: 原文如何解释「17.1 Control plane 与 admin UI」？
+  answer: UI 只是入口；control plane 还包含 consistent state、validation、reconciliation、publication
+    和 monitoring。
+  source_heading: 17.1 Control plane 与 admin UI
+- level: 概念辨析
+  question: 原文如何解释「17.8 Poll 与 pull」？
+  answer: Poll 是周期 pull；pull 也可按需。Scale imbalance 主要来自大量 clients 自主决定请求时机。
+  source_heading: 17.8 Poll 与 pull
+- level: 概念辨析
+  question: 原文如何解释「17.15 Closed loop 与稳定系统」？
+  answer: 闭环是必要条件，不保证稳定。Delay、gain 和错误 signal 可引起 oscillation。
+  source_heading: 17.15 Closed loop 与稳定系统
+- level: 概念辨析
+  question: 原文如何解释「18.8 “Version number 可以 rollback”」？
+  answer: 内容可回滚，发布 version 应继续单调上升，防旧消息覆盖新 state。
+  source_heading: 18.8 “Version number 可以 rollback”
+- level: 概念辨析
+  question: 原文如何解释「18.15 “Control plane 应直接修每个异常 node”」？
+  answer: 逐 node unbounded reconciliation 会被 fleet size 拖垮。用 queue、rate limit、batch、priority
+    和 constant-work design。
+  source_heading: 18.15 “Control plane 应直接修每个异常 node”

@@ -1,0 +1,160 @@
+source:
+  post: _posts/book-notes/ai-system/ai-engineering/2026-08-04-ai-engineering-ch08-dataset-engineering.md
+  body_sha256: 2c7fb56ce6d4f1557a322c7fd9036dac23383f95359d7aa6af0143dbe57bbb20
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 12
+  question: 原文围绕「0. 学习目标与全章因果主线」建立了怎样的核心认识？
+  question_source: 0. 学习目标与全章因果主线
+  thesis: 数据工作难，不是因为原则神秘，而是很多关键步骤难自动化：定义想要什么、写清 annotation guideline、验证复杂输出、发现未知缺口和关注细节。也正因为没有唯一机械流程，数据集设计需要大量创造力。
+  thesis_source: 22. 本章总结
+  concepts:
+  - term: 0. 学习目标与全章因果主线
+    meaning: 第七章说明了怎样通过微调改变模型权重，但微调算法只能从训练数据中提取信号：数据没有表达的行为，优化器无法凭空创造；数据中的错误、偏见和格式噪声，也会被模型学习。
+    source_heading: 0. 学习目标与全章因果主线
+  - term: 5. Data Coverage（数据覆盖）
+    meaning: 至少应对重要切片成立。若某区域目标概率非零而训练概率为零，模型只能依赖预训练迁移，不能从本次监督直接学习。这是 coverage audit
+      的必要启发式，不是泛化的充分条件：语言输入空间巨大，模型不需要见过每个具体 x；即使每个切片都有样本，数量、质量和切片内部多样性仍可能不足。
+    source_heading: 5. Data Coverage（数据覆盖）
+  - term: 10. Traditional Data Synthesis Techniques（传统合成技术）
+    meaning: 但神经网络可能被极小扰动欺骗。One Pixel Attack 在其设置下只改一个像素，就能使 Kaggle CIFAR-10 中 67.97%
+      和 ImageNet 中 16.04% 的自然图像被误分类。
+    source_heading: 10. Traditional Data Synthesis Techniques（传统合成技术）
+  - term: 13. Data Verification（合成数据验证）
+    meaning: 验证器本身也可能有 bug。AI 生成 unit tests 时，solution 和 tests 可能共享误解；应加入独立手写 tests、mutation
+      testing 和隐藏 cases。
+    source_heading: 13. Data Verification（合成数据验证）
+  - term: 18. Deduplicate Data（数据去重）
+    meaning: 原书列举 dupeGuru、Dedupe、datasketch、TextDistance、TheFuzz、deduplicate-text-datasets，以及
+      Bloom-filter 类工具。选库时检查规模、语言、流式处理和可解释候选输出。
+    source_heading: 18. Deduplicate Data（数据去重）
+  - term: 24. 一页速记
+    meaning: 本章最值得保留的判断框架是：先写清模型应该学到的行为，再以质量、覆盖和数量设计数据；只有能验证的合成才有训练价值；最终检查的对象不是源文件，而是带完整血缘、经过切分并真正送进模型的
+      token 序列。
+    source_heading: 24. 一页速记
+  logic:
+  - 0. 学习目标与全章因果主线
+  - 5. Data Coverage（数据覆盖）
+  - 8. Data Augmentation and Synthesis（数据增强与合成）
+  - 13. Data Verification（合成数据验证）
+  - 15. Model Distillation（模型蒸馏）
+  - 20. Format Data（格式化数据）
+  - 24. 一页速记
+  sections:
+  - title: 0. 学习目标与全章因果主线
+    source_heading: 0. 学习目标与全章因果主线
+    paragraphs:
+    - 第七章说明了怎样通过微调改变模型权重，但微调算法只能从训练数据中提取信号：数据没有表达的行为，优化器无法凭空创造；数据中的错误、偏见和格式噪声，也会被模型学习。
+    - 这条流程不是一次性流水线。模型评价可能暴露某个语言、长度或工具上的失败，迫使团队重新策划、获取和处理数据。
+    - 为什么 inspection、deduplication、cleaning、filtering 和 formatting 必须在训练前形成可审计流程。
+    - 训练数据必须展示期望行为。 口头要求模型“会推理、会用工具”不够，监督轨迹要真正包含这些行为。
+  - title: 3. Data Curation（数据策划）
+    source_heading: 3. Data Curation（数据策划）
+    paragraphs:
+    - 模型通过损失函数拟合可观测目标。希望模型输出简洁答案，训练答案就应简洁；希望模型给出分数与理由，数据就必须同时有分数和理由；希望模型在不确定时澄清，训练集中就要包含“信息不足
+      -> 提问”的轨迹。
+    - 仅答案监督主要约束最终 token；分步监督在中间状态也提供 token-level signal。Chun 等人的实验显示，在某些 CoT 任务中加入分步
+      response 后，不同规模模型的准确率可接近翻倍。
+    - 然而，人类最方便的操作未必适合 AI：人会打开浏览器、复制查询、逐个点击；模型可直接调用 search API 并并行处理结果。因此不应机械模仿人类界面操作，应寻找对机器可观测、可审计、低成本的动作空间。仿真环境和合成轨迹常用于探索更适合模型的工具策略。
+    - Llama 3 为此设计 multi-message chat format，用消息 header 指定来源和目的地，并用特殊终止 token 区分 message
+      与 human/AI turn 边界。格式错误会让模型学不到“结果属于哪次调用”。
+  - title: 5. Data Coverage（数据覆盖）
+    source_heading: 5. Data Coverage（数据覆盖）
+    paragraphs:
+    - 至少应对重要切片成立。若某区域目标概率非零而训练概率为零，模型只能依赖预训练迁移，不能从本次监督直接学习。这是 coverage audit 的必要启发式，不是泛化的充分条件：语言输入空间巨大，模型不需要见过每个具体
+      x；即使每个切片都有样本，数量、质量和切片内部多样性仍可能不足。
+    - 对每个候选 mix 训练多个较小模型，拟合“规模—数据混合—性能”关系，再外推大模型。Meta 用类似 scaling-law 实验选择 Llama 3
+      mix。
+    - 对评价失败做 taxonomy，统计每类频率、严重性和置信区间，优先补最有价值的缺口。添加数据后做 ablation，验证该切片改善且其他切片未退化。
+    - Zhou 等人让同一个 7B 模型分别在三个同为 2000 条的数据集上训练：高质量但不多样、多样但低质量、既高质量又多样。第三种生成质量最好，说明质量与覆盖是互补条件。
+  - title: 8. Data Augmentation and Synthesis（数据增强与合成）
+    source_heading: 8. Data Augmentation and Synthesis（数据增强与合成）
+    paragraphs:
+    - 二者都自动创造数据，术语经常混用。原书后文也常用 synthesis 统称两者。工程上仍应保留 provenance：样本是原始、变换、仿真还是模型生成，因为质量、隐私和权利风险不同。
+    - 翻转猫图通常仍是猫，但翻转交通标志、医学左右侧图像或带方向文字的图片可能改变标签。将 “good” 换成 “bad” 会改变情感；将人名替换成另一个文化群体可能改变上下文事实。
+    - 程序生成假数据早已用于测试。Faker、Chance 等可生成姓名、地址、电话和邮件，检查解析器能否处理不同国家格式。现代生成模型进一步能产生医生笔记、合同、财报、商品描述、图像和视频，使合成从
+      schema 测试扩展到模型训练。
+    - 合成数据通常不能完全替代真实/人工数据。真实数据提供环境中的未知细节和校准基准；合成数据提供规模与受控覆盖。许多场景最有效的是混合。
+  - title: 10. Traditional Data Synthesis Techniques（传统合成技术）
+    source_heading: 10. Traditional Data Synthesis Techniques（传统合成技术）
+    paragraphs:
+    - 金融欺诈团队可先用模板交易验证模型可行性，再申请真实敏感数据。AlphaGeometry 使用约 1 亿合成几何例题训练奥赛级系统，说明规则系统在可验证形式领域可扩展到极大规模。
+    - "“She is a fantastic nurse” 可生成 “He is a fantastic nurse”，削弱职业—性别共现；CEO、父母、姓名也可生成反事实版本。"
+    - 但神经网络可能被极小扰动欺骗。One Pixel Attack 在其设置下只改一个像素，就能使 Kaggle CIFAR-10 中 67.97% 和 ImageNet
+      中 16.04% 的自然图像被误分类。
+    - 仿真优势：便宜、并行、可复现、无物理伤害、能控制罕见条件。局限是 sim-to-real gap：仿真省略摩擦、传感器噪声、人类行为和开放世界细节。仿真成功不保证现实成功；仿真失败通常是很有价值的否证。
+  - title: 13. Data Verification（合成数据验证）
+    source_heading: 13. Data Verification（合成数据验证）
+    paragraphs:
+    - 越靠前越确定但适用范围窄；judge 适用广却会偏见和幻觉。最好组合多层，而非让同一个生成模型批准自己的输出。
+    - 验证器本身也可能有 bug。AI 生成 unit tests 时，solution 和 tests 可能共享误解；应加入独立手写 tests、mutation
+      testing 和隐藏 cases。
+    - AI judge 应使用明确 rubric、顺序交换、校准集和多次一致性；阈值按人工 precision/recall 调整。
+    - Self-Instruct 使用了重复、长度、冲突和 input/output 复读等规则。Heuristic 快且透明，但会误删新颖样本，应在抽样标注上计算
+      precision/recall。
+  - title: 15. Model Distillation（模型蒸馏）
+    source_heading: 15. Model Distillation（模型蒸馏）
+    paragraphs:
+    - Knowledge distillation 用 teacher 的行为训练更小的 student。传统目标是保留尽量多能力，同时降低参数、延迟和成本。
+    - 这传递 teacher 最终选择的一条序列，不包含其他 token 的相对概率。优点是简单；缺点是 teacher 错误和采样偶然性成为硬标签。
+    - Nemotron-4：340B base 使用 Mixtral-8x7B-Instruct 生成 instruction/preference data，最终
+      student 在多项任务超过 teacher。
+    - Llama 3 观察到：无差别使用 self-generated data 不会自动提升，甚至退化；加入功能验证、过滤和纠错后，才可能持续改善。
+  - title: 18. Deduplicate Data（数据去重）
+    source_heading: 18. Deduplicate Data（数据去重）
+    paragraphs:
+    - Anthropic 实验中，仅把 0.1% 数据重复 100 次，就能使 800M 模型退化到约 400M 模型水平，尽管其余约 90% 训练 token
+      仍唯一。它说明少量高频重复也可主导优化。
+    - 可先把文本 embedding，使用 ANN 找近邻，再精确比较候选。降维降低索引和比较成本，但可能丢失区分信息。与第六章向量检索一样，要测 ANN recall
+      和最终 duplicate precision/recall。
+    - 原书列举 dupeGuru、Dedupe、datasketch、TextDistance、TheFuzz、deduplicate-text-datasets，以及
+      Bloom-filter 类工具。选库时检查规模、语言、流式处理和可解释候选输出。
+    - 阈值 0.35 把三个密码问题放一组。对 instruction tuning，它们可能是有价值的表达多样性，不应仅因聚类就删除；可保留不同措辞、去掉真正复制，或在
+      train/test split 时把整组放在同一侧防泄漏。
+  - title: 20. Format Data（格式化数据）
+    source_heading: 20. Format Data（格式化数据）
+    paragraphs:
+    - EOS 通常应参与 response loss，让模型学习停止；若 EOS 被 mask，模型可能持续生成。Padding 应 mask，跨样本 packing
+      不能让一个样本看到后一个样本答案。
+    - 统计被截断比例及截掉的是 prompt 还是 response。若答案结尾/EOS 经常被截，训练目标会损坏。长文本可按任务策略截左、截右、滑窗或摘要，不能默认统一切尾。
+    - 应先形成 duplicate/semantic groups，再按 group 切分；同一用户、文档或时间链也常需放同侧。否则轻微改写跨 split，验证分数虚高。
+    - 时间敏感系统使用 chronological split，确保 train 不含未来信息。评价 benchmark 要在训练/合成 generator
+      lineage 中检查污染。
+  - title: 24. 一页速记
+    source_heading: 24. 一页速记
+    paragraphs:
+    - 合成样本是否有独立 verifier 和真实 anchor；
+    - annotator disagreement 是否按切片审查；
+    - tokenized batch 的 role、mask、EOS 和边界是否人工 decode；
+    - 本章最值得保留的判断框架是：先写清模型应该学到的行为，再以质量、覆盖和数量设计数据；只有能验证的合成才有训练价值；最终检查的对象不是源文件，而是带完整血缘、经过切分并真正送进模型的
+      token 序列。
+  takeaways:
+  - 数据集工程是在预算和合规约束下，构造能让目标模型学到期望行为的数据资产。
+  - Coverage 是覆盖目标分布的重要区域，不是无目的地增加异质样本。
+  - Augmentation 从真实样本变换，synthesis 从规则、仿真或模型生成；增强必须满足标签不变性。
+  - 蒸馏以 teacher 行为为 student 标准；一般 synthetic training 不一定是蒸馏，student 也可能大于或超过 generator。
+  - 数据工作难，不是因为原则神秘，而是很多关键步骤难自动化：定义想要什么、写清 annotation guideline、验证复杂输出、发现未知缺口和关注细节。也正因为没有唯一机械流程，数据集设计需要大量创造力。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念辨析
+  question: 原文如何解释「误解 1：数据越多越好」？
+  answer: 大量错误、重复或无关数据会浪费计算并强化偏差。先看质量、覆盖和有效独立信息。
+  source_heading: 误解 1：数据越多越好
+- level: 概念辨析
+  question: 原文如何解释「误解 6：小样本没提升，继续加数据即可」？
+  answer: 先查超参数、label mask、数据格式、评价和基础能力。坏训练管线不会被更多样本修好。
+  source_heading: 误解 6：小样本没提升，继续加数据即可
+- level: 概念辨析
+  question: 原文如何解释「误解 12：Back-translation 相同就证明翻译正确」？
+  answer: 正向和反向模型可能共享错误，逐字不同也可能语义正确。它只是一个 cycle-consistency 信号。
+  source_heading: 误解 12：Back-translation 相同就证明翻译正确
+- level: 概念辨析
+  question: 原文如何解释「误解 17：Exact hash 就完成去重」？
+  answer: 大小写、标点、段落复制和语义改写会绕过 exact match。需按任务选择 n-gram、MinHash 或 embedding。
+  source_heading: 误解 17：Exact hash 就完成去重
+- level: 概念辨析
+  question: 原文如何解释「误解 22：训练 prompt 与推理 prompt 大致相似就够」？
+  answer: 模型可能对箭头、空格和 prefix 很敏感。保持一致，并单独评价格式鲁棒性。
+  source_heading: 误解 22：训练 prompt 与推理 prompt 大致相似就够

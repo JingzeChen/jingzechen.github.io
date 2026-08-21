@@ -1,0 +1,180 @@
+source:
+  post: _posts/book-notes/ai-system/distributed-ai-system/2026-08-08-distributed-ai-systems-ch11-evolving-landscape-of-distributed-ai.md
+  body_sha256: 80b4a09285df67fbd8167ed16ae5ef1e852435e23409116dcca9623ea9f56cc2
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 17
+  question: 原文围绕「0. 本章要回答的核心问题」建立了怎样的核心认识？
+  question_source: 0. 本章要回答的核心问题
+  thesis: Async checkpoint的本质是一致snapshot与I/O overlap。 没有immutable staging/commit protocol就可能得到不可恢复state。
+  thesis_source: 18. 核心结论
+  concepts:
+  - term: 0. 本章要回答的核心问题
+    meaning: Distributed tool execution如何做sandbox、placement、state affinity和idempotency？
+    source_heading: 0. 本章要回答的核心问题
+  - term: 5. When things go wrong：fault tolerance
+    meaning: 训练中几乎所有model/optimizer tensors每step变化，“只写changed tensors”不总有大收益。可对immutable/config、sparse
+      changes、chunk dedup、storage snapshots有效；需要dirty tracking/checksums，增加CPU/read
+      overhead。
+    source_heading: 5. When things go wrong：fault tolerance
+  - term: 10. Preparing for the future
+    meaning: Pin version/lockfiles/container；在thin adapter后封装framework API；contract
+      tests验证shape/dtype/state/collective semantics；upgrade一次一个layer。不要把blog snippet当stable
+      API。
+    source_heading: 10. Preparing for the future
+  - term: 12.4 Recommended implementation order
+    meaning: Production SLO/cost/security review。
+    source_heading: 12.4 Recommended implementation order
+  - term: 16.3 Parallelism and reliability
+    meaning: 误区：Sequence parallelism和context parallelism同义。 纠正：Megatron SP常切非attention
+      activations；CP切attention context。
+    source_heading: 16.3 Parallelism and reliability
+  - term: 20. 自测题
+    meaning: 10亿parameters，4-bit nominal weight payload是多少GB（decimal）？若bandwidth 100
+      GB/s，ideal decode roofline是多少token/s？
+    source_heading: 20. 自测题
+  logic:
+  - 0. 本章要回答的核心问题
+  - 5. When things go wrong：fault tolerance
+  - 8. Agentic AI：the next frontier
+  - 12.4 Recommended implementation order
+  - 14. Exercises
+  - 16.5 Economics and evidence
+  - 20. 自测题
+  sections:
+  - title: 0. 本章要回答的核心问题
+    source_heading: 0. 本章要回答的核心问题
+    paragraphs:
+    - Top-k routing、soft routing、ReLU routing和slimmable experts分别改变什么？
+    - Megatron sequence parallel、context parallel、Ulysses和Ring Attention为何不能混称？
+    - Non-IID、partial participation和system heterogeneity如何导致client drift？
+    - Distributed tool execution如何做sandbox、placement、state affinity和idempotency？
+  - title: 3. The Edge-cloud continuum
+    source_heading: 3. The Edge-cloud continuum
+    paragraphs:
+    - 若4-bit把weight bytes从2 bytes/param（BF16）降到0.5，理想weight-read上限4×；实际还有KV、activations、dequant、cache
+      miss和kernel overhead。
+    - 二者是算法族/implementations，支持的bits/group size/kernel/hardware不同。Quality和actual speed必须在目标runtime测；压缩文件小不代表kernel快。
+    - 原章以Gemma 3n说明通过per-layer/parameter-efficient memory design降低active footprint。应从具体architecture
+      docs理解哪些parameters resident、streamed或shared；“5B/8B以2B/4B footprint运行”是该模型实现声明，不是一般embedding技巧可让任意model减半。
+    - Router可以学习local success/latency，但要防feedback bias：只有offloaded requests能看到cloud
+      outcome；local confidence可能miscalibrated。定期exploration、offline labels和safety
+      guardrails。
+  - title: 5. When things go wrong：fault tolerance
+    source_heading: 5. When things go wrong：fault tolerance
+    paragraphs:
+    - Failure恢复不仅model：optimizer/master、scheduler、scaler、RNG、data cursor、global tokens/step、parallel
+      layout和config。Checkpoint必须committed/atomic，partial不能选latest。
+    - Tensor keys/shapes/dtypes/placements不变时复用planner metadata，减少CPU/GIL/coordination。Architecture/world/layout变化必须invalidate；错误复用会缺state或写错shard。
+    - 训练中几乎所有model/optimizer tensors每step变化，“只写changed tensors”不总有大收益。可对immutable/config、sparse
+      changes、chunk dedup、storage snapshots有效；需要dirty tracking/checksums，增加CPU/read
+      overhead。
+    - 说明某版本/benchmark的processing speedup。问：训练pause、end-to-end durability、state size、storage、CPU/RAM、world
+      size、baseline。Background I/O快不等于checkpoint已durable；publish/commit后才可恢复。
+  - title: 8. Agentic AI：the next frontier
+    source_heading: 8. Agentic AI：the next frontier
+    paragraphs:
+    - Code interpreter必须sandbox：filesystem/network/syscall/CPU/RAM/time limits。Browser需防SSRF、localhost/cloud
+      metadata、download malware。Credentials按tool/task最小权限短期发放，输出做data-loss policy和prompt-injection边界。
+    - Production state包含task ID、model/config、messages、tool calls/results、artifacts、budgets、approvals和checkpoint
+      version。Step limit防infinite loops，但还要token/cost/wall-clock/tool-call budgets。
+    - 原章以“running record of thoughts”解释机制。Production不应假定需要暴露或永久保存private chain-of-thought；可存简洁decision
+      summary、tool/audit events和verifiable artifacts。Trace含PII/secrets/tool outputs，需retention/access
+      control。
+    - 一个trace串起：agent step → model request → retrieval → tool RPC → external API。记录critical
+      path、queue vs service time、token/cost、retry、cache hit、tool error和quality outcome；只有latency均值会隐藏tail和failed
+      branches。
+  - title: 10. Preparing for the future
+    source_heading: 10. Preparing for the future
+    paragraphs:
+    - 掌握collective cost、topology/process groups、overlap、async checkpoint snapshot语义、failure
+      domains。Torchcomms/NCCLX/RCCLX是时效API名，principles更持久。
+    - 掌握PagedAttention/Radix-style prefix reuse、continuous batching、KV sizing、long-context
+      CP/PP、multi-tenancy SLO。
+    - 掌握non-IID optimization、partial participation、secure aggregation、DP accounting、poisoning和adapter
+      aggregation。
+    - Pin version/lockfiles/container；在thin adapter后封装framework API；contract tests验证shape/dtype/state/collective
+      semantics；upgrade一次一个layer。不要把blog snippet当stable API。
+  - title: 12.4 Recommended implementation order
+    source_heading: 12.4 Recommended implementation order
+    paragraphs:
+    - 锁定framework/model commits；
+    - Failure injection/restart；
+    - Representative benchmark；
+    - Production SLO/cost/security review。
+  - title: 14. Exercises
+    source_heading: 14. Exercises
+    paragraphs:
+    - 答案：c（按原章典型decode语境）。 Autoregressive decode常低batch、每token扫描大量weights，memory-bandwidth
+      bound。具体device/prefill/model也可能compute、thermal或battery bound，因此不是无条件定律。
+    - Training通常是阶段性run；上线后的模型对每个用户/request持续prefill/decode。用户量、生成长度、reasoning steps、多modal
+      inputs、agent retries和低latency冗余使lifetime serving demand累积。与此同时foundation training集中在少数组织，许多组织主要fine-tune/serve。
+    - Synchronous checkpoint在snapshot/write完成前暂停training，状态边界清楚但全体GPU idle。Async checkpoint先在一致step把mutable
+      state复制/冻结到staging buffers，再background serialize/write；训练可与I/O overlap，降低exposed
+      pause。
+    - Top-k发送少量large-magnitude values，适合高度稀疏可压缩gradients；代价是selection/sort、indices、irregular
+      sparse collectives和bias，常用error feedback。Quantization发送所有coordinates的低-bit approximation，dense
+      kernels/collectives更规则；代价是rounding/noise、scale metadata和outlier sensitivity。
+  - title: 16.3 Parallelism and reliability
+    source_heading: 16.3 Parallelism and reliability
+    paragraphs:
+    - 误区：Sequence parallelism和context parallelism同义。 纠正：Megatron SP常切非attention activations；CP切attention
+      context。
+    - 误区：Heartbeat活着说明training有progress。 纠正：process可活着但GPU/collective hang，需progress
+      watchdog。
+    - 误区：Elastic training允许一个rank随时退出collective。 纠正：通常重启worker group、重新rendezvous并从checkpoint恢复。
+    - 误区：100 expected failures/day意味着每天恰好100次。 纠正：这是特定independent model期望；真实distribution和correlation不同。
+  - title: 16.5 Economics and evidence
+    source_heading: 16.5 Economics and evidence
+    paragraphs:
+    - 误区：GPU utilization 100%就是经济最优。 纠正：可能导致tail latency、queueing、quality/reliability下降。
+    - 误区：Cloud hourly price和owned GPU hourly depreciation可直接比较。 纠正：utilization、network、staff、lead
+      time和risk boundary不同。
+    - 误区：Blog TPS可以跨engine横比。 纠正：model、hardware、lengths、concurrency、SLO和metric必须一致。
+    - 误区：最新API名就是长期skill。 纠正：data movement、state ownership、critical path和failure semantics更持久。
+  - title: 20. 自测题
+    source_heading: 20. 自测题
+    paragraphs:
+    - 10亿parameters，4-bit nominal weight payload是多少GB（decimal）？若bandwidth 100 GB/s，ideal
+      decode roofline是多少token/s？
+    - Agent DAG中A=2 s；B=5 s和C=3 s都依赖A；D=4 s依赖B/C。Unlimited workers时total work和critical
+      path分别多少？
+    - 设计distributed browser agent：说明session affinity、sandbox、credentials、idempotency、cancellation和audit。
+    - Counts是hard load；还要router probability、capacity overflow、per-expert token cost和跨rank
+      placement。
+  takeaways:
+  - Sparse compute转移而非消除复杂度。 MoE降低active FLOPs，却增加routing、communication、capacity和serving
+    memory问题。
+  - Long context要区分capacity、cost和quality。 CP/Ring解决placement/memory，不自动解决quadratic
+    work或有效reasoning。
+  - Multimodal分布式训练的第一约束是alignment。 算得快但modalities错配，结果仍错误。
+  - Agentic distribution受critical path和side effects控制。 Fan-out越大并不等于更快或更正确。
+  - 越新的领域越要把机制和claim分层。 Mechanism可迁移，API/benchmark/fleet数字必须versioned验证。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念辨析
+  question: 原文如何解释「16.1 Architecture and MoE」？
+  answer: 误区：MoE total parameters大，所以每token FLOPs同样大。 纠正：active experts决定主要FFN compute；router、dispatch和memory仍有成本。
+  source_heading: 16.1 Architecture and MoE
+- level: 概念辨析
+  question: 原文如何解释「16.2 Edge and inference」？
+  answer: 误区：Advertised million-token context代表model能有效使用所有tokens。 纠正：window、systems
+    capacity和retrieval/reasoning quality是三件事。
+  source_heading: 16.2 Edge and inference
+- level: 概念辨析
+  question: 原文如何解释「16.3 Parallelism and reliability」？
+  answer: 误区：Sequence parallelism和context parallelism同义。 纠正：Megatron SP常切非attention
+    activations；CP切attention context。
+  source_heading: 16.3 Parallelism and reliability
+- level: 概念辨析
+  question: 原文如何解释「16.4 Multimodal, federated, and agents」？
+  answer: 误区：保存完整reasoning trace是debug最佳实践。 纠正：可能泄露private chain-of-thought、PII和secrets；保存audit
+    events和verifiable summaries。
+  source_heading: 16.4 Multimodal, federated, and agents
+- level: 概念辨析
+  question: 原文如何解释「16.5 Economics and evidence」？
+  answer: 误区：Cloud hourly price和owned GPU hourly depreciation可直接比较。 纠正：utilization、network、staff、lead
+    time和risk boundary不同。
+  source_heading: 16.5 Economics and evidence

@@ -1,0 +1,217 @@
+source:
+  post: _posts/book-notes/distributed-system/design-data-intensive-application/2026-08-05-ddia-2e-ch10-consistency-consensus.md
+  body_sha256: e42ddc91682e6e595ee0642804d721ddb3e04292982c0412ded864922993f906
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 24
+  question: 原文围绕「0. 本章定位：复制带来容错，也带来“哪一份是真”的问题」建立了怎样的核心认识？
+  question_source: 0. 本章定位：复制带来容错，也带来“哪一份是真”的问题
+  thesis: sequential consistency保 program order却不保 external real time，因此弱于 linearizability。
+  thesis_source: 8. 核心结论
+  concepts:
+  - term: 0. 本章定位：复制带来容错，也带来“哪一份是真”的问题
+    meaning: eventual consistency 让 application 看见 replication：developer 处理 stale
+      values、siblings、conflict merge 与 session guarantees。multi-leader、leaderless、offline-first
+      常采用该路线。
+    source_heading: 0. 本章定位：复制带来容错，也带来“哪一份是真”的问题
+  - term: 2. ID Generators and Logical Clocks
+    meaning: distributed ID generation的核心取舍是 coordination与 ordering。UUID/shard/block方案高可用local生成，却不提供
+      causal/real-time order；Lamport/HLC用message propagation保证 happens-before-compatible
+      total order，仍非 linearizable。
+    source_heading: 2. ID Generators and Logical Clocks
+  - term: 6. 知识结构与证据地图
+    meaning: guarantee必须标 scope：single key、transaction、shard、region、whole cluster，及
+      read mode。per-shard linearizable log不自动给 cross-shard snapshot；linearizable metadata不自动使
+      external object store writes fenced。
+    source_heading: 6. 知识结构与证据地图
+  - term: 7. 综合案例：全球票务系统的最后一个座位
+    meaning: test clients记录 invocation/response及 request/seat IDs，在 leader kill、partition、pause中并发
+      reserve/read/cancel。checker验证每 seat history能放置合法 linearization points，尤其禁止：success后
+      later read FREE、两个 success owners、confirmed sale被覆盖。
+    source_heading: 7. 综合案例：全球票务系统的最后一个座位
+  - term: 10.1 References [1]–[30]
+    meaning: 'Peter Bailis, Aaron Davidson, Alan Fekete, Ali Ghodsi, Joseph M. Hellerstein,
+      and Ion Stoica. “Highly Available Transactions: Virtues and Limitations.” PVLDB,
+      7(3):181–192, November 2013. doi:10.14778/2732232.2732237'
+    source_heading: 10.1 References [1]–[30]
+  - term: 10.3 References [61]–[94]
+    meaning: 'Mahesh Balakrishnan, Dahlia Malkhi, Ted Wobber, Ming Wu, Vijayan Prabhakaran,
+      Michael Wei, John D. Davis, Sriram Rao, Tao Zou, and Aviad Zuck. “Tango: Distributed
+      Data Structures over a Shared Log.” SOSP, November 2013. doi:10.1145/2517349.2522732'
+    source_heading: 10.3 References [61]–[94]
+  logic:
+  - 0. 本章定位：复制带来容错，也带来“哪一份是真”的问题
+  - 2. ID Generators and Logical Clocks
+  - 4. Summary：从 single-copy illusion 到 fault-tolerant agreement
+  - 7. 综合案例：全球票务系统的最后一个座位
+  - 8. 核心结论
+  - 10.2 References [31]–[60]
+  - 10.3 References [61]–[94]
+  sections:
+  - title: 0. 本章定位：复制带来容错，也带来“哪一份是真”的问题
+    source_heading: 0. 本章定位：复制带来容错，也带来“哪一份是真”的问题
+    paragraphs:
+    - eventual consistency 让 application 看见 replication：developer 处理 stale values、siblings、conflict
+      merge 与 session guarantees。multi-leader、leaderless、offline-first 常采用该路线。
+    - offline editing 必然允许 divergent local states，eventual/merge model自然；同 datacenter
+      fast reliable links、hard uniqueness/leader election则 strong consistency常更合适。
+    - network partition、unbounded delay 与 node failure 使某些 guarantee组合不可能。linearizability
+      会牺牲 latency/availability；consensus liveness 依赖 timing/fault assumptions。
+    - 正常网络下错误 algorithm 也可能长期表现良好；unlucky message order、pause、leader failover才暴露 data
+      loss/split brain。正确实现需 theory、formal model、deterministic/fault testing。
+  - title: 1. Linearizability
+    source_heading: 1. Linearizability
+    paragraphs:
+    - B read request先发，D write0后发，A write1再发；若 intervals overlap，database可按 D→A→B
+      执行，使 B 返回1。send order不构成 real-time precedence，只有 response-before-next-invocation
+      才强制 order。
+    - read-after-write、monotonic reads、consistent prefix 等比 linearizability弱，分别防部分
+      anomaly。linearizability包含这些 recency/order guarantees，并增加跨 clients real-time
+      single-copy behavior。
+    - Oracle Real Application Clusters（RAC）在 shared-disk cluster 中对 disk pages使用 distributed
+      locks。locks处于 transaction critical path，通常需要 dedicated low-latency cluster interconnect。
+    - Attiya–Welch result表明 linearizable read/write response time至少与 network delay
+      uncertainty成比例。直觉：node若不知道 earlier operation是否已生效，就必须等待 enough communication消除
+      ambiguity。
+  - title: 2. ID Generators and Logical Clocks
+    source_heading: 2. ID Generators and Logical Clocks
+    paragraphs:
+    - 适合：event ordering、LWW replacement with causality-safe order、MVCC IDs、deterministic
+      tie-break、replication log metadata。不能单独解决 fresh read、unique claim或 fault-tolerant
+      consensus。
+    - distributed ID generation的核心取舍是 coordination与 ordering。UUID/shard/block方案高可用local生成，却不提供
+      causal/real-time order；Lamport/HLC用message propagation保证 happens-before-compatible
+      total order，仍非 linearizable。
+    - logical clocks解决：causality-consistent ordering。linearizable ID解决：real-time ordered
+      allocation。它们都不单独解决：fault-tolerant knowledge that decision is final。
+    - ID generation从 unique逐步增强到 causal order、real-time order，每增强一层就增加 communication/clock
+      assumptions。Lamport/HLC适合 decentralized ordering，vector clock检测 concurrency，TSO/TrueTime提供
+      linearizable timestamps。
+  - title: 4. Summary：从 single-copy illusion 到 fault-tolerant agreement
+    source_heading: 4. Summary：从 single-copy illusion 到 fault-tolerant agreement
+    paragraphs:
+    - fault-tolerant replicated system如何给 application强 consistency？答案不是“所有 replicas永远同步”，而是精确定义
+      observable history，再用 consensus让 nodes对 authoritative operation sequence达成 agreement。
+    - ZooKeeper/etcd把 consensus包装成 locks、leases、fencing、sessions、notifications，适合
+      small/slow-changing distributed control state。使用成熟 service减少自制 protocol风险，但
+      application仍须正确使用 fencing/reconnect semantics。
+    - 1980s以来的 consensus、failure detectors、partial synchrony与 quorum theory让 systems能在第
+      9 章 faults下保持 data safety。理论不是脱离实践，而是划清哪些 guarantees在何种 assumptions下可实现。
+    - 若业务允许 stale reads/concurrent writes/merge，leaderless或 multi-leader replication可获得更高
+      local availability与 lower latency；logical clocks帮助追踪 causality/conflicts。
+  - title: 6. 知识结构与证据地图
+    source_heading: 6. 知识结构与证据地图
+    paragraphs:
+    - 逆命题通常不成立：total order label不推出 consensus；same final state不推出每次 read linearizable。
+    - testing可找 counterexample，不能凭有限 successful runs证明所有 executions；proof/model与implementation
+      tests互补。
+    - guarantee必须标 scope：single key、transaction、shard、region、whole cluster，及 read
+      mode。per-shard linearizable log不自动给 cross-shard snapshot；linearizable metadata不自动使
+      external object store writes fenced。
+    - 若 intersection member durable保留 highest epoch/accepted value，later quorum就不能合法忽略
+      earlier decision。该结论还依赖 vote/recovery rules，不能只看集合算术。
+  - title: 7. 综合案例：全球票务系统的最后一个座位
+    source_heading: 7. 综合案例：全球票务系统的最后一个座位
+    paragraphs:
+    - 若 inventory与 internal ledger位于两个支持 transactions的 shards，且 requirement是二者 exact
+      all-or-nothing，可用 fault-tolerant transaction coordinator + atomic commitment。若允许
+      temporary HELD与refund，则 saga可降低 coordination scope。
+    - test clients记录 invocation/response及 request/seat IDs，在 leader kill、partition、pause中并发
+      reserve/read/cancel。checker验证每 seat history能放置合法 linearization points，尤其禁止：success后
+      later read FREE、两个 success owners、confirmed sale被覆盖。
+    - malicious voter、majority durable log同时丢失、provider违反 idempotency contract、operator强开两个
+      independent clusters都超出 assumptions。处理策略是 fail closed、freeze affected inventory、保留
+      audit evidence并人工 reconciliation，而非猜 winner。
+    - 最后一座位由 consensus log order决定，而非 UUID、wall clock或最快 arrival猜测。linearizable commit给
+      unique owner；stable request ID处理 unknown outcome；generation/fencing隔离 zombie；idempotent
+      saga跨越不支持 transaction的 payment boundary。
+  - title: 8. 核心结论
+    source_heading: 8. 核心结论
+    paragraphs:
+    - fault-tolerant linearizable ID/timestamp oracle需要 centralized durable allocator或
+      replicated consensus/clock-uncertainty protocol。
+    - single-value consensus、linearizable CAS、shared log/total order broadcast和 fault-tolerant
+      atomic commitment可相互归约。
+    - coordination services把 consensus用于 small control state；locks/leases只有配 resource-side
+      fencing才保护 external effects。
+    - 正确选择从 invariant出发：只对必须 unique/linearizable的 path协调，其余 path可用 caching、logical
+      clocks、merge与idempotency，并以 history/model/fault tests验证声明。
+  - title: 10.1 References [1]–[30]
+    source_heading: 10.1 References [1]–[30]
+    paragraphs:
+    - 'Peter Bailis, Aaron Davidson, Alan Fekete, Ali Ghodsi, Joseph M. Hellerstein,
+      and Ion Stoica. “Highly Available Transactions: Virtues and Limitations.” PVLDB,
+      7(3):181–192, November 2013. doi:10.14778/2732232.2732237'
+    - Peter Bailis, Alan Fekete, Michael J. Franklin, Ali Ghodsi, Joseph M. Hellerstein,
+      and Ion Stoica. “Coordination Avoidance in Database Systems.” PVLDB, 8(3):185–196,
+      November 2014. doi:10.14778/2735508.2735509
+    - Hagit Attiya, Amotz Bar-Noy, and Danny Dolev. “Sharing Memory Robustly in Message-Passing
+      Systems.” Journal of the ACM, 42(1):124–142, January 1995. doi:10.1145/200836.200869
+    - Christian Cachin, Rachid Guerraoui, and Luís Rodrigues. Introduction to Reliable
+      and Secure Distributed Programming, 2nd edition. Springer, 2011. doi:10.1007/978-3-642-15260-3
+  - title: 10.2 References [31]–[60]
+    source_heading: 10.2 References [31]–[60]
+    paragraphs:
+    - Seth Gilbert and Nancy Lynch. “Brewer’s Conjecture and the Feasibility of Consistent,
+      Available, Partition-Tolerant Web Services.” ACM SIGACT News, 33(2):51–59, June
+      2002. doi:10.1145/564585.564601
+    - Michael J. Fischer and Alan Michael. “Sacrificing Serializability to Attain
+      High Availability of Data in an Unreliable Network.” PODS, March 1982. doi:10.1145/588111.588124
+    - 'Peter Sewell, Susmit Sarkar, Scott Owens, Francesco Zappa Nardelli, and Magnus
+      O. Myreen. “x86-TSO: A Rigorous and Usable Programmer’s Model for x86 Multiprocessors.”
+      Communications of the ACM, 53(7):89–97, July 2010. doi:10.1145/1785414.1785443'
+    - Manuel Bravo, Nuno Diegues, Jingna Zeng, Paolo Romano, and Luís Rodrigues. “On
+      the Use of Clocks to Enforce Consistency in the Cloud.” IEEE Data Engineering
+      Bulletin, 38(1):18–31, March 2015.
+  - title: 10.3 References [61]–[94]
+    source_heading: 10.3 References [61]–[94]
+    paragraphs:
+    - 'Robbert van Renesse, Nicolas Schiper, and Fred B. Schneider. “Vive la Différence:
+      Paxos vs. Viewstamped Replication vs. Zab.” IEEE Transactions on Dependable
+      and Secure Computing, 12(4):472–484, September 2014. doi:10.1109/TDSC.2014.2355848'
+    - 'Shehar Bano, Alberto Sonnino, Mustafa Al-Bassam, Sarah Azouvi, Patrick McCorry,
+      Sarah Meiklejohn, and George Danezis. “SoK: Consensus in the Age of Blockchains.”
+      AFT, October 2019. doi:10.1145/3318041.3355458'
+    - 'Alexander Thomson, Thaddeus Diamond, Shu-Chun Weng, Kun Ren, Philip Shao, and
+      Daniel J. Abadi. “Calvin: Fast Distributed Transactions for Partitioned Database
+      Systems.” SIGMOD, May 2012. doi:10.1145/2213836.2213838'
+    - 'Mahesh Balakrishnan, Dahlia Malkhi, Ted Wobber, Ming Wu, Vijayan Prabhakaran,
+      Michael Wei, John D. Davis, Sriram Rao, Tao Zou, and Aviad Zuck. “Tango: Distributed
+      Data Structures over a Shared Log.” SOSP, November 2013. doi:10.1145/2517349.2522732'
+  takeaways:
+  - 底层 model限制可实现 guarantees；上层 invariant不能脱离下层 assumptions成立。
+  - new leader怎样继承 accepted/committed values；
+  - linearizability要求 operations像作用于 single copy且尊重 non-overlapping real-time order。
+  - vector clock可表达 partial order/concurrency，metadata成本随 participants增长。
+  - 正确选择从 invariant出发：只对必须 unique/linearizable的 path协调，其余 path可用 caching、logical clocks、merge与idempotency，并以
+    history/model/fault tests验证声明。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念辨析
+  question: 原文如何解释「5.1 “strong consistency 是明确 guarantee”」？
+  answer: 错误。它可能指 linearizability、sequential consistency、serializability、session guarantees等。必须写出
+    history constraints/API scope。
+  source_heading: 5.1 “strong consistency 是明确 guarantee”
+- level: 概念辨析
+  question: 原文如何解释「5.10 “FLP 证明 consensus 永远不可能”」？
+  answer: 错误。FLP只说 deterministic asynchronous algorithm在允许 crash时不能保证所有 schedules
+    termination；partial synchrony/timeouts或 randomization可取得 practical progress。
+  source_heading: 5.10 “FLP 证明 consensus 永远不可能”
+- level: 概念辨析
+  question: 原文如何解释「5.18 “consensus 只是 leader election”」？
+  answer: 错误。election只建立 epoch authority；每 log entry仍需 quorum confirmation，new leader还必须恢复
+    committed prefix。
+  source_heading: 5.18 “consensus 只是 leader election”
+- level: 概念辨析
+  question: 原文如何解释「5.25 “增加 consensus voters 可提高 write throughput”」？
+  answer: 通常错误。每 entry需更多 communication，latency可能上升。throughput scaling多靠 partition成多个
+    independent consensus groups，不是无限扩大一个 group。
+  source_heading: 5.25 “增加 consensus voters 可提高 write throughput”
+- level: 概念辨析
+  question: 原文如何解释「5.33 误区背后的统一问题」？
+  answer: 这些错误都把一种局部 evidence（quorum count、timestamp、timeout、leader label、lock record）误当
+    global truth。正确做法是明确：observable property、system model、proof assumptions、authority
+    generation和 enforcement boundary。
+  source_heading: 5.33 误区背后的统一问题

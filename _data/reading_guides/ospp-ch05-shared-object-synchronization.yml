@@ -1,0 +1,151 @@
+source:
+  post: _posts/book-notes/operating-system/ospp/2026-08-02-ospp-ch05-shared-object-synchronization.md
+  body_sha256: 8a7236974f2cd3655d5d29a491bab80961b608367e72f4304299c1b54784568d
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 10
+  question: 原文围绕「全章主线」建立了怎样的核心认识？
+  question_source: 全章主线
+  thesis: handler 无法像普通 monitor 方法一样取得可能睡眠的锁。semaphore V 记住事件；无论 P/V 谁先，工作线程都能消费许可。因此硬件事件计数是
+    semaphore/专用完成量的自然场景。
+  thesis_source: 5.8 “信号量有害论”
+  concepts:
+  - term: 全章主线
+    meaning: 伪代码、证明、C/C++ 实现、内存模型与公式直接嵌入锁、条件变量和案例的论证过程，使“竞态为何出现、同步怎样缩小交错空间、对象不变量如何证明”连续呈现。
+    source_heading: 全章主线
+  - term: 5.2 结构化共享对象
+    meaning: 锁/CV 内部不能再依赖自己。现代硬件提供原子读—改—写指令：对同一内存字的“读取、计算、写回”作为不可分整体；其他处理器操作只能全部在前或全部在后。
+    source_heading: 5.2 结构化共享对象
+  - term: 5.5 设计与实现共享对象
+    meaning: 最简单规则：公共方法入口 acquire，所有 return/异常出口前 release；私有方法假定调用者已持锁，不重复 acquire
+      非递归 mutex。
+    source_heading: 5.5 设计与实现共享对象
+  - term: 5.6 三个案例
+    meaning: 等待 remover 被 signal 后只变 READY。它重新运行前，新来的 remover 可先获得锁并取走唯一元素；旧 waiter
+      回来发现仍空，再次等待。该序列可无限重复。
+    source_heading: 5.6 三个案例
+  - term: 5.9 总结与未来方向
+    meaning: Hoare 的 Communicating Sequential Processes（CSP）禁止线程直接共享数据，改用消息传递；Go 现代地同时支持
+      monitor 和 CSP 风格 channel。
+    source_heading: 5.9 总结与未来方向
+  - term: 复习检查清单
+    meaning: 能区分 race condition、C/C++ data race 与逻辑竞态；
+    source_heading: 复习检查清单
+  logic:
+  - 全章主线
+  - 5.2 结构化共享对象
+  - '5.3 锁：互斥（Locks: Mutual Exclusion）'
+  - 5.6 三个案例
+  - 5.8 “信号量有害论”
+  - 全章方法论总结
+  - 复习检查清单
+  sections:
+  - title: 全章主线
+    source_heading: 全章主线
+    paragraphs:
+    - 独立线程访问完全不同的内存时，可分别按顺序程序推理。现实中的协作线程却要共享堆对象、全局状态和设备队列；共享带来通信能力，也让结果依赖线程交错。
+    - 这牺牲一部分随意性，却把证明单位从“所有 load/store 的交错”提升为“对象方法之间的原子顺序”。
+    - 伪代码、证明、C/C++ 实现、内存模型与公式直接嵌入锁、条件变量和案例的论证过程，使“竞态为何出现、同步怎样缩小交错空间、对象不变量如何证明”连续呈现。
+    - 编译命令面向 Linux、macOS 或 WSL；当前环境没有 C/C++ 编译器，因此未做本地编译验证。
+  - title: 开篇：共享状态为何困难
+    source_heading: 开篇：共享状态为何困难
+    paragraphs:
+    - 确定、稳定复现的 bug 称 Bohrbug，通常更容易定位。并发竞态是 Heisenbug 的主要来源。
+    - 同步操作同时提供互斥/等待语义和内存顺序边界。编译器与硬件不得把受保护访问任意越过正确同步边界。
+    - 深流水 CPU 同时取指、解码、访存和计算。若后一条独立指令可先执行，就能覆盖前一条等待内存的停顿。编译器通过重排减少依赖停顿，CPU 通过写缓冲与乱序完成提高吞吐。
+    - 要求所有普通内存访问始终全局按程序顺序完成会显著损失性能。现代模型把责任分工为：普通单线程代码可优化；跨线程共享必须使用标准同步。
+  - title: 5.2 结构化共享对象
+    source_heading: 5.2 结构化共享对象
+    paragraphs:
+    - 即使当前代码通过 join 保证函数不提前返回，未来维护可能破坏隐含约束。作者建议形成习惯：跨线程共享动态对象放堆，并用清晰所有权/回收协议。
+    - 锁/CV 内部不能再依赖自己。现代硬件提供原子读—改—写指令：对同一内存字的“读取、计算、写回”作为不可分整体；其他处理器操作只能全部在前或全部在后。
+    - 典型原语有 test-and-set、exchange、compare-and-swap、fetch-add。它们通常还带内存顺序语义。
+    - 本章中段研究如何用锁/CV 建共享对象，后段研究用禁中断和原子读—改—写实现锁/CV。第 6 章再处理跨多个共享对象的原子性、争用和死锁。
+  - title: '5.3 锁：互斥（Locks: Mutual Exclusion）'
+    source_heading: '5.3 锁：互斥（Locks: Mutual Exclusion）'
+    paragraphs:
+    - 程序把锁与一组共享状态关联，并规定：访问这些状态必须持锁。于是持锁线程可完成任意多步更新，其他线程只能看到临界区之前或之后的状态，看不到中间不一致状态。
+    - 账户同时维护交易列表和总余额。新增交易必须：追加记录、读旧余额、计算并写新余额。若查询在线程更新中间运行，可能看到“列表已有交易但余额未变”。
+    - 刚 acquire 后，状态是初始值或上一持锁者 release 前留下的完整值，不变量成立。当前方法可暂时打破字段间关系，但必须在 release 前恢复。
+    - 不持锁时，另一线程可能正执行更新中间步骤，观察者不能读取字段并声称不变量成立。即使“不变量在 release 前成立”，release 后下一线程立刻可改字段。
+  - title: 5.5 设计与实现共享对象
+    source_heading: 5.5 设计与实现共享对象
+    paragraphs:
+    - 作者强调：并发代码不仅要“碰巧正确”，还必须简单到下一位维护者能看懂为何正确。并发测试无法穷举调度，因此设计清晰度本身是可靠性机制。
+    - 最简单规则：公共方法入口 acquire，所有 return/异常出口前 release；私有方法假定调用者已持锁，不重复 acquire 非递归 mutex。
+    - 条件变量数量是可读性与唤醒效率权衡：每谓词一条 CV 通常更清晰；资源组合很多时，为每组合建 CV 可能指数增长，单 CV + broadcast 更简单。
+    - CV 的意义来自锁保护的谓词。持锁检查、改变状态并 signal，才能让状态与等待队列之间没有 lost wakeup 窗口。
+  - title: 5.6 三个案例
+    source_heading: 5.6 三个案例
+    paragraphs:
+    - 模型检查可先验证共享字段无未加锁访问，再枚举同步操作顺序，而不必在持锁临界区每条指令处抢占。状态空间仍可能很大，但比任意 load/store 交错小得多。
+    - 固定 n 的 barrier 假设每一代所有线程都调用一次。某线程崩溃、提前返回或漏调用，会让其他线程永久等待；健壮实现需超时、取消或动态参与者协议。
+    - 等待 remover 被 signal 后只变 READY。它重新运行前，新来的 remover 可先获得锁并取走唯一元素；旧 waiter 回来发现仍空，再次等待。该序列可无限重复。
+    - 把等待节点按栈组织可得 LIFO；按优先级队列可得优先调度。Mesa 语义把顺序策略放在共享对象中，比为每种顺序重写 CV 底层实现更灵活。
+  - title: 5.8 “信号量有害论”
+    source_heading: 5.8 “信号量有害论”
+    paragraphs:
+    - handler 无法像普通 monitor 方法一样取得可能睡眠的锁。semaphore V 记住事件；无论 P/V 谁先，工作线程都能消费许可。因此硬件事件计数是
+      semaphore/专用完成量的自然场景。
+    - 即使允许查看内部队列，wait 在 release 锁后、调用 P 前有窗口。signaler 看到队列空而不 V；waiter 随后 P 永久睡眠。wait
+      必须原子释放锁并登记等待。
+    - 仍错误：第一 waiter release 后被 signal；第三线程抢先调用 wait/P，消费了本应唤醒第一 waiter 的 semaphore
+      许可。通知没有绑定特定 waiter。
+    - monitor lock 保护队列。signal 精确选择登记在先的 waiter，后来的线程不能偷走许可。真实代码要保证局部 semaphore 生命周期跨越等待，并处理取消/异常。
+  - title: 5.9 总结与未来方向
+    source_heading: 5.9 总结与未来方向
+    paragraphs:
+    - Linux 案例展示 acquire/release 快路径可各约两条关键指令，合计约四条。为避免锁而写脆弱双检/无锁代码，若没有争用和 profiling
+      证据，往往收益极小、风险巨大。
+    - Hoare 与 Brinch Hansen 在 1970 年代初分别提出 monitor：用锁和条件变量管理共享数据。早期优势之一是可形式证明并发性质。
+    - 1980 年代初，Alto 系统软件全面使用线程（当时称轻量进程）和 monitor；本章方法源自其大规模实践。当时主流 UNIX 仍大量使用 semaphore，这种结构化方法很激进。
+    - Hoare 的 Communicating Sequential Processes（CSP）禁止线程直接共享数据，改用消息传递；Go 现代地同时支持
+      monitor 和 CSP 风格 channel。
+  - title: 全章方法论总结
+    source_heading: 全章方法论总结
+    paragraphs:
+    - 锁回答“谁能看/改状态”；CV 回答“状态不满足时怎样睡眠并在可能变化后重试”。把两种职责混为一个 semaphore 值会降低可读性。
+    - Mesa signal 不承诺立即执行或谓词仍真。while 让正确性只依赖当前锁内状态，不依赖通知历史和调度时机。
+    - 一对象一锁、方法边界持锁、broadcast 保守唤醒通常容易证明。只有 profiling 显示争用后才引入 RWLock、细粒度锁、快路径或自旋。
+    - 锁/CV 实现必须原子协调对象等待队列和调度器 ready 队列。单核短暂禁中断，多核用原子 RMW + spinlock；复杂等待移到 queueing
+      mutex。
+  - title: 复习检查清单
+    source_heading: 复习检查清单
+    paragraphs:
+    - 能区分 race condition、C/C++ data race 与逻辑竞态；
+    - 能定义 CV wait/signal/broadcast 和“无记忆”；
+    - 能构造 unlock 后 wait 的 lost wakeup 反例；
+    - 能比较禁中断、spinlock 和 queueing mutex 的适用范围；
+  takeaways:
+  - 编译命令面向 Linux、macOS 或 WSL；当前环境没有 C/C++ 编译器，因此未做本地编译验证。
+  - 本章中段研究如何用锁/CV 建共享对象，后段研究用禁中断和原子读—改—写实现锁/CV。第 6 章再处理跨多个共享对象的原子性、争用和死锁。
+  - 把等待节点按栈组织可得 LIFO；按优先级队列可得优先调度。Mesa 语义把顺序策略放在共享对象中，比为每种顺序重写 CV 底层实现更灵活。
+  - Hoare 的 Communicating Sequential Processes（CSP）禁止线程直接共享数据，改用消息传递；Go 现代地同时支持 monitor
+    和 CSP 风格 channel。
+  - 能比较禁中断、spinlock 和 queueing mutex 的适用范围；
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念辨析
+  question: 原文如何解释「易混淆概念与常见误解」？
+  answer: C/C++ volatile 主要约束特定优化/设备访问，不建立原子性或 happens-before。线程共享使用 mutex/atomic。
+  source_heading: 易混淆概念与常见误解
+- level: 边界判断
+  question: 原文如何解释「5.2 结构化共享对象」？
+  answer: 锁/CV 内部不能再依赖自己。现代硬件提供原子读—改—写指令：对同一内存字的“读取、计算、写回”作为不可分整体；其他处理器操作只能全部在前或全部在后。
+  source_heading: 5.2 结构化共享对象
+- level: 关系解释
+  question: 原文如何解释「5.5 设计与实现共享对象」？
+  answer: 最简单规则：公共方法入口 acquire，所有 return/异常出口前 release；私有方法假定调用者已持锁，不重复 acquire 非递归
+    mutex。
+  source_heading: 5.5 设计与实现共享对象
+- level: 关系解释
+  question: 原文如何解释「5.9 总结与未来方向」？
+  answer: Hoare 的 Communicating Sequential Processes（CSP）禁止线程直接共享数据，改用消息传递；Go 现代地同时支持
+    monitor 和 CSP 风格 channel。
+  source_heading: 5.9 总结与未来方向
+- level: 概念复述
+  question: 原文如何解释「复习检查清单」？
+  answer: 能区分 race condition、C/C++ data race 与逻辑竞态；
+  source_heading: 复习检查清单

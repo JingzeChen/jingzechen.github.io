@@ -1,0 +1,150 @@
+source:
+  post: _posts/book-notes/distributed-system/understanding-distributed-system/2026-08-16-understanding-distributed-systems-2e-ch09-leader-election.md
+  body_sha256: 817bf3c4b85291ffac440e24090ed9f4a6349d21af97363f2d6361a4dce2016f
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 9
+  question: 原文围绕「0. 本章定位：把特殊权力安全地交给一个进程」建立了怎样的核心认识？
+  question_source: 0. 本章定位：把特殊权力安全地交给一个进程
+  thesis: Leader election 同时追求 safety 与 liveness。 同一 term 至多一位 elected leader；满足多数可达和最终及时等前提时，选举最终完成。
+  thesis_source: 22. 核心结论
+  concepts:
+  - term: 0. 本章定位：把特殊权力安全地交给一个进程
+    meaning: 原章用“at most one leader at any given time”建立目标。Raft 选举的精确安全性质是每个 term
+      至多一位被选出的 leader。旧 term leader 因网络分区或长暂停，可能暂时不知道新 term 已产生，仍在本地自认为 leader。
+    source_heading: 0. 本章定位：把特殊权力安全地交给一个进程
+  - term: 3. Term：选举轮次也是逻辑时间
+    meaning: 任何节点收到更高 term 的有效 Raft 消息时，应更新 current term 并成为 follower。原章特别指出：candidate
+      收到 term 大于等于自身的 leader heartbeat 时接受该 leader；leader 收到更高 term 也退位。
+    source_heading: 3. Term：选举轮次也是逻辑时间
+  - term: 9. Safety 与 liveness 的前提边界
+    meaning: 若节点重启忘记票、两个网络分区使用不同成员配置，简单多数交集证明可能失效。
+    source_heading: 9. Safety 与 liveness 的前提边界
+  - term: 11. Practical considerations：实践中不要轻易重写选举
+    meaning: 现实中很少需要从零实现 leader election。分布式选举包含持久化、成员变化、消息重放、时序和崩溃窗口，错误可能产生双 leader
+      或永久无 leader。
+    source_heading: 11. Practical considerations：实践中不要轻易重写选举
+  - term: 16. Fencing token：让每代 leader 的权限单调递增
+    meaning: token 放在客户端内存但资源端不校验，毫无保护作用。安全边界在共享资源的条件写处。
+    source_heading: 16. Fencing token：让每代 leader 的权限单调递增
+  - term: 23. 从本章提炼出的通用解题方法
+    meaning: 注入 split vote、丢 heartbeat、长 pause、时钟调整、lease store 分区、重复 vote response、旧
+      leader 迟到写。目标不只是“快速选新 leader”，而是任何误判下仍拒绝 stale 副作用。
+    source_heading: 23. 从本章提炼出的通用解题方法
+  logic:
+  - 0. 本章定位：把特殊权力安全地交给一个进程
+  - 3. Term：选举轮次也是逻辑时间
+  - 6. Candidate 的三种结果
+  - 11. Practical considerations：实践中不要轻易重写选举
+  - 13. CAS + TTL：获取和续租 leader lease
+  - 18. Leader 的成本
+  - 23. 从本章提炼出的通用解题方法
+  sections:
+  - title: 0. 本章定位：把特殊权力安全地交给一个进程
+    source_heading: 0. 本章定位：把特殊权力安全地交给一个进程
+    paragraphs:
+    - 若所有节点都能同时执行这些操作，会出现竞争、重复分配或冲突写。leader election 从候选进程中选出一个负责人；它保持角色直到主动放弃或被认为不可用，随后其余进程重新选举。
+    - Safety 是“坏事不发生”，liveness 是“好事最终发生”。一个永远不选 leader 的算法可能满足 safety，却不满足 liveness。
+    - 原章用“at most one leader at any given time”建立目标。Raft 选举的精确安全性质是每个 term 至多一位被选出的
+      leader。旧 term leader 因网络分区或长暂停，可能暂时不知道新 term 已产生，仍在本地自认为 leader。
+    - Raft 协议中的 term、消息校验和多数派提交限制旧 leader 的有效影响；若 leader 直接操作协议外共享资源，则还需要 fencing
+      或 conditional write。角色认知可以重叠，有效授权不能重叠。
+  - title: 2.2 Candidate
+    source_heading: 2.2 Candidate
+    paragraphs:
+    - election timeout 到期；
+    - current term 加 1；
+    - 向所有其他进程发送 RequestVote；
+    - 等待获胜、发现其他 leader 或本轮超时。
+  - title: 3. Term：选举轮次也是逻辑时间
+    source_heading: 3. Term：选举轮次也是逻辑时间
+    paragraphs:
+    - 节点看到更高 term，就知道自己的领导权、候选资格或消息已经陈旧。term 类似单调 epoch，把旧领导者和旧消息隔离在过去世代。
+    - 若节点重启后忘记本 term 已投票，可能在同一 term 给第二位 candidate 投票，破坏 election safety。
+    - 任何节点收到更高 term 的有效 Raft 消息时，应更新 current term 并成为 follower。原章特别指出：candidate 收到
+      term 大于等于自身的 leader heartbeat 时接受该 leader；leader 收到更高 term 也退位。
+    - candidate 收到同 term 的合法 leader AppendEntries：接受本 term leader并退为 follower；
+  - title: 6. Candidate 的三种结果
+    source_heading: 6. Candidate 的三种结果
+    paragraphs:
+    - 随后立即/周期发送 heartbeat，向其他节点宣布领导权并阻止新选举。
+    - candidate 可能因长 GC pause 停顿。恢复时，其他 candidate 已获胜。
+    - split vote 的结果是没有 leader，而不是两个 leader。它影响 liveness，不影响 election safety。
+  - title: 9. Safety 与 liveness 的前提边界
+    source_heading: 9. Safety 与 liveness 的前提边界
+    paragraphs:
+    - 每节点每 term 至多投一票并持久化；
+    - 节点遵守 crash-recovery 而非 Byzantine 模型。
+    - 若节点重启忘记票、两个网络分区使用不同成员配置，简单多数交集证明可能失效。
+    - 完整 Raft 中候选日志满足投票资格。
+  - title: 11. Practical considerations：实践中不要轻易重写选举
+    source_heading: 11. Practical considerations：实践中不要轻易重写选举
+    paragraphs:
+    - 现实中很少需要从零实现 leader election。分布式选举包含持久化、成员变化、消息重放、时序和崩溃窗口，错误可能产生双 leader 或永久无
+      leader。
+    - 只有零外部依赖等特殊约束，才可能值得自实现；原章预告后续复制场景会遇到这种情况。
+    - linearizable compare-and-swap；
+    - 例如 etcd/Consul/ZooKeeper 等系统提供的具体原语不同；选型时要验证其一致性与租约语义，而不是看到“CAS API”就假设安全。
+  - title: 13. CAS + TTL：获取和续租 leader lease
+    source_heading: 13. CAS + TTL：获取和续租 leader lease
+    paragraphs:
+    - 没有 TTL，holder 崩溃后 key 永久占用，需要人工删除。TTL 让所有权在缺少续租时自动释放，提供 liveness。
+    - 让协调存储管理 lease/TTL 通常更安全，因为权威时间和状态在同一系统内。
+  - title: 16. Fencing token：让每代 leader 的权限单调递增
+    source_heading: 16. Fencing token：让每代 leader 的权限单调递增
+    paragraphs:
+    - token 放在客户端内存但资源端不校验，毫无保护作用。安全边界在共享资源的条件写处。
+    - 旧 owner 若重新读取到最新 resource version，单靠 version CAS 仍可能成功写；它没有直接证明该 owner 的 lease
+      世代仍有效；
+    - fencing token 必须由成功获取新一代所有权的权威协调系统单调产生，不能把任意资源 revision 或本地 term 直接当作有效 token；
+    - 某些系统经过专门设计，可以让一个权威单调 revision 同时参与资源版本与 fencing 检查，但两项语义仍需分别证明；
+  - title: 18. Leader 的成本
+    source_heading: 18. Leader 的成本
+    paragraphs:
+    - leader 可能成为 CPU、网络、磁盘或连接热点。即使 followers 很空闲，也不能突破关键串行路径。
+    - 许多分布式数据存储本来就需分区容纳超单机数据，因此使用 per-partition leader。
+    - 如果必须使用 leader，就尽量减少 leader 的工作，并准备好偶尔出现多于一个 leader。
+    - 原文更直接地说“准备好偶尔出现多于一个 leader”。这里可理解为旧进程可能仍自认为 leader，或基于 lease 的外部角色暂时重叠，而不是放弃
+      Raft 同 term election safety。有效副作用必须通过协议内的 term/quorum，或协议外资源的 conditional write/fencing，收敛为一个权威结果。
+  - title: 23. 从本章提炼出的通用解题方法
+    source_heading: 23. 从本章提炼出的通用解题方法
+    paragraphs:
+    - 能否用 partitioning、commutative operation、CRDT 或幂等任务分配避免单一协调点？leader 带来的简单性必须值得瓶颈和故障域。
+    - 获得角色不等于外部资源接受写。应由权威所有权获取操作产生单调 fencing token，并在资源端原子校验；不能简单把任意本地 term 或资源 revision
+      改名为 token。
+    - 把能并行的 data-plane 工作移出 leader；监控 leader CPU/IO/队列；大规模时按 partition 分 leader，并处理
+      rebalancing 和热点。
+    - 注入 split vote、丢 heartbeat、长 pause、时钟调整、lease store 分区、重复 vote response、旧 leader
+      迟到写。目标不只是“快速选新 leader”，而是任何误判下仍拒绝 stale 副作用。
+  takeaways:
+  - Leader 为共享资源访问和协调提供单一决策点。 它简化并发，却引入瓶颈和大故障域。
+  - 每节点每 term 最多一票，多数集合必相交。 这保证同一 term 不可能有两个 candidate 都获多数。
+  - 实践中应优先使用成熟、容错、线性一致的协调存储。 不应轻易从零实现 leader election。
+  - Fencing token 把成功获取的 leader/lease 世代变成单调权限。 资源端见过新 token 后，拒绝更低 token 的 stale
+    leader；任意 term/revision 不能未经协议绑定就充当 token。
+  - 租约存储自身必须 fault-tolerant。 它要复制状态并维持线性一致 CAS，由此引出下一章 replication。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念辨析
+  question: 原文如何解释「20.1 Leader election 与 distributed lock」？
+  answer: leader 是较长期协调角色，lock 常保护某段临界区；二者都可基于 lease，但生命周期和职责不同。无论叫什么，跨 lease 的旧操作都需要资源端保护。
+  source_heading: 20.1 Leader election 与 distributed lock
+- level: 概念辨析
+  question: 原文如何解释「20.3 Term 与 wall-clock time」？
+  answer: term 是逻辑 epoch，不是秒。term 100 不表示运行了 100 秒，只表示经历了选举世代。
+  source_heading: 20.3 Term 与 wall-clock time
+- level: 概念辨析
+  question: 原文如何解释「20.5 获得 lease 与始终持有 lease」？
+  answer: acquire 成功只证明原子点上获得 lease。之后可能暂停、过期或失联，不能把过去的成功当作当前权限。
+  source_heading: 20.5 获得 lease 与始终持有 lease
+- level: 概念辨析
+  question: 原文如何解释「20.7 一个 elected leader 与一个自认为 leader」？
+  answer: 同一 term 最多一个 candidate 获多数；旧 term 节点可能暂时自认为 leader。若资源属于该 Raft 状态机，协议日志/term
+    规则约束其效果；若是协议外资源，必须由资源端验证权威 fencing token 或等价条件，不能假设 term/quorum 自动生效。
+  source_heading: 20.7 一个 elected leader 与一个自认为 leader
+- level: 概念辨析
+  question: 原文如何解释「20.9 CAS API 与线性一致 CAS」？
+  answer: 名称叫 CAS 不够。若不同存储副本可各自成功，不能作为唯一租约权威点。必须确认一致性保证和故障语义。
+  source_heading: 20.9 CAS API 与线性一致 CAS

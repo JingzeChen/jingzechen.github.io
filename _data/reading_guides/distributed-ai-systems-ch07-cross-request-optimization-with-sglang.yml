@@ -1,0 +1,162 @@
+source:
+  post: _posts/book-notes/ai-system/distributed-ai-system/2026-08-08-distributed-ai-systems-ch07-cross-request-optimization-with-sglang.md
+  body_sha256: 0d798bea83927a2cad4c9bb9d2d26c03abfa5dd74ace1911da1e7d2caf1e44e0
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 13
+  question: 原文围绕「0. 本章要回答的核心问题」建立了怎样的核心认识？
+  question_source: 0. 本章要回答的核心问题
+  thesis: 复用线：token prefix → radix path → KV references → hit/eviction。
+  thesis_source: 23. 本章知识结构
+  concepts:
+  - term: 0. 本章要回答的核心问题
+    meaning: Radix tree怎样支持longest-prefix match、节点分裂、共享、reference count和LRU eviction？
+    source_heading: 0. 本章要回答的核心问题
+  - term: 6. Structured output decoding with XGrammar
+    meaning: 原章说“context-sensitive rules如balanced parentheses”并不严谨：平衡括号是经典context-free
+      language，不是一般context-sensitive language。XGrammar的栈机制正是处理CFG嵌套。
+    source_heading: 6. Structured output decoding with XGrammar
+  - term: 12. Multi-node SGLang deployment
+    meaning: 生产不要用循环SSH作为进程管理器；使用Kubernetes、Slurm/systemd或其他orchestrator处理restart、logs、secrets、resource
+      affinity和rolling updates。
+    source_heading: 12. Multi-node SGLang deployment
+  - term: 14. Speculative Decoding
+    meaning: Draft太大、acceptance低、batch很大或target verification不高效时可能减速。原章70～90% acceptance、2～4×是兼容model/workload的经验，不是保证。
+    source_heading: 14. Speculative Decoding
+  - term: 19. Exercises：五道练习的参考实现与分析
+    meaning: 适合：API objects、tool calls、SQL/DSL syntax、classification enums。局限：grammar
+      compilation、mask overhead、schema subset、tokenizer edge cases、semantic hallucination。最终输出仍不能未经authorization直接执行。
+    source_heading: 19. Exercises：五道练习的参考实现与分析
+  - term: 26. 复习与自测
+    meaning: 完成这些检查后，应能把“使用SGLang做跨请求优化”改写成一个可验证系统设计：哪些token prefix构成合法cache key、KV由谁持有和淘汰、CPU/GPU工作怎样重叠、router为何选择某个worker、PD
+      transfer是否值得、模型与expert怎样分片、失败后哪些state可恢复，以及每项优化究竟改善了TTFT、TPOT、goodput还是成本。
+    source_heading: 26. 复习与自测
+  logic:
+  - 0. 本章要回答的核心问题
+  - 6. Structured output decoding with XGrammar
+  - 9. Router-based distributed architecture
+  - 14. Speculative Decoding
+  - 17.2 PD with Mooncake
+  - 23. 本章知识结构
+  - 26. 复习与自测
+  sections:
+  - title: 0. 本章要回答的核心问题
+    source_heading: 0. 本章要回答的核心问题
+    paragraphs:
+    - PagedAttention的block table与RadixAttention的radix tree分别解决什么问题？
+    - Radix tree怎样支持longest-prefix match、节点分裂、共享、reference count和LRU eviction？
+    - Operator fusion减少的是kernel launch、global-memory traffic还是模型FLOPs？
+    - Cache-aware、shortest-queue、round-robin和power-of-two choices分别适合什么流量？
+  - title: 3. Overview of the SGLang architecture
+    source_heading: 3. Overview of the SGLang architecture
+    paragraphs:
+    - 注意“Finished”不等于KV立即全释放：可复用prefix可能进入radix cache；active request引用必须释放，但cache-owned节点可保留到eviction。
+    - Router所说的一个“worker endpoint”可能背后是多GPU TP×PP group，而不一定是一张GPU。Session affinity应绑定到拥有该session
+      cache的可执行replica。
+    - Router使cache locality从单worker调度扩展到cluster placement。它不能让worker A直接使用worker B的local
+      radix cache；除非有显式remote KV transfer，命中要求请求落在持有prefix的worker。
+    - Independent workers本质是inference data-parallel replicas；
+  - title: 6. Structured output decoding with XGrammar
+    source_heading: 6. Structured output decoding with XGrammar
+    paragraphs:
+    - 这会浪费decode tokens和model calls，且重试仍不保证成功。Constrained decoding改为在每一步采样前，只保留从当前grammar
+      state出发合法的token IDs。
+    - V 可达十万级，且token可能包含多个字符、半个UTF-8片段或跨grammar terminal边界。CPU filtering会进入decode
+      critical path。
+    - 原章说“context-sensitive rules如balanced parentheses”并不严谨：平衡括号是经典context-free language，不是一般context-sensitive
+      language。XGrammar的栈机制正是处理CFG嵌套。
+    - 这不是原模型无约束分布。约束越强，输出质量可能提高（避免格式错误），也可能把模型迫入低概率合法路径。Schema设计本身是generation policy的一部分。
+  - title: 9. Router-based distributed architecture
+    source_heading: 9. Router-based distributed architecture
+    paragraphs:
+    - Worker间无需为不同requests同步；但一个replica内部的TP/PP/EP通信不变。原章对此纠偏是关键：router消除inter-replica
+      coordination，不消除intra-model collectives。
+    - 选择pending request count最小。比round-robin适应部分变长，但request count不等于token work。更好的是queued
+      tokens或predicted service time。
+    - 误报：路由过去后worker实际miss，只损失性能；错误复用绝不能发生，因为worker仍需本地精确token match验证。Router metadata只能是placement
+      hint，不能代替SRT correctness check。
+    - Router只决定worker。Application仍需提交完整或可重建的conversation history，除非使用显式server-side
+      state API。Worker failure后KV会丢失；若应用只传最新一句，无法从KV逆推出完整prompt语义。
+  - title: 12. Multi-node SGLang deployment
+    source_heading: 12. Multi-node SGLang deployment
+    paragraphs:
+    - TP/PP/EP ranks共同完成同一requests。用于model/单layer/expert不fit单node。任何required rank失败通常导致replica不可用。
+    - 每node或小GPU group是independent endpoint，gateway分requests。用于单replica已fit且要提高QPS、cache
+      locality与fault isolation。
+    - 生产不要用循环SSH作为进程管理器；使用Kubernetes、Slurm/systemd或其他orchestrator处理restart、logs、secrets、resource
+      affinity和rolling updates。
+    - L input、M_j match、O predicted output。输出长度未知，可用distribution/upper bound；误差不可避免，因此还要admission和动态telemetry。
+  - title: 14. Speculative Decoding
+    source_heading: 14. Speculative Decoding
+    paragraphs:
+    - 采样，才能保持target distribution。原章“若不match从首个不匹配用target output”是greedy直觉，不是完整sampling算法。
+    - Target和draft需共享token ID语义、special tokens和normalization。Qwen family内组合通常更可行，但仍固定/核对tokenizer
+      revision。
+    - 参数名与支持算法（draft model、EAGLE、n-gram等）随版本变化，目标release查docs。
+    - Draft太大、acceptance低、batch很大或target verification不高效时可能减速。原章70～90% acceptance、2～4×是兼容model/workload的经验，不是保证。
+  - title: 17.2 PD with Mooncake
+    source_heading: 17.2 PD with Mooncake
+    paragraphs:
+    - Source/destination memory registration；
+    - KV payload与expected formula接近；
+    - Unified baseline在相同GPU成本下对比。
+    - Prefill:decode 2:1、3:1或1:2只是起始候选，从arrival和service demand调整。
+  - title: 19. Exercises：五道练习的参考实现与分析
+    source_heading: 19. Exercises：五道练习的参考实现与分析
+    paragraphs:
+    - 每token node保存该position的一片KV tensor；共同prefix nodes只保存一次。一个terminal cache entry代表一次完整sequence插入。LRU按terminal
+      entries淘汰，删除entry后只prune不再被其他entries共享的suffix nodes。
+    - 每个配置用fresh server/process，固定：model/tokenizer revision、dtype、quantization、parallelism、scheduler
+      limits、max context、sampling、GPU和traffic。
+    - 适合：API objects、tool calls、SQL/DSL syntax、classification enums。局限：grammar compilation、mask
+      overhead、schema subset、tokenizer edge cases、semantic hallucination。最终输出仍不能未经authorization直接执行。
+    - 每次append返回新state，旧state不变，便于branch、retry和event sourcing。Tuple虽会复制reference array，但message
+      objects共享；真正KV sharing由server radix cache完成。
+  - title: 23. 本章知识结构
+    source_heading: 23. 本章知识结构
+    paragraphs:
+    - 复用线：token prefix → radix path → KV references → hit/eviction。
+    - 流水线：CPU prepare/post → GPU batch → placeholder dependency。
+    - 路由线：session/prefix/load → replica → exact local lookup。
+    - 布局线：TP/PP/replicas/EP/DPA的weight、request和KV ownership。
+  - title: 26. 复习与自测
+    source_heading: 26. 复习与自测
+    paragraphs:
+    - Balanced brackets为什么是context-free而非一般context-sensitive例子？
+    - Sampling speculative decoding为何需要residual correction？
+    - 命中prefix预计省50 ms，但sticky worker比空闲worker多排队90 ms：净结果慢40 ms，应放弃locality。
+    - 完成这些检查后，应能把“使用SGLang做跨请求优化”改写成一个可验证系统设计：哪些token prefix构成合法cache key、KV由谁持有和淘汰、CPU/GPU工作怎样重叠、router为何选择某个worker、PD
+      transfer是否值得、模型与expert怎样分片、失败后哪些state可恢复，以及每项优化究竟改善了TTFT、TPOT、goodput还是成本。
+  takeaways:
+  - 复用线：token prefix → radix path → KV references → hit/eviction。
+  - PagedAttention和RadixAttention可组合，分别侧重allocation与prefix indexing。
+  - Fusion收益取决于roofline、shape、dtype和register pressure。
+  - RDMA减少CPU/协议开销，但不消除链路带宽、registration和tail latency。
+  - 稳定知识是prefix key、state ownership、critical path和failure semantics；CLI/defaults按版本验证。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念复述
+  question: 原文如何解释「0. 本章要回答的核心问题」？
+  answer: Radix tree怎样支持longest-prefix match、节点分裂、共享、reference count和LRU eviction？
+  source_heading: 0. 本章要回答的核心问题
+- level: 边界判断
+  question: 原文如何解释「6. Structured output decoding with XGrammar」？
+  answer: 原章说“context-sensitive rules如balanced parentheses”并不严谨：平衡括号是经典context-free
+    language，不是一般context-sensitive language。XGrammar的栈机制正是处理CFG嵌套。
+  source_heading: 6. Structured output decoding with XGrammar
+- level: 边界判断
+  question: 原文如何解释「14. Speculative Decoding」？
+  answer: Draft太大、acceptance低、batch很大或target verification不高效时可能减速。原章70～90% acceptance、2～4×是兼容model/workload的经验，不是保证。
+  source_heading: 14. Speculative Decoding
+- level: 关系解释
+  question: 原文如何解释「19. Exercises：五道练习的参考实现与分析」？
+  answer: 适合：API objects、tool calls、SQL/DSL syntax、classification enums。局限：grammar
+    compilation、mask overhead、schema subset、tokenizer edge cases、semantic hallucination。最终输出仍不能未经authorization直接执行。
+  source_heading: 19. Exercises：五道练习的参考实现与分析
+- level: 概念复述
+  question: 原文如何解释「26. 复习与自测」？
+  answer: 完成这些检查后，应能把“使用SGLang做跨请求优化”改写成一个可验证系统设计：哪些token prefix构成合法cache key、KV由谁持有和淘汰、CPU/GPU工作怎样重叠、router为何选择某个worker、PD
+    transfer是否值得、模型与expert怎样分片、失败后哪些state可恢复，以及每项优化究竟改善了TTFT、TPOT、goodput还是成本。
+  source_heading: 26. 复习与自测

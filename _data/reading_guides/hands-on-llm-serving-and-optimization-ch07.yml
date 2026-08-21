@@ -1,0 +1,179 @@
+source:
+  post: _posts/book-notes/ai-system/hands-on-llm-serving-and-optimization/2026-08-12-hands-on-llm-serving-and-optimization-ch07.md
+  body_sha256: aa40bf70a86666c04ffc6eeee5964d56ef4fc0e5a6f1b78b9ed31fad12bc202b
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 15
+  question: 原文围绕「0. 本章定位、学习目标与系统主线」建立了怎样的核心认识？
+  question_source: 0. 本章定位、学习目标与系统主线
+  thesis: 本章的总方法是：先以 proposal/verification 改变 decode 每次 target pass 的有效产出，再按 traffic、tensor、layer
+    和 expert 四个维度选择 DP/TP/PP/EP，并让高频通信匹配硬件拓扑；当 prefill/decode 干扰成为主瓶颈时，将它们拆成独立 pools，并以可计算的
+    KV bandwidth、reservation 和 overlap 构建 handoff；最后把 KV cache 作为跨 GPU、CPU、SSD 和网络的版本化对象，只有在
+    load/compress/blend 成本小于重算且质量达标时复用。
+  thesis_source: 8. 本章知识结构与核心结论
+  concepts:
+  - term: 0. 本章定位、学习目标与系统主线
+    meaning: 数据与版本说明：本章引用 2025 年末的模型、vendor price、vLLM/LMCache 参数和 benchmark。它们用于解释机制，不代表当前产品或版本保证。尤其是
+      speculative config、KV connector、cache format 和 distributed runtime 协议会变化，部署前应核对目标版本并复现实验。
+    source_heading: 0. 本章定位、学习目标与系统主线
+  - term: 1. Speculative Decoding
+    meaning: 原章以 concurrency 1 和 16 模拟低/高负载。公平比较必须固定实际 output tokens、prompt distribution、sampling、seed、warm-up、batch/token
+      budgets 和 stop；同时报告 acceptance by position、TTFT、ITL、aggregate output TPS、request
+      goodput、GPU memory 与 quality。
+    source_heading: 1. Speculative Decoding
+  - term: 3. Prefill-Decode Disaggregation
+    meaning: 接收方必须与发送方在 model revision、layer partition、KV head/layout、dtype、block
+      size、RoPE/position、parallel sharding 和 sequence ID 上一致。异构 GPU 可以不同，KV semantic/layout
+      不能不兼容；必要转换也计入 transfer overhead。
+    source_heading: 3. Prefill-Decode Disaggregation
+  - term: 4. Advanced KV Caching
+    meaning: FP8/INT8 KV quantization 是固定低位表示；CacheGen 等方法根据 KV distribution 编码更紧凑
+      bitstream。收益：更多 cache、低 transfer bytes；代价：encode/decode compute、quality、random
+      access、format/version 和 hardware kernel。
+    source_heading: 4. Advanced KV Caching
+  - term: 7. 从本章抽象出的高级优化方法
+    meaning: 先使用量化、continuous batching、Flash/PagedAttention 和 prefix cache。只有 decode
+      串行、单卡 capacity、phase interference 或 KV locality 仍主导时再增加高级系统。
+    source_heading: 7. 从本章抽象出的高级优化方法
+  - term: 8. 本章知识结构与核心结论
+    meaning: 本章的总方法是：先以 proposal/verification 改变 decode 每次 target pass 的有效产出，再按 traffic、tensor、layer
+      和 expert 四个维度选择 DP/TP/PP/EP，并让高频通信匹配硬件拓扑；当 prefill/decode 干扰成为主瓶颈时，将它们拆成独立 pools，并以可计算的
+      KV bandwidth、reservation 和 overlap 构建 handoff；最后把 KV cache 作为跨 GPU、CPU、SSD 和网络的版本化对象，只有在
+      load/compress/blend 成本小于重算且质量达标时复用。
+    source_heading: 8. 本章知识结构与核心结论
+  logic:
+  - 0. 本章定位、学习目标与系统主线
+  - 1. Speculative Decoding
+  - 2. Multi-GPU and Multi-Node Inferencing
+  - 4. Advanced KV Caching
+  - 5. Integrated Optimization Stack
+  - 7. 从本章抽象出的高级优化方法
+  - 8. 本章知识结构与核心结论
+  sections:
+  - title: 0. 本章定位、学习目标与系统主线
+    source_heading: 0. 本章定位、学习目标与系统主线
+    paragraphs:
+    - GPU KV cache 容量与局部性不足：分层 offload、compression、blending 和 global routing 扩展 cache。
+    - Speculative decoding 的 proposal、verification、accept/reject 和 residual sampling
+      如何保证目标分布不变？
+    - KV offloading 何时比 recompute 快，GPU/CPU/SSD/remote tiers 应怎样 admission 与 eviction？
+    - 数据与版本说明：本章引用 2025 年末的模型、vendor price、vLLM/LMCache 参数和 benchmark。它们用于解释机制，不代表当前产品或版本保证。尤其是
+      speculative config、KV connector、cache format 和 distributed runtime 协议会变化，部署前应核对目标版本并复现实验。
+  - title: 1. Speculative Decoding
+    source_heading: 1. Speculative Decoding
+    paragraphs:
+    - 普通 autoregressive decode 每次 target forward 只确认一个 token。Speculative decoding
+      用便宜 proposal mechanism 先产生 K 个候选，昂贵 target 用一次并行 forward 对整段候选打分；若接受多个，就把 target
+      forward 的固定权重读取/launch 摊到多个有效 token 上。
+    - 标准 speculative sampling 在 proposal/accept/residual 实现正确、draft/target tokenizer
+      和 sampling 条件兼容时，保持 target model 的输出概率分布。它不保证一次运行字面输出与普通 decode 相同，因为随机采样本来就可能不同；在耦合相同随机数和
+      deterministic greedy 规则时才可能逐 token 一致。
+    - 量化 draft 可进一步降低开销，因 target 会验证最终分布；但量化若让 draft distribution 偏差过大，acceptance
+      降低，可能得不偿失。用 target 蒸馏 draft 通常提高 alignment，但增加训练成本。
+    - 原章以 concurrency 1 和 16 模拟低/高负载。公平比较必须固定实际 output tokens、prompt distribution、sampling、seed、warm-up、batch/token
+      budgets 和 stop；同时报告 acceptance by position、TTFT、ITL、aggregate output TPS、request
+      goodput、GPU memory 与 quality。
+  - title: 2. Multi-GPU and Multi-Node Inferencing
+    source_heading: 2. Multi-GPU and Multi-Node Inferencing
+    paragraphs:
+    - 各 GPU 计算部分 output，后续通过 all-gather 或与 row-parallel 配对；row parallel 将输入/weight
+      行分片并 all-reduce partial sums。Transformer 每层 attention/MLP 常有 collective。
+    - 优点：每层权重和 compute 分给 p GPU，单请求 layer latency 可下降，pipeline bubble 少。代价：每层同步，强依赖
+      NVLink/NVSwitch；小 batch/小 shape 还可能通信和 launch 主导。
+    - Microbatches 太少或 stages 不平衡时 bubble 大。Decode 的 token dependency、variable sequence、stage
+      imbalance 和 communication 又会降低实际效率。
+    - TP×PP=8，需 8 GPUs；原章命令漏了 model positional argument，已补齐。跨 nodes 还需 Ray/launcher、placement、network/NCCL
+      和 failure coordination。
+  - title: 3. Prefill-Decode Disaggregation
+    source_heading: 3. Prefill-Decode Disaggregation
+    paragraphs:
+    - Input-heavy workload 增 prefill capacity；long-generation workload 墅 decode capacity。Decode
+      不再被长 prefill iteration 打断，ITL 更稳定。
+    - Input burst 直接冲击 prefill queue；decode load 被长时间摊开，通常更平滑。但 output length 难预测，decode
+      pool 也会积压，需 admission 和 backpressure。
+    - Controller 必须选择 compatible prefill/decode workers、reserve decode KV capacity、传播
+      request ID/cancel/deadline，并处理 handoff failure。若 prefill 完成后 decode 没空间，KV 只能等待/offload/retry，会浪费已做工作。
+    - 接收方必须与发送方在 model revision、layer partition、KV head/layout、dtype、block size、RoPE/position、parallel
+      sharding 和 sequence ID 上一致。异构 GPU 可以不同，KV semantic/layout 不能不兼容；必要转换也计入 transfer
+      overhead。
+  - title: 4. Advanced KV Caching
+    source_heading: 4. Advanced KV Caching
+    paragraphs:
+    - 若没有 offload，每个 replica 只能存一个 hot context，四 contexts 需要四 replicas；CPU tier 能让一个
+      replica 保存四份并按需 swap，原章给出理想 4× cost saving。前提是单 replica compute 足以承载总流量，swap
+      latency 满足 SLO，且不会 thrash。
+    - KV object 至少携带：model/tokenizer/adapter revision、token hash/range、layer/shard、dtype/layout、position、tenant
+      namespace、size、checksum、last access、pin/refcount 和 tier location。
+    - 需要 single-flight load、active pin、LRU/cost-aware eviction、atomic publish、corruption
+      detection、version invalidation、encryption 与 quota。不同 TP/PP sharding 的 KV object
+      不能无转换任意加载。
+    - FP8/INT8 KV quantization 是固定低位表示；CacheGen 等方法根据 KV distribution 编码更紧凑 bitstream。收益：更多
+      cache、低 transfer bytes；代价：encode/decode compute、quality、random access、format/version
+      和 hardware kernel。
+  - title: 5. Integrated Optimization Stack
+    source_heading: 5. Integrated Optimization Stack
+    paragraphs:
+    - Execution engine：vLLM/SGLang/TensorRT-LLM 调度 batch、stream、PD 和 distributed execution；
+    - Cache manager：GPU/CPU/SSD/remote KV allocation、compression、offload；
+    - Routing/orchestration：按 KV locality、queue、phase、SLO 路由并全局 autoscale。
+    - TP 提高单 replica capacity，却增加 collective，影响 PD KV topology；
+  - title: 7. 从本章抽象出的高级优化方法
+    source_heading: 7. 从本章抽象出的高级优化方法
+    paragraphs:
+    - 先使用量化、continuous batching、Flash/PagedAttention 和 prefix cache。只有 decode 串行、单卡
+      capacity、phase interference 或 KV locality 仍主导时再增加高级系统。
+    - 记录 input/output ratio、acceptance potential、model/KV bytes、batch、prefill/decode
+      compute、collective 和 cache reuse，而不是只看参数量。
+    - 由 layers、KV heads、dtype、input 和 RPS 算 bytes/s；确认 decode reservation、bandwidth、chunk/layer
+      streaming 和 overlap 后再拆 pools。
+    - Key、layout、shard、tier、tenant、refcount、checksum、TTL 和 access cost 进入 cache manager，不让
+      tensor 生命周期隐含在 worker。
+  - title: 8. 本章知识结构与核心结论
+    source_heading: 8. 本章知识结构与核心结论
+    paragraphs:
+    - Speculative decoding 用便宜 proposal 换取一次 target pass 推进多个 tokens。 净收益取决于 accepted
+      tokens 是否覆盖 draft、verification 和调度成本。
+    - KV handoff 是 PD 成败关键。 Required bandwidth 是 KV bytes/request × RPS；RDMA、chunk/layer
+      streaming、compression 和 overlap 用于降低 critical-path overhead。
+    - Cache benchmark 必须同时看 cold/warm/churn/concurrency。 LMCache 在高复用长 context 可有数量级收益，cold
+      random workload 反而有 overhead。
+    - 本章的总方法是：先以 proposal/verification 改变 decode 每次 target pass 的有效产出，再按 traffic、tensor、layer
+      和 expert 四个维度选择 DP/TP/PP/EP，并让高频通信匹配硬件拓扑；当 prefill/decode 干扰成为主瓶颈时，将它们拆成独立 pools，并以可计算的
+      KV bandwidth、reservation 和 overlap 构建 handoff；最后把 KV cache 作为跨 GPU、CPU、SSD 和网络的版本化对象，只有在
+      load/compress/blend 成本小于重算且质量达标时复用。
+  takeaways:
+  - Speculative decoding 用便宜 proposal 换取一次 target pass 推进多个 tokens。 净收益取决于 accepted
+    tokens 是否覆盖 draft、verification 和调度成本。
+  - DP、TP、PP、EP 切分维度不同。 DP 复制模型，TP 横切 tensors，PP 纵切 layers，EP 分布 MoE experts。
+  - PD disaggregation 将 phase 变成独立产品单元。 Prefill/decode 可有不同硬件、batch、parallelism 和
+    autoscaling，从而独立优化 TTFT/ITL。
+  - Offload 扩容量但增加 data movement。 只有 tier load/decompress 快于 recompute 且 reuse 足够时才有价值。
+  - 本章的总方法是：先以 proposal/verification 改变 decode 每次 target pass 的有效产出，再按 traffic、tensor、layer
+    和 expert 四个维度选择 DP/TP/PP/EP，并让高频通信匹配硬件拓扑；当 prefill/decode 干扰成为主瓶颈时，将它们拆成独立 pools，并以可计算的
+    KV bandwidth、reservation 和 overlap 构建 handoff；最后把 KV cache 作为跨 GPU、CPU、SSD 和网络的版本化对象，只有在
+    load/compress/blend 成本小于重算且质量达标时复用。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念辨析
+  question: 原文如何解释「6.1 Speculative decoding 会改变 target 质量」？
+  answer: 标准 acceptance/residual sampling 保持 target distribution；错误或简化 verification
+    才可能改变。随机样本字面文本不保证与另一次普通采样相同。
+  source_heading: 6.1 Speculative decoding 会改变 target 质量
+- level: 概念辨析
+  question: 原文如何解释「6.9 TP 是切 layers，PP 是切 tensor」？
+  answer: 正好相反。TP 横切每层 tensors；PP 纵切连续 layer stages。
+  source_heading: 6.9 TP 是切 layers，PP 是切 tensor
+- level: 概念辨析
+  question: 原文如何解释「6.16 PD 天然降低所有延迟和成本」？
+  answer: 错误。它复制 weights、传 KV、增加 queues/controller；小模型/低流量常不回本。
+  source_heading: 6.16 PD 天然降低所有延迟和成本
+- level: 概念辨析
+  question: 原文如何解释「6.21 Long-context CAG 总比 RAG 便宜」？
+  answer: 错误。Cached token 单价低但 context 巨大；原章算例 CAG 约为 RAG 1.9×，换来更低 TTFT。
+  source_heading: 6.21 Long-context CAG 总比 RAG 便宜
+- level: 概念辨析
+  question: 原文如何解释「6.27 LMCache benchmark 的 16×适用于普通聊天」？
+  answer: 错误。实验刻意使用大量重复 long prefixes；cold miss 时 LMCache 反而更慢。
+  source_heading: 6.27 LMCache benchmark 的 16×适用于普通聊天

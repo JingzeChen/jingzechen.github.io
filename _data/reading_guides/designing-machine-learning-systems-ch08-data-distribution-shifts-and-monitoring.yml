@@ -1,0 +1,162 @@
+source:
+  post: _posts/book-notes/ai-system/design-machine-learning-system/2026-08-08-designing-machine-learning-systems-ch08-data-distribution-shifts-and-monitoring.md
+  body_sha256: 41ff886c65fa4d738e18a89e46031a3cfd24418f5216d9e9e47bde66b8d1b8fd
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 13
+  question: 原文围绕「0. 本章要回答的核心问题」建立了怎样的核心认识？
+  question_source: 0. 本章要回答的核心问题
+  thesis: 监控难点不在计算一条曲线，而在解释曲线、区分 seasonality / benign shift / harmful shift / pipeline
+    bug，并把信号转成正确行动。统计知识、领域知识、血缘和 observability 都不可缺。
+  thesis_source: 5. 原章总结的完整还原
+  concepts:
+  - term: 0. 本章要回答的核心问题
+    meaning: 一句话概括：漂移检测不是看到两个分布不同就报警，而是建立证据链，判断哪项生产期望被破坏、差异来自真实世界还是内部错误、是否伤害模型与业务，以及应该由谁采取什么动作。
+    source_heading: 0. 本章要回答的核心问题
+  - term: 2. Causes of ML System Failures：ML 系统故障原因
+    meaning: 识别需要 consistency、给定已记录 context 后没有遗漏影响曝光与收益的混杂、logging propensity 正确，以及
+      positivity：目标政策可能选择的动作在旧政策下有非零概率。小 propensity 会导致高方差；clipping 是引入偏差换方差，doubly
+      robust 方法则还依赖 outcome model。
+    source_heading: 2. Causes of ML System Failures：ML 系统故障原因
+  - term: 3. Data Distribution Shifts：数据分布变化
+    meaning: 原章还列 Least-Squares Density Difference、Learned Kernel MMD。图 8-2 的 Alibi
+      Detect 列表覆盖 KS、Cramér–von Mises、Fisher exact、MMD 系列、chi-square、mixed-type tabular、classifier、spot-the-diff、classifier/regressor
+      uncertainty 等，并标示 tabular、image、time series、text、categorical、online、feature-level
+      支持。
+    source_heading: 3. Data Distribution Shifts：数据分布变化
+  - term: 5. 原章总结的完整还原
+    meaning: 监控难点不在计算一条曲线，而在解释曲线、区分 seasonality / benign shift / harmful shift / pipeline
+      bug，并把信号转成正确行动。统计知识、领域知识、血缘和 observability 都不可缺。
+    source_heading: 5. 原章总结的完整还原
+  - term: 7. 本章知识结构
+    meaning: Monitoring 负责发现，observability 负责定位，retraining / engineering 负责修复。
+    source_heading: 7. 本章知识结构
+  - term: 9. 从本章提炼出的通用漂移监控与事故响应方法
+    meaning: 每次请求关联 raw source、feature pipeline/version、model、threshold、prediction、action、feedback
+      与 label maturity。没有关联 ID 就无法根因分析。
+    source_heading: 9. 从本章提炼出的通用漂移监控与事故响应方法
+  logic:
+  - 0. 本章要回答的核心问题
+  - 1. 开篇：模型交付不是生命周期终点
+  - 3. Data Distribution Shifts：数据分布变化
+  - 4. Monitoring and Observability：监控与可观测性
+  - 5. 原章总结的完整还原
+  - 8. 核心结论
+  - 9. 从本章提炼出的通用漂移监控与事故响应方法
+  sections:
+  - title: 0. 本章要回答的核心问题
+    source_heading: 0. 本章要回答的核心问题
+    paragraphs:
+    - Statistical significance 为什么不等于 practical significance，大样本和多特征为何制造告警洪水？
+    - Monitoring 与 observability 有什么区别，instrumentation 与 telemetry 扮演什么角色？
+    - Logs、distributed tracing、dashboards、alerts 与 runbooks 怎样组成事故响应闭环？
+    - 一句话概括：漂移检测不是看到两个分布不同就报警，而是建立证据链，判断哪项生产期望被破坏、差异来自真实世界还是内部错误、是否伤害模型与业务，以及应该由谁采取什么动作。
+  - title: 1. 开篇：模型交付不是生命周期终点
+    source_heading: 1. 开篇：模型交付不是生命周期终点
+    paragraphs:
+    - 此时只能高价让原咨询公司更新、让新公司重新理解系统，或组建内部维护团队。
+    - 没有更新 ownership、数据/代码血缘和再训练能力。
+    - 部署只是把模型暴露给变化的现实；本章负责发现问题，第 9 章负责持续更新。
+    - 二者会相互伪装。Feature 突然全是 NaN 看起来像数据 shift，根因却是 pipeline bug；现实用户变化也可能先表现为 QPS 或
+      prediction distribution 变化。
+  - title: 2. Causes of ML System Failures：ML 系统故障原因
+    source_heading: 2. Causes of ML System Failures：ML 系统故障原因
+    paragraphs:
+    - Papasian 与 Underwood 在 2020 年回顾 Google 某大型 ML pipeline 15 年中的 96 次故障，其中 60 次原因并非直接
+      ML：多与分布式调度、orchestration、错误 join 和数据结构有关。
+    - 模型发现 feature X（Stanford、Google、male 等）与历史录用相关，于是只推荐 X；招聘者只面试 X，未来录用数据继续证明 X。这还包含
+      survivorship / selective labels：未被推荐者没有结果标签。
+    - Chia 等 2021 方法按历史互动量分 popularity bucket，再分别算 recommendation accuracy。若热门 bucket
+      远优于长尾，可能存在 popularity bias；也可能因为长尾标签少、质量不同，仍需进一步验证。
+    - 识别需要 consistency、给定已记录 context 后没有遗漏影响曝光与收益的混杂、logging propensity 正确，以及 positivity：目标政策可能选择的动作在旧政策下有非零概率。小
+      propensity 会导致高方差；clipping 是引入偏差换方差，doubly robust 方法则还依赖 outcome model。
+  - title: 3. Data Distribution Shifts：数据分布变化
+    source_heading: 3. Data Distribution Shifts：数据分布变化
+    paragraphs:
+    - 比较 min、max、mean、median、variance、5/25/75/95 quantile、skewness、kurtosis。原章称 2021
+      年 TensorFlow Extended 内建验证主要使用 summary statistics。
+    - Characteristic kernel 下，population MMD=0 当且仅当分布相同；有限样本 empirical MMD 即使在 H_0
+      下通常也非零，需用 permutation、bootstrap 或适用的渐近零分布校准阈值。结果高度依赖 kernel、bandwidth、样本量和计算近似。
+    - 原章还列 Least-Squares Density Difference、Learned Kernel MMD。图 8-2 的 Alibi Detect
+      列表覆盖 KS、Cramér–von Mises、Fisher exact、MMD 系列、chi-square、mixed-type tabular、classifier、spot-the-diff、classifier/regressor
+      uncertainty 等，并标示 tabular、image、time series、text、categorical、online、feature-level
+      支持。
+    - 给 source 标 0、target 标 1，训练 classifier 区分。模型选择和调参在测试集之外完成后，若独立 held-out AUC 通过
+      permutation 或适当的 AUC 检验显著高于 0.5，说明两组样本可分；feature importance 可帮助定位变化。
+  - title: 4. Monitoring and Observability：监控与可观测性
+    source_heading: 4. Monitoring and Observability：监控与可观测性
+    paragraphs:
+    - 在模型权重、routing、threshold 和后处理都不变时，prediction distribution 变化说明送入模型的有效输入分布发生了变化。反向不成立：input
+      可以变化却被模型映射成相同输出；prediction shift 也可能来自 model version 或 threshold 变化。
+    - 对 feature 或 embedding 比较 source/target；高维需降维或 multivariate test。应保存 feature
+      version、transform lineage 和 reference window。
+    - 生产日志还应包含 model version、feature version、request ID、event/available time、latency
+      breakdown、prediction、threshold 和 fallback。敏感 input/output 不能无条件明文记录。
+    - Interpretability 解释 model；observability 解释包含模型的数据、服务和业务系统。若一小时错误上升，按错误样本聚合 feature
+      contribution 可帮助找到可疑 feature，但解释方法本身也需验证。
+  - title: 5. 原章总结的完整还原
+    source_heading: 5. 原章总结的完整还原
+    paragraphs:
+    - 三类 ML 特有原因是 production data 与 training data 不同、edge cases 和 degenerate feedback
+      loops。前两者主要与数据和覆盖有关，反馈回路则源于系统输出改变未来输入。
+    - Distribution shift 部分区分 covariate、label、concept 三类，但研究术语不统一，很多算法假设预知 shift 或拥有
+      target labels；现实往往两者都没有。
+    - 检测 shift 需要监控。DevOps 的 operational metrics 与 ML-specific metrics 应结合；后者覆盖 accuracy、prediction、feature
+      和 raw input。
+    - 监控难点不在计算一条曲线，而在解释曲线、区分 seasonality / benign shift / harmful shift / pipeline
+      bug，并把信号转成正确行动。统计知识、领域知识、血缘和 observability 都不可缺。
+  - title: 7. 本章知识结构
+    source_heading: 7. 本章知识结构
+    paragraphs:
+    - 多层 telemetry 判断故障发生在软件、数据、模型还是反馈政策。
+    - Shift 分类说明哪个分布因子改变及算法可利用的不变量。
+    - Statistical detector 只能证明差异证据，模型/业务指标判断其伤害。
+    - Monitoring 负责发现，observability 负责定位，retraining / engineering 负责修复。
+  - title: 8. 核心结论
+    source_heading: 8. 核心结论
+    paragraphs:
+    - 原章引用的 Google 单一大型 pipeline 中，60/96 次历史故障并非直接由 ML 引起。 该结果不能外推为当前行业比例，但支持先查依赖、版本、pipeline
+      和界面，再归因于自然 drift。
+    - Train-serving skew 可从第一天存在，distribution shift 也可初始存在、随时间变化或周期往复。 两者都可能破坏泛化，但可检测差异不必然伤害模型。
+    - Monitoring 应覆盖 raw input、feature、prediction、quality 和 operational 层。 单层正常不能证明系统健康。
+    - Logs、dashboards 和 alerts 各解决记录、理解和通知。 Distributed trace、owner 与 runbook 让它们可操作。
+  - title: 9. 从本章提炼出的通用漂移监控与事故响应方法
+    source_heading: 9. 从本章提炼出的通用漂移监控与事故响应方法
+    paragraphs:
+    - 对 latency、availability、quality、calibration、关键 slice、业务结果分别定义 metric、window、threshold、minimum
+      sample 和 owner。
+    - 每次请求关联 raw source、feature pipeline/version、model、threshold、prediction、action、feedback
+      与 label maturity。没有关联 ID 就无法根因分析。
+    - 记录 propensity、position 和曝光；给新/长尾 item 小规模随机或 bandit 流量；监控多样性、concentration 和
+      popularity-bucket quality。
+    - 本章最值得迁移的原则是：监控的终点不是证明“分布变了”，而是尽早发现用户期望被破坏，用足够细的 telemetry 找到可修复根因，并把每次事故转化为下一次更快检测、更小影响和更安全更新的系统能力。
+  takeaways:
+  - 本章先区分软件系统故障与 ML-specific failures。原章写作时，多数已观察事故仍是非 ML 专属；工具成熟后比例可能变化。
+  - Shift 分类说明哪个分布因子改变及算法可利用的不变量。
+  - Edge case 描述模型失败，不等同数据 outlier。 平均高分不能抵消灾难性长尾。
+  - 统计显著不等于业务重要。 Effect size、模型敏感度、slice 与多重检验必须一起考虑。
+  - 监控本质上被动。 检测和定位后，还需要受控修复、重训、验证与发布。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念辨析
+  question: 原文如何解释「6.1 单次预测错误不等于系统 failure」？
+  answer: 统计性能期望包含允许误差、窗口与置信度，单次普通错误通常不能证明它失效；安全、隐私、有害输出等零容忍硬约束则可被单次事件违反。
+  source_heading: 6.1 单次预测错误不等于系统 failure
+- level: 概念辨析
+  question: 原文如何解释「6.22 Reference window 不同会得出相反结论」？
+  answer: Seasonal context 和 baseline 选择是检测定义的一部分。
+  source_heading: 6.22 Reference window 不同会得出相反结论
+- level: 概念辨析
+  question: 原文如何解释「6.25 Retraining 不只指从头训练」？
+  answer: 本书也包含 checkpoint fine-tuning；二者状态与遗忘风险不同。
+  source_heading: 6.25 Retraining 不只指从头训练
+- level: 概念辨析
+  question: 原文如何解释「6.27 Observability 不等于日志越多越好」？
+  answer: 无 schema、trace、owner 和查询设计的海量日志只是成本。
+  source_heading: 6.27 Observability 不等于日志越多越好
+- level: 概念辨析
+  question: 原文如何解释「6.30 Feature validation 不等于 drift detection」？
+  answer: Validation 查契约，distribution test 查统计变化；两者都不直接证明质量下降。
+  source_heading: 6.30 Feature validation 不等于 drift detection

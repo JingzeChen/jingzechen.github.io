@@ -1,0 +1,163 @@
+source:
+  post: _posts/book-notes/ai-system/distributed-ai-system/2026-08-08-distributed-ai-systems-ch10-distributed-benchmarking-and-performance.md
+  body_sha256: f472109b86c99dfbf60c1373fdd1f00a1fad2cf88940a993ca8d70c9310b1da0
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 12
+  question: 原文围绕「0. 本章要回答的核心问题」建立了怎样的核心认识？
+  question_source: 0. 本章要回答的核心问题
+  thesis: 闭环线：baseline → hypothesis → A/B → correctness → regression。
+  thesis_source: 25. 本章知识结构
+  concepts:
+  - term: 0. 本章要回答的核心问题
+    meaning: Network raw bandwidth、NCCL algbw、busbw和application effective bandwidth如何区分？
+    source_heading: 0. 本章要回答的核心问题
+  - term: 6. Benchmarking methodology
+    meaning: Isolated nodes减少噪声，适合algorithm comparison；shared production-like环境反映真实contention。两套都可测：controlled
+      benchmark与fleet/trace benchmark，不能互相冒充。
+    source_heading: 6. Benchmarking methodology
+  - term: 12. Validating distributed training accuracy
+    meaning: Collective reduction order、TF32/BF16和kernels会产生小差异；长训练chaotic divergence不代表bug。定义tolerance和statistical
+      equivalence，而不是要求最终weights bitwise相等。
+    source_heading: 12. Validating distributed training accuracy
+  - term: 14. Scaling bottleneck analysis
+    meaning: FP16/BF16 reduction、quantized gradients、PowerSGD等减少bytes/时间，但引入error、kernel和state。必须比较time-to-quality，不只step
+      throughput。
+    source_heading: 14. Scaling bottleneck analysis
+  - term: 20. Validating inference accuracy
+    meaning: Greedy可做engine token/logit equivalence；sampling输出不同是正常，需要distribution/quality
+      repeated seeds。固定seed不总保证distributed bitwise determinism。
+    source_heading: 20. Validating inference accuracy
+  - term: 28. 复习与自测
+    meaning: 完成这些检查后，应能把“系统慢”改写为一个可证伪的性能工程问题：在明确workload和quality约束下，哪一段critical path限制good
+      work，证据来自哪种measurement boundary，优化是否在独立重复实验中改善E2E/SLO/cost，以及结论能否通过manifest、raw
+      samples和回归门长期复现。
+    source_heading: 28. 复习与自测
+  logic:
+  - 0. 本章要回答的核心问题
+  - 6. Benchmarking methodology
+  - 9. NVIDIA Nsight Systems
+  - 14. Scaling bottleneck analysis
+  - 17. Custom inference benchmarks
+  - 25. 本章知识结构
+  - 28. 复习与自测
+  sections:
+  - title: 0. 本章要回答的核心问题
+    source_heading: 0. 本章要回答的核心问题
+    paragraphs:
+    - 为什么fixed-concurrency/closed-loop benchmark会产生coordinated omission？
+    - DDP communication“总kernel时长”和critical-path exposed overhead为何不同？
+    - Network raw bandwidth、NCCL algbw、busbw和application effective bandwidth如何区分？
+    - Training throughput应按samples、tokens还是effective non-padding tokens？
+  - title: 3. Benchmarking fundamentals
+    source_heading: 3. Benchmarking fundamentals
+    paragraphs:
+    - 只测operator/device time，适合kernel tuning，不代表application。
+    - 比较TP4→TP8时，不同时改batch、quantization、max context和engine version。若必须联合改动（因为fit约束），明确这是configuration
+      comparison而非单因素因果。
+    - 或随机run order，减少“上午A/下午B”的时间偏差。Paired differences比两个独立means更有统计power。
+    - 100 iterations在同一warm process不是100个独立环境replicates。报告within-run和between-run variance。
+  - title: 6. Benchmarking methodology
+    source_heading: 6. Benchmarking methodology
+    paragraphs:
+    - Eager 5～10、compile 20～50只是原章经验。更可靠：监控rolling median/variance、compile/capture日志，达到稳定准则后开始；设置max
+      warmup防无限等待。
+    - 它可能只测launch。E2E step计时前后synchronize；单kernel/device phase用CUDA Events并确保stream依赖。
+    - 该函数故意isolates每iteration，不适合测pipeline overlap/throughput；文档中应注明boundary。
+    - Isolated nodes减少噪声，适合algorithm comparison；shared production-like环境反映真实contention。两套都可测：controlled
+      benchmark与fleet/trace benchmark，不能互相冒充。
+  - title: 9. NVIDIA Nsight Systems
+    source_heading: 9. NVIDIA Nsight Systems
+    paragraphs:
+    - Nsight Systems：system timeline、CPU threads、CUDA APIs、kernels、memcpy、NCCL、NVTX；
+    - Nsight Compute：单kernel hardware counters/roofline/occupancy；
+    - Distributed每rank都profile会产生巨量数据。选择representative ranks/node或用capture range：NVTX/CUDA
+      profiler API控制只采稳定steps。参数按Nsight版本核对。
+    - Trace本身可能改变launch、I/O和storage。Profile run用于归因，不作为最终throughput数字；优化前后都用无profile重复测E2E。
+  - title: 12. Validating distributed training accuracy
+    source_heading: 12. Validating distributed training accuracy
+    paragraphs:
+    - 单GPU和distributed若global batch不同，“相同超参”不等于相同实验。
+    - Collective reduction order、TF32/BF16和kernels会产生小差异；长训练chaotic divergence不代表bug。定义tolerance和statistical
+      equivalence，而不是要求最终weights bitwise相等。
+    - p=0.3不证明“相同”，可能只是power不足；报告effect size和CI。
+    - 显著但是否业务重要取决于non-inferiority margin；“0.5%, p=0.3”也不能自动当noise。样本量、test assumptions和multiple
+      comparisons必须检查。
+  - title: 14. Scaling bottleneck analysis
+    source_heading: 14. Scaling bottleneck analysis
+    paragraphs:
+    - NCCL exposed tail随scale增、large-message bw低或arrival skew。检查topology、buckets、overlap、parallel
+      layout。
+    - High HBM bandwidth/low compute；decode、norm/elementwise、小GEMM等。量化/fusion/batching/TP
+      bandwidth。
+    - 否则每次backward仍AllReduce，只是延迟optimizer step。Accum增加global batch/activation/runtime，质量和memory需验证。
+    - FP16/BF16 reduction、quantized gradients、PowerSGD等减少bytes/时间，但引入error、kernel和state。必须比较time-to-quality，不只step
+      throughput。
+  - title: 17. Custom inference benchmarks
+    source_heading: 17. Custom inference benchmarks
+    paragraphs:
+    - 但要复用成熟HTTP/SSE/parser/statistics，不手写错误load generator。
+    - Load generator按absolute schedule sleep，不能“上一个发完后再sleep”，否则send overhead累计漂移。记录lag；lag高说明generator饱和。
+    - Output good-token throughput则只累计good requests的tokens。
+    - Baseline distribution/repeated paired runs；
+  - title: 20. Validating inference accuracy
+    source_heading: 20. Validating inference accuracy
+    paragraphs:
+    - Greedy可做engine token/logit equivalence；sampling输出不同是正常，需要distribution/quality
+      repeated seeds。固定seed不总保证distributed bitwise determinism。
+    - 先做same prompt/token IDs logits/greedy outputs，再质量benchmark。
+    - Matched prompts做paired comparison。报告metric delta、bootstrap CI和non-inferiority
+      margin。p>0.05不证明等价；large samples会让微小无业务意义差异显著。
+    - Configuration A若在quality、latency、throughput、memory、cost所有维度不劣且至少一项更好，则dominate
+      B。最终选择Pareto frontier上的点并按业务权重，而不是单metric冠军。
+  - title: 25. 本章知识结构
+    source_heading: 25. 本章知识结构
+    paragraphs:
+    - 统计线：raw samples → distribution → percentiles/CI → effect。
+    - 训练线：data/compute/comm/update → scaling → time-to-quality。
+    - 工具线：framework profiler → system timeline → kernel/network。
+    - 闭环线：baseline → hypothesis → A/B → correctness → regression。
+  - title: 28. 复习与自测
+    source_heading: 28. 复习与自测
+    paragraphs:
+    - 10000 requests中最慢1%约100 requests；100 requests中最慢1%仅约1个。
+    - 8 ranks、100 MiB、25 GB/s、2us latency：约7.368ms（按本章模型）。
+    - 100 samples、20 correct：Pass@1=0.2，Pass@10约0.905。
+    - 完成这些检查后，应能把“系统慢”改写为一个可证伪的性能工程问题：在明确workload和quality约束下，哪一段critical path限制good
+      work，证据来自哪种measurement boundary，优化是否在独立重复实验中改善E2E/SLO/cost，以及结论能否通过manifest、raw
+      samples和回归门长期复现。
+  takeaways:
+  - 设计线：问题 → workload → boundary → controls → repetitions。
+  - Cold、warm engine、warm cache和steady traffic必须分开。
+  - Communication kernel总时长不等于exposed step overhead。
+  - genai-bench等工具必须固定version和actual token counts。
+  - 有效benchmark是一套持续回归契约，而非一次性报告。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念复述
+  question: 原文如何解释「0. 本章要回答的核心问题」？
+  answer: Network raw bandwidth、NCCL algbw、busbw和application effective bandwidth如何区分？
+  source_heading: 0. 本章要回答的核心问题
+- level: 边界判断
+  question: 原文如何解释「6. Benchmarking methodology」？
+  answer: Isolated nodes减少噪声，适合algorithm comparison；shared production-like环境反映真实contention。两套都可测：controlled
+    benchmark与fleet/trace benchmark，不能互相冒充。
+  source_heading: 6. Benchmarking methodology
+- level: 边界判断
+  question: 原文如何解释「14. Scaling bottleneck analysis」？
+  answer: FP16/BF16 reduction、quantized gradients、PowerSGD等减少bytes/时间，但引入error、kernel和state。必须比较time-to-quality，不只step
+    throughput。
+  source_heading: 14. Scaling bottleneck analysis
+- level: 关系解释
+  question: 原文如何解释「20. Validating inference accuracy」？
+  answer: Greedy可做engine token/logit equivalence；sampling输出不同是正常，需要distribution/quality
+    repeated seeds。固定seed不总保证distributed bitwise determinism。
+  source_heading: 20. Validating inference accuracy
+- level: 概念复述
+  question: 原文如何解释「28. 复习与自测」？
+  answer: 完成这些检查后，应能把“系统慢”改写为一个可证伪的性能工程问题：在明确workload和quality约束下，哪一段critical path限制good
+    work，证据来自哪种measurement boundary，优化是否在独立重复实验中改善E2E/SLO/cost，以及结论能否通过manifest、raw
+    samples和回归门长期复现。
+  source_heading: 28. 复习与自测

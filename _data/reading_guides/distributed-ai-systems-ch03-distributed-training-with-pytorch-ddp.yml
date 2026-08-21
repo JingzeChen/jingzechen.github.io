@@ -1,0 +1,177 @@
+source:
+  post: _posts/book-notes/ai-system/distributed-ai-system/2026-08-08-distributed-ai-systems-ch03-distributed-training-with-pytorch-ddp.md
+  body_sha256: dcd24a634183c7597890076e3050fb193c6d053134a8a9df7c388592cd24ed7f
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 14
+  question: 原文围绕「0. 本章要回答的核心问题」建立了怎样的核心认识？
+  question_source: 0. 本章要回答的核心问题
+  thesis: 恢复线：atomic state snapshot → restart entrypoint → rendezvous → load → data/RNG
+    continuation。
+  thesis_source: 17. 本章知识结构
+  concepts:
+  - term: 0. 本章要回答的核心问题
+    meaning: AllReduce 的 sum/average 与 global batch loss 有何数学关系？不等大 local batch 时为什么不能直接平均
+      rank gradients？
+    source_heading: 0. 本章要回答的核心问题
+  - term: 4. Setting up Multi-Node DDP
+    meaning: 原章用“node 内 reduce → node 间 reduce → node 内 broadcast”解释层次化直觉。NCCL 实际可能构造多
+      rings、trees、CollNet/NVLS 或其他 channels；是否分层、谁做 representative 取决于版本、topology、message
+      size。
+    source_heading: 4. Setting up Multi-Node DDP
+  - term: 8. Checkpointing and resuming distributed jobs
+    meaning: 训练中各 rank dropout/augmentation RNG 通常已分叉。原章只让 rank 0 保存自己的 Python/NumPy/PyTorch/CUDA
+      RNG，再让所有 ranks 恢复同一状态，会改变随机流，不能 exact resume。
+    source_heading: 8. Checkpointing and resuming distributed jobs
+  - term: 11. Elastic data parallelism
+    meaning: 可使用 elastic error-recording decorator 让 launcher 汇总 worker traceback。具体
+      import/API 按 PyTorch 版本；它改善错误报告，不替代 per-rank logs 和 earliest-failure analysis。
+    source_heading: 11. Elastic data parallelism
+  - term: 15. 随章 PDF 权益说明
+    meaning: 原章最后提供 Packt 随书权益二维码，也可访问 packtpub.com/unlock，按书名搜索并确认 edition。发票要求依购买渠道而定。
+    source_heading: 15. 随章 PDF 权益说明
+  - term: 20. 复习与自测
+    meaning: 每 20 分钟保存一次，故障在 checkpoint interval 内均匀发生，忽略保存时间。平均重算约 10 分钟，最坏接近 20
+      分钟。缩短 interval 会减少 lost work，却增加 I/O 停顿。
+    source_heading: 20. 复习与自测
+  logic:
+  - 0. 本章要回答的核心问题
+  - 4. Setting up Multi-Node DDP
+  - 6. Profiling DDP performance
+  - 11. Elastic data parallelism
+  - 13. Summary、Code summary 与 references
+  - 18. 核心结论
+  - 20. 复习与自测
+  sections:
+  - title: 0. 本章要回答的核心问题
+    source_heading: 0. 本章要回答的核心问题
+    paragraphs:
+    - AllReduce 的 sum/average 与 global batch loss 有何数学关系？不等大 local batch 时为什么不能直接平均
+      rank gradients？
+    - Autograd hook、Reducer、CUDA stream 如何让 communication 与 backward overlap？
+    - Mixed precision、gradient accumulation、bucket tuning、unused parameter 与 static
+      graph 分别优化什么？
+    - 每次 optimizer update 前，所有 replicas 必须从一致参数出发，获得语义正确且一致的聚合 gradient，并执行兼容的状态转换。
+  - title: 2. How DDP works internally
+    source_heading: 2. How DDP works internally
+    paragraphs:
+    - A 是 accumulation steps。Global batch 增大降低 gradient noise，并改变每 epoch updates 数。即使
+      gradient scale 形式一致，也可能需要调整 learning rate、warmup、scheduler 与 training steps。
+    - 原章称 DP “所有 gradient synchronization 在 GPU 0”是高层瓶颈描述；具体 implementation 有 replicate/scatter/gather/reduce
+      路径。工程结论不变：PyTorch 官方推荐 DDP，即使单节点多 GPU 也优先使用。
+    - 普通 BatchNorm 每 rank 用自己的 local mini-batch 计算当前 batch mean/variance，并更新 running
+      stats。Forward 前 broadcast 只让本次起点一致；各 rank 在不同 local data 上更新后仍可暂时不同，下次 broadcast
+      再以 rank 0 状态覆盖。
+    - 所以原章“BatchNorm 等层需要 buffer synchronization 才能正确”应细化：buffer broadcast 保持 persistent
+      state policy，但不能替代 global batch normalization。小 local batch 下普通 BN 仍可能统计不稳定。
+  - title: 4. Setting up Multi-Node DDP
+    source_heading: 4. Setting up Multi-Node DDP
+    paragraphs:
+    - Gradient AllReduce 不会把每个 bucket 全部发送到 master rank；NCCL 按 topology 建立 peer/collective
+      data paths。
+    - 只开放 master port 可能不够：NCCL/socket transport 还会建立 worker 间数据连接，实际 port/network
+      policy 需按 cluster/runtime 配置。
+    - 原章用“node 内 reduce → node 间 reduce → node 内 broadcast”解释层次化直觉。NCCL 实际可能构造多 rings、trees、CollNet/NVLS
+      或其他 channels；是否分层、谁做 representative 取决于版本、topology、message size。
+    - 不要在代码写 node 0/1 的 IP 或 global-rank-to-device 固定表。Launcher/scheduler 负责 topology，脚本负责
+      worker behavior。
+  - title: 6. Profiling DDP performance
+    source_heading: 6. Profiling DDP performance
+    paragraphs:
+    - 精确 critical-path attribution 还要考虑依赖和并行 kernels 的资源竞争；timeline intersection 是比
+      totals 更可靠的起点。
+    - 最有优化意义的是 exposed critical-path communication。通信 kernel 占比高但几乎完全 overlap，未必是首要瓶颈；通信总时长较低但位于
+      step 尾部，可能直接限制吞吐。
+    - Timeline 若每 step 开头 CPU 等 DataLoader、GPU streams 空白，优先优化输入。若 H2D copy 与前一 step
+      compute 不重叠，检查 pinned memory、non-blocking、prefetch 与 stream dependency。
+    - Multi-node trace 需要每 rank/每 node，否则 rank 0 的 0.18 ms NCCL 不能代表所有 ranks，也无法区分
+      node 内/跨 node phases。Nsight Systems、NCCL logs 与 network telemetry 更适合跨 rank
+      对齐。
+  - title: 8. Checkpointing and resuming distributed jobs
+    source_heading: 8. Checkpointing and resuming distributed jobs
+    paragraphs:
+    - 这处理 Python exception；rank 0 硬崩溃仍依赖 process-group timeout/launcher 终止全组。Object
+      collective 使用 pickle，只能处理可信内部对象，并不适合大 tensor payload。
+    - CPU load 减少 checkpoint 中旧 device index 的耦合；optimizer load 会按参数设备恢复/cast state，仍应验证所有
+      optimizer tensors 位于预期 device。
+    - 训练中各 rank dropout/augmentation RNG 通常已分叉。原章只让 rank 0 保存自己的 Python/NumPy/PyTorch/CUDA
+      RNG，再让所有 ranks 恢复同一状态，会改变随机流，不能 exact resume。
+    - Prefetched but not consumed batches 让 exact resume 更难。生产系统常选择 checkpoint 在 update/epoch
+      boundary，并接受最多一个 interval 的重算。
+  - title: 11. Elastic data parallelism
+    source_heading: 11. Elastic data parallelism
+    paragraphs:
+    - 绝不能把 rank 当作跨 restart 的持久 worker identity、数据 ownership 或文件名唯一来源；使用 run ID、checkpoint
+      metadata 与重新分片逻辑。
+    - Worker crash 后重启 entrypoint；脚本启动时必须发现并加载 latest valid checkpoint。Single-node
+      GPU 硬故障若使可用 GPU 数不足，固定-size restart 仍无法成功。
+    - 所有 agents 使用相同 rendezvous identity/endpoint。Etcd/c10d backend 可用性与参数按当前 PyTorch
+      文档确认；不要沿用可能已弃用的 backend 名而不验证版本。
+    - 可使用 elastic error-recording decorator 让 launcher 汇总 worker traceback。具体 import/API
+      按 PyTorch 版本；它改善错误报告，不替代 per-rank logs 和 earliest-failure analysis。
+  - title: 13. Summary、Code summary 与 references
+    source_heading: 13. Summary、Code summary 与 references
+    paragraphs:
+    - 原章 summary 提到“asynchronous training”，应避免误解：DDP 的 gradients 是同步聚合；异步的是 bucket
+      communication launch/与 compute overlap，以及 elastic process lifecycle，不是 stale-gradient
+      asynchronous optimization。
+    - Launcher flags、environment variables、hook Future contract 以当前 PyTorch 官方文档为准；
+    - 示例 repository 提供 wiring，不替代自己的 correctness/performance tests；
+    - 第 4 章 DCP/FSDP 处理 sharded state，与本章 rank-0 replicated checkpoint 边界不同。
+  - title: 15. 随章 PDF 权益说明
+    source_heading: 15. 随章 PDF 权益说明
+    paragraphs:
+    - 原章最后提供 Packt 随书权益二维码，也可访问 packtpub.com/unlock，按书名搜索并确认 edition。发票要求依购买渠道而定。
+    - 它属于出版配套信息，不影响 DDP 技术论证。代码与实验复现仍应记录 repository commit、PyTorch/CUDA/NCCL/driver
+      和硬件拓扑。
+  - title: 18. 核心结论
+    source_heading: 18. 核心结论
+    paragraphs:
+    - DDP 是 replicated synchronous data parallelism：完整模型复制、数据分片、gradient 聚合。
+    - 等大 local batches 时，rank-average local-mean gradients 才等价于 global sample mean。
+    - Buffer broadcast 维护 persistent buffer policy，不等于跨 rank 当前 batch statistics。
+    - DDP replicated weights 可由 rank 0 保存；rank-specific RNG/data state 仍需逐 rank 或可重建策略。
+  - title: 20. 复习与自测
+    source_heading: 20. 复习与自测
+    paragraphs:
+    - Rank 0 处理 2 个样本，local-mean gradient 为 3；rank 1 处理 6 个样本，local-mean gradient
+      为 7。
+    - 1000 个 gradients 各自通信，固定 startup 10 μs；合成 20 个 buckets 后，仅 startup 从多少降到多少？
+    - 每 20 分钟保存一次，故障在 checkpoint interval 内均匀发生，忽略保存时间。平均重算约 10 分钟，最坏接近 20 分钟。缩短 interval
+      会减少 lost work，却增加 I/O 停顿。
+    - 完成这些检查后，应能回答三类问题：训练是否数学正确、性能损失发生在哪条路径、故障后能否从一致状态继续。这正是从“会启动 DDP”走向“能运营分布式训练系统”的分界。
+  takeaways:
+  - 数学线：local mean → rank average → global batch gradient → optimizer state一致。
+  - Optimizer state 通常不每步通信；相同初态、gradient 与 update 让它保持一致。
+  - DataLoader workers 按 rank 成倍增长，输入调优必须考虑 node 总 CPU/RAM/I/O。
+  - DDP replicated weights 可由 rank 0 保存；rank-specific RNG/data state 仍需逐 rank 或可重建策略。
+  - 所有性能结论都必须绑定模型、batch、precision、world size、topology、软件版本与质量。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念辨析
+  question: 原文如何解释「16.1 DDP 不会把模型切到多张 GPU」？
+  answer: 每个 rank 持有完整 parameters、optimizer state 和 local activations。增加 DDP ranks
+    提高数据吞吐，不降低单 rank 模型状态；单卡 OOM 应考虑减 local batch、checkpointing、FSDP/ZeRO 或 model
+    parallelism。
+  source_heading: 16.1 DDP 不会把模型切到多张 GPU
+- level: 概念辨析
+  question: 原文如何解释「16.15 MASTER_ADDR 不是 gradient parameter server」？
+  answer: 它用于 rendezvous/store/bootstrap。NCCL data path 通常由所有 ranks 直接协作；rank 0 不承载全部
+    gradient traffic。
+  source_heading: 16.15 MASTER_ADDR 不是 gradient parameter server
+- level: 概念辨析
+  question: 原文如何解释「16.31 find_unused_parameters=True 不是所有 hang 的修复按钮」？
+  answer: 它遍历 autograd graph 标记 unused parameters，有额外开销；rank-dependent graph、不同 collective
+    或真正模型 bug 仍需修复。静态模型无 unused params 时不要无条件打开。
+  source_heading: 16.31 find_unused_parameters=True 不是所有 hang 的修复按钮
+- level: 概念辨析
+  question: 原文如何解释「16.46 torch.load(weights_only=False) 只能加载可信 checkpoint」？
+  answer: 包含 Python/NumPy RNG 等任意对象时需要完整 pickle 反序列化，存在代码执行风险。不要加载不可信来源。
+  source_heading: 16.46 torch.load(weights_only=False) 只能加载可信 checkpoint
+- level: 概念辨析
+  question: 原文如何解释「16.60 “程序不 hang”不是 DDP 正确性的充分条件」？
+  answer: 仍可能有重复数据、错误 global batch、SUM 未平均、rank-0 local metric、不同 scheduler step、坏
+    checkpoint 或 silent comm-hook scale。必须写出并验证不变量。
+  source_heading: 16.60 “程序不 hang”不是 DDP 正确性的充分条件

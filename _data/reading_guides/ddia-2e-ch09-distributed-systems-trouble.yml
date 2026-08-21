@@ -1,0 +1,200 @@
+source:
+  post: _posts/book-notes/distributed-system/design-data-intensive-application/2026-08-05-ddia-2e-ch09-distributed-systems-trouble.md
+  body_sha256: cc859edf9189505d706ee32c37f567bf3f73ce0d857443b521508547c7a281e1
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 19
+  question: 0. 本章定位：在无法确定发生了什么时，系统仍要保持正确？
+  question_source: 0. 本章定位：在无法确定发生了什么时，系统仍要保持正确
+  thesis: 多数 non-safety-critical systems选择 cheap/dynamically shared/unreliable timing，而非
+    expensive hard guarantees。因此 software必须在 partial synchrony/unbounded tail下正确。
+  thesis_source: 5. 原章总结：partial failure 与不完整知识定义了分布式系统
+  concepts:
+  - term: 0. 本章定位：在无法确定发生了什么时，系统仍要保持正确
+    meaning: 可靠系统不是只在 happy path 上工作，而是在某些 components、networks、clocks 和 processes
+      出错时，整体仍满足预先声明的 safety/liveness properties。
+    source_heading: 0. 本章定位：在无法确定发生了什么时，系统仍要保持正确
+  - term: 2. Unreliable Networks
+    meaning: load balancer 要把 dead node out of rotation；single-leader database 要在
+      leader failure 后 promote follower。两者都需要 failure detector，但 network uncertainty
+      使 detector 无法完美。
+    source_heading: 2. Unreliable Networks
+  - term: 4. Knowledge, Truth, and Lies
+    meaning: Byzantine model处理 dishonest arbitrary behavior，普通 datacenter通常采用 honest
+      crash/gray-failure assumptions并辅以 checksums/security。system model把 timing/node
+      faults formalize，correctness再由 safety/liveness properties定义。
+    source_heading: 4. Knowledge, Truth, and Lies
+  - term: 5. 原章总结：partial failure 与不完整知识定义了分布式系统
+    meaning: 从单机 mathematical abstraction 进入 distributed physical reality会打开 Pandora’s
+      box 般的大量 failure state。如果 embedded/single-node system 已满足容量、availability与latency，避免
+      distribution 通常值得。
+    source_heading: 5. 原章总结：partial failure 与不完整知识定义了分布式系统
+  - term: 9. 综合案例：分片维护与对象存储控制器
+    meaning: 若 object store违反 conditional write、consensus logs全损或 malicious controller伪造
+      token，automatic proof失效。系统应 freeze affected shard、保留 evidence、alert human，而非猜测继续删
+      files。
+    source_heading: 9. 综合案例：分片维护与对象存储控制器
+  - term: 11. 解决分布式系统问题的一般方法
+    meaning: 方法的核心顺序是：先说明为何必须分布式，再声明model与properties；用quorum产生authority、用fencing落实authority；把timeout/clock/pause当不可靠input，最后以formal
+      model、DST、fault injection和monitoring闭环。
+    source_heading: 11. 解决分布式系统问题的一般方法
+  logic:
+  - 0. 本章定位：在无法确定发生了什么时，系统仍要保持正确
+  - 2. Unreliable Networks
+  - 3. Unreliable Clocks
+  - 5. 原章总结：partial failure 与不完整知识定义了分布式系统
+  - 8. 全章知识结构
+  - 10. 核心结论
+  - 11. 解决分布式系统问题的一般方法
+  sections:
+  - title: 0. 本章定位：在无法确定发生了什么时，系统仍要保持正确
+    source_heading: 0. 本章定位：在无法确定发生了什么时，系统仍要保持正确
+    paragraphs:
+    - 可靠系统不是只在 happy path 上工作，而是在某些 components、networks、clocks 和 processes 出错时，整体仍满足预先声明的
+      safety/liveness properties。
+    - 单机程序通常有一个相对统一的 fate：machine working 时 instructions、memory 与 control flow 大体可预测；machine
+      crash 时整个 process 停止。
+    - 分布式系统由多个独立 failure domains 组成：A working、B paused、C unreachable、D response delayed
+      可以同时成立。系统没有一个观察者能瞬间看到全局真实状态。
+    - timeout 不证明 node dead，只表示“在等待预算内没收到 response”。它是基于风险与用户需求作出的 policy：继续等、retry、failover
+      或返回 error。
+  - title: 1. Faults and Partial Failures
+    source_heading: 1. Faults and Partial Failures
+    paragraphs:
+    - memory corruption、loose connector 等严重 hardware problem 往往导致 kernel panic、blue
+      screen of death、无法启动等 total failure。理想化 fail-stop behavior 是：component 要么给正确结果，要么停止，不悄悄给错结果。
+    - 原章引用 Coda Hale 的经历：单 datacenter 内 long-lived network partition、PDU failure、switch
+      failure、整 rack accidental power cycle、DC backbone/power failure，甚至车辆撞坏 HVAC。
+    - 只在 production 等 fault 出现无法建立信心。test environment 应主动：kill process、pause VM、delay/drop
+      packets、skew clocks、fill disks、partition subgroups、reorder messages。
+    - 单机常提供 deterministic/fail-stop 的有用外观；distributed system 的本质困难是 nondeterministic
+      partial failure 与知识不完整。fault tolerance 通过 replication、quorum、fencing 与 recovery
+      在明确 fault budget 下维持整体。
+  - title: 2. Unreliable Networks
+    source_heading: 2. Unreliable Networks
+    paragraphs:
+    - load balancer 要把 dead node out of rotation；single-leader database 要在 leader
+      failure 后 promote follower。两者都需要 failure detector，但 network uncertainty 使 detector
+      无法完美。
+    - latency-sensitive applications 如 videoconferencing/VoIP 常选 UDP。UDP 不做 flow control/retransmission，减少一部分
+      delay variability，但仍受 switch queue、scheduler 与 loss 影响。
+    - packet networks 通过 dynamic sharing 获得高 utilization，却产生 queueing、loss 与无 delay
+      upper bound。TCP 改善 byte-stream delivery，但应用仍面对 unknown outcome；timeout 只能产生
+      suspicion。
+    - 只有静态 resource reservation/admission 能提供 hard predictability，代价是更低 utilization
+      与更高成本。在当前 cloud/internet 环境中，protocol 必须按 asynchronous/unbounded-delay reality
+      设计。
+  - title: 3. Unreliable Clocks
+    source_heading: 3. Unreliable Clocks
+    paragraphs:
+    - local timezone 的 daylight saving transition 会重复/跳过 local times。storage/protocol
+      应使用 UTC + explicit timezone，presentation 时再转换；但 UTC 仍有 leap-second/history concerns。
+    - collector 只处理 short-lived objects；在 long-lived heap积累到 full GC 前，逐 node drain/restart，类似
+      rolling upgrade。restart 以 predictable planned pause 替代 unpredictable full GC。
+    - physical clocks 既可能 drift/jump，也常不暴露 uncertainty；process 又可在任何 point暂停。monotonic
+      clock 适合 duration，却不能防 check-to-use pause；wall clock 适合 calendar，却不能单独排序 distributed
+      events。
+    - 只有 hard real-time whole-stack 才能依赖 timing bound，成本很高。普通 distributed systems
+      应把 timing 当 unreliable input，以 interval、logical order、fencing 与 redundancy 保持
+      correctness。
+  - title: 4. Knowledge, Truth, and Lies
+    source_heading: 4. Knowledge, Truth, and Lies
+    paragraphs:
+    - fencing 防 honest-but-stale node，不防 malicious node伪造高 token。storage 应 authenticate
+      client/token capability；若 threat model含 compromised participants，需要 Byzantine/security
+      mechanisms。
+    - crash/lease model 假设 nodes honest但可能 stale；Byzantine model 允许任意矛盾行为，成本与 replica
+      requirement显著上升。aerospace、P2P/financial adversaries可能需要 BFT，普通 datacenter多用
+      security isolation + pragmatic checksum/validation。
+    - Byzantine model处理 dishonest arbitrary behavior，普通 datacenter通常采用 honest crash/gray-failure
+      assumptions并辅以 checksums/security。system model把 timing/node faults formalize，correctness再由
+      safety/liveness properties定义。
+    - node 无法凭 local observation获得 global truth；quorum在 model内形成共同 decision，fencing把
+      generation落实到 resources。若 nodes可 malicious lie，需 BFT；一般 system则声明 honest crash/gray-failure
+      model。
+  - title: 5. 原章总结：partial failure 与不完整知识定义了分布式系统
+    source_heading: 5. 原章总结：partial failure 与不完整知识定义了分布式系统
+    paragraphs:
+    - distributed operation 可随机 slow/fail/no response，其他 components仍工作。fault tolerance
+      必须内建于 software，使 overall system 在部分 components broken 时继续或至少 safety-preserving
+      fail。
+    - quorum intersection帮助形成 unique authority decision；fencing generation让 downstream拒绝
+      old leaders/zombies/delayed requests。二者分别负责 grant 与 enforcement。
+    - 从单机 mathematical abstraction 进入 distributed physical reality会打开 Pandora’s box
+      般的大量 failure state。如果 embedded/single-node system 已满足容量、availability与latency，避免
+      distribution 通常值得。
+    - 多数 non-safety-critical systems选择 cheap/dynamically shared/unreliable timing，而非
+      expensive hard guarantees。因此 software必须在 partial synchrony/unbounded tail下正确。
+  - title: 8. 全章知识结构
+    source_heading: 8. 全章知识结构
+    paragraphs:
+    - protocol必须在 incomplete knowledge下仍保持 safety。
+    - 越不可逆的 action，越需要更强 evidence，而非更自信的 timeout。
+    - quorum proof依赖哪些 honesty/storage assumptions？
+    - 本章的核心不是“分布式系统很难”，而是把模糊恐惧转化为 assumptions、properties、protocol evidence 与可重放 tests。
+  - title: 9. 综合案例：分片维护与对象存储控制器
+    source_heading: 9. 综合案例：分片维护与对象存储控制器
+    paragraphs:
+    - control plane 有 5 nodes；workers 可 crash/pause；network 可 partition/delay；object
+      store支持 conditional write。每 shard 任一 generation 只能有一个 authoritative manifest。
+    - 若使用 lease，controller protocol管理 grant/renew；worker不拿另一 machine wall expiry与
+      local wall clock比较。即便 monotonic local duration，也仍依赖 fencing防 check-to-use pause。
+    - 逐 controller/worker drain、upgrade、rejoin；保持 3/5 quorum和 worker headroom。mixed-version
+      protocol须 backward/forward compatible，token/manifest semantics不变。
+    - 若 object store违反 conditional write、consensus logs全损或 malicious controller伪造
+      token，automatic proof失效。系统应 freeze affected shard、保留 evidence、alert human，而非猜测继续删
+      files。
+  - title: 10. 核心结论
+    source_heading: 10. 核心结论
+    paragraphs:
+    - packet network的 dynamic sharing带来高 utilization和unbounded queueing tail。
+    - model checking验证bounded abstraction，fault injection验证real environment，DST验证actual
+      code并可重放。
+    - determinism贯穿simulation、event sourcing、workflow与state-machine replication。
+    - 可靠性来自明确assumptions、properties、protocol evidence、resource fencing与分层testing。
+  - title: 11. 解决分布式系统问题的一般方法
+    source_heading: 11. 解决分布式系统问题的一般方法
+    paragraphs:
+    - 选择 synchronous/partial/asynchronous、crash-stop/recovery、gray、Byzantine与stable-storage
+      assumptions。记录model外fault怎样fail closed/manual recover。
+    - clock drift、quorum durability、disk corruption、replica independence、network tail、GC
+      pause、token monotonicity一旦超限，node/partition应退出authority并alert。
+    - DST控制network/clock/scheduler并seed replay；Jepsen/fault injection测试real binaries/topology；canary/chaos验证production
+      recovery。checker从properties导出。
+    - 方法的核心顺序是：先说明为何必须分布式，再声明model与properties；用quorum产生authority、用fencing落实authority；把timeout/clock/pause当不可靠input，最后以formal
+      model、DST、fault injection和monitoring闭环。
+  takeaways:
+  - send request 后 no reply，无法知道 request是否到达/执行/commit，也无法知道 reply是否丢失/仍 queued。network
+    error 常是 unknown outcome。
+  - protocol必须在 incomplete knowledge下仍保持 safety。
+  - TCP保证单 connection内 ordered byte stream，不保证 application effect。
+  - quorum intersection帮助形成unique authority，但依赖honest voting与stable memory。
+  - 可靠性来自明确assumptions、properties、protocol evidence、resource fencing与分层testing。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念辨析
+  question: 原文如何解释「7.1 误区：timeout 证明 remote node dead」？
+  answer: timeout只表示 deadline内无 response；request/response可 delayed/lost，node可 paused。它产生
+    suspicion，不是物理死亡证明。
+  source_heading: 7.1 误区：timeout 证明 remote node dead
+- level: 概念辨析
+  question: 原文如何解释「7.9 误区：TCP connection 类似 reserved circuit」？
+  answer: TCP不预留 bandwidth，动态竞争 shared links；circuit有 end-to-end reserved slots与 bounded
+    queueing。
+  source_heading: 7.9 误区：TCP connection 类似 reserved circuit
+- level: 概念辨析
+  question: 原文如何解释「7.17 误区：有 distributed lock 就无需 storage 检查」？
+  answer: lock service只发 permission；resource不验证 token/CAS，stale client仍可直接写。
+  source_heading: 7.17 误区：有 distributed lock 就无需 storage 检查
+- level: 概念辨析
+  question: 原文如何解释「7.24 误区：health endpoint响应就 node健康」？
+  answer: background work可 deadlock、NIC降速、GC thrash。需 end-to-end progress/latency
+    probes。
+  source_heading: 7.24 误区：health endpoint响应就 node健康
+- level: 概念辨析
+  question: 原文如何解释「7.32 误区：固定 seed 可重放就代表无 bug」？
+  answer: determinism只让 observed path可重现；仍需探索足够 seeds、正确 properties/checkers，并控制所有
+    nondeterminism。
+  source_heading: 7.32 误区：固定 seed 可重放就代表无 bug

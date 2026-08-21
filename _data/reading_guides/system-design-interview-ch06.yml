@@ -1,0 +1,137 @@
+source:
+  post: _posts/book-notes/software-architecture/system-design-interview/2026-08-12-system-design-interview-ch06.md
+  body_sha256: fdffd381a778eac2960a69e48d78401cbe59beb8f897e7782b35954b61c376f8
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 8
+  question: 原文围绕「0. 学习目标、阅读边界与设计总览」建立了怎样的核心认识？
+  question_source: 0. 学习目标、阅读边界与设计总览
+  thesis: 成员状态通过 gossip 最终传播，节点先 suspect 再 down，避免抖动。
+  thesis_source: 22. 核心结论与一般设计方法
+  concepts:
+  - term: 0. 学习目标、阅读边界与设计总览
+    meaning: 本文会补充 quorum 条件边界、向量时钟偏序、Bloom filter 公式、LSM 写放大等标准背景。补充内容会与原书结论连续讲解，但不冒充作者逐式给出的原文。
+    source_heading: 0. 学习目标、阅读边界与设计总览
+  - term: 4. 分布式键值存储与 CAP
+    meaning: 原书表述为：无论连接哪个节点，所有客户端同时看到相同数据。更严格的 CAP 语境通常指线性一致性：每次操作看起来在调用与返回之间某个瞬间原子发生，读返回最近完成的写。
+    source_heading: 4. 分布式键值存储与 CAP
+  - term: 10. 不一致解决：不可变版本与向量时钟
+    meaning: 限制长度并删除最旧项会丢失因果信息，导致无法准确判断祖先，产生额外 sibling 或错误合并。Dynamo 经验认为实际中可接受，但不能视为理论无损。
+    source_heading: 10. 不一致解决：不可变版本与向量时钟
+  - term: 14. 永久故障：Anti-Entropy 与 Merkle Tree
+    meaning: 根 hash 相同只在假设 hash 无碰撞、序列化一致时说明数据相同。工程上使用足够强 hash、版本化树格式并定期全量校验。
+    source_heading: 14. 永久故障：Anti-Entropy 与 Merkle Tree
+  - term: 16.4 一次 get 的分布式外层流程
+    meaning: Coordinator 定位 replicas；
+    source_heading: 16.4 一次 get 的分布式外层流程
+  - term: 22. 核心结论与一般设计方法
+    meaning: 分区期间偏 AP：sloppy quorum 跳过临时故障节点，hinted handoff 在 home replica 恢复后归还数据；永久差异用按
+      token range 构建的 Merkle tree 做 anti-entropy。
+    source_heading: 22. 核心结论与一般设计方法
+  logic:
+  - 0. 学习目标、阅读边界与设计总览
+  - 4. 分布式键值存储与 CAP
+  - 6. 数据分区：把海量 key 分散到节点
+  - 14. 永久故障：Anti-Entropy 与 Merkle Tree
+  - 16.2 去中心化
+  - 18.3 Bloom filter 的语义
+  - 22. 核心结论与一般设计方法
+  sections:
+  - title: 0. 学习目标、阅读边界与设计总览
+    source_heading: 0. 学习目标、阅读边界与设计总览
+    paragraphs:
+    - Gossip 为什么比 all-to-all heartbeat 更可扩展，又为何不能提供绝对故障证明？
+    - Sloppy quorum 和 hinted handoff 如何提高临时故障时的可用性？
+    - Bloom filter 为什么允许 false positive，却绝不能 false negative？
+    - 本文会补充 quorum 条件边界、向量时钟偏序、Bloom filter 公式、LSM 写放大等标准背景。补充内容会与原书结论连续讲解，但不冒充作者逐式给出的原文。
+  - title: 1.3 为什么 key-value 模型易于水平扩展
+    source_heading: 1.3 为什么 key-value 模型易于水平扩展
+    paragraphs:
+    - 再把请求路由到拥有该分区的节点。单 key 操作不必跨节点 JOIN，分区边界清晰。
+    - 代价是复杂查询、跨 key 事务、全局排序和二级索引不再自然。键值存储适合访问模式已知、可由 key 定位的数据，不是关系数据库的通用替代品。
+  - title: 4. 分布式键值存储与 CAP
+    source_heading: 4. 分布式键值存储与 CAP
+    paragraphs:
+    - 原书表述为：无论连接哪个节点，所有客户端同时看到相同数据。更严格的 CAP 语境通常指线性一致性：每次操作看起来在调用与返回之间某个瞬间原子发生，读返回最近完成的写。
+    - 每个发给非故障节点的请求最终得到非错误响应，但响应可能不是最新数据。CAP 可用性不是“全年 99.99% uptime”的同一个定义。
+    - 在真实分布式系统里网络故障不可完全避免，因此不能通过“选择 CA、不要 P”逃避问题。更准确的问题是：分区发生时，哪些操作等待一致，哪些操作保持可用？
+    - "“银行一定是 CP”仍是简化。真实金融系统常通过账本、幂等、补偿和分区化可用性组合，而不是一个 CAP 标签概括全部业务。"
+  - title: 6. 数据分区：把海量 key 分散到节点
+    source_heading: 6. 数据分区：把海量 key 分散到节点
+    paragraphs:
+    - 从 key 顺时针遇到的第一个节点是 owner。
+    - 高容量节点期望承担更多 key range。容量权重应综合磁盘、CPU、网络和请求类型，不应只按机器数量均分。
+    - 复制把同一 key 放到多个节点，解决可用性和可靠性；
+    - 系统通常先确定主 range，再为每个 range 选择多个副本。
+  - title: 10. 不一致解决：不可变版本与向量时钟
+    source_heading: 10. 不一致解决：不可变版本与向量时钟
+    paragraphs:
+    - 每次修改创建新不可变版本，而不是就地抹掉历史。这样系统能保留因果关系和并发分支，避免 last-write-wins 静默丢数据。
+    - 客户端合并增加复杂度，也会暴露多个 sibling。可将合并逻辑放服务端，但仍需业务语义。
+    - 限制长度并删除最旧项会丢失因果信息，导致无法准确判断祖先，产生额外 sibling 或错误合并。Dynamo 经验认为实际中可接受，但不能视为理论无损。
+    - 现代系统还可能使用 dotted version vectors、混合逻辑时钟、CRDT 或 leader/共识，取决于冲突语义。
+  - title: 14. 永久故障：Anti-Entropy 与 Merkle Tree
+    source_heading: 14. 永久故障：Anti-Entropy 与 Merkle Tree
+    paragraphs:
+    - 副本周期性比较数据，找出差异，并把各自缺少的最新版本同步。若逐 key 比较 10 亿条，即使只有一个 key 不同也很昂贵。
+    - 构建时必须使用确定的 key 排序、序列化、版本和删除标记；否则内容相同也可能得到不同 hash。
+    - 根 hash 相同只在假设 hash 无碰撞、序列化一致时说明数据相同。工程上使用足够强 hash、版本化树格式并定期全量校验。
+    - Merkle tree 检测差异，不决定哪个版本正确；新旧判断仍依赖版本向量、时间戳或业务规则。
+  - title: 16.2 去中心化
+    source_heading: 16.2 去中心化
+    paragraphs:
+    - Failure detection；
+    - Conflict resolution；
+    - Failure repair mechanism；
+    - 去中心化消除固定 leader 单点，但成员收敛、冲突和运维更复杂。每个节点仍可能故障，系统无单点来自角色冗余和多副本，而非“节点不会失败”。
+  - title: 16.4 一次 get 的分布式外层流程
+    source_heading: 16.4 一次 get 的分布式外层流程
+    paragraphs:
+    - Coordinator 定位 replicas；
+    - 并发 siblings 一并返回/合并；
+  - title: 18.3 Bloom filter 的语义
+    source_heading: 18.3 Bloom filter 的语义
+    paragraphs:
+    - 返回“definitely not present”时，可以跳过该 SSTable；
+    - 返回“possibly present”时，仍需查磁盘确认；
+    - 正确实现不允许 false negative。
+    - 它不会返回 value，也不能告诉 key 在文件中的精确偏移；SSTable 仍需索引。
+  - title: 22. 核心结论与一般设计方法
+    source_heading: 22. 核心结论与一般设计方法
+    paragraphs:
+    - 顺序日志 + 内存表 + 不可变 SSTable 把随机写转换为顺序写。 代价转移到读取合并和后台 compaction。
+    - 分区期间偏 AP：sloppy quorum 跳过临时故障节点，hinted handoff 在 home replica 恢复后归还数据；永久差异用按
+      token range 构建的 Merkle tree 做 anti-entropy。
+    - 副本本地先顺序追加 commit log，再更新 memtable，阈值后 flush 不可变 SSTable；读取先查内存，再用 Bloom filter
+      排除不含 key 的 SSTable，并合并版本/tombstone。
+    - 如果这些问题都能回答，就不只是记住了一组分布式术语，而是理解了本章的统一设计逻辑：先把数据分散，再用副本承受故障；用 quorum 定义成功，用版本保留因果，用故障协议推动副本收敛，最后由日志结构存储把分布式承诺落实为每台节点上的持久字节。
+  takeaways:
+  - Sloppy quorum 保可用；
+  - CAP 选择发生在网络分区期间。 偏 CP 拒绝不确定操作，偏 AP 接受陈旧与冲突并后续收敛。
+  - 成员状态通过 gossip 最终传播，节点先 suspect 再 down，避免抖动。
+  - 能否完整推导 D1 到 D5 的向量时钟？
+  - 如果这些问题都能回答，就不只是记住了一组分布式术语，而是理解了本章的统一设计逻辑：先把数据分散，再用副本承受故障；用 quorum 定义成功，用版本保留因果，用故障协议推动副本收敛，最后由日志结构存储把分布式承诺落实为每台节点上的持久字节。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念辨析
+  question: 原文如何解释「20.1 Key-value store 与缓存」？
+  answer: 键值接口既可用于易失缓存，也可用于持久数据库。是否持久、高可用、可调一致取决于实现，不由接口名称决定。
+  source_heading: 20.1 Key-value store 与缓存
+- level: 概念辨析
+  question: 原文如何解释「20.9 最终一致与“几秒后一定一致”」？
+  answer: 最终一致通常不承诺固定时间上界。若写持续发生、网络不恢复或 repair 故障，收敛会延后。
+  source_heading: 20.9 最终一致与“几秒后一定一致”
+- level: 概念辨析
+  question: 原文如何解释「20.15 Sloppy quorum 与 strict quorum」？
+  answer: Strict quorum 从固定 home replicas 取集合；sloppy quorum 用任意健康替代节点提高可用性，可能失去相交保证。
+  source_heading: 20.15 Sloppy quorum 与 strict quorum
+- level: 概念辨析
+  question: 原文如何解释「20.20 Memtable 与普通 cache」？
+  answer: Memtable 保存尚未 flush 的权威最新写入，是存储路径的一部分；普通 cache 丢失通常可从后端重建。
+  source_heading: 20.20 Memtable 与普通 cache
+- level: 概念辨析
+  question: 原文如何解释「20.25 跨数据中心复制与零 RPO」？
+  answer: 异步跨地域复制可能丢失尚未传播的确认写。零 RPO 通常需要同步远端确认，增加延迟和故障耦合。
+  source_heading: 20.25 跨数据中心复制与零 RPO

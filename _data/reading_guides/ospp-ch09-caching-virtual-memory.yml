@@ -1,0 +1,166 @@
+source:
+  post: _posts/book-notes/operating-system/ospp/2026-08-02-ospp-ch09-caching-virtual-memory.md
+  body_sha256: fb061ba10079e313d19b489d50c0282ba390374a70c6088bb854fe13619e42e9
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 12
+  question: 原文围绕「全章主线」建立了怎样的核心认识？
+  question_source: 全章主线
+  thesis: 可监控 page-fault frequency、paging disk 利用率、CPU idle-while-I/O、每进程驻留集和 refault
+    distance。若 page fault 持续高、paging device 接近饱和、CPU 利用低，继续增加进程不会帮助；应降低 multiprogramming、扩容
+    DRAM或调整工作集。
+  thesis_source: 9.7 案例：虚拟内存（Virtual Memory）
+  concepts:
+  - term: 全章主线
+    meaning: 缓存性能不是缓存自身的固有属性，而是缓存设计与工作负载的交互结果。同一个哈希表，能放进 L1 时每次纳秒级，超出 DRAM 后每次可能触发毫秒级磁盘访问；同一条替换规则，在有时间局部性的负载上很好，在循环扫描上可能每次都错。
+    source_heading: 全章主线
+  - term: 9.3 缓存何时有效、何时失效
+    meaning: 纯 LFU 会让历史热门对象永久占据缓存，即使流行趋势已变。实践中需计数衰减、滑动窗口、TinyLFU/ARC 等近期性与频率混合机制。Web
+      副本还会过期，命中不等于有效：必须用 TTL、版本号或条件请求验证 freshness。
+    source_heading: 9.3 缓存何时有效、何时失效
+  - term: 9.5 替换策略（Replacement Policies）
+    meaning: cache miss 且候选位置已满时，要选一个 victim。理想目标是最小化未来 miss 成本，而不是机械最小化 miss 数：脏页写回比干净页贵，远端对象比本地对象贵，大对象占更多空间，关键路径上的
+      miss 比非关键路径重要。
+    source_heading: 9.5 替换策略（Replacement Policies）
+  - term: 9.7 案例：虚拟内存（Virtual Memory）
+    meaning: 可监控 page-fault frequency、paging disk 利用率、CPU idle-while-I/O、每进程驻留集和 refault
+      distance。若 page fault 持续高、paging device 接近饱和、CPU 利用低，继续增加进程不会帮助；应降低 multiprogramming、扩容
+      DRAM或调整工作集。
+    source_heading: 9.7 案例：虚拟内存（Virtual Memory）
+  - term: 用 C++ 验证关键机制
+    meaning: 程序对应练习 12，明确把 TLB/cache 的必付成本、cache miss、两级 page walk 和条件 page fault
+      分开。
+    source_heading: 用 C++ 验证关键机制
+  - term: 复习检查清单
+    meaning: 能比较 write-through、write-back、write-allocate 与 write-around。
+    source_heading: 复习检查清单
+  logic:
+  - 全章主线
+  - 9.3 缓存何时有效、何时失效
+  - 9.4 内存缓存查找（Memory Cache Lookup）
+  - 9.7 案例：虚拟内存（Virtual Memory）
+  - 9.8 总结与未来方向
+  - 全章方法论总结
+  - 复习检查清单
+  sections:
+  - title: 全章主线
+    source_heading: 全章主线
+    paragraphs:
+    - 当主存成为磁盘的缓存时，怎样用页故障透明地实现映射文件和虚拟内存？
+    - 缓存性能不是缓存自身的固有属性，而是缓存设计与工作负载的交互结果。同一个哈希表，能放进 L1 时每次纳秒级，超出 DRAM 后每次可能触发毫秒级磁盘访问；同一条替换规则，在有时间局部性的负载上很好，在循环扫描上可能每次都错。
+    - 本章采用两个层次展开：9.1–9.5 抽象出所有缓存共有的概念、模型、查找和替换；9.6–9.7 把物理内存看成磁盘页的缓存，具体解释页故障、脏页、Clock、自分页与
+      swapping。
+    - 缓存不能创造容量，也不能保证一致性或性能。它只在“未来访问可由过去预测”且 miss 成本能被足够高的 hit rate 摊薄时有效。
+  - title: 9.1 缓存概念（Cache Concept）
+    source_heading: 9.1 缓存概念（Cache Concept）
+    paragraphs:
+    - 看似只有 1% miss，却贡献了超过一半平均延迟。若 miss 是 10 ms 磁盘而 hit 是 100 ns DRAM，要让 miss 对平均延迟贡献不超过
+      hit，需要
+    - 缓存按块（block/cache line/page）装入而非单字节，正是利用空间局部性。若块大小为 B，一次 miss 把包含目标的整个 B 字节带入；后续邻近访问可
+      hit。
+    - 块过小：元数据多、不能摊薄固定 miss 延迟；块过大：带入无用字节、污染缓存、增加传输和内部碎片。预取则更激进地在请求前装入预测块，预测对时隐藏延迟，错时浪费带宽和容量。
+    - 完全随机、均匀访问远大于缓存的数据集时，历史几乎不能预测未来，命中率约等于容量占全集比例；持续写且每次立刻失效的副本也无法复用。此时缓存可能只增加查找和一致性成本。是否采用缓存应由测量和负载模型决定，而不是“缓存总会更快”的信念。
+  - title: 9.3 缓存何时有效、何时失效
+    source_heading: 9.3 缓存何时有效、何时失效
+    paragraphs:
+    - 原书更直觉地把 hit-rate 曲线的“膝点”称为工作集：当缓存刚好能容纳当前关键代码/数据后，命中率迅速跃升，再增加容量收益变小。两种定义都表达“近期活跃、需要同时驻留的最小集合”。
+    - 这种算法称 cache-aware（显式按层级调块）或 cache-oblivious（递归分治，不写死具体层级却自动产生多尺度局部性）。关键不是减少总算术，而是让一块数据在被淘汰前完成足够多工作。
+    - 纯 LFU 会让历史热门对象永久占据缓存，即使流行趋势已变。实践中需计数衰减、滑动窗口、TinyLFU/ARC 等近期性与频率混合机制。Web 副本还会过期，命中不等于有效：必须用
+      TTL、版本号或条件请求验证 freshness。
+    - Zipf 是近似模型，不代表每个现实访问独立同分布。热点新闻会制造相关突发，推荐系统会改变热门度，攻击者还能刻意污染缓存。模型用于预测方向与数量级，最终仍要用实际
+      trace 验证。
+  - title: 9.4 内存缓存查找（Memory Cache Lookup）
+    source_heading: 9.4 内存缓存查找（Memory Cache Lookup）
+    paragraphs:
+    - 唯一位置。只查一个 tag，硬件最简单、延迟低；但两个活跃地址若映射同 set，会交替驱逐，即使其他 set 全空也无用，形成冲突 miss。
+    - 例如 cache 有 4 个 set，访问块 0、4、0、4……，两者都映射 set 0，除首次外仍每次 miss。加入日志可能改变代码地址，使冲突消失，这类性能问题会像
+      Heisenbug 一样难定位。
+    - 物理地址 cache 的 set index 可能使用 PFN 中的若干低位。若 OS 恰好分配一组“颜色相同”的页框，进程所有页都落到同一组 cache
+      set 子集，有效容量远小于标称值。
+    - 代价是物理分配受约束，可能加剧大页/NUMA/连续 DMA 的冲突；现代复杂 cache 的 slice 哈希也可能不公开，颜色控制未必精确。
+  - title: 9.5 替换策略（Replacement Policies）
+    source_heading: 9.5 替换策略（Replacement Policies）
+    paragraphs:
+    - cache miss 且候选位置已满时，要选一个 victim。理想目标是最小化未来 miss 成本，而不是机械最小化 miss 数：脏页写回比干净页贵，远端对象比本地对象贵，大对象占更多空间，关键路径上的
+      miss 比非关键路径重要。
+    - 为建立基础，本节先假设：块等大、miss 成本相同、未来引用序列固定，比较 miss 数。硬件只能在一个 set 内选 victim；OS 页替换则近似在大量物理页框中选择，但维护精确信息更昂贵。
+    - 硬件或 OS 无法在每次 load/store 上维护百万页精确链表，因此常用 pseudo-LRU、use bit、Clock 或采样近似。近似降低元数据成本，也会偏离理想
+      LRU。
+    - 大 cache 包含小 cache 的所有块，所以小 cache 的 hit 在大 cache 中也一定 hit；增加容量不会增加 miss。MIN 也具有类似包含性质。这类算法称
+      stack algorithm。
+  - title: 9.7 案例：虚拟内存（Virtual Memory）
+    source_heading: 9.7 案例：虚拟内存（Virtual Memory）
+    paragraphs:
+    - 将“文件页按需缓存到 DRAM”推广到所有进程段，就得到本章语境的 demand-paged virtual memory：代码/库由可执行文件后备，匿名堆栈由
+      swap/pagefile 或零页后备。未驻留页 PTE invalid，访问时内核换入。
+    - 全局 Clock 可能被“勤触页”程序操纵：恶意/贪婪进程用后台线程不断触摸自己的所有页，使 use bit 始终为 1；当它再 fault 新页时，替换器更可能淘汰正常进程较久未碰的页。正常进程失去工作集后
+      fault 更多、前进更慢，于是页更显得“不常用”，形成正反馈。
+    - 此时公平地让所有进程都极慢，不如暂时让少数进程完全不运行，把其全部页换出，释放足够内存让其余进程工作集驻留。Swapping 是整进程/大部分进程工作集的换出与暂停；待其他进程完成或内存释放后再换入。
+    - 可监控 page-fault frequency、paging disk 利用率、CPU idle-while-I/O、每进程驻留集和 refault
+      distance。若 page fault 持续高、paging device 接近饱和、CPU 利用低，继续增加进程不会帮助；应降低 multiprogramming、扩容
+      DRAM或调整工作集。
+  - title: 9.8 总结与未来方向
+    source_heading: 9.8 总结与未来方向
+    paragraphs:
+    - 本章把缓存从“硬件小技巧”提升为通用系统方法：缓存利用访问可预测性，用小容量保存高价值副本；其效果由命中成本、miss 成本、命中率与维护开销共同决定。
+    - 映射文件用 invalid PTE 与精确异常按需把文件页装入 DRAM，dirty bit 控制写回，Clock 用 use bit 近似 LRU。
+    - 未来变化会重新调整参数但不会消除问题：更快 SSD/远端 DRAM降低 miss 成本，可能让 paging 更可用；页大小会在内部碎片、TLB、传输和
+      tracking 开销间重新平衡；应用越来越了解自己的工作集，OS 需要向数据库、GC、VM 等运行时暴露资源压力和控制接口。
+    - 最重要的方法是：先刻画访问分布，再选 cache 和策略；先看 miss 是否 compulsory/capacity/conflict，再决定扩容、增加相联或改布局；若系统已经
+      thrash，替换策略微调通常不如减少活跃工作集。
+  - title: 用 C++ 验证关键机制
+    source_heading: 用 C++ 验证关键机制
+    paragraphs:
+    - 当前环境没有 C/C++ 编译器，因此未做本地编译，输出已用独立脚本复核。
+    - 程序对应练习 12，明确把 TLB/cache 的必付成本、cache miss、两级 page walk 和条件 page fault 分开。
+    - 真实系统可在 unmap/后台 writeback 时写回，不能把“store 指令完成”理解成数据已经持久落盘。
+  - title: 全章方法论总结
+    source_heading: 全章方法论总结
+    paragraphs:
+    - 四、先找 miss 类型，再选择修复。 Cold miss 可预取，capacity miss 需容量/缩工作集，conflict miss 需相联度/布局/page
+      coloring。只加容量不一定解决冲突。
+    - 七、把内存分配视为资源调度。 全局替换最大化利用率，却可被贪婪进程操纵；self-paging 提供隔离却可能浪费。它与 CPU 最大最小公平是同一个资源分配问题。
+    - 八、识别过载后停止微调策略。 当工作集总和超过 DRAM，所有进程同时 paging 会吞吐崩塌。此时 swapping、限制并发或扩容比把 Clock
+      调得更精细有效。
+    - 面对任何新 cache，可固定追问：原始数据在哪里？命中/失效怎样判断？访问分布是什么？块大小和相联度如何？谁被替换？脏副本何时写回？容量不足时系统是否会正反馈崩塌？
+  - title: 复习检查清单
+    source_heading: 复习检查清单
+    paragraphs:
+    - 能比较 write-through、write-back、write-allocate 与 write-around。
+    - 能推导 page color 数，并解释 OS 分配 PFN 为何影响物理 cache。
+    - 能写出 Clock/Second Chance，并解释 use bit 清零为何涉及 TLB。
+    - 能推导循环扫描下 FIFO/LRU/Clock 与 MIN 的 fault-rate 曲线。
+  takeaways:
+  - 缓存不能创造容量，也不能保证一致性或性能。它只在“未来访问可由过去预测”且 miss 成本能被足够高的 hit rate 摊薄时有效。
+  - Zipf 是近似模型，不代表每个现实访问独立同分布。热点新闻会制造相关突发，推荐系统会改变热门度，攻击者还能刻意污染缓存。模型用于预测方向与数量级，最终仍要用实际
+    trace 验证。
+  - 可监控 page-fault frequency、paging disk 利用率、CPU idle-while-I/O、每进程驻留集和 refault distance。若
+    page fault 持续高、paging device 接近饱和、CPU 利用低，继续增加进程不会帮助；应降低 multiprogramming、扩容 DRAM或调整工作集。
+  - 真实系统可在 unmap/后台 writeback 时写回，不能把“store 指令完成”理解成数据已经持久落盘。
+  - 能推导循环扫描下 FIFO/LRU/Clock 与 MIN 的 fault-rate 曲线。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念辨析
+  question: 原文如何解释「公式速查与适用条件」？
+  answer: 使用 AMAT 时必须明确哪些延迟可并行、miss penalty 是否含 lookup、fault 概率是无条件还是以 TLB miss 为条件。单位错误可直接改变硬件购买结论。
+  source_heading: 公式速查与适用条件
+- level: 边界判断
+  question: 9.3 缓存何时有效、何时失效？
+  answer: 纯 LFU 会让历史热门对象永久占据缓存，即使流行趋势已变。实践中需计数衰减、滑动窗口、TinyLFU/ARC 等近期性与频率混合机制。Web
+    副本还会过期，命中不等于有效：必须用 TTL、版本号或条件请求验证 freshness。
+  source_heading: 9.3 缓存何时有效、何时失效
+- level: 关系解释
+  question: 原文如何解释「9.5 替换策略（Replacement Policies）」？
+  answer: cache miss 且候选位置已满时，要选一个 victim。理想目标是最小化未来 miss 成本，而不是机械最小化 miss 数：脏页写回比干净页贵，远端对象比本地对象贵，大对象占更多空间，关键路径上的
+    miss 比非关键路径重要。
+  source_heading: 9.5 替换策略（Replacement Policies）
+- level: 关系解释
+  question: 原文如何解释「用 C++ 验证关键机制」？
+  answer: 程序对应练习 12，明确把 TLB/cache 的必付成本、cache miss、两级 page walk 和条件 page fault 分开。
+  source_heading: 用 C++ 验证关键机制
+- level: 概念复述
+  question: 原文如何解释「复习检查清单」？
+  answer: 能比较 write-through、write-back、write-allocate 与 write-around。
+  source_heading: 复习检查清单

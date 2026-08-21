@@ -1,0 +1,148 @@
+source:
+  post: _posts/book-notes/ai-system/design-deep-learning-system/2026-08-08-designing-deep-learning-systems-ch04-distributed-training.md
+  body_sha256: c9bbc10bb586311676af30f2176c7bf073912305da0fb067653a3ad658ba8380
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 11
+  question: 原文围绕「本章要回答的核心问题」建立了怎样的核心认识？
+  question_source: 本章要回答的核心问题
+  thesis: GPipe 在一个逻辑 batch 内累计 microbatch 梯度，batch 末同步更新。 这样保证各 microbatch forward
+    / backward 使用一致参数版本。
+  thesis_source: 核心结论
+  concepts:
+  - term: 本章要回答的核心问题
+    meaning: 原章以系统设计和概念代码为主。本文在对应位置补充梯度等价性、扩展效率、通信成本、梯度陈旧、有效 batch size、流水线利用率等推导，以说明作者结论成立的前提与局限；这些形式化表达不是原章另行提出的算法。原章代码和框架接口具有成书时点，实际运行时应以目标
+      PyTorch、TensorFlow、Horovod 和 Kubernetes 版本为准。
+    source_heading: 本章要回答的核心问题
+  - term: 4.1 分布式训练方法的类型
+    meaning: 组合会提高容量与吞吐，也会把通信组、拓扑放置、checkpoint 和故障域变复杂。设计时仍应先用最简单、能满足目标的方法，不应因为有很多
+      GPU 就默认采用多维并行。
+    source_heading: 4.1 分布式训练方法的类型
+  - term: 4.3 支持数据并行的样例训练服务
+    meaning: 原章认为同步数据并行中所有 worker 每轮都同步，所以 rank 0 的进展可以代表整组：其他 worker 不参与 collective
+      时，rank 0 通常也无法继续完成训练。它给教学样例提供一个简单状态代理。
+    source_heading: 4.3 支持数据并行的样例训练服务
+  - term: 4.4 训练单 GPU 无法容纳的大模型
+    meaning: 原章说 4 个 microbatch 相比一次 batch 32 约慢 4 倍。这个表述应理解为：无法并行计算 32 个样本，而要串行执行四次
+      forward/backward，吞吐显著下降；它不严格意味着墙钟必然恰好 4 倍，因为 batch 32 本身计算也更多，GPU 利用、kernel
+      启动和 I/O 会改变比率。
+    source_heading: 4.4 训练单 GPU 无法容纳的大模型
+  - term: 从本章提炼出的通用解题方法
+    meaning: 按每层计算、参数、activation 和边界通信切分，选择 microbatch 数；同时观察最慢 stage、bubble、显存与 kernel
+      效率。以完整 forward + backward + optimizer 吞吐验收。
+    source_heading: 从本章提炼出的通用解题方法
+  - term: 复习与自测
+    meaning: Activation checkpoint、训练 checkpoint 和 CPU offload 有什么区别？
+    source_heading: 复习与自测
+  logic:
+  - 本章要回答的核心问题
+  - 4.1 分布式训练方法的类型
+  - 4.2 数据并行
+  - 4.4 训练单 GPU 无法容纳的大模型
+  - 核心结论
+  - 从本章提炼出的通用解题方法
+  - 复习与自测
+  sections:
+  - title: 本章要回答的核心问题
+    source_heading: 本章要回答的核心问题
+    paragraphs:
+    - 样例服务怎样用 Kubernetes 创建 master、worker、Service 和通信环境变量？
+    - 模型大于单卡显存时，梯度累积、CPU/GPU 换入换出、模型并行和流水线并行怎样选择？
+    - GPipe 为什么引入 microbatch，pipeline bubble 又为何无法完全消失？
+    - 原章以系统设计和概念代码为主。本文在对应位置补充梯度等价性、扩展效率、通信成本、梯度陈旧、有效 batch size、流水线利用率等推导，以说明作者结论成立的前提与局限；这些形式化表达不是原章另行提出的算法。原章代码和框架接口具有成书时点，实际运行时应以目标
+      PyTorch、TensorFlow、Horovod 和 Kubernetes 版本为准。
+  - title: 4.1 分布式训练方法的类型
+    source_heading: 4.1 分布式训练方法的类型
+    paragraphs:
+    - 原章用 BERT 单 GPU 可能训练数月作为“训练太慢”的直觉例子。具体时间取决于模型版本、数据、硬件和实现，重要结论是：反馈周期若以月计，算法开发本身也会被拖慢。
+    - 它主要解决：模型状态或激活大到单卡放不下。代价是模型切分依赖具体架构，设备之间必须传输激活与梯度，而且顺序依赖会造成空闲。
+    - 而模型 / 流水线并行没有一种对所有网络都最佳的切分方式。层的计算量、参数量、激活量和连接拓扑各异，数据科学家必须逐模型设计。
+    - 组合会提高容量与吞吐，也会把通信组、拓扑放置、checkpoint 和故障域变复杂。设计时仍应先用最简单、能满足目标的方法，不应因为有很多 GPU 就默认采用多维并行。
+  - title: 4.2 数据并行
+    source_heading: 4.2 数据并行
+    paragraphs:
+    - 同步 collective 通常要求组内参与者共同进入操作。一个 worker 崩溃、卡住或断网，其他 worker 也可能阻塞或使整个作业失败。浪费量不只是故障
+      worker 的计算，而是全组从最近恢复点之后的计算。
+    - 原章建议“某 worker 失败后重启并加载最近状态”。实践中固定成员 collective 往往不能只透明替换一个进程；可能需要全组重启，除非框架明确支持
+      elastic membership。因此平台必须把恢复粒度写进协议，不能仅依赖 Kubernetes 重建 Pod。
+    - 拓扑感知放置：把 worker 尽量集中到网络更快、跳数更少的节点，利用 Kubernetes node selector、affinity / anti-affinity
+      等策略；同节点多 GPU 还可能利用更快互连。
+    - 收到请求后分配多台机器 / 多个 Pod，将同一版本训练镜像和数据配置发给所有进程，并确保整组资源可以启动。分布式作业通常需要 gang scheduling：如果只启动部分
+      worker，已启动进程会在建组处等待并浪费资源。
+  - title: 4.3 支持数据并行的样例训练服务
+    source_heading: 4.3 支持数据并行的样例训练服务
+    paragraphs:
+    - 但本章样例仍手工创建 Pods 和 Service，不等于已经使用 Kubeflow Training Operator 或成熟批调度器；组级原子调度、框架容错、公平队列和持久状态仍需补充。
+    - 这适合本地实验。生产中不应把个人 kubeconfig 直接挂入服务容器，因为它可能包含高权限和长期凭据；在集群内运行时应使用专用 ServiceAccount、RBAC
+      和短期工作负载身份。
+    - Service 的作用是提供稳定 DNS 和端口，不是承担参数服务器计算。三个 DDP 进程都保存模型并参与 collective；rank 0 只是被约定为
+      rendezvous 端点和唯一制品写入者。
+    - 原章认为同步数据并行中所有 worker 每轮都同步，所以 rank 0 的进展可以代表整组：其他 worker 不参与 collective 时，rank
+      0 通常也无法继续完成训练。它给教学样例提供一个简单状态代理。
+  - title: 4.4 训练单 GPU 无法容纳的大模型
+    source_heading: 4.4 训练单 GPU 无法容纳的大模型
+    paragraphs:
+    - 原章设想 24 GB 模型要在 10 GB GPU 上训练。严格说能否做到还取决于“24 GB”指参数文件、推理驻留还是完整训练状态；若仅模型参数本身就超过
+      GPU，单靠梯度累积并不能使它放下。选择前必须先用内存剖析确认峰值来自 batch 激活还是模型 / optimizer 状态。
+    - 原章说 4 个 microbatch 相比一次 batch 32 约慢 4 倍。这个表述应理解为：无法并行计算 32 个样本，而要串行执行四次 forward/backward，吞吐显著下降；它不严格意味着墙钟必然恰好
+      4 倍，因为 batch 32 本身计算也更多，GPU 利用、kernel 启动和 I/O 会改变比率。
+    - 原章列举了两种代表性流水线实现：Microsoft 的 PipeDream 与 Google 的 GPipe，并选择 GPipe 作为演示，因为作者认为它在训练
+      step 内的梯度更新语义和吞吐方面更适合本节说明。两者的具体调度、参数版本和一致性机制不同，不能只凭“都使用流水线”视为等价实现。
+    - 调用 pipeline model 得到输出，在最后一块 GPU 计算 loss，再 backward 和 optimizer step。框架隐藏 microbatch
+      的阶段传输与梯度聚合，但数据科学家仍需决定切分、设备、chunks 和 loss placement。
+  - title: 核心结论
+    source_heading: 核心结论
+    paragraphs:
+    - 同步数据并行在参数起点、数据切分和梯度加权正确时，近似等价于 global batch 梯度。 worker 数变化会改变 global batch 和优化语义。
+    - PyTorch、TensorFlow 和 Horovod API 不同，但都需要建组、进程身份、数据分片、梯度同步和唯一副作用。 训练服务可以围绕这些共同概念设计
+      adapter。
+    - 梯度累积用多次小 microbatch 模拟较大有效 batch，主要减少 activation 峰值。 必须正确缩放 loss，并理解它不减少模型固定状态。
+    - GPipe 在一个逻辑 batch 内累计 microbatch 梯度，batch 末同步更新。 这样保证各 microbatch forward /
+      backward 使用一致参数版本。
+  - title: 从本章提炼出的通用解题方法
+    source_heading: 从本章提炼出的通用解题方法
+    paragraphs:
+    - 使用 sampler / sharding 避免数据重复，统一模型和 optimizer 初始状态，明确随机种子策略和 global batch。先验证单步梯度或短程
+      loss 是否与单卡基线一致。
+    - 保存完整 checkpoint，定义一致 logical step、manifest 和校验和；明确单 rank 重启、整组重启或 elastic membership。用故障注入验证，而不是只测试成功路径。
+    - 测量节点内 / 节点间带宽、collective 时间、bucket overlap 和 straggler；调整 worker 数、放置、batch、bucket
+      和框架版本。不要照搬历史推荐 GPU 数。
+    - 按每层计算、参数、activation 和边界通信切分，选择 microbatch 数；同时观察最慢 stage、bubble、显存与 kernel 效率。以完整
+      forward + backward + optimizer 吞吐验收。
+  - title: 复习与自测
+    source_heading: 复习与自测
+    paragraphs:
+    - 8 个 worker、每 worker batch 32 时 global batch 是多少？
+    - 把 PyTorch generic group spec 转成 TensorFlow 时还需生成什么？
+    - Activation checkpoint、训练 checkpoint 和 CPU offload 有什么区别？
+    - 流水线 checkpoint manifest 为什么要原子关联所有 stage shard？
+  takeaways:
+  - 分布式策略首先由瓶颈决定。 模型能放进单卡但训练慢，优先数据并行；模型放不下，才需要内存节省或模型 / 流水线并行。
+  - 扩展总有上限。 计算随 worker 分摊，梯度通信、输入和不平衡不会同速消失；必须测量 speedup、efficiency 和成本。
+  - Kubernetes Service 解决稳定寻址，不解决训练状态持久化。 Pod 重建仍要配合框架和 checkpoint 做组级恢复。
+  - 朴素模型并行让不同 stage 顺序等待。
+  - 单卡、数据并行、内存节省、流水线并行应按复杂度逐级采用。 先 profile，再由容量和时间目标驱动升级。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念辨析
+  question: 原文如何解释「1. 分布式训练就是数据并行」？
+  answer: 错误。数据并行切数据、复制模型；模型并行切模型；流水线并行在模型切分上用 microbatch 重叠阶段。三者解决的首要瓶颈不同。
+  source_heading: 1. 分布式训练就是数据并行
+- level: 概念辨析
+  question: 原文如何解释「10. 增加 worker 但保持 local batch 不变，只改变速度」？
+  answer: 错误。global batch 随 W 增大，优化轨迹和学习率要求可能改变。系统扩展与算法语义必须一起评估。
+  source_heading: 10. 增加 worker 但保持 local batch 不变，只改变速度
+- level: 概念辨析
+  question: 原文如何解释「19. Horovod 替代了 TensorFlow 或 PyTorch」？
+  answer: 错误。Horovod 提供跨框架分布式通信包装，模型、loss 和训练主体仍由底层框架实现。
+  source_heading: 19. Horovod 替代了 TensorFlow 或 PyTorch
+- level: 概念辨析
+  question: 原文如何解释「27. 梯度累积四步必然比大 batch 慢四倍」？
+  answer: 不严格。它串行执行四次 microbatch，通常吞吐下降，但实际比率由 GPU 利用、kernel、I/O 和大 batch 本身耗时决定。
+  source_heading: 27. 梯度累积四步必然比大 batch 慢四倍
+- level: 概念辨析
+  question: 原文如何解释「35. 有多 GPU 就应该直接分布式训练」？
+  answer: 错误。单卡满足时间和容量目标时复杂度最低。应先建立单卡基线，再由瓶颈驱动并行策略。
+  source_heading: 35. 有多 GPU 就应该直接分布式训练

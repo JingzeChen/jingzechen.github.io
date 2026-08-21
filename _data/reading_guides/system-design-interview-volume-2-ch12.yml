@@ -1,0 +1,140 @@
+source:
+  post: _posts/book-notes/software-architecture/system-design-interview-volume-2/2026-08-12-system-design-interview-volume-2-ch12.md
+  body_sha256: ab1d2bdd2f882d95f270e8dc3d1246c900a0bde0c90183693c2e317913dddb01
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 8
+  question: 原文围绕「0. 本章解决的核心问题」建立了怎样的核心认识？
+  question_source: 0. 本章解决的核心问题
+  thesis: Raft 保证单分片 Event Order 和耐久。 Majority Commit 后所有确定性 Replica 最终导出同 State。
+  thesis_source: 19. 核心结论
+  concepts:
+  - term: 0. 本章解决的核心问题
+    meaning: 本章比普通转账设计多一个关键要求：Reproducibility（可重现性）。系统不只要给出当前余额，还要解释余额为什么变成这样，并能够从不可变历史重建任意时刻状态。
+    source_heading: 0. 本章解决的核心问题
+  - term: 5.1 Phase 1：Prepare
+    meaning: 各 Participant 回 Yes/No。
+    source_heading: 5.1 Phase 1：Prepare
+  - term: 7.5 2PC、TC/C、Saga 的本质区别
+    meaning: Saga：一串已 Commit Local Transaction，失败后执行 Compensation。
+    source_heading: 7.5 2PC、TC/C、Saga 的本质区别
+  - term: 11. CQRS
+    meaning: Read Path：消费 Event，构建 Balance/History Query View。
+    source_heading: 11. CQRS
+  - term: 14.2 Raft 复制 Event Log
+    meaning: Raft 角色：Leader、Candidate、Follower。Leader 接收 Command，生成/Append Event，复制到
+      Follower；达到 Majority 后 Commit。
+    source_heading: 14.2 Raft 复制 Event Log
+  - term: 20. 解决高吞吐资金转移问题的一般思路
+    meaning: 本章最值得迁移的方法是：把“当前余额”降级为可重建视图，把“有序不可变事件”提升为系统事实；单分片用共识保证事实顺序，跨分片用可恢复补偿协议协调，再以
+      Transaction ID 和确定性状态机让所有重试、故障和重放都得到同一业务结果。
+    source_heading: 20. 解决高吞吐资金转移问题的一般思路
+  logic:
+  - 0. 本章解决的核心问题
+  - 5.1 Phase 1：Prepare
+  - 6.4 幂等要求
+  - 11. CQRS
+  - 13.3 File-based State
+  - 15.3 跨分片 Transaction
+  - 20. 解决高吞吐资金转移问题的一般思路
+  sections:
+  - title: 0. 本章解决的核心问题
+    source_heading: 0. 本章解决的核心问题
+    paragraphs:
+    - 扣款和入账必须表现为一个业务原子操作：不能只扣不加、只加不扣，也不能因重试执行两次。
+    - 本章比普通转账设计多一个关键要求：Reproducibility（可重现性）。系统不只要给出当前余额，还要解释余额为什么变成这样，并能够从不可变历史重建任意时刻状态。
+    - 单分片可靠顺序：Raft Replicated Event Log；
+    - 百万 TPS：许多独立 Raft Group 水平分片；
+  - title: 2.1 transaction_id
+    source_heading: 2.1 transaction_id
+    paragraphs:
+    - 并发重复：只有一个执行 Owner；
+    - Event、Saga Phase、Ledger Entry 都可追踪该 ID。
+  - title: 5.1 Phase 1：Prepare
+    source_heading: 5.1 Phase 1：Prepare
+    paragraphs:
+    - Coordinator 在 A、C 执行读写；
+    - Participant 锁定资源并写 Prepare Record；
+    - Coordinator 询问能否 Commit；
+    - 各 Participant 回 Yes/No。
+  - title: 6.4 幂等要求
+    source_heading: 6.4 幂等要求
+    paragraphs:
+    - 重复 Confirm 不重复加；
+    - 重复 Cancel 不重复补偿。
+  - title: 7.5 2PC、TC/C、Saga 的本质区别
+    source_heading: 7.5 2PC、TC/C、Saga 的本质区别
+    paragraphs:
+    - 2PC：参与者保留未完成 Transaction/Lock，最终一次 Commit/Abort；
+    - TC/C：Try 已 Commit Local State，Confirm/Cancel 是新 Transaction；
+    - Saga：一串已 Commit Local Transaction，失败后执行 Compensation。
+    - 后两者提供的是业务层最终原子效果，不提供全程 Isolation；其他请求可能看到中间状态。
+  - title: 11. CQRS
+    source_heading: 11. CQRS
+    paragraphs:
+    - Write Path：Command -> Validate -> Event；
+    - Read Path：消费 Event，构建 Balance/History Query View。
+  - title: 13.3 File-based State
+    source_heading: 13.3 File-based State
+    paragraphs:
+    - WAL + MemTable + SSTable；
+    - Recent State Cache 提高读；
+    - Local Call 避免网络。
+    - State 是 Derived View，损坏可从 Event Log 重建。
+  - title: 14.2 Raft 复制 Event Log
+    source_heading: 14.2 Raft 复制 Event Log
+    paragraphs:
+    - Committed Event 不丢；
+    - 所有 Node 的 Log Relative Order 一致。
+    - Raft 角色：Leader、Candidate、Follower。Leader 接收 Command，生成/Append Event，复制到 Follower；达到
+      Majority 后 Commit。
+    - 5 Node 需要 3，可容忍 2 故障；3 Node 需要 2，可容忍 1。
+  - title: 15.3 跨分片 Transaction
+    source_heading: 15.3 跨分片 Transaction
+    paragraphs:
+    - A 在 Group 1、C 在 Group 2，单 Raft Log 无法原子覆盖两组。复用 TC/C 或 Saga Coordinator，Phase
+      Status 持久化。
+    - Group 1 Leader 验证、生成 Event、Raft Commit；
+    - CQRS Read Path Apply 并 Push Success；
+    - 失败时逆序 Compensation：若 Debit 已完成、Credit 失败，则向 Group 1 发送唯一 Compensation Command。
+  - title: 20. 解决高吞吐资金转移问题的一般思路
+    source_heading: 20. 解决高吞吐资金转移问题的一般思路
+    paragraphs:
+    - Read Model 保存 Current Balance/History；暴露 Event Offset，让 Client 区分“已提交”和“Projection
+      尚未追上”。
+    - 按 Failure Domain 部署 3/5 Node Group；只在 Majority Commit 后确认；Leader Failure 后按相同
+      Transaction ID Retry。
+    - Account -> Raft Group；Coordinator 持久化 Saga Phase；处理 Hot Account、Rebalance 和
+      Group Migration。
+    - 本章最值得迁移的方法是：把“当前余额”降级为可重建视图，把“有序不可变事件”提升为系统事实；单分片用共识保证事实顺序，跨分片用可恢复补偿协议协调，再以
+      Transaction ID 和确定性状态机让所有重试、故障和重放都得到同一业务结果。
+  takeaways:
+  - 钱包转账的第一不变量是资金守恒。 Debit/Credit 必须形成一次业务原子效果。
+  - TC/C/Saga 的每个 Phase 都必须幂等、可恢复、可处理乱序。
+  - Event Sourcing 用不可变事实取代仅保存当前余额。 任意历史 State 可由 Event Prefix 重建。
+  - Event Log 是最关键可靠数据。 State/Snapshot 可重建；Command 不能替代已决定 Event。
+  - Raft、Event Sourcing 和 Saga 解决不同问题。 共识、审计重建、跨分片事务不能互相替代。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念辨析
+  question: 原文如何解释「17.1 钱包转账不只是两个 Counter Update」？
+  answer: 跨 Shard 后两个 Update 不是同一原子操作，还需要协调、幂等、恢复和审计。
+  source_heading: 17.1 钱包转账不只是两个 Counter Update
+- level: 概念辨析
+  question: 原文如何解释「17.8 原书 TC/C 示例的资金“消失”是中间状态」？
+  answer: 最终 Confirm/Cancel 恢复；生产账本宜用 Reserved/Clearing 显式表示 In-transit Money。
+  source_heading: 17.8 原书 TC/C 示例的资金“消失”是中间状态
+- level: 概念辨析
+  question: 原文如何解释「17.17 State 是 Event 的 View，不是唯一事实」？
+  answer: RocksDB Balance 丢失可重建；Event Log 丢失则历史无法恢复。
+  source_heading: 17.17 State 是 Event 的 View，不是唯一事实
+- level: 概念辨析
+  question: 原文如何解释「17.23 mmap 不等于 Durable」？
+  answer: Page 在 Memory 不代表已稳定落盘；成功 ACK 条件要包含 Fsync/Quorum Policy。
+  source_heading: 17.23 mmap 不等于 Durable
+- level: 概念辨析
+  question: 原文如何解释「17.29 Push Completion 不能成为唯一状态记录」？
+  answer: Proxy/Client 可能断线，终态仍要可按 Transaction ID Query。
+  source_heading: 17.29 Push Completion 不能成为唯一状态记录

@@ -1,0 +1,157 @@
+source:
+  post: _posts/book-notes/distributed-system/understanding-distributed-system/2026-08-16-understanding-distributed-systems-2e-ch20-caching.md
+  body_sha256: a97990efe398024068d48a8b85728cd3b22725ccf894d58f899a2f59fa324646
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 9
+  question: 原文围绕「0. 导读：缓存把昂贵的重复工作换成廉价的近端副本」建立了怎样的核心认识？
+  question_source: 0. 导读：缓存把昂贵的重复工作换成廉价的近端副本
+  thesis: Local L1 可防 external L2 outage，但 origin 仍需 concurrency/rate limit 与 load
+    shedding。
+  thesis_source: 22. 核心结论
+  concepts:
+  - term: 0. 导读：缓存把昂贵的重复工作换成廉价的近端副本
+    meaning: 若 cache 丢失后数据无法从 origin 重建，它就不再只是 cache，而成为持久 state store。此时 durability、backup、transaction
+      和 recovery contract 都必须升级。
+    source_heading: 0. 导读：缓存把昂贵的重复工作换成廉价的近端副本
+  - term: 5. Eviction policy：容量满时淘汰谁
+    meaning: 每个 miss 都写 cache 可能让一次性 objects 污染空间。Admission policy 决定“新 object 是否值得缓存”；eviction
+      policy 决定“需要空间时删谁”。
+    source_heading: 5. Eviction policy：容量满时淘汰谁
+  - term: 10. Thundering herd
+    meaning: External shared cache 可把 collapse 范围扩大到所有 clients，但需要 distributed lock/fill
+      ownership，并处理 owner crash、lease expiry 和 fencing。
+    source_heading: 10. Thundering herd
+  - term: 13. Rebalancing 与 consistent hashing
+    meaning: 原章建议 consistent hashing 或类似 partitioning 技术，目标是 membership change 时尽量少
+      shuffle/drop data。
+    source_heading: 13. Rebalancing 与 consistent hashing
+  - term: 16.6 示例局限
+    meaning: Origin call counter 只计成功找到 object 的 fetch。
+    source_heading: 16.6 示例局限
+  - term: 23. 一般化的解决问题方法
+    meaning: Miss 会消耗 origin capacity。为它设置 per-key singleflight、global concurrency、priority、deadline
+      和 retry budget，就像管理 thread/connection pool。
+    source_heading: 23. 一般化的解决问题方法
+  logic:
+  - 0. 导读：缓存把昂贵的重复工作换成廉价的近端副本
+  - 5. Eviction policy：容量满时淘汰谁
+  - 7.3 Stale-on-error 的条件
+  - 13. Rebalancing 与 consistent hashing
+  - 15.5 Origin 必须 load shed
+  - 19. 如何设计应用缓存
+  - 23. 一般化的解决问题方法
+  sections:
+  - title: 0. 导读：缓存把昂贵的重复工作换成廉价的近端副本
+    source_heading: 0. 导读：缓存把昂贵的重复工作换成廉价的近端副本
+    paragraphs:
+    - Cache 是高速 storage layer，暂时缓冲 origin response，使未来 requests 可直接从 cache 服务。
+    - DNS resolver cache、browser HTTP cache、CDN edge cache 都是此前案例；本章把同一思想应用到 application
+      data-store reads。
+    - 若 cache 丢失后数据无法从 origin 重建，它就不再只是 cache，而成为持久 state store。此时 durability、backup、transaction
+      和 recovery contract 都必须升级。
+    - Cache 可以让系统更快，但 cache miss、cold start 或 outage 时，系统必须仍能以受控方式存活；允许变慢，不应整体崩溃。
+  - title: 3.1 原章的警告
+    source_heading: 3.1 原章的警告
+    paragraphs:
+    - Deployment creates new keys；
+    - Node failure/rebalance；
+    - Cache service outage；
+    - Bad invalidation/purge；
+  - title: 5. Eviction policy：容量满时淘汰谁
+    source_heading: 5. Eviction policy：容量满时淘汰谁
+    paragraphs:
+    - Cache capacity 有限。新 object 进入而空间不足时，需移除一个或多个 entries。
+    - 直觉：recently used object 更可能再次使用，利用 temporal locality。
+    - 未过期 entry 也可被 eviction；已过期 entry 可能尚未物理删除，只是在读取时视为 invalid。
+    - 每个 miss 都写 cache 可能让一次性 objects 污染空间。Admission policy 决定“新 object 是否值得缓存”；eviction
+      policy 决定“需要空间时删谁”。
+  - title: 7.3 Stale-on-error 的条件
+    source_heading: 7.3 Stale-on-error 的条件
+    paragraphs:
+    - Security/revocation exceptions；
+    - Client-visible warning/metric；
+    - Configuration with safe old default；
+    - Availability 与 semantic correctness 必须共同评估。
+  - title: 10. Thundering herd
+    source_heading: 10. Thundering herd
+    paragraphs:
+    - 大量 requests 同时 miss 并打 origin，即 thundering herd/cache stampede。
+    - 原章给出：每个 client 对某 key 任一时刻最多一个 outstanding fetch，其余等待同一个结果。
+    - External shared cache 可把 collapse 范围扩大到所有 clients，但需要 distributed lock/fill
+      ownership，并处理 owner crash、lease expiry 和 fencing。
+    - 风险：object 随后创建，negative entry 会暂时隐藏它；权限错误不能随意作为全局 negative value；不同错误需不同 policy。
+  - title: 13. Rebalancing 与 consistent hashing
+    source_heading: 13. Rebalancing 与 consistent hashing
+    paragraphs:
+    - 原章建议 consistent hashing 或类似 partitioning 技术，目标是 membership change 时尽量少 shuffle/drop
+      data。
+    - Virtual nodes/weighted rendezvous hashing 等可进一步改善 placement。
+    - Continue serving old owner during migration；
+    - 若 origin 很强、cache 小，drop 简单；若 origin 脆弱、working set 大，迁移/预热更安全。必须按 refill cost
+      决策。
+  - title: 15.5 Origin 必须 load shed
+    source_heading: 15.5 Origin 必须 load shed
+    paragraphs:
+    - Per-client/tenant rate limit；
+    - Global concurrency limit；
+    - Reject low-priority work；
+    - 目标不是让所有 requests 在 outage 时成功，而是保护核心请求和系统恢复能力。
+  - title: 16.6 示例局限
+    source_heading: 16.6 示例局限
+    paragraphs:
+    - LRU timestamp 相同时取较早 array slot，不含随机 tie-break；
+    - 无 negative caching、jitter 和 background refresh；
+    - Origin call counter 只计成功找到 object 的 fetch。
+    - 因此代码验证 policy 状态转换，不是 concurrent production cache。
+  - title: 19. 如何设计应用缓存
+    source_heading: 19. 如何设计应用缓存
+    paragraphs:
+    - 同时 canonicalize order/encoding，避免等价 query 产生不同 keys。
+    - Side cache 适合应用掌握业务 freshness、需要自主 fallback；inline 适合通用、集中代理和共享 coalescing。定义
+      timeout、miss 和 error contract。
+    - 画出 read/write races，定义 version/order 和 lost event reconciliation。
+    - 明确 local fallback、stale、priority、rate/concurrency limits 和 origin shedding。不要全量瞬时
+      bypass。
+  - title: 23. 一般化的解决问题方法
+    source_heading: 23. 一般化的解决问题方法
+    paragraphs:
+    - 画出 miss、origin read、write、invalidate、SET 的 interleaving。分布式 cache 最难的 bug 往往不是
+      lookup，而是 race。
+    - Local L1 提供速度/outage buffer，external L2 提供共享容量和 global collapse。用 conditional
+      hit ratio 计算 origin load，不重复计数。
+    - Miss 会消耗 origin capacity。为它设置 per-key singleflight、global concurrency、priority、deadline
+      和 retry budget，就像管理 thread/connection pool。
+    - 做 cold-cache、flush、outage load test；定义 stale、shed、fallback 和 gradual recovery。Cache-disabled
+      path 很少运行，更需要演练。
+  takeaways:
+  - Cache 是高速、临时、best-effort 的 derived storage；state 可从 origin 重建。
+  - Side cache 由 application 处理 miss/fill；inline cache 代表 application 访问 origin。
+  - Query-result invalidation 难在依赖发现、消息 delivery 和并发 fill/write race。
+  - External cache 共享 entries/fills，减少重复，可通过 partitioning/replication 扩展。
+  - Recovery 也要渐进 warmup、singleflight 和 jitter，避免 refill storm。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念辨析
+  question: 原文如何解释「17.1 Cache 与 source of truth」？
+  answer: Cache 可丢弃并重建；source of truth 承担 durability 和 authoritative update。Write-back
+    会模糊边界，必须升级保证。
+  source_heading: 17.1 Cache 与 source of truth
+- level: 概念辨析
+  question: 原文如何解释「17.9 Request coalescing 与 batching」？
+  answer: Batching：多个不同 keys 合并一次 bulk fetch。
+  source_heading: 17.9 Request coalescing 与 batching
+- level: 概念辨析
+  question: 原文如何解释「18.2 “缓存数据反正可丢，错误无所谓”」？
+  answer: 丢失影响性能；错误/跨 tenant value 会破坏 correctness/security。Disposable 不等于无需验证。
+  source_heading: 18.2 “缓存数据反正可丢，错误无所谓”
+- level: 概念辨析
+  question: 原文如何解释「18.9 “Singleflight 已消除全局 herd”」？
+  answer: 每个实例仍可发一次，N instances 仍有 N concurrent fills。需 shared collapse 或 origin limit。
+  source_heading: 18.9 “Singleflight 已消除全局 herd”
+- level: 概念辨析
+  question: 原文如何解释「18.16 “Cache warmup 越快越好”」？
+  answer: 无限并发 prefill 会攻击 origin。Warmup 需 priority、限速和真实 hot-set 选择。
+  source_heading: 18.16 “Cache warmup 越快越好”

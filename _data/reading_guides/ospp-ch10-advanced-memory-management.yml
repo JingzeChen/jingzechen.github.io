@@ -1,0 +1,169 @@
+source:
+  post: _posts/book-notes/operating-system/ospp/2026-08-02-ospp-ch10-advanced-memory-management.md
+  body_sha256: 6dfe41b23eb58fa48ccb515918dc7d071453124266cdcd67317b082076d9563a
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 12
+  question: 原文围绕「全章主线」建立了怎样的核心认识？
+  question_source: 全章主线
+  thesis: 透明 scavenger 无需改 guest，但要耗 CPU/内存带宽，且只能从字节猜语义。显式协作如 balloon driver、free-page
+    reporting：guest 告诉 host 哪些页可收回，host 增减 guest 内存配额。协作更准确，却要求 guest 支持并处理“host 收走页框”的资源变化。
+  thesis_source: 10.2 虚拟机（Virtual Machines）
+  concepts:
+  - term: 全章主线
+    meaning: 第 8 章建立地址转换机制，第 9 章用它实现按需分页。本章进一步把地址转换当成一种可编程的介入点（interposition point）：内核不必检查每次正常访问，只需通过页表权限让特定、少见的访问触发异常，再在异常处理程序中重新解释它。
+    source_heading: 全章主线
+  - term: 10.2 虚拟机（Virtual Machines）
+    meaning: 透明 scavenger 无需改 guest，但要耗 CPU/内存带宽，且只能从字节猜语义。显式协作如 balloon driver、free-page
+      reporting：guest 告诉 host 哪些页可收回，host 增减 guest 内存配额。协作更准确，却要求 guest 支持并处理“host
+      收走页框”的资源变化。
+    source_heading: 10.2 虚拟机（Virtual Machines）
+  - term: 10.4 安全（Security）
+    meaning: 硬件/软件地址转换把普通应用隔离在进程内，但攻击者会利用浏览器、应用或内核中的未知漏洞逃出边界。用户又不可能在安装前证明几十万个应用都可信。本节用
+      VM 克隆构造额外隔离层。
+    source_heading: 10.4 安全（Security）
+  - term: 10.6 总结与未来方向
+    meaning: 未来内存层级和服务会更复杂，内核不可能内建每个数据库、GC、浏览器和 VM 所需策略。趋势可能是内核提供更少但更强的机制：安全页表控制、fault
+      upcall、资源配额、IOMMU 和通知；应用运行时成为“小型操作系统”。
+    source_heading: 10.6 总结与未来方向
+  - term: 章末练习详解
+    meaning: 编译器、JIT 或 SFI 在 store 前计算页内块号，原子置 bitmap。每个块周期内第一次置位后，后续写只付很小检查；checkpoint
+      只复制置位块。若每页分成 64 个 64 B 块，dirty bitmap 只需 64 bits = 8 bytes/页。
+    source_heading: 章末练习详解
+  - term: 复习检查清单
+    meaning: 能比较 shadow、nested paging 与 paravirtualization。
+    source_heading: 复习检查清单
+  logic:
+  - 全章主线
+  - 10.2 虚拟机（Virtual Machines）
+  - 10.3 容错（Fault Tolerance）
+  - 10.6 总结与未来方向
+  - 用 C++ 验证关键机制
+  - 全章方法论总结
+  - 复习检查清单
+  sections:
+  - title: 全章主线
+    source_heading: 全章主线
+    paragraphs:
+    - 第 8 章建立地址转换机制，第 9 章用它实现按需分页。本章进一步把地址转换当成一种可编程的介入点（interposition point）：内核不必检查每次正常访问，只需通过页表权限让特定、少见的访问触发异常，再在异常处理程序中重新解释它。
+    - fill/zero-on-demand：invalid 页首次访问时装入或清零；
+    - copy-on-write：共享页首次写时才复制；
+    - 难点不在“再加一层间接”本身，而在维持生命周期和一致性：谁拥有物理页？异步 I/O 期间谁能改它？两级页表谁是真相？快照过程中程序继续写怎么办？用户 pager
+      自己 fault 又怎么办？每一节都围绕这些问题展开。
+  - title: 10.1 零拷贝 I/O（Zero-Copy I/O）
+    source_heading: 10.1 零拷贝 I/O（Zero-Copy I/O）
+    paragraphs:
+    - DMA 负责设备与内存之间搬运，CPU copy 则在内核/用户 buffer 之间读写同一批字节。把 Web 服务器移入内核能省复制，却把庞大、可配置、易出
+      bug 的应用加入可信计算基，不值得。
+    - 这在虚拟地址层“看起来像 copy”，物理上只是交换指针。必须确保页内没有属于其他内核对象的秘密字节；头尾不满整页时通常仍需复制或特殊切片。页所有权、共享引用和释放协议必须明确，避免内核与用户同时把同一页当作可复用空闲页。
+    - 这与 CPU 页表类似，但隔离主体是设备：恶意/故障设备只能 DMA 到 IOMMU 授权页。设备页表、IOTLB 和 CPU cache coherence
+      仍需维护；不能简单把任意用户指针交给设备。
+    - 零拷贝的主要约束：页对齐/整页粒度、pin 压力、异步生命周期、COW、TLB/IOTLB 失效、cache coherence、设备 scatter-gather
+      上限、安全清零与小消息固定开销。它是性能优化，不改变保护和所有权要求。
+  - title: 10.2 虚拟机（Virtual Machines）
+    source_heading: 10.2 虚拟机（Virtual Machines）
+    paragraphs:
+    - host 可把 guest 页表所在 GPA 映射为只读。guest 内核写 PTE 时 trap 到 host，host 验证、更新 guest 的逻辑
+      PTE 和 shadow，再恢复只读并重启。这样 guest 仍“认为自己改了页表”，实际每次敏感更新由 host 中介。
+    - Intel EPT、AMD NPT 等允许硬件同时持有 guest 与 host 根。TLB miss 时自动先走 guest 表得 GPA，再走 host
+      表得 HPA；TLB 最终缓存 GVA→HPA 组合。guest 改自己页表不必每次由 host 构造 shadow，但嵌套 page walk 更深。
+    - 例如 guest 进程退出后把页放入 guest free list，host 不知道这些页已无价值，可能先换出仍活跃页。多个 VM 都运行相同 OS、库和
+      Web server，也会保存大量内容相同的页，host 若不识别就浪费 DRAM。
+    - 透明 scavenger 无需改 guest，但要耗 CPU/内存带宽，且只能从字节猜语义。显式协作如 balloon driver、free-page
+      reporting：guest 告诉 host 哪些页可收回，host 增减 guest 内存配额。协作更准确，却要求 guest 支持并处理“host
+      收走页框”的资源变化。
+  - title: 10.3 容错（Fault Tolerance）
+    source_heading: 10.3 容错（Fault Tolerance）
+    paragraphs:
+    - 一致性论证。 在暂停边界 t_0，每个逻辑页指向一个确定物理版本。恢复运行前这些版本都被 COW 保护：应用写入只能获得新副本，不能改变 snapshot
+      引用的旧版本。因此后台无论以何种顺序写页，所有字节都来自同一逻辑时刻 t_0。寄存器也保存于 t_0，恢复状态一致。
+    - 页保护提供折中：只捕获每个 checkpoint 周期内每页第一次写。第一次写时置软件 dirty 并恢复可写；同页后续写全速。周期结束只保存 dirty
+      页，形成 incremental checkpoint。
+    - 更短间隔降低恢复点目标（RPO，最多丢多少工作），却增加保护切换、manifest 和小 I/O 开销。增量链太长又增加恢复时间目标（RTO）：恢复要应用很多
+      delta。系统应周期性合并/生成新完整基线。
+    - 若程序 data-race-free，普通共享访问都由锁/原子同步，记录“每个同步对象由哪条线程按什么顺序获得”可能足以重现高层行为，再配合外部输入与中断。若存在
+      data race（往往正是待调 bug），必须记录更细的共享内存顺序，日志量和运行扰动巨大。
+  - title: 10.4 安全（Security）
+    source_heading: 10.4 安全（Security）
+    paragraphs:
+    - 硬件/软件地址转换把普通应用隔离在进程内，但攻击者会利用浏览器、应用或内核中的未知漏洞逃出边界。用户又不可能在安装前证明几十万个应用都可信。本节用 VM
+      克隆构造额外隔离层。
+    - 地址转换让克隆经济可行：相同 OS 页共享，修改页 COW，冷页可压缩，checkpoint 可快速恢复。杀掉 VM 比重装被感染主系统便宜。
+    - VM escape。 guest 漏洞与 VMM/设备仿真漏洞组合仍可突破 host；虚拟设备接口越复杂，攻击面越大。host 与固件必须及时更新、最小权限运行。
+    - 持久化污染。 若基础镜像本身已感染，所有克隆继承；checkpoint/快照也可能保存恶意状态。必须有可信构建、签名和独立更新链。
+  - title: 10.6 总结与未来方向
+    source_heading: 10.6 总结与未来方向
+    paragraphs:
+    - 第 8–10 章形成完整递进：地址转换提供保护与可控异常；缓存/虚拟内存把 DRAM当作后备存储 cache；本章再用同一介入点构造性能、虚拟化、可靠性和安全服务。
+    - Host 与 guest 都管理内存会互相误导；去重、压缩和 balloon/free-page reporting 分别用透明推断或显式协作减少浪费。
+    - 未来内存层级和服务会更复杂，内核不可能内建每个数据库、GC、浏览器和 VM 所需策略。趋势可能是内核提供更少但更强的机制：安全页表控制、fault upcall、资源配额、IOMMU
+      和通知；应用运行时成为“小型操作系统”。
+    - 贯穿本章的方法是：用一层间接把逻辑状态与物理表示分开；用权限制造精确、稀有的控制转移；用 COW/压缩/组合避免立即复制；最后严格管理旧版本、异步操作和资源回收。
+  - title: 用 C++ 验证关键机制
+    source_heading: 用 C++ 验证关键机制
+    paragraphs:
+    - 真实 shadow PTE 还要组合权限、use/dirty、大页和 ASID，并在任一层变化时失效 TLB。
+    - 为便于观察，每个“页”只用一个整数表示；算法与 4 KiB 页相同：完整基线后，每轮只保存 dirty 页，崩溃恢复时顺序覆盖。
+    - 页 0 的 99 属于最后一次已提交增量之后的工作，符合 RPO：恢复到最近完整提交的边界，而不是猜测半完成状态。
+  - title: 章末练习详解
+    source_heading: 章末练习详解
+    paragraphs:
+    - Balloon/free-page reporting/未承诺页：guest 已把页归还，host 回收其 HPA，但 GPA 编号空间仍连续；
+    - 编译器、JIT 或 SFI 在 store 前计算页内块号，原子置 bitmap。每个块周期内第一次置位后，后续写只付很小检查；checkpoint 只复制置位块。若每页分成
+      64 个 64 B 块，dirty bitmap 只需 64 bits = 8 bytes/页。
+    - 优点是直接知道修改范围；缺点是每次 store 有指令开销，原生未插桩代码可绕过，bitmap 并发更新也需正确同步。
+    - 无论哪种方案，都必须保留 checkpoint 边界的一致版本，不能一边比较同一可写页、一边让应用继续改；否则 patch 仍会混合不同时刻状态。还必须让未完整提交的
+      delta 在崩溃恢复时可检测并忽略。
+  - title: 全章方法论总结
+    source_heading: 全章方法论总结
+    paragraphs:
+    - 二、先保持逻辑抽象，再优化物理表示。 零拷贝仍表现为数据已复制，shadow/nested 仍表现为真实物理机，压缩页仍表现为完整页，checkpoint
+      仍表现为同一时刻状态。
+    - 六、缩短暂停不等于减少工作。 COW checkpoint 和 pre-copy migration 把工作移到后台；若脏页率超过写/网络带宽，系统仍无法收敛。必须做带宽守恒分析。
+    - 九、每个 fault handler 都要证明自身可前进。 用户 pager、COW、压缩页恢复都不能依赖正在 fault 的未驻留资源；pinned
+      emergency path 是递归异常的终点。
+    - 面对类似设计，可固定追问：逻辑幻象是什么？常见路径为什么无需介入？什么事件触发慢路径？旧版本由谁持有？异步完成前谁能修改/释放？发生崩溃或 handler
+      自己 fault 时还能恢复吗？
+  - title: 复习检查清单
+    source_heading: 复习检查清单
+    paragraphs:
+    - 能比较 shadow、nested paging 与 paravirtualization。
+    - 能说明 balloon/free-page reporting 相比透明扫描的优势。
+    - 能说明增量 checkpoint 如何捕获首次写、提交 manifest 与恢复。
+    - 能解释 pager 代码、栈、元数据和 emergency pages 为何必须驻留。
+  takeaways:
+  - 难点不在“再加一层间接”本身，而在维持生命周期和一致性：谁拥有物理页？异步 I/O 期间谁能改它？两级页表谁是真相？快照过程中程序继续写怎么办？用户 pager
+    自己 fault 又怎么办？每一节都围绕这些问题展开。
+  - 透明 scavenger 无需改 guest，但要耗 CPU/内存带宽，且只能从字节猜语义。显式协作如 balloon driver、free-page reporting：guest
+    告诉 host 哪些页可收回，host 增减 guest 内存配额。协作更准确，却要求 guest 支持并处理“host 收走页框”的资源变化。
+  - 贯穿本章的方法是：用一层间接把逻辑状态与物理表示分开；用权限制造精确、稀有的控制转移；用 COW/压缩/组合避免立即复制；最后严格管理旧版本、异步操作和资源回收。
+  - 无论哪种方案，都必须保留 checkpoint 边界的一致版本，不能一边比较同一可写页、一边让应用继续改；否则 patch 仍会混合不同时刻状态。还必须让未完整提交的
+    delta 在崩溃恢复时可检测并忽略。
+  - 能解释 pager 代码、栈、元数据和 emergency pages 为何必须驻留。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念辨析
+  question: 原文如何解释「公式速查与适用条件」？
+  answer: 这些是分析模型而非 API 保证。Copy、压缩、I/O 与 checkpoint 可并行，cache/NUMA 会改变常数；安全与一致性不能从性能公式直接推出。
+  source_heading: 公式速查与适用条件
+- level: 边界判断
+  question: 原文如何解释「10.2 虚拟机（Virtual Machines）」？
+  answer: 透明 scavenger 无需改 guest，但要耗 CPU/内存带宽，且只能从字节猜语义。显式协作如 balloon driver、free-page
+    reporting：guest 告诉 host 哪些页可收回，host 增减 guest 内存配额。协作更准确，却要求 guest 支持并处理“host 收走页框”的资源变化。
+  source_heading: 10.2 虚拟机（Virtual Machines）
+- level: 关系解释
+  question: 原文如何解释「10.4 安全（Security）」？
+  answer: 硬件/软件地址转换把普通应用隔离在进程内，但攻击者会利用浏览器、应用或内核中的未知漏洞逃出边界。用户又不可能在安装前证明几十万个应用都可信。本节用
+    VM 克隆构造额外隔离层。
+  source_heading: 10.4 安全（Security）
+- level: 关系解释
+  question: 原文如何解释「章末练习详解」？
+  answer: 编译器、JIT 或 SFI 在 store 前计算页内块号，原子置 bitmap。每个块周期内第一次置位后，后续写只付很小检查；checkpoint
+    只复制置位块。若每页分成 64 个 64 B 块，dirty bitmap 只需 64 bits = 8 bytes/页。
+  source_heading: 章末练习详解
+- level: 概念复述
+  question: 原文如何解释「复习检查清单」？
+  answer: 能比较 shadow、nested paging 与 paravirtualization。
+  source_heading: 复习检查清单

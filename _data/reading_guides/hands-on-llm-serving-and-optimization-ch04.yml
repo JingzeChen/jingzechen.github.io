@@ -1,0 +1,181 @@
+source:
+  post: _posts/book-notes/ai-system/hands-on-llm-serving-and-optimization/2026-08-12-hands-on-llm-serving-and-optimization-ch04.md
+  body_sha256: 7acd5aee4ef0c326a50c11a197b95453fe4d64f86b422e0fe2d583770fdb3da6
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 17
+  question: 原文围绕「0. 本章定位、学习目标与因果主线」建立了怎样的核心认识？
+  question_source: 0. 本章定位、学习目标与因果主线
+  thesis: 本章的总方法是：先以用户任务为边界还原 agent 的多调用图，用 RAG 管理知识、用 CAG 复用上下文计算；再按职责与变化速度构建企业分层平台，并把开源自建和云端托管视为可动态移动的责任谱；最后在固定质量与
+    SLO 条件下，以真实流量测量 E2E、TTFT、ITL/TPOT、RPS/TPS、goodput 和完整 TCO，让架构选择由可复现证据而不是产品名或峰值数字驱动。
+  thesis_source: 9. 本章知识结构与核心结论
+  concepts:
+  - term: 0. 本章定位、学习目标与因果主线
+    meaning: 时效与实验口径说明：本章涉及 2025 年前后的模型能力、AWS 产品、实例价格和框架 API。模型目录、价格、端口契约、超时和参数名会变化；本笔记保留原章数字以解释决策方法，不将其视为
+      2026 年或任意区域的当前保证。采购与上线前应查目标版本官方文档并用实际 workload 验证。
+    source_heading: 0. 本章定位、学习目标与因果主线
+  - term: 2. LLM Serving in Enterprise Systems：分层架构
+    meaning: 小 draft model 一次提出多个候选 token，大 target model 并行验证；接受正确前缀，遇到差异再修正。若验证算法严格，target
+      distribution 不变，但收益取决于 draft 接受率、draft 成本、verification batch 和硬件并行。它是推理优化，不是普通“先用小模型，失败再调用大模型”的
+      routing cascade。
+    source_heading: 2. LLM Serving in Enterprise Systems：分层架构
+  - term: 3. Building with an Open Source Stack
+    meaning: 框架让 happy path 易组装，不代表 enterprise-grade 容易。生产还需 supply chain、升级、灾备、安全、容量、计费、故障演练和
+      24/7 on-call。最佳实践是把成熟组件用于其擅长领域，同时明确每个集成边界的 owner 和 SLO，而不是低估总拥有成本。
+    source_heading: 3. Building with an Open Source Stack
+  - term: 5. Build or Buy? Understanding Strategies
+    meaning: 前六个选项证明，每一层都可单独购买或自建：hardware、cluster、container、runtime、model、router、API。大多数团队位于中间，例如在
+      SageMaker/EKS 上运行自定义 vLLM endpoint，或保留 Bedrock 默认路径，仅将某些高流量/敏感模型迁出。
+    source_heading: 5. Build or Buy? Understanding Strategies
+  - term: 6. Measuring Performance in LLM Serving
+    meaning: 同时看 GPU compute、HBM bandwidth、memory used、KV cache、CPU、host memory、PCIe/NVLink/network、power
+      和 queue。GPU utilization 100% 不说明完成的是有效工作；低 GPU utilization 也可能是 decode memory-bound，应结合
+      bandwidth 与 kernel profile。
+    source_heading: 6. Measuring Performance in LLM Serving
+  - term: 9. 本章知识结构与核心结论
+    meaning: 本章的总方法是：先以用户任务为边界还原 agent 的多调用图，用 RAG 管理知识、用 CAG 复用上下文计算；再按职责与变化速度构建企业分层平台，并把开源自建和云端托管视为可动态移动的责任谱；最后在固定质量与
+      SLO 条件下，以真实流量测量 E2E、TTFT、ITL/TPOT、RPS/TPS、goodput 和完整 TCO，让架构选择由可复现证据而不是产品名或峰值数字驱动。
+    source_heading: 9. 本章知识结构与核心结论
+  logic:
+  - 0. 本章定位、学习目标与因果主线
+  - 1. Model Serving in an Agentic World
+  - 3. Building with an Open Source Stack
+  - 4. Building with a Cloud Vendor：六档 AWS 方案
+  - 5. Build or Buy? Understanding Strategies
+  - 8. 从本章抽象出的通用问题解决方法
+  - 9. 本章知识结构与核心结论
+  sections:
+  - title: 0. 本章定位、学习目标与因果主线
+    source_heading: 0. 本章定位、学习目标与因果主线
+    paragraphs:
+    - 第 2 章解释 LLM 的 prefill、decode、KV cache、streaming 和 batching；第 3 章将单次推理组织成单模型和多模型服务。本章再向外扩一层，从“怎样构建
+      endpoint”转向“endpoint 如何嵌入真实业务和企业平台”。
+    - Kubernetes、FastAPI、Ingress、Ray Serve、vLLM 与 Triton 分别位于哪一层？
+    - Bedrock、JumpStart、BYOM、BYOC、BYOI、BYO infrastructure 各把哪些责任交给云厂商？
+    - 时效与实验口径说明：本章涉及 2025 年前后的模型能力、AWS 产品、实例价格和框架 API。模型目录、价格、端口契约、超时和参数名会变化；本笔记保留原章数字以解释决策方法，不将其视为
+      2026 年或任意区域的当前保证。采购与上线前应查目标版本官方文档并用实际 workload 验证。
+  - title: 1. Model Serving in an Agentic World
+    source_heading: 1. Model Serving in an Agentic World
+    paragraphs:
+    - 小 chunk 提高局部 precision，却可能丢失上下文；大 chunk 保留语义，却让无关内容稀释 embedding，并浪费 prompt token。可使用
+      overlap、按标题/段落语义切分、parent-child retrieval 或 query-specific expansion 缓解。
+    - RAG 每次都要 embedding、search 和 rerank，且 top-k 可能选错。随着 context window 变大，某些有限、稳定知识库可预先放入
+      prompt，并将其 prefill 后的 KV cache 复用给多个 query。原章以 2025 年 8 月 Claude Sonnet 4 支持
+      100 万 token context 为例说明趋势；具体限制与 cache API 需按供应商当前文档确认。
+    - 原章强调的组合方式更实用：RAG 负责找对知识，CAG/prefix caching 负责对热门共享结果或模板复用 prefill。若每个 query
+      检索出的 chunks 顺序都不同，CAG 命中率可能很低；可对稳定 system prompt、tenant corpus 或标准文档包建立 cache。
+    - 因此 agent serving 平台需要的不只是低 latency endpoint，还包括 model routing、并发 quota、context/cache、trace、tool
+      timeout、budget、cancel 和任务级 observability。每个子调用都应携带同一个 task/trace ID，才能把最终慢或贵的任务还原为调用图。
+  - title: 2. LLM Serving in Enterprise Systems：分层架构
+    source_heading: 2. LLM Serving in Enterprise Systems：分层架构
+    paragraphs:
+    - 该层应尽早拒绝无权限、超配额和超大请求，避免消耗后端 GPU。Rate limit 可按 request、input/output token、并发 sequence
+      和每日预算组合；单纯 RPS 无法反映 LLM 工作量。
+    - 小 draft model 一次提出多个候选 token，大 target model 并行验证；接受正确前缀，遇到差异再修正。若验证算法严格，target
+      distribution 不变，但收益取决于 draft 接受率、draft 成本、verification batch 和硬件并行。它是推理优化，不是普通“先用小模型，失败再调用大模型”的
+      routing cascade。
+    - 多 GPU 需要低延迟高带宽 collective；跨节点网络会进入每个 decode step 的 critical path。Cache-aware
+      routing 可提高命中，却可能造成负载倾斜，需在 locality 与 least-loaded 间折中。
+    - 请求跨越多层，timeout budget、trace context、tenant identity 和 model version 必须端到端传播。某一层的局部
+      retry 可能放大总负载；应由明确 owner 根据 idempotency 和 remaining deadline 决定。
+  - title: 3. Building with an Open Source Stack
+    source_heading: 3. Building with an Open Source Stack
+    paragraphs:
+    - Kubernetes 解决容器编排，不自动解决模型质量、token-aware scheduling 或 GPU kernel。每个附加组件仍需版本、容量、升级、安全和
+      on-call owner。
+    - API key 不应明文存储或记录，应只显示一次，服务器保存 hash/前缀索引，支持 scope、rotation、revoke 和审计。401 表示缺少/无效认证，403
+      表示身份有效但无权限。
+    - 这适合 CPU-bound public API；模型 backend 常受 GPU、queue 和 KV cache 限制，CPU 70% 可能毫无代表性。backend
+      应使用 custom/external metrics，如 pending tokens、queue wait、TTFT、active sequences
+      和 GPU memory，并考虑模型加载冷启动。
+    - 框架让 happy path 易组装，不代表 enterprise-grade 容易。生产还需 supply chain、升级、灾备、安全、容量、计费、故障演练和
+      24/7 on-call。最佳实践是把成熟组件用于其擅长领域，同时明确每个集成边界的 owner 和 SLO，而不是低估总拥有成本。
+  - title: 4. Building with a Cloud Vendor：六档 AWS 方案
+    source_heading: 4. Building with a Cloud Vendor：六档 AWS 方案
+    paragraphs:
+    - 相比 JumpStart，多了对 framework/container version 的选择，能部署 catalog 外但格式受支持的模型。示例包括
+      PyTorch/TorchServe MNIST，以及 LMI + DJL/vLLM 部署 Llama，配置 tensor parallel 4、rolling
+      batch 128。
+    - 继续使用 vendor container 和 SageMaker infrastructure，但提供 entry script，实现 initialize、preprocess、inference、postprocess。它把“模型代码”责任交给用户，runtime/HTTP
+      contract 仍由 vendor image 决定。
+    - 限制：仍继承 image 的 OS/CUDA/Python/serving library 和外部 HTTP 契约。 适用：标准容器能运行模型，但需要自定义
+      preprocessing、postprocessing、batch 或多模型逻辑。 升级条件：依赖/runtime/API 本身受限时转 Option
+      5。
+    - 在 EKS 等 managed Kubernetes/VM primitives 上自建完整平台。用户选择 Triton、vLLM、TensorRT-LLM、KServe、Ray
+      Serve，负责 traffic、autoscaling、安全、可观测和成本；仍可购买 EKS、ALB/NLB、ECR、S3、IAM、CloudWatch
+      等基础组件。
+  - title: 5. Build or Buy? Understanding Strategies
+    source_heading: 5. Build or Buy? Understanding Strategies
+    paragraphs:
+    - 前六个选项证明，每一层都可单独购买或自建：hardware、cluster、container、runtime、model、router、API。大多数团队位于中间，例如在
+      SageMaker/EKS 上运行自定义 vLLM endpoint，或保留 Bedrock 默认路径，仅将某些高流量/敏感模型迁出。
+    - 将 vendor 参数映射到 batch、cache、quantization、adapter 和 parallel；
+    - Go BYO：必须控制 hardware/runtime/network，或规模让深度优化有经济回报；
+    - 追求“零锁定”通常不现实，也会放弃 vendor 特性。目标应是知道锁定在哪里、收益是什么、退出成本是否可接受。
+  - title: 6. Measuring Performance in LLM Serving
+    source_heading: 6. Measuring Performance in LLM Serving
+    paragraphs:
+    - 同时拆 queue、tokenize、prefill、first decode、decode、detokenize、network。TTFT 高先看 queue/prefill；TTFT
+      正常但输出拖沓看 TPOT/ITL；Agent E2E 高还要看调用图 critical path。
+    - 固定模型 revision、tokenizer、dtype、hardware、framework、sampling/seed、prompt/output
+      distribution、concurrency、warm-up 和计时边界；一次只改一个主要变量。若研究交互效应，可用设计实验而不是随意同时改多个 knob。
+    - 同时看 GPU compute、HBM bandwidth、memory used、KV cache、CPU、host memory、PCIe/NVLink/network、power
+      和 queue。GPU utilization 100% 不说明完成的是有效工作；低 GPU utilization 也可能是 decode memory-bound，应结合
+      bandwidth 与 kernel profile。
+    - 按 model/version/region/tenant/request class 分 slice 监控 E2E、TTFT、ITL、RPS/TPS、queue、errors、cache
+      和 cost。设置 burn-rate alert 而非只对瞬时平均值告警；trace agent task 到每个 model/tool call。
+  - title: 8. 从本章抽象出的通用问题解决方法
+    source_heading: 8. 从本章抽象出的通用问题解决方法
+    paragraphs:
+    - 列出 planner、embedding、retrieval、tools、LLM、重试与并行关系，以 task outcome 为边界找 critical
+      path 和 token amplification。
+    - 定义 action schema、权限、最大 steps/token/cost/time、retry、终止和人工审批。Serving capacity
+      依据最坏与分布，而非 demo 的固定三步。
+    - 公共 API、资源、orchestration、distributed execution、inference、optimization、model 通过版本化契约连接。不要让快速变化的
+      kernel 侵入身份和计费。
+    - 对 identity、network、autoscale、runtime、artifact、patch、quality、observability 和
+      on-call 标记 vendor/user owner。产品名称不如责任边界可靠。
+  - title: 9. 本章知识结构与核心结论
+    source_heading: 9. 本章知识结构与核心结论
+    paragraphs:
+    - Agent 把 serving 从单调用优化变成任务图优化。 多次模型、检索和工具调用放大 token、尾延迟、故障与动态负载，必须使用 task-level
+      SLO、trace 和 budget。
+    - 安全、限流和扩缩容必须模型感知。 JWT allow-list、tenant/token quota、GPU queue/cache metrics 比示例中的单一算法、RPS
+      或 CPU 更接近生产需求。
+    - 吞吐没有脱离 workload 的意义。 RPS 与 TPS 都受长度、batch、并发、cache 和成功条件影响，必须声明 input/output/total
+      与 aggregate/per-user 口径。
+    - 本章的总方法是：先以用户任务为边界还原 agent 的多调用图，用 RAG 管理知识、用 CAG 复用上下文计算；再按职责与变化速度构建企业分层平台，并把开源自建和云端托管视为可动态移动的责任谱；最后在固定质量与
+      SLO 条件下，以真实流量测量 E2E、TTFT、ITL/TPOT、RPS/TPS、goodput 和完整 TCO，让架构选择由可复现证据而不是产品名或峰值数字驱动。
+  takeaways:
+  - Agent 把 serving 从单调用优化变成任务图优化。 多次模型、检索和工具调用放大 token、尾延迟、故障与动态负载，必须使用 task-level
+    SLO、trace 和 budget。
+  - 企业平台分层是为了独立演进和故障隔离。 API、资源、编排、分布式服务、推理、优化和模型之间需要稳定契约与端到端 telemetry。
+  - Build vs buy 是可逆的连续谱。 SLO 和成本达标时保持托管，局部 gap 时混合，深度控制确有回报时 BYO，复杂度不回本时可以迁回。
+  - 吞吐没有脱离 workload 的意义。 RPS 与 TPS 都受长度、batch、并发、cache 和成功条件影响，必须声明 input/output/total
+    与 aggregate/per-user 口径。
+  - 本章的总方法是：先以用户任务为边界还原 agent 的多调用图，用 RAG 管理知识、用 CAG 复用上下文计算；再按职责与变化速度构建企业分层平台，并把开源自建和云端托管视为可动态移动的责任谱；最后在固定质量与
+    SLO 条件下，以真实流量测量 E2E、TTFT、ITL/TPOT、RPS/TPS、goodput 和完整 TCO，让架构选择由可复现证据而不是产品名或峰值数字驱动。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念辨析
+  question: 原文如何解释「7.1 Agent = 任意调用 LLM 的应用」？
+  answer: 错误。Agent 至少具有目标驱动的动态行动、工具/环境反馈和迭代；一次问答只是 LLM application。
+  source_heading: 7.1 Agent = 任意调用 LLM 的应用
+- level: 概念辨析
+  question: 原文如何解释「7.7 Context window 越大越应把全部知识塞入」？
+  answer: 错误。长 context 增加 prefill、KV memory、attention 和费用，也可能引入噪声；动态大知识库仍适合 RAG。
+  source_heading: 7.7 Context window 越大越应把全部知识塞入
+- level: 概念辨析
+  question: 原文如何解释「7.13 RPS rate limit 对 LLM 已足够公平」？
+  answer: 错误。请求 token 和生成长度差异大，还需 token、并发、模型和成本 quota。
+  source_heading: 7.13 RPS rate limit 对 LLM 已足够公平
+- level: 概念辨析
+  question: 原文如何解释「7.19 自建一定比云 API 便宜」？
+  answer: 错误。只有高且稳定利用率、优化收益覆盖 HA/人力/空闲时才可能；低流量和突发 workload 常由按量托管胜出。
+  source_heading: 7.19 自建一定比云 API 便宜
+- level: 概念辨析
+  question: 原文如何解释「7.25 平均 latency 足够」？
+  answer: 错误。Agent 和在线系统受 p95/p99、burst 和 jitter 影响；均值会隐藏少数极慢请求。
+  source_heading: 7.25 平均 latency 足够

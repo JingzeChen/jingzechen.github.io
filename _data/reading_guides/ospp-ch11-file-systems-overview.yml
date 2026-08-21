@@ -1,0 +1,142 @@
+source:
+  post: _posts/book-notes/operating-system/ospp/2026-08-02-ospp-ch11-file-systems-overview.md
+  body_sha256: 0c682b57b3cf148beb1dcb2005a103ccf85b4c871413b43fd99280764cebf228
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 9
+  question: 原文围绕「全章主线」建立了怎样的核心认识？
+  question_source: 全章主线
+  thesis: 本章从上到下建立地图：11.1 定义文件、目录、链接、卷和挂载；11.2 解释 create/open/read/write/mmap/fsync
+    等接口语义；11.3 沿用户库、文件系统、块缓存、块层、驱动、MMIO/DMA/中断追踪一次请求；后续三章分别深入设备、磁盘布局和可靠更新。
+  thesis_source: 全章主线
+  concepts:
+  - term: 全章主线
+    meaning: 本章从上到下建立地图：11.1 定义文件、目录、链接、卷和挂载；11.2 解释 create/open/read/write/mmap/fsync
+      等接口语义；11.3 沿用户库、文件系统、块缓存、块层、驱动、MMIO/DMA/中断追踪一次请求；后续三章分别深入设备、磁盘布局和可靠更新。
+    source_heading: 全章主线
+  - term: 11.1 文件系统抽象（The File System Abstraction）
+    meaning: 传统文件只有一条按 offset 编号的字节流。某些文件系统允许同一文件有 data fork、resource fork 或命名 alternate
+      data streams。打开时需要指定流。
+    source_heading: 11.1 文件系统抽象（The File System Abstraction）
+  - term: 11.3 软件分层（Software Layers）
+    meaning: 驱动通常由不同厂商编写、数量巨大、紧贴复杂硬件，并在内核态执行。历史报告中，2003 年 Windows XP 约 85% 故障归因于驱动；这是特定时代数据，不代表现代系统比例，但说明
+      blast radius。
+    source_heading: 11.3 软件分层（Software Layers）
+  - term: 11.4 总结与未来方向
+    meaning: 文件系统用持久命名把设备块变成文件/目录，用 metadata 实施共享控制，用缓存和布局隐藏 I/O 延迟，并通过后续章节的事务、校验和与复制增强可靠性。
+    source_heading: 11.4 总结与未来方向
+  - term: 全章方法论总结
+    meaning: 方案的局限也应明确：分层会隐藏设备特性并增加复制/排队；统一 API 难以同时表达事务、异步、零拷贝和设备特有能力。替代方案不是删除抽象，而是保留稳定公共接口，同时增加显式事务、batch/async、hint、direct
+      I/O、IOMMU 隔离等受控逃生口。
+    source_heading: 全章方法论总结
+  - term: 复习检查清单
+    meaning: 能写出 temp → file fsync → rename → directory fsync 的安全替换协议。
+    source_heading: 复习检查清单
+  logic:
+  - 全章主线
+  - 11.1 文件系统抽象（The File System Abstraction）
+  - 11.2 文件系统 API
+  - 11.4 总结与未来方向
+  - 章末练习详解
+  - 全章方法论总结
+  - 复习检查清单
+  sections:
+  - title: 全章主线
+    source_heading: 全章主线
+    paragraphs:
+    - 计算机必须在进程退出、操作系统崩溃和断电后仍能找到用户数据。裸存储设备只提供编号块；用户需要的是有意义的名字、任意长度文件、目录层次、共享权限和故障后的可靠状态。文件系统正是把前者变成后者的操作系统抽象。
+    - 因此文件系统不能把“每个字节操作”直接变成设备操作，而要布局连续块、缓存、预取和写缓冲。
+    - 本章从上到下建立地图：11.1 定义文件、目录、链接、卷和挂载；11.2 解释 create/open/read/write/mmap/fsync 等接口语义；11.3
+      沿用户库、文件系统、块缓存、块层、驱动、MMIO/DMA/中断追踪一次请求；后续三章分别深入设备、磁盘布局和可靠更新。
+    - 慢：文件是字节序列，不能低成本在中间“插入”字节，可能重写后半段甚至全文；
+  - title: 11.1 文件系统抽象（The File System Abstraction）
+    source_heading: 11.1 文件系统抽象（The File System Abstraction）
+    paragraphs:
+    - 持久不等于任何时刻都已 durable：写缓冲中的最新修改可能尚未到稳定介质；也不等于能承受任意设备毁坏，后者还需备份/复制。抽象承诺必须结合同步与故障模型解释。
+    - 传统文件只有一条按 offset 编号的字节流。某些文件系统允许同一文件有 data fork、resource fork 或命名 alternate
+      data streams。打开时需要指定流。
+    - 多流可把扩展属性与主要数据绑定，但也增加复制、备份和安全工具遗漏隐藏流的风险。跨文件系统传输时，目标若不支持多流，附加数据可能丢失。
+    - Volume 是形成一个逻辑块设备的物理存储集合：可以是一整块盘、一个分区、跨多盘 RAID/逻辑卷或云块设备。每个文件系统实例管理一个 volume
+      上的文件和目录。
+  - title: 11.2 文件系统 API
+    source_heading: 11.2 文件系统 API
+    paragraphs:
+    - 文件 API 把“查名字”“建立访问上下文”“传输字节”“要求持久化”分开。简化接口如下；真实 POSIX 还有 flags、mode、错误码和更多调用。
+    - fd 是受内核检查的 capability-like handle，不是用户可伪造的内核指针。路径 unlink 后，fd 仍稳定指向原文件对象，这正是练习
+      1/2 的核心。
+    - 在支持原子覆盖 rename 的系统中，观察者应看到旧或新名字映射，不看到“无目标”的中间命名状态。原子可见性不等于崩溃持久性：缺少文件/目录 fsync
+      时，重启后可能回到旧版本或丢失最新目录更新，细节依文件系统保证。
+    - 真实接口还需处理：目录枚举、扩展属性、锁、加密、ACL、异步 I/O、direct I/O、稀疏文件、事件通知和模式匹配。Windows 等 API 有数十调用。核心抽象仍稳定，但每个附加能力都会增加错误处理和安全边界。
+  - title: 11.3 软件分层（Software Layers）
+    source_heading: 11.3 软件分层（Software Layers）
+    paragraphs:
+    - 公共抽象还允许块层做通用优化：合并相邻请求、排序、限流、统计和公平调度。设备差异并未消失：SSD 擅长并行随机读，磁盘偏好顺序，远程盘会超时；驱动/块层用能力和
+      hint 暴露必要差异。
+    - 驱动通常由不同厂商编写、数量巨大、紧贴复杂硬件，并在内核态执行。历史报告中，2003 年 Windows XP 约 85% 故障归因于驱动；这是特定时代数据，不代表现代系统比例，但说明
+      blast radius。
+    - Scatter-gather 描述多个不连续页段，避免先复制到连续 buffer。高级设备使用提交队列和完成队列：CPU 批量填描述符，只敲一次 doorbell；设备批量处理，减少
+      MMIO 和中断。
+    - 设备与 CPU 并发访问描述符/数据，需要 release/acquire 屏障和 cache coherence。不能在描述符写完前通知设备，也不能在确认
+      DMA 完成前读取结果。
+  - title: 11.4 总结与未来方向
+    source_heading: 11.4 总结与未来方向
+    paragraphs:
+    - 文件系统用持久命名把设备块变成文件/目录，用 metadata 实施共享控制，用缓存和布局隐藏 I/O 延迟，并通过后续章节的事务、校验和与复制增强可靠性。
+    - 名字、打开引用和文件对象生命周期分离；hard link 与 fd 都能让文件在某个路径 unlink 后继续存在。
+    - 用户库、VFS/文件系统、块 cache、块层、驱动和控制器分层合作；每层都有缓存、排队和错误语义。
+    - 块设备接口隐藏硬件差异，MMIO 提交控制，DMA 搬数据，interrupt/polling报告完成。
+  - title: 章末练习详解
+    source_heading: 章末练习详解
+    paragraphs:
+    - 因此 A 应能从当前 offset 继续读取既有内容，直到 EOF；文件占用空间在最后 open reference 关闭后回收。这里说的是“仅发生 unlink”：底层
+      I/O error、文件被另一路径截断、设备拔出等仍可令读取失败或改变结果。
+    - 这种语义还支持安全临时文件：创建后立刻 unlink，进程可通过 fd 使用；进程退出时内核自动关闭 fd 并回收，即使程序崩溃也不遗留名字。
+    - create/unlink 也可能被日志缓冲，单次结果受 checkpoint、队列和 cache 影响。
+    - 若应用只需“最终写回”而不承诺断电安全，可弱化策略，但 UI 不应把该状态描述成 durable save。
+  - title: 全章方法论总结
+    source_heading: 全章方法论总结
+    paragraphs:
+    - 拆开容易混淆的身份和生命周期。 路径、fd、open description、inode 不是同一对象；分开后 unlink 语义自然可推导。
+    - 沿分层定位成本与故障。 小写为何慢要看 syscall；miss 为何慢要下钻到队列/设备；数据为何丢要检查所有缓存层。
+    - 用反例与故障注入找边界。 unlink-open、断电、short write、错误预取和 buggy driver 都能揭示抽象不完美处。
+    - 方案的局限也应明确：分层会隐藏设备特性并增加复制/排队；统一 API 难以同时表达事务、异步、零拷贝和设备特有能力。替代方案不是删除抽象，而是保留稳定公共接口，同时增加显式事务、batch/async、hint、direct
+      I/O、IOMMU 隔离等受控逃生口。
+  - title: 复习检查清单
+    source_heading: 复习检查清单
+    paragraphs:
+    - 能画出 path name、directory entry、file ID 与 file object 的关系。
+    - 能比较 hard link、symbolic link、shortcut 与 shell alias。
+    - 能区分 fd table、open file description 与 inode/file object。
+    - 能写出 temp → file fsync → rename → directory fsync 的安全替换协议。
+  takeaways:
+  - 慢：文件是字节序列，不能低成本在中间“插入”字节，可能重写后半段甚至全文；
+  - 真实接口还需处理：目录枚举、扩展属性、锁、加密、ACL、异步 I/O、direct I/O、稀疏文件、事件通知和模式匹配。Windows 等 API 有数十调用。核心抽象仍稳定，但每个附加能力都会增加错误处理和安全边界。
+  - 块设备接口隐藏硬件差异，MMIO 提交控制，DMA 搬数据，interrupt/polling报告完成。
+  - 若应用只需“最终写回”而不承诺断电安全，可弱化策略，但 UI 不应把该状态描述成 durable save。
+  - 能写出 temp → file fsync → rename → directory fsync 的安全替换协议。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念辨析
+  question: 原文如何解释「易混淆概念与常见误解」？
+  answer: 完成到哪一层？ 用户 buffer、内核 page cache、控制器 cache 还是非易失介质？
+  source_heading: 易混淆概念与常见误解
+- level: 关系解释
+  question: 原文如何解释「11.1 文件系统抽象（The File System Abstraction）」？
+  answer: 传统文件只有一条按 offset 编号的字节流。某些文件系统允许同一文件有 data fork、resource fork 或命名 alternate
+    data streams。打开时需要指定流。
+  source_heading: 11.1 文件系统抽象（The File System Abstraction）
+- level: 概念复述
+  question: 原文如何解释「11.3 软件分层（Software Layers）」？
+  answer: 驱动通常由不同厂商编写、数量巨大、紧贴复杂硬件，并在内核态执行。历史报告中，2003 年 Windows XP 约 85% 故障归因于驱动；这是特定时代数据，不代表现代系统比例，但说明
+    blast radius。
+  source_heading: 11.3 软件分层（Software Layers）
+- level: 边界判断
+  question: 原文如何解释「章末练习详解」？
+  answer: 若应用只需“最终写回”而不承诺断电安全，可弱化策略，但 UI 不应把该状态描述成 durable save。
+  source_heading: 章末练习详解
+- level: 关系解释
+  question: 原文如何解释「复习检查清单」？
+  answer: 能写出 temp → file fsync → rename → directory fsync 的安全替换协议。
+  source_heading: 复习检查清单

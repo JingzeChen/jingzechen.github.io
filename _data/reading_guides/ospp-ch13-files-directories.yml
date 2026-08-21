@@ -1,0 +1,187 @@
+source:
+  post: _posts/book-notes/operating-system/ospp/2026-08-02-ospp-ch13-files-directories.md
+  body_sha256: afa5c0d5b678dfef494c647ad031ddc362c4804af45660831e9e0513a8517371
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 15
+  question: 原文围绕「全章主线」建立了怎样的核心认识？
+  question_source: 全章主线
+  thesis: 最终 writes 汇总： directory block 1094、parent inode metadata、新 inode 所在 block、5
+    个新 file/index blocks、inode/free bitmaps；实现可把 inode s 的多次变化合并为一次最终 write。确切次数受一个
+    bitmap block 是否涵盖多个 allocations、writeback/batching 和 reliability protocol 影响，不能从
+    Figure 13.25 给出唯一物理 write 次数。
+  thesis_source: 章末练习详解
+  concepts:
+  - term: 全章主线
+    meaning: 作者的分析顺序很有意图：先讲 directory 解决名字，再比较 file index 解决位置，最后把二者串成一次真实访问。这样能把“命名层”和“数据布局层”的不变量分开，再观察它们如何通过
+      cache 与 locality 相互影响。
+    source_heading: 全章主线
+  - term: Metadata 为什么属于 file header，而非 directory entry
+    meaning: Owner、permissions、size、timestamps、link count 若复制进每个 directory entry，会产生多个事实来源：文件大小变化时必须找到并原子更新所有
+      hard links；漏一个就得到相互矛盾 metadata，且无法方便维护 link count。
+    source_heading: Metadata 为什么属于 file header，而非 directory entry
+  - term: '13.3.2 FFS：固定树（FFS: Fixed Tree）'
+    meaning: FFS 用固定位置的一-bit-per-block bitmap 管 free space。更关键的是把 volume 切成多个相邻 tracks
+      的 block groups，并把 inode-array slice、该组 bitmap 和 data blocks 一起分散到每组，避免每次 data/metadata
+      切换都 seek 到中心化区域。
+    source_heading: '13.3.2 FFS：固定树（FFS: Fixed Tree）'
+  - term: 13.3.4 Copy-on-Write 文件系统
+    meaning: ZFS 固定位置保留 256 个 uberblock slots，轮换写 successive versions。启动时扫描并选 checksum
+      valid、sequence/transaction group 最大者。Uberblock 概念上通向 root dnode；真实结构还经过 meta-object-set/root
+      dnode，允许一个 storage pool 管多个 file systems/snapshots。
+    source_heading: 13.3.4 Copy-on-Write 文件系统
+  - term: 13.5 总结与未来方向
+    meaning: Flash 的随机访问相对磁盘好，使“为少一次 seek 而极端聚集 metadata”的收益下降，可重新考虑 directory/index/block
+      placement；但 erase、有限 endurance、FTL 和 GC 又增加写放大约束。Hybrid FS 可把 metadata/小热文件放
+      SSD，把大冷文件放 HDD，换取成本与性能折中；代价是跨 tier placement、迁移、一致性和 tier failure 更复杂。
+    source_heading: 13.5 总结与未来方向
+  - term: 复习检查清单
+    meaning: 能定义 directory、index structure、free-space map 与 locality heuristic。
+    source_heading: 复习检查清单
+  logic:
+  - 全章主线
+  - Metadata 为什么属于 file header，而非 directory entry
+  - '13.3 文件：定位数据（Files: Finding Data）'
+  - 13.3.4 Copy-on-Write 文件系统
+  - 写入比读取还多哪些步骤
+  - 章末练习详解
+  - 复习检查清单
+  sections:
+  - title: 全章主线
+    source_heading: 全章主线
+    paragraphs:
+    - Performance：一起访问的数据尽量物理相邻，避免第 12 章的随机 I/O 成本；
+    - Reliability：更新中崩溃或设备局部故障时，仍要保护重要数据。可靠性协议是第 14 章主线，本章先建立它要保护的数据结构。
+    - 该分解假设固定 block 大小；extent、压缩文件或 tail packing 会让物理映射更复杂，但逻辑 offset 语义不变。
+    - 作者的分析顺序很有意图：先讲 directory 解决名字，再比较 file index 解决位置，最后把二者串成一次真实访问。这样能把“命名层”和“数据布局层”的不变量分开，再观察它们如何通过
+      cache 与 locality 相互影响。
+  - title: 层次路径为何能递归解析
+    source_heading: 层次路径为何能递归解析
+    paragraphs:
+    - 目录也有 file number，所以父目录可像引用普通文件一样引用子目录。递归必须有 base case：文件系统预先约定 root directory
+      的 file number；FFS 等 Unix 文件系统通常令 root inumber 为 2。
+    - 遇到 mount point 时 VFS 切换到另一 volume 的 root；遇到 symbolic link 时把链接中的 path 重新送入解析器，并设置最大跟随次数以防环。
+    - 每经过一个目录都要检查 traverse/execute permission，而不只是最终文件权限。否则用户可能借“知道 inode number”绕过不可穿越目录。
+    - 这只是 CPU/索引次数；cold storage I/O 还需读各目录 inode、index node 和 data block。
+  - title: Metadata 为什么属于 file header，而非 directory entry
+    source_heading: Metadata 为什么属于 file header，而非 directory entry
+    paragraphs:
+    - Owner、permissions、size、timestamps、link count 若复制进每个 directory entry，会产生多个事实来源：文件大小变化时必须找到并原子更新所有
+      hard links；漏一个就得到相互矛盾 metadata，且无法方便维护 link count。
+    - FAT 把 metadata 放在 directory entry，正因其设计不支持 hard links；这不是单纯格式偏好，而是数据模型选择带来的约束。
+  - title: '13.3 文件：定位数据（Files: Finding Data）'
+    source_heading: '13.3 文件：定位数据（Files: Finding Data）'
+    paragraphs:
+    - 顺序 logical blocks 尽量顺序放置；
+    - 有稳定位置保存 link count、owner、ACL、size、timestamps 等 metadata。
+    - 它们不是简单的“新一定优于旧”：FAT 的互操作和实现体积有价值；FFS 固定结构易推理；NTFS extent 对连续大文件高效；COW 原子版本与顺序写强，却需处理写放大、碎片和空间回收。
+  - title: '13.3.2 FFS：固定树（FFS: Fixed Tree）'
+    source_heading: '13.3.2 FFS：固定树（FFS: Fixed Tree）'
+    paragraphs:
+    - Unix Fast File System 用 multi-level index 解决 FAT 的随机访问问题，并用 block groups 与 reserved
+      space 改善 locality。每个 file 是一棵固定、非对称、高 fanout 树：inode 是 root，data blocks 是 leaves。
+    - 若所有 data 都强制放在 triple-depth fixed tree，4 KiB 小文件需要 data 加 3 个 indirect blocks（还不含
+      inode），约 16 KiB，读取也要多层；非对称结构避免绝大多数小文件为极少使用的大文件能力买单。
+    - FFS 用固定位置的一-bit-per-block bitmap 管 free space。更关键的是把 volume 切成多个相邻 tracks 的
+      block groups，并把 inode-array slice、该组 bitmap 和 data blocks 一起分散到每组，避免每次 data/metadata
+      切换都 seek 到中心化区域。
+    - First-free 看似不如 best-fit 连续：它会先填早期小 holes。但长期直觉是小文件消耗 holes，保留组尾长 free run；大文件前几块可能零散，主体到组尾后可连续增长。它是针对长期分配序列的
+      heuristic，不保证单个新文件立即最连续。
+  - title: 13.3.4 Copy-on-Write 文件系统
+    source_heading: 13.3.4 Copy-on-Write 文件系统
+    paragraphs:
+    - RAID 小写更昂贵：parity RAID 单-block update 常需 old data read、old parity read、new data
+      write、new parity write，共 4 次 I/O；full-stripe batch 可直接由所有 new data 计算 parity，免两次
+      reads；
+    - ZFS 固定位置保留 256 个 uberblock slots，轮换写 successive versions。启动时扫描并选 checksum valid、sequence/transaction
+      group 最大者。Uberblock 概念上通向 root dnode；真实结构还经过 meta-object-set/root dnode，允许一个
+      storage pool 管多个 file systems/snapshots。
+    - 但 snapshot pin 住旧 blocks：当前版本删除 file 不代表 physical blocks 可回收，只要任一 snapshot 仍可达就必须保留。回收需追踪
+      block birth/death、引用或按版本可达性；snapshot 删除可能触发大量 deferred space accounting。因此“创建快”不等于全生命周期没有成本。
+    - Update-in-place + write-ahead journaling 是常见替代：data/metadata 可保持稳定位置，用 log 保证恢复；extent
+      FS 也可 delayed allocation 后顺序放置。选择取决于 snapshot/integrity 需求、read/write 比、free
+      space、device 与 sync workload。
+  - title: 写入比读取还多哪些步骤
+    source_heading: 写入比读取还多哪些步骤
+    paragraphs:
+    - 从 free map 分配 block/extent；
+    - 更新 inode/indirect/extent tree 和 size；
+    - 按 journaling/COW 协议形成 crash-safe order。
+    - 于是 read 主要是“沿稳定 pointers 查找”，grow write 是“同时改变多棵索引并保持不变量”。这正是下一章可靠存储要解决的原子性难点。
+  - title: 13.5 总结与未来方向
+    source_heading: 13.5 总结与未来方向
+    paragraphs:
+    - Flash 的随机访问相对磁盘好，使“为少一次 seek 而极端聚集 metadata”的收益下降，可重新考虑 directory/index/block
+      placement；但 erase、有限 endurance、FTL 和 GC 又增加写放大约束。Hybrid FS 可把 metadata/小热文件放
+      SSD，把大冷文件放 HDD，换取成本与性能折中；代价是跨 tier placement、迁移、一致性和 tier failure 更复杂。
+    - 未来 byte-addressable persistent memory 若普及，block tree 可能不再是唯一接口，但 crash ordering、atomic
+      update、权限、allocator 与 persistent pointer 仍存在。介质变快后，software lookup、locks、checksums
+      和 cache flush 反而更显著。
+    - Cloud/VM 把许多租户混在同一 storage，要求的不只是平均吞吐，还包括 fairness、tail latency 和 predictable
+      isolation。一个租户的碎片化或 scan 不应让另一个租户延迟失控；allocator 与 I/O scheduler 需要 tenant-aware
+      accounting。
+    - Client apps 越来越自己管理对象，用户看到 photo event、message thread、tag/search，而非 directory
+      path。底层仍可能用 files/directories，用户级 naming 与 locality 却不一定一致。Database/object store、content-addressed
+      storage、key-value API 都是传统 hierarchy 的替代或上层抽象。
+  - title: 章末练习详解
+    source_heading: 章末练习详解
+    paragraphs:
+    - NTFS run list 用 variable-length record：header 两个 4-bit fields 分别说明 extent length
+      与 start delta 各占几 bytes；第一个 start 绝对编码，后续 start 保存相对前一 extent 的 signed delta。
+    - 若 file 极端碎片化、SSD latency 很低且 run list 不 cached，scan 确会成为问题；可用 B+tree/interval
+      tree、更多 range index 或 defrag。Variable encoding 是针对常见低-e workload 的压缩优化，不是随机查找复杂度定理。
+    - 写 logical block 1。 无论题目把“block 1”理解为 zero-based 第二块还是 one-based 第一块，它都在 11 direct
+      范围。分配 data block A，写 A，把相应 direct pointer 写入 inode s，并更新 free bitmap。前面的 logical
+      block 若未写就是 hole。
+    - 最终 writes 汇总： directory block 1094、parent inode metadata、新 inode 所在 block、5
+      个新 file/index blocks、inode/free bitmaps；实现可把 inode s 的多次变化合并为一次最终 write。确切次数受一个
+      bitmap block 是否涵盖多个 allocations、writeback/batching 和 reliability protocol 影响，不能从
+      Figure 13.25 给出唯一物理 write 次数。
+  - title: 复习检查清单
+    source_heading: 复习检查清单
+    paragraphs:
+    - 能定义 directory、index structure、free-space map 与 locality heuristic。
+    - 能逐 component 解析 absolute/relative path，并说明 traverse permission。
+    - 能区分 hard link、symlink、file number、link count 和 open reference。
+    - 能区分 sparse logical size 与 allocated blocks，并解释 hole read/write。
+  takeaways:
+  - 作者的分析顺序很有意图：先讲 directory 解决名字，再比较 file index 解决位置，最后把二者串成一次真实访问。这样能把“命名层”和“数据布局层”的不变量分开，再观察它们如何通过
+    cache 与 locality 相互影响。
+  - FAT 把 metadata 放在 directory entry，正因其设计不支持 hard links；这不是单纯格式偏好，而是数据模型选择带来的约束。
+  - Update-in-place + write-ahead journaling 是常见替代：data/metadata 可保持稳定位置，用 log 保证恢复；extent
+    FS 也可 delayed allocation 后顺序放置。选择取决于 snapshot/integrity 需求、read/write 比、free space、device
+    与 sync workload。
+  - Client apps 越来越自己管理对象，用户看到 photo event、message thread、tag/search，而非 directory
+    path。底层仍可能用 files/directories，用户级 naming 与 locality 却不一定一致。Database/object store、content-addressed
+    storage、key-value API 都是传统 hierarchy 的替代或上层抽象。
+  - 能区分 sparse logical size 与 allocated blocks，并解释 hole read/write。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念复述
+  question: 原文如何解释「全章主线」？
+  answer: 作者的分析顺序很有意图：先讲 directory 解决名字，再比较 file index 解决位置，最后把二者串成一次真实访问。这样能把“命名层”和“数据布局层”的不变量分开，再观察它们如何通过
+    cache 与 locality 相互影响。
+  source_heading: 全章主线
+- level: 边界判断
+  question: Metadata 为什么属于 file header，而非 directory entry？
+  answer: Owner、permissions、size、timestamps、link count 若复制进每个 directory entry，会产生多个事实来源：文件大小变化时必须找到并原子更新所有
+    hard links；漏一个就得到相互矛盾 metadata，且无法方便维护 link count。
+  source_heading: Metadata 为什么属于 file header，而非 directory entry
+- level: 边界判断
+  question: 原文如何解释「13.3.4 Copy-on-Write 文件系统」？
+  answer: ZFS 固定位置保留 256 个 uberblock slots，轮换写 successive versions。启动时扫描并选 checksum
+    valid、sequence/transaction group 最大者。Uberblock 概念上通向 root dnode；真实结构还经过 meta-object-set/root
+    dnode，允许一个 storage pool 管多个 file systems/snapshots。
+  source_heading: 13.3.4 Copy-on-Write 文件系统
+- level: 关系解释
+  question: 原文如何解释「13.5 总结与未来方向」？
+  answer: Flash 的随机访问相对磁盘好，使“为少一次 seek 而极端聚集 metadata”的收益下降，可重新考虑 directory/index/block
+    placement；但 erase、有限 endurance、FTL 和 GC 又增加写放大约束。Hybrid FS 可把 metadata/小热文件放 SSD，把大冷文件放
+    HDD，换取成本与性能折中；代价是跨 tier placement、迁移、一致性和 tier failure 更复杂。
+  source_heading: 13.5 总结与未来方向
+- level: 概念复述
+  question: 原文如何解释「复习检查清单」？
+  answer: 能定义 directory、index structure、free-space map 与 locality heuristic。
+  source_heading: 复习检查清单

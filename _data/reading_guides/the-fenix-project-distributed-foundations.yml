@@ -1,0 +1,171 @@
+source:
+  post: _posts/book-notes/distributed-system/the-fenix-project/2026-08-08-the-fenix-project-distributed-foundations.md
+  body_sha256: 0c5c3ba87702bf29f2714761619d4d31df7d157a659ca2e088d70d5bbe35c057
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 14
+  question: 1. 本章要建立什么“基石”？
+  question_source: 1. 本章要建立什么“基石”
+  thesis: 动态副本一致的核心不是复制最终数据，而是让确定性状态机执行同一有序命令。
+  thesis_source: 10. 本章知识结构总结
+  concepts:
+  - term: 1. 本章要建立什么“基石”
+    meaning: 缺少其中任何一类，系统仍可能在演示环境中运行，却很难在节点动态变化、流量突发和故障必然发生的生产环境中可靠运行。
+    source_heading: 1. 本章要建立什么“基石”
+  - term: 3. 从类库到服务
+    meaning: Zuul 1 的 Thread-per-Connection 与 Zuul 2 / Netty 事件驱动模型体现了线程数量和上下文切换差异。原书把
+      Zuul 2 概括为异步 I/O，严格说 Netty 在 Linux 上通常基于 epoll 多路复用，应用 API 是异步事件式，底层不必是 POSIX
+      AIO。今天还有 io_uring 等机制，仍应以真实内核、运行时和后端负载压测，不能仅凭模型名称宣称快多少。
+    source_heading: 3. 从类库到服务
+  - term: 5. 可靠通讯
+    meaning: 原章示例还让浏览器前端使用 Resource Owner Password Credentials（Password Grant）。这是理解
+      2020 年工程版本所需的历史事实，但不能作为当前实践：RFC 9700 已明确规定该模式 MUST NOT 使用，因为客户端直接接触用户密码会扩大凭证泄漏面，也不适配
+      MFA、WebAuthn 等流程。交互式用户登录应采用 Authorization Code + PKCE，并在需要身份语义时使用 OpenID Connect；Client
+      Credentials 只用于应用自身的机器身份。
+    source_heading: 5. 可靠通讯
+  - term: 6. 可观测性
+    meaning: 时间序列由 Timestamp、Metric Name、Labels、Value 构成，适合追加、压缩、按时间查询和保留策略。TSDB 常使用
+      WAL、块压缩和类似 LSM 的顺序写思想；原书把时序库统一概括为 LSM-Tree 是便于理解，具体 Prometheus TSDB 有自己的 Head
+      Block、WAL、Immutable Block 与 Compaction 结构，并非简单套用通用 LSM。
+    source_heading: 6. 可观测性
+  - term: 9. 架构师解决分布式问题的一般方法
+    meaning: 然后列出允许的故障：Crash、消息丢失、延迟、乱序、网络分区，是否考虑 Byzantine。算法只有在它声明的模型内才正确。
+    source_heading: 9. 架构师解决分布式问题的一般方法
+  - term: 11. 主动回忆题
+    meaning: Failover、Failfast、Failsafe、Failsilent、Failback 如何区分？
+    source_heading: 11. 主动回忆题
+  logic:
+  - 1. 本章要建立什么“基石”
+  - 3. 从类库到服务
+  - 4. 流量治理
+  - 6. 可观测性
+  - 7. 五条主线如何共同工作
+  - 10. 本章知识结构总结
+  - 11. 主动回忆题
+  sections:
+  - title: 1. 本章要建立什么“基石”
+    source_heading: 1. 本章要建立什么“基石”
+    paragraphs:
+    - 分布式共识算法：多个副本怎样就操作顺序和最终状态达成共识？
+    - 服务发现给出候选节点，负载均衡挑选目标，容错处理调用失败；
+    - 缺少其中任何一类，系统仍可能在演示环境中运行，却很难在节点动态变化、流量突发和故障必然发生的生产环境中可靠运行。
+    - 这也是“凤凰架构”的关键：可靠系统不要求每个组件永不出错，而要求错误可检测、影响可隔离、状态可恢复、过程可验证。
+  - title: 2. 分布式共识算法
+    source_heading: 2. 分布式共识算法
+    paragraphs:
+    - 算法最初于 1990 年投稿，1998 年以《The Part-Time Parliament》发表，2001 年又有《Paxos Made Simple》。早期传播困难，一方面是问题本身复杂，另一方面是城邦叙事和证明风格难读。Google
+      Chubby、Megastore、Spanner 等工业实践让其价值广为人知。
+    - 假设值 X 已被某多数派接受。任何新的 Prepare 多数派都与它相交，因此至少有节点报告 X 或其后继提案。新 Proposer 选择响应中最高编号已接受值，就把已形成的选择约束传递到新轮次。若它随意换成
+      Y，两个相交 Quorum 就可能分别推动不同值，破坏 Safety。
+    - Multi Paxos 的核心是让一个 Distinguished Proposer 以同一 Ballot 为多个 Slot 摊销 Phase 1：它先从多数
+      Acceptor 获得承诺，稳定期间便可连续为不同 Slot 执行 Phase 2，而不必为每条日志重新 Prepare。Multi Paxos 是一族协议，并未规定唯一的选举
+      RPC、任期结构或故障恢复细节；工程实现还要设计租约、超时或其他 Leader 选举机制。Raft 则明确规定了 Term、RequestVote、日志新旧比较和
+      Commit Index，原书后续主要借 Raft 风格说明一种可理解的工程实现。
+    - Raft 把共识拆成 Leader Election、Log Replication、Safety，目标是比 Multi Paxos 更容易理解。Raft、ZAB
+      与 Multi Paxos 不是逐行相同的算法，但解决相近的复制状态机问题。Raft 还包含重要细节，例如 Leader 完整性、日志匹配，以及通常只用当前任期条目获得多数派来直接推进
+      Commit Index；实现时不能仅凭本节简图自行编写生产共识系统。
+  - title: 3. 从类库到服务
+    source_heading: 3. 从类库到服务
+    paragraphs:
+    - DNS 很适合稳定服务，但微服务实例频繁扩缩、重启，TTL 难以及时反映健康。ZooKeeper、Eureka、Consul、Nacos 及 Kubernetes
+      Service 因而承接动态注册和健康维护。
+    - 健康也不能只等同于“进程活着”。Liveness 表示进程存在，Readiness 表示可接流量，Startup Probe 避免慢启动被误杀。依赖数据库失效是否应让实例
+      Not Ready，要根据是否会造成级联摘除来决定。
+    - Zuul 1 的 Thread-per-Connection 与 Zuul 2 / Netty 事件驱动模型体现了线程数量和上下文切换差异。原书把 Zuul
+      2 概括为异步 I/O，严格说 Netty 在 Linux 上通常基于 epoll 多路复用，应用 API 是异步事件式，底层不必是 POSIX AIO。今天还有
+      io_uring 等机制，仍应以真实内核、运行时和后端负载压测，不能仅凭模型名称宣称快多少。
+    - "“同 Pod 回环访问一定便宜”仍需测量：iptables/eBPF 重定向、代理解析、TLS 和队列都可能带来成本。Sidecar 也不是唯一方向，节点级代理、Ambient
+      Mesh 和 eBPF 数据面尝试降低每 Pod 代理开销。"
+  - title: 4. 流量治理
+    source_heading: 4. 流量治理
+    paragraphs:
+    - Hystrix 典型默认示例是 10 秒窗口至少 20 个请求且错误率达到 50% 才打开。阈值必须按服务基线调整：低流量服务若不设最小样本，一次失败就可能误熔断；高流量服务若窗口过长，故障会扩散太久。
+    - 线程池能中断、排队和独立回收，但增加上下文切换。信号量（Semaphore）隔离只控制并发数，开销小，却不能把同步阻塞从调用线程移走。现代事件循环和虚拟线程改变线程成本，但并没有消除连接、内存、下游并发等资源上限，Bulkhead
+      仍有价值。
+    - 因此应只有一个明确层次负责重试，或共享全链路尝试次数与 Deadline。Hedged Request（延迟后并发第二份）可降低尾延迟，但与 Forking
+      一样会放大负载，只适合可取消、幂等、高价值读请求。
+    - 另设一个“固定窗口每秒允许 80 次”的独立例子：边界附近可能在短短一秒内通过前一窗口末尾 60 次和后一窗口开头 60 次，即承受 120 次。它也可能拒绝可由后续空闲时间消化的短突发。此处
+      80 只是用于说明窗口边界，不再沿用前述容量结论。
+  - title: 5. 可靠通讯
+    source_heading: 5. 可靠通讯
+    paragraphs:
+    - 目标是 Secure by Default、人工干预成为例外。代价是 PKI、身份控制面、策略、遥测、供应链签名和隔离运行时的巨大平台投入。小团队不应复制
+      Google 的组件数量，而应使用云 IAM、托管证书、Kubernetes Admission、Sigstore/SLSA、服务网格等成熟能力，按风险逐步建设。
+    - Spring Cloud 示例使用 OAuth 2 Client Credentials：每个服务用 Client Secret 换 JWT，再调用资源服务。这能做应用层身份与授权，却不加密信道，Bearer
+      Token 被窃取即可重放，仍必须配合 TLS。Secret 不应写入源码，应来自 Secret Manager，并支持轮换。
+    - 原章示例还让浏览器前端使用 Resource Owner Password Credentials（Password Grant）。这是理解 2020
+      年工程版本所需的历史事实，但不能作为当前实践：RFC 9700 已明确规定该模式 MUST NOT 使用，因为客户端直接接触用户密码会扩大凭证泄漏面，也不适配
+      MFA、WebAuthn 等流程。交互式用户登录应采用 Authorization Code + PKCE，并在需要身份语义时使用 OpenID Connect；Client
+      Credentials 只用于应用自身的机器身份。
+    - 基础设施验 Token 很适合统一拒绝无效请求，但业务服务仍要验证受众和业务权限。若 Envoy 验证后继续把原 Token 交给应用，双方应明确谁是最终责任者，避免配置漂移导致“一边以为另一边会验”。
+  - title: 6. 可观测性
+    source_heading: 6. 可观测性
+    paragraphs:
+    - 把 Trace/Span ID 写入日志，再由日志归集重建链路。性能低侵入，但日志丢失、延迟和格式误差会让链路不完整。Spring Cloud Sleuth
+      历史上常这样关联；今天 Spring 生态已转向 Micrometer Tracing 与 OpenTelemetry Bridge。
+    - Histogram：Classic Histogram 把观测值放进预定义累计 Bucket，同时记录 Count 和 Sum，例如请求延迟分布；不是一般意义上的“按时间画柱状图”。截至
+      2026 年，Prometheus Native Histogram 已在 3.8 起进入稳定阶段，可使用动态指数桶和分辨率配置，但在 Prometheus
+      3.x 中仍需显式启用，语言库支持也并不完整；
+    - Exporter 把 MySQL、Node、HAProxy 等非 Prometheus 系统转换为 HTTP 文本/OpenMetrics Endpoint。OpenMetrics
+      从 Prometheus 格式发展而来，OpenTelemetry 则聚焦遥测生成、处理和传输，两者可互操作但职责不同。
+    - 时间序列由 Timestamp、Metric Name、Labels、Value 构成，适合追加、压缩、按时间查询和保留策略。TSDB 常使用 WAL、块压缩和类似
+      LSM 的顺序写思想；原书把时序库统一概括为 LSM-Tree 是便于理解，具体 Prometheus TSDB 有自己的 Head Block、WAL、Immutable
+      Block 与 Compaction 结构，并非简单套用通用 LSM。
+  - title: 7. 五条主线如何共同工作
+    source_heading: 7. 五条主线如何共同工作
+    paragraphs:
+    - 服务发现返回当前健康候选，负载均衡按 Zone 和负载选择实例；
+    - Deadline、Bulkhead、Circuit Breaker 和 Retry Budget 控制失败；
+    - Trace 串联调用，Metrics 发现错误率，Logs 解释具体业务上下文。
+    - 这说明“分布式基础设施”不是许多产品的购物清单，而是一组彼此约束的运行机制。
+  - title: 9. 架构师解决分布式问题的一般方法
+    source_heading: 9. 架构师解决分布式问题的一般方法
+    paragraphs:
+    - 然后列出允许的故障：Crash、消息丢失、延迟、乱序、网络分区，是否考虑 Byzantine。算法只有在它声明的模型内才正确。
+    - 控制面短时不可用时，数据面是否能使用缓存继续运行？缓存多旧仍可接受？应在设计时明确，而不是故障时临时决定。
+    - 它不能使用 P95 直接代替平均值，也不能把线程池最大并发直接当作长期平均在途量；容量规划还必须单独考虑尾延迟、排队、资源利用和安全余量，不能把理论估算直接设成限流值。
+    - "“影响多大、是否耗尽预算？”需要 Metrics 和 SLO；"
+  - title: 10. 本章知识结构总结
+    source_heading: 10. 本章知识结构总结
+    paragraphs:
+    - Paxos 保证已选定值不会被替换；Multi Paxos 与 Raft 用稳定 Leader 提高连续日志复制效率。
+    - Gossip 提供高鲁棒信息扩散，但必须配合冲突解决或共识机制才能决定唯一结果。
+    - 断路器、舱壁和重试必须与 Deadline、幂等和限流共同设计，否则会互相放大风险。
+    - 所有保证都有前提和成本，架构师必须明确故障模型、时间预算、状态所有者与人工恢复路径。
+  - title: 11. 主动回忆题
+    source_heading: 11. 主动回忆题
+    paragraphs:
+    - Liveness、Readiness、Startup Probe 为什么不能混用？
+    - Failover、Failfast、Failsafe、Failsilent、Failback 如何区分？
+    - Peer Authentication 与 Request Authentication 如何同时存在？
+    - 为什么 Prometheus Histogram 通常比 Summary 更容易跨实例聚合？
+  takeaways:
+  - 动态副本一致的核心不是复制最终数据，而是让确定性状态机执行同一有序命令。
+  - 服务发现、网关、负载均衡和容错分别处理坐标、逻辑路由、实例选择与失败恢复。
+  - 固定窗口、滑动窗口、漏桶和令牌桶代表不同流量目标，不存在无条件最优算法。
+  - 日志、追踪和度量分别提供事件、因果和聚合视角，三者关联后才能有效解释系统。
+  - 所有保证都有前提和成本，架构师必须明确故障模型、时间预算、状态所有者与人工恢复路径。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念辨析
+  question: 原文如何解释「8.1 共识不等于一致性」？
+  answer: 共识是节点形成决定的过程，一致性是副本或外部观察的性质。Gossip 传播信息也不自动形成共识。
+  source_heading: 8.1 共识不等于一致性
+- level: 概念辨析
+  question: 原文如何解释「8.6 注册中心宣称高可用不等于 AP」？
+  answer: CP 系统也会在一致和分区容忍前提下尽力高可用。要看分区少数派能否读写、客户端是否使用缓存，而不是广告词。
+  source_heading: 8.6 注册中心宣称高可用不等于 AP
+- level: 概念辨析
+  question: 原文如何解释「8.11 超时不等于取消」？
+  answer: 调用方超时返回后，下游可能仍在执行。要节省资源需传播 Deadline 和 Cancellation，并确保下游尊重。
+  source_heading: 8.11 超时不等于取消
+- level: 概念辨析
+  question: 原文如何解释「8.16 mTLS 不等于完成授权」？
+  answer: mTLS 证明对端持有某身份私钥，访问哪些资源仍需策略；用户是否拥有订单还需业务判断。
+  source_heading: 8.16 mTLS 不等于完成授权
+- level: 概念辨析
+  question: 原文如何解释「8.21 OpenTelemetry 不是一个开箱即用的监控产品」？
+  answer: 它提供标准、SDK、协议和 Collector，仍需要存储、查询、Dashboard、告警与运行治理。
+  source_heading: 8.21 OpenTelemetry 不是一个开箱即用的监控产品

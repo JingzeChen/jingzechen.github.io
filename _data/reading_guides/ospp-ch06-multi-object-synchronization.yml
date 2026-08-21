@@ -1,0 +1,146 @@
+source:
+  post: _posts/book-notes/operating-system/ospp/2026-08-02-ospp-ch06-multi-object-synchronization.md
+  body_sha256: 2d4db19b55427d475fd484dcbb1cf77495249e1ae3d6f17b791fa7849b0c0d76
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 8
+  question: 原文围绕「本章从哪里继续」建立了怎样的核心认识？
+  question_source: 本章从哪里继续
+  thesis: 先普通读 BUSY，只有看见 FREE 才 test-and-set，可减少锁保持期间 RMW。但 release 后 FREE 必须广播到所有
+    waiter 缓存；所有核心几乎同时醒来并争独占，形成 thundering herd。临界区短时，上一次争抢尚未平息，下次 release 已来。
+  thesis_source: 6.3 锁争用
+  concepts:
+  - term: 本章从哪里继续
+    meaning: 作者反复强调：没有通用食谱。一般方案可能复杂昂贵；简单方案可能不扩展；不少方法还破坏模块化，需要知道全局锁关系。
+    source_heading: 本章从哪里继续
+  - term: 开篇：多对象为何改变问题性质
+    meaning: 任何有限、不可抢占资源都可能进入循环等待：锁、内存页、磁盘块、缓冲区空间、连接或筷子。解决死锁必须抽象成资源分配问题，而不只检查 mutex
+      API。
+    source_heading: 开篇：多对象为何改变问题性质
+  - term: 6.3 锁争用
+    meaning: 先普通读 BUSY，只有看见 FREE 才 test-and-set，可减少锁保持期间 RMW。但 release 后 FREE 必须广播到所有
+      waiter 缓存；所有核心几乎同时醒来并争独占，形成 thundering herd。临界区短时，上一次争抢尚未平息，下次 release 已来。
+    source_heading: 6.3 锁争用
+  - term: 6.4 多对象原子性
+    meaning: 按 lock point 排序请求。若 A、B 冲突于对象 X，二者需冲突锁。假设 A 的 lock point 在 B 前：A 在收缩前已获得全部锁，且在获得最后锁前没有释放；B
+      不可能在 A 释放 X 前完成冲突锁获取。因此冲突访问顺序与 lock point 顺序一致。
+    source_heading: 6.4 多对象原子性
+  - term: 6.7 总结与未来方向
+    meaning: 多锁顺序、调用外持锁、最大资源需求和回滚边界都要求跨模块知识。严格层次/所有权与消息接口可减少全局推理。
+    source_heading: 6.7 总结与未来方向
+  - term: 复习检查清单
+    meaning: 能设计短 metadata 锁 + per-entry 锁的并发 cache。
+    source_heading: 复习检查清单
+  logic:
+  - 本章从哪里继续
+  - 开篇：多对象为何改变问题性质
+  - 6.1 多处理器锁性能
+  - 6.4 多对象原子性
+  - 6.6 无阻塞同步
+  - 全章方法论总结
+  - 复习检查清单
+  sections:
+  - title: 本章从哪里继续
+    source_heading: 本章从哪里继续
+    paragraphs:
+    - 多核性能：热点锁串行化请求，缓存行在 CPU 间迁移；
+    - 跨对象正确性：每个方法原子，不代表一串方法调用原子；
+    - 死锁：线程各持部分资源并循环等待。
+    - 作者反复强调：没有通用食谱。一般方案可能复杂昂贵；简单方案可能不扩展；不少方法还破坏模块化，需要知道全局锁关系。
+  - title: 阅读方式
+    source_heading: 阅读方式
+    paragraphs:
+    - 背景知识、公式推导、数值演算和现代 C++ 示例直接放在它们所解释的概念之后，使“问题从何而来、方法为何有效、边界在哪里”形成连续的阅读链条。
+    - 代码编译命令面向 Linux、macOS 或 WSL；当前环境没有 C/C++ 编译器，因此未做本地编译验证。
+  - title: 开篇：多对象为何改变问题性质
+    source_heading: 开篇：多对象为何改变问题性质
+    paragraphs:
+    - 所以合理工程顺序是：先用简单锁得到可工作的基线，再用测量找瓶颈，最后只重构热点。
+    - 任何有限、不可抢占资源都可能进入循环等待：锁、内存页、磁盘块、缓冲区空间、连接或筷子。解决死锁必须抽象成资源分配问题，而不只检查 mutex API。
+  - title: 6.1 多处理器锁性能
+    source_heading: 6.1 多处理器锁性能
+    paragraphs:
+    - 无论再加多少 CPU，单锁使吞吐最多约 20 倍。公式假设固定工作量、其余部分完美并行且临界区速度不变，因此是乐观上界。
+    - 一个 CPU 最后持锁并修改数据后，相关缓存行常处于它的独占/已修改状态。下一个 CPU 获取锁和数据时，一致性协议必须转移所有权、失效旧副本。延迟远高于读取本地
+      L1/L2。
+    - 硬件以缓存行（常见 32/64 字节）追踪一致性。两个线程修改不同变量，但变量位于同一缓存行，整行仍在核心间来回失效，这称 false sharing。
+    - Linux 2.0 为多核引入单一 BKL，先保证正确；随后逐子系统/数据结构拆锁提高并发，到 2.6 已有数千把锁并在 48 核基准扩展。少量低频路径仍保留
+      BKL。
+  - title: 6.3 锁争用
+    source_heading: 6.3 锁争用
+    paragraphs:
+    - 普通 spinlock 所有 waiter 反复对同一锁字执行 RMW。每次 RMW 要独占缓存行，p 个 CPU 争夺所有权；解锁 store 也需同一所有权，却不能被硬件自动优先。
+    - 先普通读 BUSY，只有看见 FREE 才 test-and-set，可减少锁保持期间 RMW。但 release 后 FREE 必须广播到所有 waiter
+      缓存；所有核心几乎同时醒来并争独占，形成 thundering herd。临界区短时，上一次争抢尚未平息，下次 release 已来。
+    - 无争用时，MCS 要初始化节点并操作 tail，通常比简单 test-and-set 慢；只有等待者较多时获益。若等待可能长，仍应使用睡眠排队 mutex，而非占满
+      CPU 自旋。
+    - 读者可与 writer 并发：有的看到旧版本，有的看到新版本；跨 publish 的读可能看到任一允许版本。RCU 不提供普通 RWLock 的“写时无读”。
+  - title: 6.4 多对象原子性
+    source_heading: 6.4 多对象原子性
+    paragraphs:
+    - 两个方法各自原子，二者之间仍有窗口：总余额暂少 100；并发汇总会漏算，收款方也可能尚未看到钱。反向顺序则可能暂时双算。
+    - 若共享至少一把锁 L，A 与 B 不可能同时持有全部所需锁。一个先获得 L 并完成整个请求后才释放，另一个之后执行冲突部分。因此所有冲突操作具有一致先后。
+    - "“逐把 acquire 全部锁”如果顺序不统一仍可能在获取阶段死锁；真正原子 acquire-all 需要中央资源管理器、try-lock 回退或全局顺序。"
+    - 按 lock point 排序请求。若 A、B 冲突于对象 X，二者需冲突锁。假设 A 的 lock point 在 B 前：A 在收缩前已获得全部锁，且在获得最后锁前没有释放；B
+      不可能在 A 释放 X 前完成冲突锁获取。因此冲突访问顺序与 lock point 顺序一致。
+  - title: 6.6 无阻塞同步
+    source_heading: 6.6 无阻塞同步
+    paragraphs:
+    - 代价是算法与内存回收极复杂。只有在已经掌握锁方法、profiling 证明收益并经过额外审查后，才应使用。无争用 mutex 通常极便宜；提前“无锁优化”常得到更慢、更错的代码。
+    - 若线程 A CAS 失败，说明某个其他线程在 A 的 load 与 CAS 之间成功改变指针，即系统取得进展。持续失败意味着持续有人成功，因此整体 lock-free。
+    - A 自身可能永远被抢先，所以非 wait-free。要 wait-free 需 helping、操作描述符或有界仲裁，让其他线程帮助完成 A 的操作。
+    - 若没有公平/年龄机制，同一事务可无限 abort，不是 wait-free。使用 wound-wait、优先级 helping 或重试上界，使每事务最终成为不可被更年轻者击败者，才可能提供
+      wait-free/无饥饿保证。
+  - title: 6.7 总结与未来方向
+    source_heading: 6.7 总结与未来方向
+    paragraphs:
+    - 细粒度、per-CPU、ownership、staged 重构；
+    - lock ordering、Banker、检测/回滚；
+    - 多锁顺序、调用外持锁、最大资源需求和回滚边界都要求跨模块知识。严格层次/所有权与消息接口可减少全局推理。
+    - 先证明无数据竞争，再枚举同步操作交错，比枚举所有机器指令可行，但大型系统状态空间仍巨大。
+  - title: 全章方法论总结
+    source_heading: 全章方法论总结
+    paragraphs:
+    - 用串行比例、锁等待、cache transfer 证明瓶颈；不要凭“多核需要细锁”猜测。
+    - 数据分区、per-CPU、ownership、stage 改变通信拓扑，常比优化同一热点锁效果更大。
+    - 谨慎接口设计最好；无法封装时用 acquire-all/2PL/事务，并明确 serializability。
+    - 它避免持锁者阻塞别人，却把复杂度转到 CAS 重试、版本、内存序和回收。只有专家与测量支持时采用。
+  - title: 复习检查清单
+    source_heading: 复习检查清单
+    paragraphs:
+    - 能比较细粒度、per-CPU、ownership、staged 四模式；
+    - 能说明 Banker 与 Coffman 检测算法的 Max/Request 区别；
+    - 能解释事务 rollback、wound-wait 与 timeout 恢复；
+    - 能设计短 metadata 锁 + per-entry 锁的并发 cache。
+  takeaways:
+  - 作者反复强调：没有通用食谱。一般方案可能复杂昂贵；简单方案可能不扩展；不少方法还破坏模块化，需要知道全局锁关系。
+  - 任何有限、不可抢占资源都可能进入循环等待：锁、内存页、磁盘块、缓冲区空间、连接或筷子。解决死锁必须抽象成资源分配问题，而不只检查 mutex API。
+  - 按 lock point 排序请求。若 A、B 冲突于对象 X，二者需冲突锁。假设 A 的 lock point 在 B 前：A 在收缩前已获得全部锁，且在获得最后锁前没有释放；B
+    不可能在 A 释放 X 前完成冲突锁获取。因此冲突访问顺序与 lock point 顺序一致。
+  - 先证明无数据竞争，再枚举同步操作交错，比枚举所有机器指令可行，但大型系统状态空间仍巨大。
+  - 能设计短 metadata 锁 + per-entry 锁的并发 cache。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念辨析
+  question: 原文如何解释「易混淆概念与常见误解」？
+  answer: unsafe 表示无法保证未来避免；当前仍可能完成并回 safe。deadlocked 已有无法推进组。
+  source_heading: 易混淆概念与常见误解
+- level: 边界判断
+  question: 开篇：多对象为何改变问题性质？
+  answer: 任何有限、不可抢占资源都可能进入循环等待：锁、内存页、磁盘块、缓冲区空间、连接或筷子。解决死锁必须抽象成资源分配问题，而不只检查 mutex API。
+  source_heading: 开篇：多对象为何改变问题性质
+- level: 关系解释
+  question: 原文如何解释「6.3 锁争用」？
+  answer: 先普通读 BUSY，只有看见 FREE 才 test-and-set，可减少锁保持期间 RMW。但 release 后 FREE 必须广播到所有
+    waiter 缓存；所有核心几乎同时醒来并争独占，形成 thundering herd。临界区短时，上一次争抢尚未平息，下次 release 已来。
+  source_heading: 6.3 锁争用
+- level: 关系解释
+  question: 原文如何解释「6.7 总结与未来方向」？
+  answer: 多锁顺序、调用外持锁、最大资源需求和回滚边界都要求跨模块知识。严格层次/所有权与消息接口可减少全局推理。
+  source_heading: 6.7 总结与未来方向
+- level: 概念复述
+  question: 原文如何解释「复习检查清单」？
+  answer: 能设计短 metadata 锁 + per-entry 锁的并发 cache。
+  source_heading: 复习检查清单

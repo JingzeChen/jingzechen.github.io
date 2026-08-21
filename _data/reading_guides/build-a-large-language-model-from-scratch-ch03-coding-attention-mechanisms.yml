@@ -1,0 +1,146 @@
+source:
+  post: _posts/book-notes/deep-learning/build-a-large-language-model-from-scratch/2026-08-08-build-a-large-language-model-from-scratch-ch03-coding-attention-mechanisms.md
+  body_sha256: cb672260abd7a03ab9fffc404ea3e299aa5c6eccdf10fb9032fa4b065a7af1a2
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 10
+  question: 原文围绕「0. 本章定位、学习目标与递进主线」建立了怎样的核心认识？
+  question_source: 0. 本章定位、学习目标与递进主线
+  thesis: Encoder-decoder RNN 把整条源序列压进最终隐藏状态，长序列容易形成固定容量和长路径瓶颈。
+  thesis_source: 9. 核心结论
+  concepts:
+  - term: 0. 本章定位、学习目标与递进主线
+    meaning: attention score、attention weight 和 context vector 分别是什么？
+    source_heading: 0. 本章定位、学习目标与递进主线
+  - term: 3.2 Capturing Data Dependencies with Attention Mechanisms（用注意力捕捉依赖）
+    meaning: 2014 年提出的 Bahdanau attention 修改了 RNN encoder-decoder：编码器不只输出最终状态，而是保留每个位置的状态；解码器每生成一步，都根据当前解码状态为这些源状态计算不同权重。
+    source_heading: 3.2 Capturing Data Dependencies with Attention Mechanisms（用注意力捕捉依赖）
+  - term: 3.4 Implementing Self-Attention with Trainable Weights（实现带可训练权重的自注意力）
+    meaning: 参数定义了计算规则；score 是未归一化兼容度；weight 是当前输入上归一化后的动态读取比例。模型训练更新的是 W，不是把某个样本的
+      A 永久保存下来。
+    source_heading: 3.4 Implementing Self-Attention with Trainable Weights（实现带可训练权重的自注意力）
+  - term: 3.5 Hiding Future Words with Causal Attention（用因果注意力隐藏未来 token）
+    meaning: 位置 0 要预测 x_1。若标准 self-attention 允许它读取位置 1 的输入表示，它就直接看到了标签；位置 1 同理可看到
+      x_2。训练损失会异常容易下降，但推理时未来 token 尚不存在，模型无法复现这种条件。
+    source_heading: 3.5 Hiding Future Words with Causal Attention（用因果注意力隐藏未来 token）
+  - term: 7. 作者分析与解决问题的一般思路
+    meaning: 作者先问 encoder-decoder RNN 哪里丢信息：所有源细节被压进一个最终状态，解码器不能按需直接访问早期状态。Attention
+      的设计因此有明确目标：保留候选信息，并为每个 query 动态读取。
+    source_heading: 7. 作者分析与解决问题的一般思路
+  - term: 11. 自测题与参考答案
+    meaning: Q/K 只负责计算地址兼容度，V 是匹配后读取的内容。不同投影允许模型根据一种特征寻址，再取回另一种特征；三者梯度由最终语言建模损失共同学习。
+    source_heading: 11. 自测题与参考答案
+  logic:
+  - 0. 本章定位、学习目标与递进主线
+  - 3.2 Capturing Data Dependencies with Attention Mechanisms（用注意力捕捉依赖）
+  - 3.3 Attending to Different Parts of the Input with Self-Attention（让输入关注不同位置）
+  - 3.5 Hiding Future Words with Causal Attention（用因果注意力隐藏未来 token）
+  - 3.6 Extending Single-Head Attention to Multi-Head Attention（把单头扩展为多头注意力）
+  - 9. 核心结论
+  - 11. 自测题与参考答案
+  sections:
+  - title: 0. 本章定位、学习目标与递进主线
+    source_heading: 0. 本章定位、学习目标与递进主线
+    paragraphs:
+    - 它让每个位置生成一个上下文化的 context vector，回答“为了表示当前位置，我应从哪些可见位置读取多少信息”。
+    - 为什么 encoder-decoder RNN 的单一最终隐藏状态会成为长序列瓶颈？
+    - attention score、attention weight 和 context vector 分别是什么？
+    - 这张表是本章最实用的调试工具。绝大多数实现错误都可归因于：转置了错误轴、沿错误维做 softmax、mask 广播到了错误位置，或把 H 与 T 混淆。
+  - title: 3.1 The Problem with Modeling Long Sequences（长序列建模的问题）
+    source_heading: 3.1 The Problem with Modeling Long Sequences（长序列建模的问题）
+    paragraphs:
+    - 长路径与遗忘：早期 token 的信息必须经过多次状态更新才能影响解码，细节可能被覆盖；梯度也要沿长时间路径传播。
+    - 本章强调的直接缺陷是：解码阶段通常只能拿到最终隐藏状态，不能按当前生成需要直接访问全部早期 encoder 状态。短句尚可，长句和远距离依赖更容易丢失上下文。
+    - 边界：这不表示所有 RNN 必然无法处理长序列，也不表示隐藏状态完全没有早期信息。LSTM、GRU 和改进训练可缓解问题；注意力解决的是“把所有细节强制压进单一摘要”这一结构性瓶颈。
+    - 如果生成每个目标 token 所需的源信息不同，就不应只给解码器一份固定摘要。更自然的接口是：保留所有 encoder 状态，让解码器在每一步动态选择。
+  - title: 3.2 Capturing Data Dependencies with Attention Mechanisms（用注意力捕捉依赖）
+    source_heading: 3.2 Capturing Data Dependencies with Attention Mechanisms（用注意力捕捉依赖）
+    paragraphs:
+    - 2014 年提出的 Bahdanau attention 修改了 RNN encoder-decoder：编码器不只输出最终状态，而是保留每个位置的状态；解码器每生成一步，都根据当前解码状态为这些源状态计算不同权重。
+    - 它的关键突破不是“给每个词一个永久重要度”，而是重要度随当前查询变化。生成译文中的不同 token 时，解码器可关注不同源位置。
+    - 原书图 3.5 只表达这一通用思想，不是 Bahdanau 公式的精确结构。本书不实现 RNN attention，而是沿它启发出的 Transformer
+      self-attention 路线前进。
+    - Self-attention 让任意两个位置通过一次注意力层直接交换信息，而不是沿循环状态逐步传递。训练时所有位置的 Q/K/V 和分数矩阵可通过矩阵乘法并行计算。
+  - title: 3.3 Attending to Different Parts of the Input with Self-Attention（让输入关注不同位置）
+    source_heading: 3.3 Attending to Different Parts of the Input with Self-Attention（让输入关注不同位置）
+    paragraphs:
+    - 它同时受方向与向量长度影响，不能无条件等同于余弦相似度。此处把它称为相似性分数，是因为训练会塑造表示和投影，使高点积成为有用匹配信号；在简化随机输入中，它只是一个可计算兼容度。
+    - 简化版本中 value 就是原输入本身，因此输出仍为三维。下一节加入 W_V 后，真正被汇总的是可训练 value 表示，输出维度也可与输入不同。
+    - 点积只能在原始嵌入空间比较，任务无法学习更合适的匹配特征。
+    - 被汇总内容与用于匹配的特征相同，无法把地址和内容分离。
+  - title: 3.4 Implementing Self-Attention with Trainable Weights（实现带可训练权重的自注意力）
+    source_heading: 3.4 Implementing Self-Attention with Trainable Weights（实现带可训练权重的自注意力）
+    paragraphs:
+    - 于是位置 i 可以用一种特征匹配位置 j，再读取另一种内容。训练通过下一 token 损失调整三个投影，学习适合任务的寻址与读取规则。
+    - 参数定义了计算规则；score 是未归一化兼容度；weight 是当前输入上归一化后的动态读取比例。模型训练更新的是 W，不是把某个样本的 A 永久保存下来。
+    - 缩放不是为了让权重更“平均”，而是让不同 d_k 下的 logit 尺度和梯度处于更适合优化的范围。
+    - attention score 的 T 维只决定从哪些位置取信息，不决定 context 的特征维度。
+  - title: 3.5 Hiding Future Words with Causal Attention（用因果注意力隐藏未来 token）
+    source_heading: 3.5 Hiding Future Words with Causal Attention（用因果注意力隐藏未来 token）
+    paragraphs:
+    - 位置 0 要预测 x_1。若标准 self-attention 允许它读取位置 1 的输入表示，它就直接看到了标签；位置 1 同理可看到 x_2。训练损失会异常容易下降，但推理时未来
+      token 尚不存在，模型无法复现这种条件。
+    - 包含未来位置的公共分母完全约掉，所以结果等于从一开始只在允许位置做 softmax。被遮位置的最终权重为 0，不参与 context vector。
+    - 多种 mask 可以组合，但目的不同。因果 mask 保证任务合法性；padding mask 忽略伪数据；dropout mask 是正则化。
+    - 原书在 6×6 演示中确实出现全零第二行。这不违反实现：该位置本次前向的 attention 输出为零，其他层、残差连接和后续批次仍可传递信号。
+  - title: 3.6 Extending Single-Head Attention to Multi-Head Attention（把单头扩展为多头注意力）
+    source_heading: 3.6 Extending Single-Head Attention to Multi-Head Attention（把单头扩展为多头注意力）
+    paragraphs:
+    - 在 Python 层逐个调用头。每个头分别执行 Q/K/V 线性层、分数矩阵乘法、softmax 和 value 汇总。数学上可并行，却没有合并成较大的批量矩阵运算。
+    - 允许模型跨头重新组合特征，并把输出放回统一表示空间。原书指出它不是注意力数学成立的绝对必要条件，但现代 Transformer 通常使用。
+    - 在总维度 d 固定时，改变头数 H 不改变这四个大矩阵的参数量；它改变每头维度与 attention 分组方式。头数增多不等于 Q/K/V 总参数按头数倍增。
+    - Wrapper 若最终总维度也设为相同 d，各头独立矩阵的参数总量可与合并投影对应；主要效率差异来自是否将线性投影和注意力运算向量化，而非必然参数更多。
+  - title: 7. 作者分析与解决问题的一般思路
+    source_heading: 7. 作者分析与解决问题的一般思路
+    paragraphs:
+    - 作者先问 encoder-decoder RNN 哪里丢信息：所有源细节被压进一个最终状态，解码器不能按需直接访问早期状态。Attention 的设计因此有明确目标：保留候选信息，并为每个
+      query 动态读取。
+    - 这样可以逐元素手算，并用第二个 context vector 检查矩阵化结果。理解数据流后再加入 Q/K/V，避免同时面对参数初始化、形状、遮罩和多头。
+    - 每个 softmax 都标出归一化轴。这些局部证明能发现代码“能广播运行但语义轴错误”的隐蔽 bug。
+    - 混淆这些层次会导致错误结论，例如“dropout 保证因果”或“buffer 改善模型能力”。
+  - title: 9. 核心结论
+    source_heading: 9. 核心结论
+    paragraphs:
+    - Encoder-decoder RNN 把整条源序列压进最终隐藏状态，长序列容易形成固定容量和长路径瓶颈。
+    - Self-attention 的“self”表示 Q/K/V 来源于同一序列，不表示只关注当前位置。
+    - Attention parameter、score 和 weight 是三种不同对象：固定规则参数、动态 logit、动态归一化比例。
+    - Attention dropout 用 inverted scaling 保持期望；具体一次前向的权重行和不必为 1。
+  - title: 11. 自测题与参考答案
+    source_heading: 11. 自测题与参考答案
+    paragraphs:
+    - Q/K 只负责计算地址兼容度，V 是匹配后读取的内容。不同投影允许模型根据一种特征寻址，再取回另一种特征；三者梯度由最终语言建模损失共同学习。
+    - 重新归一化会改变这一随机估计，且全零行无法归一化；后续线性与残差层可处理单次行和变化。
+    - 正确因果 attention 的前缀输出应完全不变；若变化，未来信息泄漏或轴/mask 方向错误。
+    - 它只完成上下文信息混合。GPT 还需要 token/位置嵌入、残差连接、layer normalization、feed-forward network、重复堆叠、词表输出层、损失、优化和生成循环。
+  takeaways:
+  - Encoder-decoder RNN 把整条源序列压进最终隐藏状态，长序列容易形成固定容量和长路径瓶颈。
+  - 简化注意力由点积分数、行 softmax 和 value 加权和三步组成。
+  - 先 softmax、遮罩、再归一化在数学上可等价，但 score 前遮罩更直接高效。
+  - 多头 attention 用多组投影在不同子空间并行建模，结果拼接后经 W_O 混合。
+  - 本章模块输出上下文化表示；完整 GPT 还需残差、归一化、前馈层、训练目标和生成算法。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念复述
+  question: 原文如何解释「0. 本章定位、学习目标与递进主线」？
+  answer: attention score、attention weight 和 context vector 分别是什么？
+  source_heading: 0. 本章定位、学习目标与递进主线
+- level: 边界判断
+  question: 原文如何解释「3.2 Capturing Data Dependencies with Attention Mechanisms（用注意力捕捉依赖）」？
+  answer: 2014 年提出的 Bahdanau attention 修改了 RNN encoder-decoder：编码器不只输出最终状态，而是保留每个位置的状态；解码器每生成一步，都根据当前解码状态为这些源状态计算不同权重。
+  source_heading: 3.2 Capturing Data Dependencies with Attention Mechanisms（用注意力捕捉依赖）
+- level: 边界判断
+  question: 原文如何解释「3.5 Hiding Future Words with Causal Attention（用因果注意力隐藏未来 token）」？
+  answer: 位置 0 要预测 x_1。若标准 self-attention 允许它读取位置 1 的输入表示，它就直接看到了标签；位置 1 同理可看到 x_2。训练损失会异常容易下降，但推理时未来
+    token 尚不存在，模型无法复现这种条件。
+  source_heading: 3.5 Hiding Future Words with Causal Attention（用因果注意力隐藏未来 token）
+- level: 关系解释
+  question: 原文如何解释「7. 作者分析与解决问题的一般思路」？
+  answer: 作者先问 encoder-decoder RNN 哪里丢信息：所有源细节被压进一个最终状态，解码器不能按需直接访问早期状态。Attention
+    的设计因此有明确目标：保留候选信息，并为每个 query 动态读取。
+  source_heading: 7. 作者分析与解决问题的一般思路
+- level: 概念复述
+  question: 原文如何解释「11. 自测题与参考答案」？
+  answer: Q/K 只负责计算地址兼容度，V 是匹配后读取的内容。不同投影允许模型根据一种特征寻址，再取回另一种特征；三者梯度由最终语言建模损失共同学习。
+  source_heading: 11. 自测题与参考答案

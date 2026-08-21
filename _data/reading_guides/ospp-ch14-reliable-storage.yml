@@ -1,0 +1,201 @@
+source:
+  post: _posts/book-notes/operating-system/ospp/2026-08-02-ospp-ch14-reliable-storage.md
+  body_sha256: bd3bff2b9676caaee4b0d62a261392188d89e80d4c0ad460efa4380fee24f7fe
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 19
+  question: 原文围绕「全章主线」建立了怎样的核心认识？
+  question_source: 全章主线
+  thesis: 同一 32 KiB extent 的 errors 往往不独立：scratch、邻轨 interference、flash erase-block
+    wear、controller/firmware bug 可同时损坏相邻多个 blocks。Parity 与 data 还在同一 disk，共享 head、electronics
+    和 whole-device failure domain；整盘失败时 intra-disk parity 一并消失。
+  thesis_source: 章末练习详解
+  concepts:
+  - term: 全章主线
+    meaning: 复制极大增强 read availability/reliability，却因过强的“全副本同步”规则把 write availability
+      降到约 36.6%。Quorum、异步复制等是在一致性、durability 与 availability 间重新设定条件；本章重点仍是单机/RAID
+      原理。
+    source_heading: 全章主线
+  - term: 14.1.2 事务抽象（The Transaction Abstraction）
+    meaning: 本章 transaction consistency 指 invariants 在 commit boundaries 成立；distributed
+      systems/memory model consistency 指不同 readers 观察 updates 的允许顺序。二者相关但不等价。为避免歧义，后文明确说“事务一致性”或“内存/副本一致性”。
+    source_heading: 14.1.2 事务抽象（The Transaction Abstraction）
+  - term: 14.2 错误检测与纠正（Error Detection and Correction）
+    meaning: 下层报告“sector 读成功”不证明上层拿到正确 file 的正确 offset 的最新 bytes。每层覆盖不同 error class；end-to-end
+      checks 是必要补充。
+    source_heading: 14.2 错误检测与纠正（Error Detection and Correction）
+  - term: 14.2.2 RAID：多盘冗余纠错
+    meaning: 若 hazard 随年龄变化、failures 相关，解析式失效。Monte Carlo simulation 可跟踪每盘状态：healthy、latent
+      sector error、failed、rebuilding；transition rates 依 age、workload、近期邻盘 failure、scrub
+      interval 与 repair bandwidth。
+    source_heading: 14.2.2 RAID：多盘冗余纠错
+  - term: C/C++ 可运行实验
+    meaning: 以下程序只用 C++17 标准库，分别把 transaction recovery、RAID parity 与概率模型变成可重复实验。它们是教学模拟器：真实持久化实现还必须调用
+      OS/device flush，并处理 torn sectors、checksums 和并发。
+    source_heading: C/C++ 可运行实验
+  - term: 复习检查清单
+    meaning: 能解释 sequential log、async write-back、少 barrier 与 group commit 的性能收益。
+    source_heading: 复习检查清单
+  logic:
+  - 全章主线
+  - 14.1.2 事务抽象（The Transaction Abstraction）
+  - 14.1.4 事务与文件系统（Transactions and File Systems）
+  - 14.2.2 RAID：多盘冗余纠错
+  - 14.2.3 软件完整性检查
+  - 章末练习详解
+  - 复习检查清单
+  sections:
+  - title: 全章主线
+    source_heading: 全章主线
+    paragraphs:
+    - 一个离线异地归档可非常可靠，却暂时不可读；一个无冗余高速盘此刻完全可用，却可能在故障后永久丢数据。Voyager 金唱片预计可保存数万年，几乎无法被地球用户即时访问，正是“高
+      reliability、低 availability”的直观例子。
+    - 复制极大增强 read availability/reliability，却因过强的“全副本同步”规则把 write availability 降到约
+      36.6%。Quorum、异步复制等是在一致性、durability 与 availability 间重新设定条件；本章重点仍是单机/RAID 原理。
+    - 若先删源名字、未持久化目标名字就断电，文件不可达；若新目录 block 已引用、free bitmap 仍标 free，该 block 日后可能被第二个文件分配，形成
+      double allocation 与交叉破坏。
+    - Loss of stored data。 磁盘划伤可丢一个 sector，flash read disturb 可改变 page，轴承/控制器故障可丢整盘，火灾/软件误删可同时影响一组设备。故障粒度与相关性决定需要
+      sector ECC、RAID、跨机复制还是异地 backup。
+  - title: 14.1.1 临时拼凑方法（Ad Hoc Approaches）
+    source_heading: 14.1.1 临时拼凑方法（Ad Hoc Approaches）
+    paragraphs:
+    - 若把 directory entry 先写，crash 后可能指向仍 free 或含旧 pointers 的 inode；该 inode 可同时被再次分配，修复时无法安全判断哪个
+      owner 正确。Ordering 没有消除中间态，而是把中间态限制为可识别、可修复的方向。
+    - 这是一种离线全局 constraint solver。它可处理已知格式的不一致，却未必知道用户意图：一个 orphan inode 究竟是未完成 create
+      还是已开始 delete？Ordering 让两种情况具有可接受的统一修复方向。
+    - Reasoning complex：每个 operation、每个 write prefix、与其他 operation 的交错都要人工证明可修复，类似只用原子
+      load/store 手写多对象同步。
+    - 该方法只能原子替换一个 name 指向的完整 file，不能自然地同时更新多个 files、ACL、数据库 index 和目录树；复杂应用仍需 WAL/database
+      transaction 或 transactional API。
+  - title: 14.1.2 事务抽象（The Transaction Abstraction）
+    source_heading: 14.1.2 事务抽象（The Transaction Abstraction）
+    paragraphs:
+    - Transaction mechanism 保证 atomic/isolation，却不能自动判断业务逻辑正确。若银行 transaction 原子地给错误账户加钱，它仍
+      ACID，却违反应用意图。Programmer 定义 invariants 并写正确 updates，system 保证中间态不泄露。
+    - 网站示例中，一个 read transaction 看到整套旧 pages 或整套新 pages。若浏览器把 HTML 与每张图片分成独立 transactions，每次
+      read 本身隔离，组合结果仍可能跨版本；isolation boundary 必须覆盖需要一致观察的整个操作。
+    - 之后只能由另一合法 transaction 改变。实现必须在返回前把足够的 data/intent 与 commit evidence 放到真正的 persistent
+      domain；只进 CPU cache、OS page cache 或 volatile controller cache 不够。
+    - 本章 transaction consistency 指 invariants 在 commit boundaries 成立；distributed systems/memory
+      model consistency 指不同 readers 观察 updates 的允许顺序。二者相关但不等价。为避免歧义，后文明确说“事务一致性”或“内存/副本一致性”。
+  - title: 14.1.4 事务与文件系统（Transactions and File Systems）
+    source_heading: 14.1.4 事务与文件系统（Transactions and File Systems）
+    paragraphs:
+    - 优点是避免大型 user data 双写，保证 on-disk structures 可遍历、无明显 double allocation/orphan
+      inconsistencies。它不保证应用的一次多-block file update atomic：crash 后 metadata 可完全一致，file
+      content 却是 old/new blocks 混合。
+    - Logging file system 把 metadata 和 user data 都纳入 transactions。Committed transaction
+      可 redo 完整 file image，支持更强的多-block atomicity/durability；代价是 payload 先写 log 再写
+      home，尤其大 sequential writes 接近 2 倍介质流量。
+    - ZFS 等不 overwrite old tree。更新 leaf 后复制到 root 的所有 changed nodes；root/uberblock
+      尚未发布时，新 blocks 不可从 committed tree 到达，crash 后只是可回收 garbage。最后一个可原子验证的 root pointer
+      update 使整个新 tree 一次生效。
+    - ZIL 可放独立低延迟 log device（常称 separate log/SLOG），主 pool 保持高容量。Small write data 可
+      inline 在 ZIL block；large payload 写到独立 blocks，ZIL 只引用它，后续 batch 可让正式 metadata
+      直接指向这些 blocks，避免再复制大数据。
+  - title: 14.2 错误检测与纠正（Error Detection and Correction）
+    source_heading: 14.2 错误检测与纠正（Error Detection and Correction）
+    paragraphs:
+    - Device layer：sector/page ECC 检测并纠正少量 bit errors，bad-block remapping 隔离局部永久故障；
+    - File-system layer：checksum + block identity/Merkle tree 检测 lost write、misdirected
+      write 和 device ECC 漏检；
+    - Distributed/backup layer：跨机器/故障域复制，抵抗整机房、operator error、软件 bug 与勒索/误删。
+    - 下层报告“sector 读成功”不证明上层拿到正确 file 的正确 offset 的最新 bytes。每层覆盖不同 error class；end-to-end
+      checks 是必要补充。
+  - title: 14.2.2 RAID：多盘冗余纠错
+    source_heading: 14.2.2 RAID：多盘冗余纠错
+    paragraphs:
+    - Strip size 平衡：较大 strip 让中等 sequential request 只动一盘、少 seeks；分散的 requests 可落不同
+      disks 并行。太大降低单个大请求的并行带宽，太小让每个小 request 驱动多盘寻道。最佳值依 HDD/SSD、request size 与 queue
+      depth。
+    - 若 new data 已写、new parity 未写就 crash，parity 仍对应 old data。以后该 data disk 失败，系统用
+      stale parity 重建出 old/wrong block。Mirror 若只写一个副本，read 可能随机返回 old 或 new，更直接违反一致性。
+    - 从 failure 到 replacement/reconstruction 完成的平均时间称 MTTR（mean time to repair）。它包括检测、等待人工/自动
+      spare、读取 survivors、计算、写 replacement 和验证。Hot spare 只能消除等待插盘，不能消除数小时 data copy。
+    - 若 hazard 随年龄变化、failures 相关，解析式失效。Monte Carlo simulation 可跟踪每盘状态：healthy、latent
+      sector error、failed、rebuilding；transition rates 依 age、workload、近期邻盘 failure、scrub
+      interval 与 repair bandwidth。
+  - title: 14.2.3 软件完整性检查
+    source_heading: 14.2.3 软件完整性检查
+    paragraphs:
+    - 若检查失败，RAID/replica 提供 candidate copies；系统对副本重新验证 checksum+identity，选正确者 repair。没有
+      redundancy 时 checksum 只能可靠地说“错了”，不能恢复原 bytes。
+    - Merkle tree 不能单独证明 root 本身正确；uberblock slots 要有 checksum、version 和冗余位置，并依可信选择规则。它也不能防拥有写权限的
+      malicious software 同时重算整棵树；对抗攻击需 authenticated root/signature、keys 或外部 trusted
+      anchor。
+    - 只在应用读取时验证，冷数据可多年腐坏，直到另一个 replica 也坏。Filesystem scrub 主动遍历 tree、验证每个 block 的
+      parent checksum/identity，并从 redundancy repair。它比 device scrub 更 end-to-end：能发现
+      wrong LBA、stale version 与软件层 corruption。
+    - 每层应暴露 error 而不是悄悄返回猜测数据，并让上一层有机会从独立 redundancy 恢复。共享 controller、同一 bug 或同一 credential
+      会形成 correlated failure，因此 redundancy 要跨故障域与实现/权限边界。
+  - title: C/C++ 可运行实验
+    source_heading: C/C++ 可运行实验
+    paragraphs:
+    - 以下程序只用 C++17 标准库，分别把 transaction recovery、RAID parity 与概率模型变成可重复实验。它们是教学模拟器：真实持久化实现还必须调用
+      OS/device flush，并处理 torn sectors、checksums 和并发。
+    - 程序枚举 prepare、commit、部分 write-back、全部 write-back 和 GC 后 crash，并将 recovery 执行两次，验证幂等性。
+    - Stage 1 有 after-images 但没有 commit，所以 rollback；stage 2 起 commit durable，必须 redo；stage
+      3 重复写 Tom 不会二次扣款。结果严格满足
+    - 它证明一个已知 erasure 可恢复，也证明 read-modify-write 不必读 stripe 所有 data；但仍需读 old data/parity，故是
+      2 reads + 2 writes。
+  - title: 章末练习详解
+    source_heading: 章末练习详解
+    paragraphs:
+    - Compatibility：多个 shared holders 可共存；exclusive 与任何其他 shared/exclusive holder
+      冲突。两个 transactions 同时持 shared 后都 upgrade 可能 deadlock，系统检测 wait-for cycle 后 abort
+      一个 victim。
+    - 同一 32 KiB extent 的 errors 往往不独立：scratch、邻轨 interference、flash erase-block wear、controller/firmware
+      bug 可同时损坏相邻多个 blocks。Parity 与 data 还在同一 disk，共享 head、electronics 和 whole-device
+      failure domain；整盘失败时 intra-disk parity 一并消失。
+    - 这是没有 seeks、用户流量、checksum/retry、controller/network bottleneck 的物理下界。实际系统会故意更慢：保留
+      read/write latency 与 bandwidth 给用户；避免让 surviving disk 在 degraded 状态持续满载、升温并诱发第二故障；还可能被共享
+      controller、网络、CPU parity/checksum 和坏 sector retries 限制。
+    - 这把 log 位置直接当作 data 的新 home，而不是稍后必须随机写回固定位置，因此本质是 log-structured/COW storage。若只采用普通
+      redo log 并最终随机 install，commit latency 很快，但 continuous sustained throughput 在
+      log 填满后仍受约 194 home updates/s 限制。
+  - title: 复习检查清单
+    source_heading: 复习检查清单
+    paragraphs:
+    - 能解释 sequential log、async write-back、少 barrier 与 group commit 的性能收益。
+    - 能复算 100 个 512 B 更新的原位约 1 s、redo 总约 371 ms、commit latency 约 21 ms。
+    - 能沿 ZFS Merkle tree 从 parent checksum 验证 leaf 并从副本 self-heal。
+    - 能说明 checksum collision、trusted root 和 malicious writer 的边界。
+  takeaways:
+  - Loss of stored data。 磁盘划伤可丢一个 sector，flash read disturb 可改变 page，轴承/控制器故障可丢整盘，火灾/软件误删可同时影响一组设备。故障粒度与相关性决定需要
+    sector ECC、RAID、跨机复制还是异地 backup。
+  - 本章 transaction consistency 指 invariants 在 commit boundaries 成立；distributed systems/memory
+    model consistency 指不同 readers 观察 updates 的允许顺序。二者相关但不等价。为避免歧义，后文明确说“事务一致性”或“内存/副本一致性”。
+  - 若 hazard 随年龄变化、failures 相关，解析式失效。Monte Carlo simulation 可跟踪每盘状态：healthy、latent
+    sector error、failed、rebuilding；transition rates 依 age、workload、近期邻盘 failure、scrub
+    interval 与 repair bandwidth。
+  - 它证明一个已知 erasure 可恢复，也证明 read-modify-write 不必读 stripe 所有 data；但仍需读 old data/parity，故是
+    2 reads + 2 writes。
+  - 能说明 checksum collision、trusted root 和 malicious writer 的边界。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念辨析
+  question: 原文如何解释「关键公式的成立条件」？
+  answer: 公式不是事实本身，而是“假设 → 数量级”的工具。可靠性报告若只给巨大 MTTDL、不列 correlation、URE、MTTR 与 repair
+    protocol，应视为不完整。
+  source_heading: 关键公式的成立条件
+- level: 边界判断
+  question: 原文如何解释「14.1.2 事务抽象（The Transaction Abstraction）」？
+  answer: 本章 transaction consistency 指 invariants 在 commit boundaries 成立；distributed
+    systems/memory model consistency 指不同 readers 观察 updates 的允许顺序。二者相关但不等价。为避免歧义，后文明确说“事务一致性”或“内存/副本一致性”。
+  source_heading: 14.1.2 事务抽象（The Transaction Abstraction）
+- level: 关系解释
+  question: 原文如何解释「14.2 错误检测与纠正（Error Detection and Correction）」？
+  answer: 下层报告“sector 读成功”不证明上层拿到正确 file 的正确 offset 的最新 bytes。每层覆盖不同 error class；end-to-end
+    checks 是必要补充。
+  source_heading: 14.2 错误检测与纠正（Error Detection and Correction）
+- level: 关系解释
+  question: 原文如何解释「C/C++ 可运行实验」？
+  answer: 以下程序只用 C++17 标准库，分别把 transaction recovery、RAID parity 与概率模型变成可重复实验。它们是教学模拟器：真实持久化实现还必须调用
+    OS/device flush，并处理 torn sectors、checksums 和并发。
+  source_heading: C/C++ 可运行实验
+- level: 概念复述
+  question: 原文如何解释「复习检查清单」？
+  answer: 能解释 sequential log、async write-back、少 barrier 与 group commit 的性能收益。
+  source_heading: 复习检查清单

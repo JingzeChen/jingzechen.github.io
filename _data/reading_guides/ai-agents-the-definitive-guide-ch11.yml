@@ -1,0 +1,175 @@
+source:
+  post: _posts/book-notes/ai-system/ai-agents-the-definitive-guide/2026-08-12-ai-agents-the-definitive-guide-ch11.md
+  body_sha256: df0f293addd264561a095b4771482c0319438c4737920900d141e6ec143a4974
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 14
+  question: 原文围绕「0. 本章定位与阅读主线」建立了怎样的核心认识？
+  question_source: 0. 本章定位与阅读主线
+  thesis: 可迁移的一般方法是：先从真实 trace 建条件成本模型；把软件调用拓扑映射到硬件/网络资源；按成功任务比较方案；优先删除重复计算；任何 memoization
+    都先证明函数输入完整、输出可验证、环境未过期，并持续测量命中后的真实进展。
+  thesis_source: 26. 本章知识结构与核心结论
+  concepts:
+  - term: 0. 本章定位与阅读主线
+    meaning: Agent 成本不能用“某模型每百万 token 单价 × 一次调用”估算。必须按工作流的条件执行概率、上下文重复、重试、工具、网络、缓存命中和离散
+      GPU 容量建模；最高收益往往不是让同一 reasoning 更快，而是证明该 reasoning 已经做过并安全复用。
+    source_heading: 0. 本章定位与阅读主线
+  - term: 5. Model Memory Footprint：Weights、KV Cache 与 Headroom
+    meaning: Notebook/vLLM calculator 给容量估算；最终用目标 runtime 实测 peak memory、cache blocks、batch、TTFT/TPOT
+      和 OOM margin。价格也时变，原章明确所有 cost numbers 是估计，必须 tracing + provider/GPU bills 对账。
+    source_heading: 5. Model Memory Footprint：Weights、KV Cache 与 Headroom
+  - term: 11. Memoizing Agentic State Transitions
+    meaning: 但实际 PlannerContext 还包括 task、available/stale tools 和 evidence；只用 fact
+      set 不充分。
+    source_heading: 11. Memoizing Agentic State Transitions
+  - term: 13. WorldView：Current Facts + Evidence Summary
+    meaning: 表示历史出现冲突，不表示当前一定 unresolved；可能旧值已过期/错误。Evidence 还应含 resolved status、source
+      quality、last update/TTL，避免永远因历史冲突阻断。
+    source_heading: 13. WorldView：Current Facts + Evidence Summary
+  - term: 20. Cache-first Decide（例 11-10）
+    meaning: 命中后也应重验 tool availability/args authorization/budget/TTL。Cache 决策不是执行授权。原
+      guard tools tuple 有帮助，但 permissions/resource state 可变化。
+    source_heading: 20. Cache-first Decide（例 11-10）
+  - term: 26. 本章知识结构与核心结论
+    meaning: 可迁移的一般方法是：先从真实 trace 建条件成本模型；把软件调用拓扑映射到硬件/网络资源；按成功任务比较方案；优先删除重复计算；任何
+      memoization 都先证明函数输入完整、输出可验证、环境未过期，并持续测量命中后的真实进展。
+    source_heading: 26. 本章知识结构与核心结论
+  logic:
+  - 0. 本章定位与阅读主线
+  - 5. Model Memory Footprint：Weights、KV Cache 与 Headroom
+  - 8. Agentic Cost Multiplier
+  - 13. WorldView：Current Facts + Evidence Summary
+  - 17. Tiered Lookup（例 11-6）
+  - 22. 47% Calls Avoided 应怎样解读
+  - 26. 本章知识结构与核心结论
+  sections:
+  - title: 0. 本章定位与阅读主线
+    source_heading: 0. 本章定位与阅读主线
+    paragraphs:
+    - 硬件与基础设施层：weights、KV cache、prefill/decode、batch、MoE/hybrid attention、data movement
+      和 FlashAttention；
+    - 工作流层：一次用户请求会条件触发 router、retrieval、reasoning、reflection、guardrails，形成 Agentic
+      cost multiplier；
+    - 算法/状态层：把 planner 看作“完整状态→动作”的函数，用 exact、normalized、semantic 三层 cache 复用安全的状态转移，避免重复
+      reasoning。
+    - Agent 成本不能用“某模型每百万 token 单价 × 一次调用”估算。必须按工作流的条件执行概率、上下文重复、重试、工具、网络、缓存命中和离散 GPU
+      容量建模；最高收益往往不是让同一 reasoning 更快，而是证明该 reasoning 已经做过并安全复用。
+  - title: 3. 为什么 Infrastructure 决定 Agent Economics
+    source_heading: 3. 为什么 Infrastructure 决定 Agent Economics
+    paragraphs:
+    - 限制吞吐的资源才决定 marginal cost。更高理论 FLOPS 若 kernel/内存喂不满，小时单价更高但任务吞吐不增。
+    - Hyperscaler：managed ecosystem、storage/vector/serverless/GPU 集成、运维低；pricing layers
+      和跨 service movement 可能更贵。
+    - Neocloud：接近 GPU、持续负载 price/performance 和控制强；网络、存储、orchestration、HA、安全由团队承担。
+    - 多步 retrieval 重复，网络可能比 inference 更贵/慢。让 compute、vector/data store 同 region/provider，或缓存/批量/压缩；但
+      compliance/HA 优先。
+  - title: 5. Model Memory Footprint：Weights、KV Cache 与 Headroom
+    source_heading: 5. Model Memory Footprint：Weights、KV Cache 与 Headroom
+    paragraphs:
+    - 7B BF16/FP16 原始 weights 约 14 GB；INT8 约 7 GB；INT4 约 3.5 GB。Runtime 还有 scales、buffers、allocator
+      和 graph workspace。
+    - MoE 总 weights 决定 storage/HBM（除非 offload），每 token active parameters 决定主要 expert
+      compute。不能用总参数直接估 FLOPs，也不能用 active 参数估全部显存。
+    - 要读取：hidden/layers/heads/KV heads/head dim、attention pattern、dtype、total/active
+      params、context。
+    - Notebook/vLLM calculator 给容量估算；最终用目标 runtime 实测 peak memory、cache blocks、batch、TTFT/TPOT
+      和 OOM margin。价格也时变，原章明确所有 cost numbers 是估计，必须 tracing + provider/GPU bills 对账。
+  - title: 8. Agentic Cost Multiplier
+    source_heading: 8. Agentic Cost Multiplier
+    paragraphs:
+    - 再加 tools/network/compute。Guardrail 小模型两 calls 可能比一个 frontier reflection 便宜。
+    - 若 6 calls 每次重复 5000-token prefix，就有 30k prefix token processing；用户新增 500 token
+      只是小部分。Prompt caching 降 repeated prefix cost，不减少 6 个 conditional decisions。
+    - Single-shot、ReAct、supervisor MAS multiplier 依 graph，不是固定倍数。Agent loops 有长尾；平均
+      4.8 外，还报告 P95 calls/tokens/cost，防少量 runaway 吃掉预算。
+  - title: 11. Memoizing Agentic State Transitions
+    source_heading: 11. Memoizing Agentic State Transitions
+    paragraphs:
+    - 把昂贵 LLM planning 变成 retrieval，可降成本/latency并提高重复状态下的一致性。
+    - 但实际 PlannerContext 还包括 task、available/stale tools 和 evidence；只用 fact set 不充分。
+    - 原公式把 d 叫 similarity（越大越近）；若实现的是 distance，方向应反。命名必须明确。
+    - 不适合高频变化市场、时间敏感权限、每次工具 side effect 不同、state 难以完整编码的任务。
+  - title: 13. WorldView：Current Facts + Evidence Summary
+    source_heading: 13. WorldView：Current Facts + Evidence Summary
+    paragraphs:
+    - Sort keys/sources、immutable set/tuple 让 construction deterministic/hashable。
+    - Evidence 把 source support/conflict 纳入 key。
+    - 表示历史出现冲突，不表示当前一定 unresolved；可能旧值已过期/错误。Evidence 还应含 resolved status、source quality、last
+      update/TTL，避免永远因历史冲突阻断。
+    - 若 Fact 含 mutable dict/list 不能直接 hash；timestamp included 会让语义相同 state 永远 exact
+      miss。
+  - title: 17. Tiered Lookup（例 11-6）
+    source_heading: 17. Tiered Lookup（例 11-6）
+    paragraphs:
+    - 把 task、tools、stale、facts 和 evidence 转 text embedding；只比较 tools/stale tuples
+      完全相同 entries；cosine 最大且 >= threshold 复用。
+    - Semantic loop 只显式 guard tools/stale，task/facts/evidence 在 embedding 中是软相似。两个不同任务
+      embedding 接近仍可能错误复用。可加 exact task/task-type、fact key subset/count、policy/version
+      guards。
+    - 太低：高 hit、错误 decision/hallucinated logic；太高：安全但 savings 小。用 labeled state pairs
+      和 downstream decision agreement 校准：precision of reuse 比 raw hit rate 更重要。
+    - 90% stale/no-progress hits 会更快失败。记录 hit 后 tool 是否新增 fact/version、task success、loop
+      count。No progress 重复 hit 时强制 live planner/alternative/DONE。
+  - title: 20. Cache-first Decide（例 11-10）
+    source_heading: 20. Cache-first Decide（例 11-10）
+    paragraphs:
+    - Planner outage/invalid 被 coercion DONE 可静默返回不完整任务。
+    - 命中后也应重验 tool availability/args authorization/budget/TTL。Cache 决策不是执行授权。原 guard
+      tools tuple 有帮助，但 permissions/resource state 可变化。
+    - Lookup snippet 返回 decision+tier，没展示将 similarity 注入 payload；cached.get 默认1.0
+      会把 semantic hit similarity 错报1.0，observability 不准确。
+    - 多个 concurrent misses 同 key 会同时调用 LLM。使用 singleflight/request coalescing、短 lock/lease；失败不长期
+      negative-cache，避免 outage 冻结。
+  - title: 22. 47% Calls Avoided 应怎样解读
+    source_heading: 22. 47% Calls Avoided 应怎样解读
+    paragraphs:
+    - 原图是 illustrative run，实际依 task repetition、threshold、state representation/policy。必须同时报告
+      task quality/progress，避免通过错误复用“节省”。
+    - Cache 增长让重复 state 更省，但不是模型学会新 policy；是外部 decision memory。Dynamic environment
+      需 TTL/invalidation，否则过去经验成为 temporally stale hallucination。
+    - 也可 event-based invalidation：tool schema/policy/model/index/data version change。
+  - title: 26. 本章知识结构与核心结论
+    source_heading: 26. 本章知识结构与核心结论
+    paragraphs:
+    - Weight memory 由总参数决定；KV 由 active sequences×context×KV layers/heads/dim/precision决定；MoE
+      active params主要影响compute。
+    - FlashAttention保持attention数学，借tiling/online softmax减少HBM movement；更强硬件需匹配kernel才有经济收益。
+    - PlannerContext至少含task、view、available tools、stale tools；policy/time/budget若影响决策也须纳入。
+    - 可迁移的一般方法是：先从真实 trace 建条件成本模型；把软件调用拓扑映射到硬件/网络资源；按成功任务比较方案；优先删除重复计算；任何 memoization
+      都先证明函数输入完整、输出可验证、环境未过期，并持续测量命中后的真实进展。
+  takeaways:
+  - Agent 成本的正确分母是成功业务 outcome，不是单次模型调用。
+  - 原工作流期望4.8 LLM calls/request，说明single-call pricing严重低估。
+  - 原教学TieredCache用list线性扫描，不是所有lookup都O(1)；生产需hash/vector index。
+  - 从 decoder prefill/decode 推导 weights、KV、batch 和 bandwidth；
+  - 可迁移的一般方法是：先从真实 trace 建条件成本模型；把软件调用拓扑映射到硬件/网络资源；按成功任务比较方案；优先删除重复计算；任何 memoization
+    都先证明函数输入完整、输出可验证、环境未过期，并持续测量命中后的真实进展。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念复述
+  question: 原文如何解释「0. 本章定位与阅读主线」？
+  answer: Agent 成本不能用“某模型每百万 token 单价 × 一次调用”估算。必须按工作流的条件执行概率、上下文重复、重试、工具、网络、缓存命中和离散
+    GPU 容量建模；最高收益往往不是让同一 reasoning 更快，而是证明该 reasoning 已经做过并安全复用。
+  source_heading: 0. 本章定位与阅读主线
+- level: 边界判断
+  question: 原文如何解释「5. Model Memory Footprint：Weights、KV Cache 与 Headroom」？
+  answer: Notebook/vLLM calculator 给容量估算；最终用目标 runtime 实测 peak memory、cache blocks、batch、TTFT/TPOT
+    和 OOM margin。价格也时变，原章明确所有 cost numbers 是估计，必须 tracing + provider/GPU bills 对账。
+  source_heading: 5. Model Memory Footprint：Weights、KV Cache 与 Headroom
+- level: 边界判断
+  question: 原文如何解释「13. WorldView：Current Facts + Evidence Summary」？
+  answer: 表示历史出现冲突，不表示当前一定 unresolved；可能旧值已过期/错误。Evidence 还应含 resolved status、source
+    quality、last update/TTL，避免永远因历史冲突阻断。
+  source_heading: 13. WorldView：Current Facts + Evidence Summary
+- level: 关系解释
+  question: 原文如何解释「20. Cache-first Decide（例 11-10）」？
+  answer: 命中后也应重验 tool availability/args authorization/budget/TTL。Cache 决策不是执行授权。原
+    guard tools tuple 有帮助，但 permissions/resource state 可变化。
+  source_heading: 20. Cache-first Decide（例 11-10）
+- level: 概念复述
+  question: 原文如何解释「26. 本章知识结构与核心结论」？
+  answer: 可迁移的一般方法是：先从真实 trace 建条件成本模型；把软件调用拓扑映射到硬件/网络资源；按成功任务比较方案；优先删除重复计算；任何 memoization
+    都先证明函数输入完整、输出可验证、环境未过期，并持续测量命中后的真实进展。
+  source_heading: 26. 本章知识结构与核心结论

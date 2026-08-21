@@ -1,0 +1,148 @@
+source:
+  post: _posts/book-notes/distributed-system/understanding-distributed-system/2026-08-16-understanding-distributed-systems-2e-ch27-downstream-resiliency.md
+  body_sha256: 611e5a4bb4dbef95f079b164dbc049e31e15f44663b27b1ddd7bd2da50b8384e
+  extraction: deterministic-extractive-v4
+  fidelity: extractive
+overview:
+  kind: summary
+  minutes: 9
+  question: 原文围绕「0.1 从架构级隔离转向调用级防护」建立了怎样的核心认识？
+  question_source: 0.1 从架构级隔离转向调用级防护
+  thesis: Failure classifier、minimum samples、window、threshold、reset time、probe count
+    和 scope 都需数据调优。
+  thesis_source: 22. 核心结论
+  concepts:
+  - term: 0.1 从架构级隔离转向调用级防护
+    meaning: Fault isolation：限制 poison/noisy fault 的 blast radius。
+    source_heading: 0.1 从架构级隔离转向调用级防护
+  - term: 5. 27.2 Retry：失败后 fail fast 还是再试
+    meaning: HTTP status 不能机械映射；例如 409/404 在某些 eventual workflow 可短暂，需 domain contract。
+    source_heading: 5. 27.2 Retry：失败后 fail fast 还是再试
+  - term: 9. Retry eligibility 与幂等性
+    meaning: 多次执行与一次 effect 相同。PUT/DELETE 在 HTTP 语义上通常 idempotent，但 response/status
+      可不同；具体 application handler 仍可能附带 non-idempotent side effect。
+    source_heading: 9. Retry eligibility 与幂等性
+  - term: 11. 27.3 Circuit breaker
+    meaning: Circuit breaker 监测长期 degradation，暂时阻止新 downstream calls。目标：让 subsystem
+      failure 不拖慢 caller。
+    source_heading: 11. 27.3 Circuit breaker
+  - term: 16.1 模拟目标
+    meaning: Unauthorized permanent error 只尝试一次，不计 breaker failure；
+    source_heading: 16.1 模拟目标
+  - term: 23. 一般化的解决问题方法
+    meaning: 最终 200 可能隐藏 3 次 timeout/retry。监控 original、attempt、blocked、fallback 和
+      downstream offered load。
+    source_heading: 23. 一般化的解决问题方法
+  logic:
+  - 0.1 从架构级隔离转向调用级防护
+  - 5. 27.2 Retry：失败后 fail fast 还是再试
+  - 7. Jitter 与 Figure 27.1 retry storm
+  - 11. 27.3 Circuit breaker
+  - 13.4 Critical dependency
+  - 19. 如何设计 downstream resilience policy
+  - 23. 一般化的解决问题方法
+  sections:
+  - title: 0.1 从架构级隔离转向调用级防护
+    source_heading: 0.1 从架构级隔离转向调用级防护
+    paragraphs:
+    - Redundancy：一个副本 fault，其他副本接管；
+    - Fault isolation：限制 poison/noisy fault 的 blast radius。
+  - title: 2. Timeout 默认值的危险
+    source_heading: 2. Timeout 默认值的危险
+    paragraphs:
+    - 原章用多个 API 说明“默认安全”不能假设。以下是作者写作时的例子/历史状态，具体当前版本必须查官方文档。
+    - 现代平台还可能提供其他 timeout helper；应确认 cancellation 是否覆盖 DNS、connect、body read 和 streaming。
+    - 100 秒对 interactive API 可能远超 end-to-end SLO；默认值不是业务正确值。
+    - 不仅自己写的 HTTP call：SDK、telemetry exporter、DNS/client、auth library 都可能做 network
+      calls，却不暴露 timeout setting。
+  - title: 5. 27.2 Retry：失败后 fail fast 还是再试
+    source_heading: 5. 27.2 Retry：失败后 fail fast 还是再试
+    paragraphs:
+    - 短暂 connectivity fault、单次 packet loss、某个 replica 瞬时不可用时，下一次可能成功。
+    - Authentication/authorization denied；
+    - HTTP status 不能机械映射；例如 409/404 在某些 eventual workflow 可短暂，需 domain contract。
+    - Chapter 5.7 已讨论 PUT/DELETE 与 non-idempotent POST 的边界。
+  - title: 7. Jitter 与 Figure 27.1 retry storm
+    source_heading: 7. Jitter 与 Figure 27.1 retry storm
+    paragraphs:
+    - Figure 27.1 画出随时间间隔拉长、但每一波仍成峰的 retry storm。
+    - Full jitter 的平均等待比固定 capped backoff 小一半，但重要收益是减少同步峰值。这里是分布推导，原章只给公式和直觉。
+    - Random source 应避免所有 instances 同 seed；delay 需服从 deadline/cap。还可使用 equal/decorrelated
+      jitter，但必须基于 workload 测试。
+    - 当 budget 用尽，fail fast，保护 downstream。这是原章机制的工程补充。
+  - title: 9. Retry eligibility 与幂等性
+    source_heading: 9. Retry eligibility 与幂等性
+    paragraphs:
+    - 多次执行与一次 effect 相同。PUT/DELETE 在 HTTP 语义上通常 idempotent，但 response/status 可不同；具体
+      application handler 仍可能附带 non-idempotent side effect。
+    - 如果先记录 key 后 effect，crash 会永久跳过；先 effect 后 key，crash 会重复。必须原子。
+    - 上游已取消后不应继续 retry。每次 attempt 前检查 remaining deadline/cancellation，避免 orphan work。
+  - title: 11. 27.3 Circuit breaker
+    source_heading: 11. 27.3 Circuit breaker
+    paragraphs:
+    - Slowness 向 upstream 传播。
+    - Circuit breaker 监测长期 degradation，暂时阻止新 downstream calls。目标：让 subsystem failure
+      不拖慢 caller。
+    - The fastest network call is the one we don’t have to make.
+    - 两者常组合，但 breaker 需要观察 retry attempts/final outcomes，避免 metrics 口径混乱。
+  - title: 13.4 Critical dependency
+    source_heading: 13.4 Critical dependency
+    paragraphs:
+    - 不使用 unsafe stale data；
+    - 可 queue only if business permits；
+    - 保持 caller resources。
+    - Graceful degradation 不等于吞掉 correctness failure。
+  - title: 16.1 模拟目标
+    source_heading: 16.1 模拟目标
+    paragraphs:
+    - 验证 capped backoff 为 2、4、8、8 秒，full jitter 不超过 cap；
+    - Unauthorized permanent error 只尝试一次，不计 breaker failure；
+    - Clock rollback、backoff overflow/非法参数、空 script 被拒绝；
+    - 它验证 policy/state transitions，不做真实 network I/O 或 sleeping。
+  - title: 19. 如何设计 downstream resilience policy
+    source_heading: 19. 如何设计 downstream resilience policy
+    paragraphs:
+    - 按 endpoint、region、request class 观察 DNS/connect/TLS/pool/server/body 全 lifecycle
+      和 p50/p95/p99/p99.9。
+    - Scope、failure classifier、minimum samples、window、threshold、open duration、half-open
+      permits、fallback。
+    - Original requests、attempts、retry ratio、timeout phase、backoff、breaker state/transitions/blocked/probes、fallback、final
+      success、downstream load。
+    - Packet loss、slow response、response lost after commit、auth error、overload、long
+      outage、retry storm、multi-layer amplification、half-open recovery和 process restart。
+  - title: 23. 一般化的解决问题方法
+    source_heading: 23. 一般化的解决问题方法
+    paragraphs:
+    - 无 timeout 的 retry policy没有边界。为每个 remote/resource operation传播 absolute deadline。
+    - Timeout 后不推断未执行；用 idempotency key、status query、reconciliation 保 correctness。
+    - Latency percentile 选 timeout，historical failure/recovery 选 breaker threshold/reset，持续校准。
+    - 最终 200 可能隐藏 3 次 timeout/retry。监控 original、attempt、blocked、fallback 和 downstream
+      offered load。
+  takeaways:
+  - Timeout 为可能永不返回的 operation 建立时间边界，避免 thread/socket 等资源泄漏与级联。
+  - 可按允许 false-timeout rate 选 percentile；0.1% 对应 p99.9，并需覆盖完整 call lifecycle。
+  - Retry 前必须保证 operation 幂等，或用 stable idempotency key 原子记录 effect/result。
+  - Circuit breaker 适合 non-transient fault：预期下一次失败时直接不发 network call。
+  - Timeout、retry、breaker 必须共同遵守 deadline、幂等和单一 policy ownership，避免双重 retry。
+check_intro: 以下问题只检验现有正文明确说明的内容。请先根据原文脉络作答，再展开参考答案核对。
+checks:
+- level: 概念辨析
+  question: 原文如何解释「17.1 Timeout 与 deadline」？
+  answer: Deadline 是整个 request 绝对结束时间。
+  source_heading: 17.1 Timeout 与 deadline
+- level: 概念辨析
+  question: 原文如何解释「17.9 Circuit breaker 与 timeout」？
+  answer: Timeout 终止已发出的 slow call；breaker 在调用前阻止预期失败的 call。
+  source_heading: 17.9 Circuit breaker 与 timeout
+- level: 概念辨析
+  question: 原文如何解释「18.3 “Timeout 越短越 resilient”」？
+  answer: 过短制造 false timeout/retry storm。基于 representative percentile 和 deadline。
+  source_heading: 18.3 “Timeout 越短越 resilient”
+- level: 概念辨析
+  question: 原文如何解释「18.10 “每层各重试一次问题不大”」？
+  answer: Attempts 乘法放大，深层故障点承压最大。统一单层 retry/预算。
+  source_heading: 18.10 “每层各重试一次问题不大”
+- level: 概念辨析
+  question: 原文如何解释「18.17 “Mesh 已配置 retry，application 不用知道”」？
+  answer: Mesh 不知道 non-idempotent业务 side effect；双层 retry/timeout 必须治理。
+  source_heading: 18.17 “Mesh 已配置 retry，application 不用知道”
