@@ -4,8 +4,27 @@
 
 const MERMAID = 'mermaid';
 const themeMap = Theme.newThemeMap('default', 'dark');
+let renderId = 0;
 
-function refreshTheme(event) {
+async function renderMermaidNodes(nodes) {
+  for (const node of nodes) {
+    try {
+      const source = node.textContent;
+      const { svg, bindFunctions } = await mermaid.render(
+        `mermaid-diagram-${renderId++}`,
+        source
+      );
+      node.innerHTML = svg;
+      node.setAttribute('data-processed', 'true');
+      bindFunctions?.(node);
+    } catch (error) {
+      node.setAttribute('data-processed', 'error');
+      console.error('Unable to render Mermaid diagram.', error);
+    }
+  }
+}
+
+async function refreshTheme(event) {
   if (
     event.source === window &&
     event.data &&
@@ -22,8 +41,8 @@ function refreshTheme(event) {
 
     const newTheme = themeMap[Theme.resolvedTheme];
 
-    mermaid.initialize({ theme: newTheme });
-    mermaid.init(null, `.${MERMAID}`);
+    mermaid.initialize({ startOnLoad: false, theme: newTheme });
+    await renderMermaidNodes(mermaidList);
   }
 }
 
@@ -39,7 +58,7 @@ function setNode(elem) {
   backup.after(mermaid);
 }
 
-export function loadMermaid() {
+export async function loadMermaid() {
   if (
     typeof mermaid === 'undefined' ||
     typeof mermaid.initialize !== 'function'
@@ -49,7 +68,8 @@ export function loadMermaid() {
 
   const initTheme = themeMap[Theme.resolvedTheme];
 
-  let mermaidConf = {
+  const mermaidConf = {
+    startOnLoad: false,
     theme: initTheme
   };
 
@@ -57,6 +77,7 @@ export function loadMermaid() {
   [...basicList].forEach(setNode);
 
   mermaid.initialize(mermaidConf);
+  await renderMermaidNodes(document.getElementsByClassName(MERMAID));
 
   if (Theme.isToggleable) {
     window.addEventListener('message', refreshTheme);
