@@ -59,7 +59,7 @@ mermaid: true
 graph TD
     A[Lecture 09: scaling laws 用于训练前决策] --> B[数据缩放 laws]
     B --> C[log-log 直线 = 幂律]
-    C --> D[均值估计 1/n 与非参数 n^{-1/d} 直觉]
+    C --> D["均值估计 1/n 与非参数 n^{-1/d} 直觉"]
     B --> E[数据工程: mixture / repetition]
     E --> F[intercept 与 slope 区分]
     F --> G[模型工程: 架构 / optimizer / aspect ratio]

@@ -1190,7 +1190,7 @@ flowchart TD
     B --> C3[稳定性]
     C3 --> C31[流量控制 rwnd<br/>保护接收端]
     C3 --> C32[拥塞控制 cwnd<br/>保护网络]
-    C31 --> C33[发送窗口=min(rwnd,cwnd)]
+    C31 --> C33["发送窗口=min(rwnd,cwnd)"]
     C32 --> C33
 
     C32 --> D1[慢启动与反馈]

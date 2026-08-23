@@ -431,10 +431,10 @@ $$
 flowchart LR
     X[x] --> Z[z = W1 x]
     W1[W1] --> Z
-    Z --> H[h = phi(z)]
+    Z --> H["h = phi(z)"]
     H --> O[o = W2 h]
     W2[W2] --> O
-    O --> L[L = loss(o,y)]
+    O --> L["L = loss(o,y)"]
     Y[y] --> L
     W1 --> S[s = L2 penalty]
     W2 --> S

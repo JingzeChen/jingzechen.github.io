@@ -872,8 +872,8 @@ Dynamic partitioning 按需要创建 partitions：
 
 ```mermaid
 flowchart LR
-    P[[A, Z)] -->|split at M| P1[[A, M)]
-    P -->|split at M| P2[[M, Z)]
+    P["[A, Z)"] -->|split at M| P1["[A, M)"]
+    P -->|split at M| P2["[M, Z)"]
     P1 --> N1[Old node]
     P2 --> N2[New node]
 ```

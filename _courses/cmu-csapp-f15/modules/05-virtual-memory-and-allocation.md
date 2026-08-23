@@ -10,6 +10,7 @@ excerpt: 连接 Lecture 17–20 的概念、证据与掌握路径。
 content_lang: zh-CN
 permalink: "/courses/cmu-csapp-f15/modules/05/"
 toc: true
+mermaid: true
 ---
 
 {% raw %}

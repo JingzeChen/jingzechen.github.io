@@ -10,6 +10,7 @@ excerpt: 把课程动机、位级整数模型、定宽算术、内存字节表�
 content_lang: zh-CN
 permalink: "/courses/cmu-csapp-f15/modules/01/"
 toc: true
+mermaid: true
 ---
 
 {% raw %}

@@ -27,7 +27,7 @@ mermaid: true
 
 ```mermaid
 flowchart TD
-    A[BST可能退化] --> B[维持高度O(log n)]
+    A[BST可能退化] --> B["维持高度O(log n)"]
     B --> C[AVL旋转/红黑等弱平衡]
     B --> D[有序集合]
     B --> E[有序映射]

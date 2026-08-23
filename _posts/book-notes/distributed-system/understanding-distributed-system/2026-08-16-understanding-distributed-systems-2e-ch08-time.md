@@ -1303,7 +1303,7 @@ flowchart TD
     L --> L1[本地 +1]
     L --> L2[send 携带 timestamp]
     L --> L3[receive max+1]
-    L --> L4[a→b => L(a)<L(b)]
+    L --> L4["a→b => L(a)<L(b)"]
     L4 --> L5[反向不成立<br/>不能识别并发]
 
     L5 --> V[Vector clock]
@@ -1311,7 +1311,7 @@ flowchart TD
     V --> V2[receive 逐分量 max + 本地 +1]
     V --> V3["V 小于 W iff happened-before"]
     V --> V4[不可比较 iff concurrent]
-    V --> V5[空间与消息 O(N)]
+    V --> V5["空间与消息 O(N)"]
     V5 --> D[Dotted version vectors 等替代]
 ```
 

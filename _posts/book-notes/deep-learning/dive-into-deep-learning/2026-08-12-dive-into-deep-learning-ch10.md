@@ -1669,9 +1669,9 @@ flowchart TD
     H --> H3[Greedy Prediction]
     H --> H4[BLEU]
     H --> I[序列搜索]
-    I --> I1[Greedy O(VT)]
-    I --> I2[Exhaustive O(V^T)]
-    I --> I3[Beam O(kVT)]
+    I --> I1["Greedy O(VT)"]
+    I --> I2["Exhaustive O(V^T)"]
+    I --> I3["Beam O(kVT)"]
     I3 --> I4[Log Score + Length Normalization]
 ```
 

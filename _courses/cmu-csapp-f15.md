@@ -9,6 +9,7 @@ excerpt: 从程序员视角理解数据表示、机器代码、存储层次、�
 content_lang: zh-CN
 permalink: "/courses/cmu-csapp-f15/"
 toc: true
+mermaid: true
 ---
 
 {% raw %}

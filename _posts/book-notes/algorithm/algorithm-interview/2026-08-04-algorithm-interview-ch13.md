@@ -34,8 +34,8 @@ mermaid: true
 
 ```mermaid
 flowchart LR
-    A[原数组单点] -->|i += lowbit(i)| B[所有包含它的摘要]
-    C[前缀 i] -->|累加 tree[i]| D[i -= lowbit(i)]
+    A[原数组单点] -->|"i += lowbit(i)"| B[所有包含它的摘要]
+    C[前缀 i] -->|"累加 tree[i]"| D["i -= lowbit(i)"]
     D -->|直到 i=0| E[得到前缀和]
 ```
 

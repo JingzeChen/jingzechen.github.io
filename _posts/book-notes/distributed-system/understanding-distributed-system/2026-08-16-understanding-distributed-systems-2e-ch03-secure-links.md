@@ -1011,7 +1011,7 @@ sequenceDiagram
 ```mermaid
 flowchart TD
     PSK[可选 PSK / 恢复秘密] --> ES[Early Secret]
-    DH[(EC)DHE 共享值] --> HS[Handshake Secret]
+    DH["(EC)DHE 共享值"] --> HS[Handshake Secret]
     ES --> HS
     HS --> CHT[客户端握手流量密钥]
     HS --> SHT[服务器握手流量密钥]

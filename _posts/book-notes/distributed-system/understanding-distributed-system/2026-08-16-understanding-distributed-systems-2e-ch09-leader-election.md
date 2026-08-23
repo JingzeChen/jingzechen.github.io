@@ -284,8 +284,8 @@ $$
 
 ```mermaid
 flowchart LR
-    Q1[Candidate A votes<br/>{P1,P2,P3}] --> I[交集至少一节点]
-    Q2[Candidate B votes<br/>{P3,P4,P5}] --> I
+    Q1["Candidate A votes<br/>{P1,P2,P3}"] --> I[交集至少一节点]
+    Q2["Candidate B votes<br/>{P3,P4,P5}"] --> I
     I --> X[若都获胜，P3 必须投两票<br/>违反每 term 一票]
 ```
 
@@ -813,7 +813,7 @@ sequenceDiagram
     A->>LS: acquire lease
     LS-->>A: success
     A->>FS: read file version=7
-    Note over A: long pause; lease expires
+    Note over A: long pause, lease expires
     B->>LS: acquire expired lease
     LS-->>B: success
     B->>FS: update version 7 -> 8

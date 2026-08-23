@@ -832,7 +832,7 @@ HTTP 适配器收到 `GET /products` 后：
 ```mermaid
 flowchart LR
     HTTP[GET /products?sort=price] --> A[HTTP Adapter]
-    A -->|GetProducts(sort=price)| B[CatalogService]
+    A -->|"GetProducts(sort=price)"| B[CatalogService]
     B -->|List<Product>| A
     A --> RESP[200 + JSON array]
 ```

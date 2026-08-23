@@ -178,7 +178,7 @@ sequenceDiagram
     Note over P1: crash
     P2->>P3: first-delivery rebroadcast m
     P2->>P4: first-delivery rebroadcast m
-    P3->>P4: may also rebroadcast; duplicate suppressed
+    P3->>P4: may also rebroadcast, duplicate suppressed
 ```
 
 ### 3.3 为什么需要 ID 和去重
@@ -1073,7 +1073,7 @@ sequenceDiagram
     C->>R1: write B, deps={A:A1}
     R1-->>C: version B1
     R1->>R2: replicate B(deps A1)
-    Note over R2: hold B; A1 missing
+    Note over R2: hold B, A1 missing
     R1->>R2: replicate A1
     Note over R2: commit A1, then apply B1
 ```
@@ -1179,7 +1179,7 @@ COPS local write 可快速 ACK 并保持 availability，但 broadcast 前 crash 
 flowchart TD
     A[Coordination avoidance] --> B[Broadcast protocols]
     B --> B1[Best effort<br/>sender correct 才全送达]
-    B --> B2[Eager reliable<br/>首次收到即全转发 O(N²)]
+    B --> B2["Eager reliable<br/>首次收到即全转发 O(N²)"]
     B --> B3[Gossip<br/>随机 fanout，概率覆盖]
     B --> B4[Total order<br/>同序交付，需要 consensus]
 

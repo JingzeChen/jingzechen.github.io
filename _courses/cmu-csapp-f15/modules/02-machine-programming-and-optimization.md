@@ -10,6 +10,7 @@ excerpt: 本模块把六讲组织成一条从“机器能看见什么”到“�
 content_lang: zh-CN
 permalink: "/courses/cmu-csapp-f15/modules/02/"
 toc: true
+mermaid: true
 ---
 
 {% raw %}

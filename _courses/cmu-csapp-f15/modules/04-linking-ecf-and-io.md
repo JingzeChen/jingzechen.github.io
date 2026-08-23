@@ -10,6 +10,7 @@ excerpt: 本模块要回答一个连续问题：**一组源文件怎样变成可
 content_lang: zh-CN
 permalink: "/courses/cmu-csapp-f15/modules/04/"
 toc: true
+mermaid: true
 ---
 
 {% raw %}

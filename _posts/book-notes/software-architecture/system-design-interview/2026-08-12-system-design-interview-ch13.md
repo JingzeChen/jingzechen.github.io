@@ -1026,7 +1026,7 @@ Delta 小、更新快；定期 compaction 进基础 Trie。查询增加一次 me
 
 ```mermaid
 flowchart LR
-    C[("Trie Cache") ] --> F["Policy Filter Layer"]
+    C[("Trie Cache")] --> F["Policy Filter Layer"]
     F --> API["API Servers"]
     P["Async physical removal"] --> DB[("Trie DB / next build")]
 ```
@@ -1240,7 +1240,7 @@ flowchart LR
     E["Query Events"] --> K["Kafka / Stream Log"]
     K --> SP["Stream Processor"]
     SP --> D[("Trending Delta Top-k")]
-    B[("Weekly Base Trie") ] --> Q["Query Service"]
+    B[("Weekly Base Trie")] --> Q["Query Service"]
     D --> Q
     Q --> M["Merge / Filter / Rank"]
 ```

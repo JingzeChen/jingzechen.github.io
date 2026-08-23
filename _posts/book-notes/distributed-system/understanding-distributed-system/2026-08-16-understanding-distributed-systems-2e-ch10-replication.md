@@ -475,7 +475,7 @@ sequenceDiagram
     L->>F2: AppendEntries
     F1-->>L: success
     Note over L: self + F1 = majority in 3 nodes
-    Note over L: commit index 8; apply x=3
+    Note over L: commit index 8, apply x=3
     L-->>C: success
     L->>F2: later AppendEntries(leaderCommit=8)
     Note over F1,F2: followers apply after learning commit
@@ -1013,7 +1013,7 @@ sequenceDiagram
     H->>M: forward update seq=s
     M->>M: apply locally
     M->>T: forward update seq=s
-    T->>T: apply; committed
+    T->>T: apply, committed
     T-->>M: ACK(s)
     M-->>H: ACK(s)
     H-->>C: success
@@ -1128,7 +1128,7 @@ sequenceDiagram
     X--xS: fails before forwarding
     CP->>S: report last sequence
     S-->>CP: last=10
-    CP->>P: reconnect to S; resend from 11
+    CP->>P: reconnect to S, resend from 11
     P->>S: seq 11...
 ```
 
@@ -1216,7 +1216,7 @@ sequenceDiagram
     participant T as Tail
 
     C->>R: read(k)
-    Note over R: latest v2 is dirty; v1 clean
+    Note over R: latest v2 is dirty, v1 clean
     R->>T: latest committed version of k?
     T-->>R: v1
     R-->>C: value at v1

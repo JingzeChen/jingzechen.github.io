@@ -2848,7 +2848,7 @@ sequenceDiagram
     L1->>Q: append entry
     Q-->>L1: quorum persisted
     L1->>L1: entry committed
-    L1--xC: response lost; leader crashes
+    L1--xC: response lost, leader crashes
     C->>L2: retry same req-1
     L2->>Q: recover committed prefix
     L2-->>C: same reserved outcome

@@ -2771,7 +2771,7 @@ flowchart TD
     C --> D[Stochastic Gradient]
     D --> D1[Unbiased Estimator]
     D --> D2[Noise + Decaying LR]
-    D --> D3[Convex O(1/sqrt T) Bound]
+    D --> D3["Convex O(1/sqrt T) Bound"]
     D --> E[Minibatch SGD]
     E --> E1[Variance Sigma/b]
     E --> E2[Vectorization / Cache]

@@ -371,11 +371,11 @@ Directory entry 保存 first block number，这也是本章语境中的 file num
 ```mermaid
 flowchart LR
     D["foo.txt directory entry<br/>first = 9, size = 5 blocks"] --> B9["data block 9"]
-    B9 -->|FAT[9]=16| B16["data block 16"]
-    B16 -->|FAT[16]=1| B1["data block 1"]
-    B1 -->|FAT[1]=10| B10["data block 10"]
-    B10 -->|FAT[10]=25| B25["data block 25"]
-    B25 -->|FAT[25]=EOF| END["end"]
+    B9 -->|"FAT[9]=16"| B16["data block 16"]
+    B16 -->|"FAT[16]=1"| B1["data block 1"]
+    B1 -->|"FAT[1]=10"| B10["data block 10"]
+    B10 -->|"FAT[10]=25"| B25["data block 25"]
+    B25 -->|"FAT[25]=EOF"| END["end"]
 ```
 
 第 $k$ 个 logical block（从 0 开始）的查找必须执行
@@ -679,9 +679,9 @@ $$
 
 ```mermaid
 flowchart LR
-    V0["logical 0..99"] -->|extent (0, 8000, 100)| P0["physical 8000..8099"]
-    V1["logical 100..149"] -->|extent (100, 20000, 50)| P1["physical 20000..20049"]
-    V2["logical 150..9999"] -->|extent (150, 50000, 9850)| P2["physical 50000..59849"]
+    V0["logical 0..99"] -->|"extent (0, 8000, 100)"| P0["physical 8000..8099"]
+    V1["logical 100..149"] -->|"extent (100, 20000, 50)"| P1["physical 20000..20049"]
+    V2["logical 150..9999"] -->|"extent (150, 50000, 9850)"| P2["physical 50000..59849"]
 ```
 
 一个数十 GiB 但连续的文件仍可能只有几个 extents、tree 很浅；一个较小但高度碎片化的文件反而可能需要很多 records 和更深索引。这是“按实际复杂度付 metadata”的动态结构。

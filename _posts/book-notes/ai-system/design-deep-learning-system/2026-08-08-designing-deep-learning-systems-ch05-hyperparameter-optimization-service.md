@@ -170,7 +170,7 @@ $$
 
 ```mermaid
 flowchart LR
-    Suggest[1 选择超参数 λ] --> Train[2 训练模型 θ*(λ)]
+    Suggest[1 选择超参数 λ] --> Train["2 训练模型 θ*(λ)"]
     Train --> Evaluate[3 在固定验证协议上计算 objective]
     Evaluate --> Stop{预算耗尽 / 目标达到?}
     Stop -->|否| History[记录 λ、指标、成本与状态]

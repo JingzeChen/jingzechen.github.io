@@ -929,9 +929,9 @@ Partition Manager 对 file index 做 range partitioning，并把每个 range 映
 
 ```mermaid
 flowchart LR
-    I[Global file index] --> P1[[a..., h...)]
-    I --> P2[[h..., q...)]
-    I --> P3[[q..., end)]
+    I[Global file index] --> P1["[a..., h...)"]
+    I --> P2["[h..., q...)"]
+    I --> P3["[q..., end)"]
     P1 --> S1[Partition server 1]
     P2 --> S2[Partition server 2]
     P3 --> S3[Partition server 3]
@@ -1185,7 +1185,7 @@ sequenceDiagram
     participant T as Chain tail
 
     C->>F: PUT account/file + bytes
-    F->>F: Authenticate; map file partition
+    F->>F: Authenticate, map file partition
     F->>P: Create/replace file
     P->>SM: Allocate extent if needed
     SM-->>P: Extent chain + generation

@@ -1420,9 +1420,9 @@ Internal node checksum 又被其 parent 覆盖，直到 uberblock。于是 root 
 ```mermaid
 flowchart TD
     U["uberblock<br/>ptr R + H(R)"] --> R["root node"]
-    R -->|ptr A + H(A)| A["metadata node A"]
-    R -->|ptr B + H(B)| B["metadata node B"]
-    A -->|ptr D + H(D)| D["data block"]
+    R -->|"ptr A + H(A)"| A["metadata node A"]
+    R -->|"ptr B + H(B)"| B["metadata node B"]
+    A -->|"ptr D + H(D)"| D["data block"]
 ```
 
 Read 沿 path：从已信任 parent 取 expected hash，读 child 后计算 $H(child)$；不匹配则读 mirror/RAID alternate copy，验证成功后 self-heal。Checksum 与被校验 child 分开存，使 child 上 old-data+old-local-checksum 不能自证。

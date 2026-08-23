@@ -688,12 +688,12 @@ flowchart LR
     H1[h_1] --> A[Additive Attention]
     H2[h_2] --> A
     HT[h_T] --> A
-    S[s_{t'-1}] -->|query| A
-    A --> C[c_{t'}]
-    Y[Embedding y_{t'-1}] --> G[GRU]
+    S["s_{t'-1}"] -->|query| A
+    A --> C["c_{t'}"]
+    Y["Embedding y_{t'-1}"] --> G[GRU]
     C --> G
     S --> G
-    G --> SN[s_{t'}]
+    G --> SN["s_{t'}"]
     SN --> O[Next-token logits]
 ```
 
@@ -2438,7 +2438,7 @@ flowchart TD
     C --> E[Multi-Head]
     E --> E1[Parallel Subspaces]
     E --> F[Self-Attention]
-    F --> F1[Parallel O(1) Path]
+    F --> F1["Parallel O(1) Path"]
     F --> F2[Quadratic Cost]
     F --> F3[Permutation Equivariance]
     F3 --> G[Positional Encoding]

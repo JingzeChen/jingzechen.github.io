@@ -317,9 +317,9 @@ sequenceDiagram
     R->>C: message id=7
     C->>C: apply effect + dedup id=7
     C--xR: ACK lost
-    Note over R: crash/retry; row still pending
+    Note over R: crash/retry, row still pending
     R->>C: duplicate id=7
-    C-->>R: return cached success; no duplicate effect
+    C-->>R: return cached success, no duplicate effect
     R->>O: mark/delete published
 ```
 
@@ -591,7 +591,7 @@ sequenceDiagram
     F--xO: response lost
     Note over O: timeout / restart
     O->>F: duplicate command id=11
-    F-->>O: return stored result; no second booking
+    F-->>O: return stored result, no second booking
 ```
 
 所有 forward 和 compensation commands 都必须 idempotent。`CancelFlight` 也可能重复。

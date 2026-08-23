@@ -1091,12 +1091,13 @@ $$
 
 ```mermaid
 stateDiagram-v2
+    state "Click" as Clicked
     [*] --> Pending: start
     Pending --> Sent
     Pending --> Error
     Sent --> Delivered
     Sent --> Error
-    Delivered --> Click
+    Delivered --> Clicked
     Delivered --> Unsubscribe
 ```
 

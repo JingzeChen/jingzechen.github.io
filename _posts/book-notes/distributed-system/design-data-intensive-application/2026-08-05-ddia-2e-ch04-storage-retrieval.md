@@ -3188,7 +3188,7 @@ mindmap
         OLTP
             最小追加日志
                 latest wins
-                O(n) 扫描
+                linearScan["O(n) 扫描"]
                 hash offset index
             LSM
                 WAL
