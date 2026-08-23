@@ -11,6 +11,10 @@
     const panels = [...root.querySelectorAll('[data-reading-panel]')];
     const topicSelect = root.querySelector('[data-reading-filter="topic"]');
     const seriesSelect = root.querySelector('[data-reading-filter="series"]');
+    const seriesOptions = [...seriesSelect.options].slice(1).map((option) => ({
+      value: option.value,
+      label: option.textContent
+    }));
     const languageSelect = root.querySelector('[data-reading-filter="language"]');
     const statusSelect = root.querySelector('[data-reading-filter="status"]');
     const sortSelect = root.querySelector('[data-reading-filter="sort"]');
@@ -66,6 +70,30 @@
       if (className) element.className = className;
       element.textContent = value;
       return element;
+    };
+
+    const syncSeriesOptions = () => {
+      if (!state.notes) return false;
+
+      const availableSeries = new Set(
+        state.notes
+          .filter((note) => !state.topic || note.topics.includes(state.topic))
+          .map((note) => note.series)
+      );
+      const selectionChanged = Boolean(state.series && !availableSeries.has(state.series));
+      if (selectionChanged) state.series = '';
+
+      const nextOptions = [createText('option', '', 'All series')];
+      nextOptions[0].value = '';
+      seriesOptions.forEach(({ value, label }) => {
+        if (!availableSeries.has(value)) return;
+        const option = createText('option', '', label);
+        option.value = value;
+        nextOptions.push(option);
+      });
+      seriesSelect.replaceChildren(...nextOptions);
+      seriesSelect.value = state.series;
+      return selectionChanged;
     };
 
     const createNote = (note, showStatus, position) => {
@@ -151,6 +179,7 @@
         const response = await fetch(root.dataset.notesUrl);
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         state.notes = await response.json();
+        if (syncSeriesOptions()) setUrl();
         renderNotes();
       } catch {
         status.textContent = 'Notes could not be loaded. Use Browse all for the complete archive.';
@@ -209,6 +238,7 @@
         state.topic = link.dataset.readingTopic;
         state.visible = pageSize;
         topicSelect.value = state.topic;
+        syncSeriesOptions();
         showView('all');
         root.querySelector('[data-reading-panel="all"]')?.scrollIntoView({ block: 'start' });
       });
@@ -217,6 +247,7 @@
     topicSelect.addEventListener('change', () => {
       state.topic = topicSelect.value;
       state.visible = pageSize;
+      syncSeriesOptions();
       setUrl();
       renderNotes();
     });
@@ -256,7 +287,7 @@
       state.status = '';
       state.visible = pageSize;
       topicSelect.value = '';
-      seriesSelect.value = '';
+      syncSeriesOptions();
       if (languageSelect) languageSelect.value = '';
       if (statusSelect) statusSelect.value = '';
       setUrl();

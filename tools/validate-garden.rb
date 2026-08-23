@@ -202,6 +202,33 @@ assert.call(
 )
 assert.call(reading.css(".reading-series-item").size == series_registry.size, "Reading must render every mapped series")
 assert.call(reading.css(".reading-note-row").empty?, "Reading initial HTML must not render all notes")
+active_topics = topic_registry.keys.select do |topic|
+  reading_posts.any? { |_, data| Array(data["topics"]).include?(topic) }
+end
+expected_topic_series = active_topics.sum do |topic|
+  reading_posts.filter_map do |_, data|
+    data["series"] if Array(data["topics"]).include?(topic)
+  end.uniq.size
+end
+expected_topic_note_links = reading_posts.sum do |_, data|
+  Array(data["topics"]).count { |topic| topic_registry.key?(topic) }
+end
+assert.call(
+  reading.css("[data-reading-topic-card]").size == active_topics.size,
+  "Reading Topics must render every active topic"
+)
+assert.call(
+  reading.css("[data-reading-topic-series]").size == expected_topic_series,
+  "Reading Topics must group notes by series"
+)
+assert.call(
+  reading.css("[data-reading-topic-series] ol li").size == expected_topic_note_links,
+  "Reading Topic series groups must include every matching note"
+)
+assert.call(
+  reading.css("[data-reading-topic-series] .reading-series-link").size == expected_topic_series,
+  "Reading Topic series groups must link their series pages"
+)
 language_count = reading_posts.map { |_, data| data["content_lang"] }.uniq.size
 language_filter_present = !reading.at_css('[data-reading-filter="language"]').nil?
 assert.call(language_filter_present == (language_count > 1), "language filter activation gate mismatch")
