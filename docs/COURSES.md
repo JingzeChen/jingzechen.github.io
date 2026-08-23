@@ -72,8 +72,8 @@ timeline: /assets/courses/<course>/lectures/001/timeline.json
 CSAPP 源资料可重复导入：
 
 ```powershell
-C:\Ruby34-x64\bin\ruby.exe tools\import-course.rb `
-  D:\projects\podcasts\courses\cmu-csapp-f15 cmu-csapp-f15
+bundle exec ruby tools\import-course.rb `
+  <course-source-directory> cmu-csapp-f15
 ```
 
 在 Windows + PowerPoint 环境中预渲染课件：
@@ -81,7 +81,7 @@ C:\Ruby34-x64\bin\ruby.exe tools\import-course.rb `
 ```powershell
 Set-ExecutionPolicy -Scope Process Bypass
 .\tools\render-course-slides.ps1 `
-  -SourceDirectory D:\projects\podcasts\courses\cmu-csapp-f15\official-materials `
+  -SourceDirectory <course-source-directory>\official-materials `
   -OutputDirectory .\assets\courses\cmu-csapp-f15\slides\rendered
 ```
 
@@ -90,9 +90,10 @@ Set-ExecutionPolicy -Scope Process Bypass
 ## Validation
 
 ```powershell
-npm.cmd run build:course-js
+npm run build:course-js
 bundle exec jekyll build --config _config.yml,tools/course-build.yml
 bundle exec ruby tools/validate-courses.rb _site
 ```
 
-完整站点检查由 `tools/test.sh` 调用 course validator。
+完整站点发布前还要使用标准配置执行 Reading Guide、容量、Garden、Course、内容质量和链接检查；
+命令以根目录 [README](../README.md#验证) 和 `.github/workflows/pages-deploy.yml` 为准。

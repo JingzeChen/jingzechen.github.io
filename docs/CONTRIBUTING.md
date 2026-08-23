@@ -1,109 +1,75 @@
-# Contributing Guidelines
+# 为 Jingze's Garden 做贡献
 
-_First of all, thank you for considering contributing to this project_ ! :tada:
+Jingze's Garden 是个人网站和公开知识花园，不是通用 Jekyll 主题发行版。这里欢迎针对本站代码、
+可访问性、文档、失效链接和事实性错误的反馈；文章观点、写作取舍和内容发布节奏由站点作者维护。
 
-There are many ways to contribute, from writing tutorials or blog posts, improving the documentation, submitting bug
-reports and feature requests, or writing code that can be incorporated into the project. In order to make a good
-experience for both contributors and maintainers, please start with the "[General Rules](#general-rules)"
-before taking further action.
+参与前请遵守 [行为准则](CODE_OF_CONDUCT.md)。安全问题不要提交公开 Issue，请按
+[安全策略](SECURITY.md) 私下报告。
 
-## Table of Contents
+## 可以反馈什么
 
-- [General Rules](#general-rules)
-- [Questions and Requests for Help](#questions-and-requests-for-help)
-- [Reporting a Bug](#reporting-a-bug)
-- [Suggesting a New Feature](#suggesting-a-new-feature)
-- [Contributing Code/Documentation](#contributing-codedocumentation)
-- [Helpful Resources](#helpful-resources)
+- 页面无法访问、布局溢出、键盘操作或屏幕阅读器问题；
+- 站内链接、资源路径、课程时间点或来源链接失效；
+- 文章中的拼写、数据、引用或技术事实错误；
+- 构建、搜索、知识链接、Reading Library、Podcast 或 Course Workbench 的缺陷；
+- 能够保持现有信息架构和视觉语言的小型代码或文档改进。
 
-## General Rules
+以下改动请先发起 Issue 讨论，不要直接提交大型 Pull Request：
 
-All types of contributions (_pull requests_, _issues_, and _discussions_) should follow these rules:
+- 新增内容类型、页面入口、外部服务或依赖；
+- 批量改写文章、导入新的书籍或课程；
+- 提交大体积媒体、官方课程镜像或自动生成资产；
+- 改变 URL、front matter schema、Series/Topic 契约或部署流程。
 
-- You should read through the [Wiki][wiki] to understand the project features and how to use it properly. This is to
-respect the time of the project's developers and
-maintainers and to save their energy for other problems that really need to be resolved.
+未经讨论，请不要用生成内容批量替换作者文章，也不要把受版权保护的书籍、课程视频、付费资料或
+播客音频复制到仓库。
 
-- Use the [latest release version][latest-ver]. If your contribution involves code/documentation changes, update to the
-latest version of the default (`master`) branch.
+## 报告问题
 
-- Avoid making duplicate contributions by searching for existing [issues][issues] / [discussions][discus] /
-[pull requests][pr], but don't leave any unhelpful comments such as "I have the same problem". Prefer using
-[reactions][gh-reactions] if you simply want to "+1" an existing issue.
+先搜索 [现有 Issues](https://github.com/JingzeChen/jingzechen.github.io/issues) 确认没有重复，再提供：
 
-- DO NOT email or tweet the
-project developers and maintainers directly, everything about the project should be left on GitHub.
+1. 出现问题的线上 URL 或仓库路径；
+2. 预期行为和实际行为；
+3. 可稳定复现的步骤；
+4. 浏览器、操作系统和视口信息（若与界面有关）；
+5. 控制台错误、截图或最小复现（若适用）。
 
-**Tip**: If you are new to the open-source community, then please read through
-"[How To Ask Questions The Smart Way][ext-reading]" before contributing.
+课程和文章的事实修正请附上原始来源、章节、页码或时间点。若问题来自 Chirpy 的未修改上游功能，
+也请指出这一点，便于判断应在本站修复还是向上游反馈。
 
-## Questions and Requests for Help
+## 提交改动
 
-We expect every reasonable question you ask to be answered appropriately. If you want a quick and timely response,
-please ask questions at [Jekyll Talk][jekyll-talk] and [StackOverflow][stack-overflow], where there are tons of
-enthusiastic geeks who will positively answer your challenging questions.
+1. Fork 并克隆仓库，从当前默认分支创建范围明确的分支。
+2. 按根目录 [README](../README.md#本地开发) 安装依赖并启动本地预览。
+3. 普通文章遵循 [文章规范](POST_GUIDE.md) 和 [新文章工作流](NEW_POST_WORKFLOW.md)；课程内容遵循
+	[课程维护指南](COURSES.md)。
+4. 只修改解决当前问题所需的文件，不要提交 `_site/`、缓存、临时报告或无关格式化。
+5. 根据改动范围执行下面的检查，并在 Pull Request 中写明实际运行结果。
 
-If you can't get an answer in any of the above ways, then create a new [discussion][discus]. As long as it is not a
-duplicate and [RTFM][rtfm] / [STFW][stfw] issue, we will respond as soon as possible.
+基础检查：
 
-## Reporting a Bug
+```powershell
+npm test
+git diff --check
+```
 
-A great way to contribute to the project is to send a detailed issue when you encounter a problem. We always appreciate
-a well-written, thorough bug report.
+涉及页面、布局、插件或内容模型时，还应执行：
 
-1. Please figure out why the bug occurred, or locate the module in the project that caused this bug. Otherwise, there is
-a high probability that you are using/setting it incorrectly.
+```powershell
+$env:JEKYLL_ENV = "production"
+bundle exec ruby tools/generate-reading-guides.rb --check
+bundle exec jekyll build --disable-disk-cache --destination _site
+bundle exec ruby tools/check-site-budget.rb _site
+bundle exec ruby tools/validate-garden.rb _site
+bundle exec ruby tools/validate-courses.rb _site
+bundle exec ruby tools/content-quality.rb --check
+bundle exec htmlproofer _site --disable-external --ignore-files "/\/assets\/courses\/.*\/materials\/official-materials\/.*\.html$/" --ignore-urls "/^http:\/\/127.0.0.1/,/^http:\/\/0.0.0.0/,/^http:\/\/localhost/"
+```
 
-2. If the issue is caused by you modifying the project code or some configuration of Jekyll, then please DO NOT
-report such "bugs".
-Chirpy is an open-source project, but that doesn't mean we will maintain other specific forks (such as yours).
-You can learn about Jekyll and modern Web development to solve problems caused by custom modifications.
+Pull Request 应说明问题背景、改动边界、验证结果和任何未覆盖风险。一个 Pull Request 尽量只解决
+一个问题，提交信息使用清晰的祈使句或 Conventional Commit 风格。
 
-3. Make good use of your browser's incognito mode to troubleshoot if the problem is caused by caching.
+## 内容与来源
 
-4. As a last option, you can create a new [Bug Report][bug-report] following the template to describe the details.
-If possible, providing a demo that reproduces the error will help us troubleshoot faster.
-
-## Suggesting a New Feature
-
-Feature requests are welcome! While we will consider all requests, we cannot guarantee your request will be accepted.  
-We want to avoid chaos in the UI design and therefore do not accept requests for changes like color schemes,
-fontfamilies, typography, and so on. We want to avoid [feature creep][feat-creep] and focus only on the core features.
-If accepted, we cannot make any commitments regarding the timeline for implementation and release. However, you are
-welcome to submit a pull request to help!
-
-## Contributing Code/Documentation
-
-If your request is about an enhancement, it is recommended to first submit a
-[Feature Request][feat-request] to discuss whether your idea fits the project.
-See also: "[Suggesting a New Feature](#suggesting-a-new-feature)". Other than that, you can start the PR process.
-
-1. Fork this project on GitHub and clone your repository locally.
-2. Setting up the [development & test environments][dev-env].
-3. Creating a new branch from the default branch and give it a descriptive name (e.g. `add-a-new-feat` or `fix-a-bug`).
-When development is complete, create a [Conventional Commit][cc] with Git.
-4. Submitting a [Pull Request][gh-pr].
-
-## Helpful Resources
-
-- [Code of conduct](https://github.com/cotes2020/jekyll-theme-chirpy/blob/master/docs/CODE_OF_CONDUCT.md)
-- [Security policy](https://github.com/cotes2020/jekyll-theme-chirpy/blob/master/docs/SECURITY.md)
-- [How To Ask Questions The Smart Way][ext-reading]
-
-[latest-ver]: https://github.com/cotes2020/jekyll-theme-chirpy/releases/latest
-[wiki]: https://github.com/cotes2020/jekyll-theme-chirpy/wiki
-[issues]: https://github.com/cotes2020/jekyll-theme-chirpy/issues?q=is%3Aissue
-[pr]: https://github.com/cotes2020/jekyll-theme-chirpy/pulls
-[discus]: https://github.com/cotes2020/jekyll-theme-chirpy/discussions
-[ext-reading]: http://www.catb.org/~esr/faqs/smart-questions.html
-[jekyll-talk]: https://talk.jekyllrb.com/
-[stack-overflow]: https://stackoverflow.com/questions/tagged/jekyll
-[rtfm]: https://en.wikipedia.org/wiki/RTFM
-[stfw]: https://www.webster-dictionary.org/definition/STFW
-[gh-reactions]: https://github.blog/2016-03-10-add-reactions-to-pull-requests-issues-and-comments/
-[bug-report]: https://github.com/cotes2020/jekyll-theme-chirpy/issues/new?assignees=&labels=&projects=&template=bug_report.yml
-[feat-request]: https://github.com/cotes2020/jekyll-theme-chirpy/issues/new?assignees=&labels=enhancement&projects=&template=feature_request.yml
-[feat-creep]: https://en.wikipedia.org/wiki/Feature_creep
-[dev-env]: https://github.com/cotes2020/jekyll-theme-chirpy/wiki/Development-&-Test-Environments
-[cc]: https://www.conventionalcommits.org/
-[gh-pr]: https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/about-pull-requests
+文章和个人笔记的最终编辑权属于站点作者。课程、书籍和播客相关贡献必须保留来源链接，不得暗示本站
+与学校、授课教师、出版社或节目制作方存在官方关系。第三方材料仍受其原始许可和使用条款约束。

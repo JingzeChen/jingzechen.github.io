@@ -1,4 +1,23 @@
-# Changelog
+# Jingze's Garden Changelog
+
+本文件首先记录本站的公开基线。其后的版本条目来自项目所基于的 Chirpy 主题，仅用于追踪上游能力
+和升级来源，不代表 Jingze's Garden 按这些版本独立发布。本站的逐项变更以 Git 提交历史为准。
+
+## Site baseline (2026-08-23)
+
+- 网站定位为持续修订的个人知识花园，公开入口为 `https://jingzechen.github.io`。
+- Reading Library 当前包含 439 篇阅读笔记和 28 个 Series，并提供 Topic、章节导航、Reading Guide、
+	知识链接与全文搜索。
+- Listening 当前包含 11 篇播客笔记，支持摘要、时间点目录、来源跳转与 transcript 阅读。
+- Course Library 当前整理 CMU CSAPP、MIT 6.824、CMU 11-785 和 Stanford CS336，统一承载视频、
+	幻灯片、逐字稿、讲义、代码、单讲笔记与原始来源。
+- GitHub Pages 部署会验证 Reading Guide、Garden/Course 页面契约、内容质量、站点体积和内部链接；
+	线上另有定时健康检查与匿名聚合访问统计。
+
+## Chirpy upstream release history
+
+下列记录按上游原文保留。上游问题、提交和版本链接均指向
+[`cotes2020/jekyll-theme-chirpy`](https://github.com/cotes2020/jekyll-theme-chirpy)。
 
 ## [7.6.0](https://github.com/cotes2020/jekyll-theme-chirpy/compare/v7.5.0...v7.6.0) (2026-06-20)
 

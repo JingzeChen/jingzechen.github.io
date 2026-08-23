@@ -17,7 +17,7 @@ flowchart TD
   H --> I[隔离 Production Build]
   I --> J[Schema / Quality / Link 验证]
   J --> K[审查 Diff 并提交]
-  K --> L[推送 master 并检查 Pages]
+  K --> L[推送当前部署分支并检查 Pages]
   L --> M[线上烟测]
 ```
 
@@ -32,17 +32,17 @@ flowchart TD
 在仓库根目录执行：
 
 ```powershell
-Set-Location "C:\Users\jingzechen\projects\jingzechen.github.io"
+# 先在仓库根目录运行
 $branch = git branch --show-current
-if ($branch -ne "master") { throw "Expected master, current branch is $branch" }
+if ($branch -notin @("main", "master")) { throw "Current branch is not configured for Pages: $branch" }
 git status --short --branch
 ```
 
 如果工作树已有其他改动，不要覆盖或回退它们，也不要立即拉取。先提交或妥善隔离已有工作。确认工作树干净后再同步远端：
 
 ```powershell
-git pull --ff-only origin master
-if ($LASTEXITCODE -ne 0) { throw "Unable to fast-forward master" }
+git pull --ff-only origin $branch
+if ($LASTEXITCODE -ne 0) { throw "Unable to fast-forward $branch" }
 ```
 
 然后确认本次文章需要修改哪些文件，通常包括：
@@ -369,22 +369,32 @@ bundle exec jekyll serve --drafts --host 127.0.0.1 --port 4000
 
 ## 11. 发布前验证
 
-本仓库在 Windows 上不要求执行 `npm install`。使用已有 Ruby、Bundler 和 Node 完成以下验证。
+首次检出或依赖文件变化后，先执行 `bundle install` 和 `npm install`。随后使用仓库声明的 Ruby、
+Bundler 和 Node 依赖完成以下验证。
 
 ### 11.1 隔离 Production Build
 
 不要依赖可能过期的 `_site/`。使用唯一临时目录：
 
 ```powershell
-Set-Location "C:\Users\jingzechen\projects\jingzechen.github.io"
+# 保持在仓库根目录
 $env:JEKYLL_ENV = "production"
 $site = Join-Path $env:TEMP ("garden-post-" + [guid]::NewGuid().ToString("N"))
+
+bundle exec ruby tools/generate-reading-guides.rb --check
+if ($LASTEXITCODE -ne 0) { throw "Reading guide validation failed" }
 
 bundle exec jekyll build --disable-disk-cache --destination $site
 if ($LASTEXITCODE -ne 0) { throw "Production Jekyll build failed" }
 
+bundle exec ruby tools/check-site-budget.rb $site
+if ($LASTEXITCODE -ne 0) { throw "Site budget validation failed" }
+
 bundle exec ruby tools/validate-garden.rb $site
 if ($LASTEXITCODE -ne 0) { throw "Garden validation failed" }
+
+bundle exec ruby tools/validate-courses.rb $site
+if ($LASTEXITCODE -ne 0) { throw "Course validation failed" }
 
 bundle exec ruby tools/content-quality.rb `
   --markdown docs/CONTENT_QUALITY_REPORT.md `
@@ -408,12 +418,13 @@ if ($LASTEXITCODE -ne 0) { throw "Content quality validation failed" }
 Windows 上 HTMLProofer 传入绝对临时路径可能静默扫描 0 个文件。必须进入生成目录后运行，并指向仓库 Gemfile：
 
 ```powershell
-$repo = "C:\Users\jingzechen\projects\jingzechen.github.io"
+$repo = (Get-Location).Path
 $env:BUNDLE_GEMFILE = Join-Path $repo "Gemfile"
 Push-Location $site
 
 bundle exec htmlproofer . `
   --disable-external `
+  --ignore-files '/\/assets\/courses\/.*\/materials\/official-materials\/.*\.html$/' `
   --ignore-urls '/^http:\/\/127.0.0.1/,/^http:\/\/0.0.0.0/,/^http:\/\/localhost/'
 
 $result = $LASTEXITCODE
@@ -483,7 +494,7 @@ git diff --cached -- _posts _data assets/img docs
 
 ```powershell
 git commit -m "Publish <article title>"
-git push origin master
+git push origin $branch
 ```
 
 随后：
@@ -495,7 +506,7 @@ git push origin master
 5. 检查文章、Topic、Series、Category、Tag、Search 和 Feed 中是否出现。
 6. 验证 Related/Backlinks、图片、公式、Mermaid 和内部锚点。
 7. 在 375px 和桌面视口各检查一次页面溢出与可读性。
-8. 确认工作树干净且本地分支与 `origin/master` 同步。
+8. 确认工作树干净且本地分支与 `origin/$branch` 同步。
 
 ## 14. 常见失败与处理
 

@@ -11,7 +11,7 @@
 3. 添加符合本文规范的 Front Matter。
 4. 使用 Markdown 编写正文；按需启用 MathJax 或 Mermaid。
 5. 在本地执行生产构建和链接检查。
-6. 提交并推送到 `master`，等待 GitHub Pages 部署完成。
+6. 提交并推送到当前部署分支（Pages 工作流支持 `main` 和 `master`），等待部署完成。
 
 最小可用示例：
 
@@ -658,7 +658,8 @@ PowerShell：
 
 ```powershell
 $env:JEKYLL_ENV = "production"
-bundle exec jekyll build -d _site
+bundle exec ruby tools/generate-reading-guides.rb --check
+bundle exec jekyll build --disable-disk-cache --destination _site
 ```
 
 构建必须以退出码 `0` 完成，且不能出现以下问题：
@@ -671,16 +672,19 @@ bundle exec jekyll build -d _site
 构建后运行数字花园验收：
 
 ```powershell
+bundle exec ruby tools/check-site-budget.rb _site
 bundle exec ruby tools/validate-garden.rb _site
+bundle exec ruby tools/validate-courses.rb _site
 bundle exec ruby tools/content-quality.rb --check
 ```
 
-该检查覆盖内容语言、Series 顺序、Topic 页面、Reading/Search 数据、Featured 入口和 Ultra-long 章节锚点。
+这些检查覆盖 Reading Guide 一致性、内容语言、Series 顺序、Topic 页面、Reading/Search 数据、
+Featured 入口、Ultra-long 章节锚点、课程页面契约和生成站点容量。
 
 ### 13.3 链接检查
 
 ```powershell
-bundle exec htmlproofer _site --disable-external --ignore-urls "/^http:\/\/127.0.0.1/,/^http:\/\/0.0.0.0/,/^http:\/\/localhost/"
+bundle exec htmlproofer _site --disable-external --ignore-files "/\/assets\/courses\/.*\/materials\/official-materials\/.*\.html$/" --ignore-urls "/^http:\/\/127.0.0.1/,/^http:\/\/0.0.0.0/,/^http:\/\/localhost/"
 ```
 
 检查必须无内部链接和锚点错误。
