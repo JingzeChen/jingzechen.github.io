@@ -18,8 +18,6 @@ math: true
 mermaid: true
 ---
 
-> 对应原文：Understanding Distributed Systems 2nd edition.md
->
 > 本文严格沿原章顺序展开：先分析请求没有响应时的三种不可区分原因，再讨论 timeout 的必要性与阈值权衡，最后依次解释 ping、heartbeat、恢复检测，以及何时应主动维护成员可用性、何时按通信时机检测即可。原章篇幅很短且没有正式算法；文中的 accuracy/completeness、自适应 timeout、概率模型、fencing 与标准 C 示例用于展开作者的直觉，不应误认为原书逐字给出的协议。
 
 ## 0. 本章定位：判断远端失效，本质上是在不确定性中做决策

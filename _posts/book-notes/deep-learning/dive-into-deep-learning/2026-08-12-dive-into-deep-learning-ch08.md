@@ -18,7 +18,7 @@ math: true
 mermaid: true
 ---
 
-> 对应原文：d2l-en.md 的第 8 章 **Modern Convolutional Neural Networks**。本章按历史顺序回顾一系列曾主导计算机视觉的 CNN：AlexNet、VGG、NiN、GoogLeNet、Batch Normalization、ResNet/ResNeXt、DenseNet，以及 AnyNet/RegNet 设计空间。重点不是背网络名称，而是理解每一代架构发现了什么瓶颈、引入了什么结构、付出了什么代价，以及这些思想怎样累积成现代网络设计原则。
+> 本章按历史顺序回顾一系列曾主导计算机视觉的 CNN：AlexNet、VGG、NiN、GoogLeNet、Batch Normalization、ResNet/ResNeXt、DenseNet，以及 AnyNet/RegNet 设计空间。重点不是背网络名称，而是理解每一代架构发现了什么瓶颈、引入了什么结构、付出了什么代价，以及这些思想怎样累积成现代网络设计原则。
 
 ## 1. 为什么要研究一代代 CNN 架构
 

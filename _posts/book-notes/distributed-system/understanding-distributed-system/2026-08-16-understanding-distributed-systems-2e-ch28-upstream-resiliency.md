@@ -18,8 +18,6 @@ math: true
 mermaid: true
 ---
 
-> 对应原文：Understanding Distributed Systems 2nd edition.md
->
 > 本文的正文锚点严格沿原章顺序展开，工程补充则就近插入并显式标注：先说明 server 为什么会在 OS connection queue 满前因 memory/thread/socket/file 等资源耗尽而停摆，并讨论按并发阈值、优先级和请求年龄做 load shedding；再用 message channel 解释 load leveling 对短峰值的平滑及 backlog 边界；随后完整推导 rate limiting 的 quota、429/`Retry-After`、DDoS 局限、local/global state 区别、timestamp list、time buckets、weighted sliding window、atomic increment/CAS、batch flush 与 store outage 下的 static stability；最后讨论 multi-modal behavior、constant work、全量配置 dump、预分配最大用户槽位、自愈和 cellular capacity。原章正文约 11 页；文中的排队/容量公式、近似误差、token/leaky bucket 对照、公平性、配额租约、安全失效模式和 C11 模拟用于补足推导与工程边界，不应误认为原书逐字给出的生产限流器或 DDoS 防护方案。
 
 ## 0. 本章定位：下游保护解决“我调用谁”，上游保护解决“谁在压我”

@@ -18,8 +18,6 @@ math: true
 mermaid: true
 ---
 
-> 对应原文：Understanding Distributed Systems 2nd edition.md
->
 > 本文严格沿原章顺序展开：先区分 fault 与 failure，再依次讨论 hardware faults、incorrect error handling、configuration changes、single points of failure、network faults、resource leaks、load pressure、cascading/metastable failures，最后用 probability × impact risk matrix 管理风险。原章正文约 9 页；文中的可用性预算、故障树、资源耗尽、排队/重试反馈、风险评分、FMEA 和 C11 级联模拟用于补足直觉与工程应用，不应误认为原书逐字给出的概率模型、SRE 流程或后续章节韧性模式的完整实现。
 
 ## 0. Part IV 导读：扩展性增加了能力，也增加了会失败的部件

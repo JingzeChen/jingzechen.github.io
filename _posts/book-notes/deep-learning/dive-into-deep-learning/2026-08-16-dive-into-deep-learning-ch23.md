@@ -18,7 +18,7 @@ math: true
 mermaid: true
 ---
 
-> 对应原文：d2l-en.md 第 23 章 **Appendix: Tools for Deep Learning**。本章依次介绍 Jupyter Notebook、Amazon SageMaker、AWS EC2、Google Colab、服务器与 GPU 选择、开源贡献流程、教材工具函数，以及 `d2l` API 索引。
+> 本章依次介绍 Jupyter Notebook、Amazon SageMaker、AWS EC2、Google Colab、服务器与 GPU 选择、开源贡献流程、教材工具函数，以及 `d2l` API 索引。
 
 ## 1. 本章主线：让模型从“能写”走向“能运行、能复现、能协作”
 

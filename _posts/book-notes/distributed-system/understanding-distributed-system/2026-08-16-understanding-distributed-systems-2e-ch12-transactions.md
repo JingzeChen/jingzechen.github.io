@@ -18,8 +18,6 @@ math: true
 mermaid: true
 ---
 
-> 对应原文：Understanding Distributed Systems 2nd edition.md
->
 > 本文严格按照原章顺序展开：先从银行转账引出 ACID，再依次讲解 Isolation、Atomicity 和 NewSQL。Isolation 部分沿原文解释并发异常、隔离级别、2PL、OCC、MVCC 与对象级 CAS；Atomicity 部分从 WAL 推导跨存储 2PC；NewSQL 部分拆解 Spanner 如何组合分区、复制、2PL、2PC、MVCC 与 TrueTime。原章以建立机制全景为主；文中的形式化 history、冲突图、故障矩阵、延迟估算、伪代码和标准 C11 示例用于展开原理，不应误认为原书逐字给出的完整数据库实现。
 
 ## 0. 本章定位：把一组可能部分失败的操作包装成一个可靠整体

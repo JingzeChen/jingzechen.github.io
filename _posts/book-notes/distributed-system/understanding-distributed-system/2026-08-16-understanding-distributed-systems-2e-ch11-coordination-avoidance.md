@@ -18,8 +18,6 @@ math: true
 mermaid: true
 ---
 
-> 对应原文：Understanding Distributed Systems 2nd edition.md
->
 > 本文严格按照原章顺序展开：先说明为什么 total-order broadcast 形成协调瓶颈，再依次讲解 Broadcast protocols、Conflict-free replicated data types、Dynamo-style data stores、The CALM theorem、Causal consistency 和 Practical considerations。原章以建立概念链条为主；文中的消息复杂度、半格/LUB 证明、quorum 反例、Merkle tree、COPS 依赖算法与标准 C11 示例用于展开原理，不应误认为原书逐字给出的完整生产协议。
 
 ## 0. 本章定位：不是所有正确性都需要全局总序

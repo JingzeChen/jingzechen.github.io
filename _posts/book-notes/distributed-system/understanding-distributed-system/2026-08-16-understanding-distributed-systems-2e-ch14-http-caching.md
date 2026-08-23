@@ -18,8 +18,6 @@ math: true
 mermaid: true
 ---
 
-> 对应原文：Understanding Distributed Systems 2nd edition.md
->
 > 本文严格按照原章顺序展开：先区分静态/动态资源，再依次分析首次 cache miss、fresh cache hit、stale conditional revalidation、immutable URL 与多资源原子发布、CQRS 读写分离，最后讨论 Reverse proxies 及其认证、压缩、限流和负载均衡职责。原章主要用 HTTP headers 建立机制直觉；文中的 freshness 公式、命中率模型、validator 边界、`Vary`/授权风险、stampede 与标准 C11 模拟用于展开原理，不应误认为原书逐字给出的完整 RFC 算法或生产代理配置。
 
 ## 0. 本章定位：最便宜的请求，是根本不用发到服务器的请求

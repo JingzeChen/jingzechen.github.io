@@ -18,8 +18,6 @@ math: true
 mermaid: true
 ---
 
-> 对应原文：Understanding Distributed Systems 2nd edition.md
->
 > 本文严格沿原章顺序展开：先解释 distributed system 的 emergent behaviors、operator 的 hypothesis-driven debugging，以及 observability 为什么是 monitoring 的超集；随后依次讨论 32.1 Logs、32.2 Traces、32.3 Putting it all together。重点覆盖 structured events、异步日志管道、one wide event per work unit、context object、敏感数据清洗、request ID 关联、logging levels、sampling、collector rate limiting、trace/span、trace ID 传播、collector stitching、resource attribution，以及 metrics/traces 作为 event logs 的派生视图。文中的成本公式、采样完整性概率、trace validation、关键路径说明、schema/retention 策略和 Python 模型是工程补充，不应误认为原书指定的 telemetry schema、采样算法或 observability 产品。
 
 ---

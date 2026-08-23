@@ -18,7 +18,7 @@ math: true
 mermaid: true
 ---
 
-> 对应原文：d2l-en.md 第 21 章 **Recommender Systems**。这是正文最后一章。原书依次介绍推荐系统概览、MovieLens 数据、矩阵分解、AutoRec、个性化排序、NeuMF、序列推荐 Caser、特征丰富推荐、因子分解机和 DeepFM。
+> 这是正文最后一章。原书依次介绍推荐系统概览、MovieLens 数据、矩阵分解、AutoRec、个性化排序、NeuMF、序列推荐 Caser、特征丰富推荐、因子分解机和 DeepFM。
 
 ## 1. 本章主线：从评分预测到排序、序列与特征交叉
 

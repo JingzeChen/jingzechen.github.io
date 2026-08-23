@@ -18,8 +18,6 @@ math: true
 mermaid: true
 ---
 
-> 对应原文：Chapter 3. Distributed Training with PyTorch DDP
->
 > 本笔记严格沿原章顺序展开：DDP 内部机制、单节点配置、多节点配置、排障、profiling、优化、checkpoint、高级 hooks、最佳实践、elastic training、完整 Transformer 示例、练习与总结。补充公式、实验代码与边界说明用于解释原理；框架私有实现和 API 会随 PyTorch 版本变化，使用时应以目标版本的官方文档、runtime diagnostics 和实际 profile 为准。
 
 ## 0. 本章要回答的核心问题

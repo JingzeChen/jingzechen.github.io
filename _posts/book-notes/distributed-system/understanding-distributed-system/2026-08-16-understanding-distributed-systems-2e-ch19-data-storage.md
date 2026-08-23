@@ -18,8 +18,6 @@ math: true
 mermaid: true
 ---
 
-> 对应原文：Understanding Distributed Systems 2nd edition.md
->
 > 本文严格沿原章顺序展开：先从 Cruder 的单机关系数据库瓶颈出发，讨论 leader-follower replication、同步/异步复制、读扩展、故障转移和复制边界；再说明 application-layer partitioning 为何困难；最后沿 NoSQL 的历史、数据模型、一致性、事务、DynamoDB partition/sort key、单表访问模式、secondary indexes 和 NewSQL 展开。原章正文约 9 页；文中的容量/延迟/滞后模型、fencing、read-your-writes、反规范化更新协议、访问模式工作表和 C11 模拟用于补足推导与现代工程边界，不应误认为原书逐字给出的 PostgreSQL、DynamoDB、Cosmos DB 或 NewSQL 当前产品规范。
 
 ## 0. 导读：无状态计算层扩展后，瓶颈会沿依赖链下移

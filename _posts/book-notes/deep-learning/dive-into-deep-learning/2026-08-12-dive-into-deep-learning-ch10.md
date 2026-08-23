@@ -18,7 +18,7 @@ math: true
 mermaid: true
 ---
 
-> 对应原文：d2l-en.md 的第 10 章 **Modern Recurrent Neural Networks**。第 9 章的普通 RNN 建立了隐藏状态和 BPTT，但长 Jacobian 乘积会导致梯度消失或爆炸。本章先用 LSTM 和 GRU 的门控加法路径改善长期记忆，再沿层方向堆叠 RNN、沿时间两个方向编码上下文，最后进入英法机器翻译：数据处理、编码器—解码器、RNN seq2seq、teacher forcing、掩码损失、BLEU 和束搜索。
+> 第 9 章的普通 RNN 建立了隐藏状态和 BPTT，但长 Jacobian 乘积会导致梯度消失或爆炸。本章先用 LSTM 和 GRU 的门控加法路径改善长期记忆，再沿层方向堆叠 RNN、沿时间两个方向编码上下文，最后进入英法机器翻译：数据处理、编码器—解码器、RNN seq2seq、teacher forcing、掩码损失、BLEU 和束搜索。
 
 ## 1. 从普通 RNN 到现代序列模型
 

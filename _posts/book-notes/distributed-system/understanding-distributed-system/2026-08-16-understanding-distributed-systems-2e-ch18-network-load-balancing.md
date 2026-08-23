@@ -18,8 +18,6 @@ math: true
 mermaid: true
 ---
 
-> 对应原文：Understanding Distributed Systems 2nd edition.md
->
 > 本文严格沿原章顺序展开：先从 Cruder 的单 application server 引出 stateless horizontal scaling，再讨论 availability、request-selection algorithm、service discovery、主动/被动 health check 与 watchdog；最后依次分析 DNS、transport/L4、application/L7 load balancing，以及 sidecar/service mesh。原章正文约 11 页；文中的容量与可用性模型、power-of-two 理论、探测窗口、NAT/DSR 流量估算、L4/L7 产品语义修正、排队直觉和 C11 模拟用于补足推导与现代工程边界，不应误认为原书逐字给出的协议标准或云厂商当前实现。
 
 ## 0. 导读：状态外置以后，计算层终于可以横向扩展

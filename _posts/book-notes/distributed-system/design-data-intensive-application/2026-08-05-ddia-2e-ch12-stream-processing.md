@@ -18,8 +18,6 @@ math: true
 mermaid: true
 ---
 
-> 对应原文：12. Stream Processing.md
->
 > 本文严格按照原章顺序讲解，并在章后统一补充易混概念、知识结构、综合案例和可复用的流处理设计方法。文中的公式、推导、可运行示例与扩展案例用于解释和验证原理，不应误认为原书逐字给出的实现。
 
 ## 0. 本章定位：从 bounded batch 转向 unbounded events

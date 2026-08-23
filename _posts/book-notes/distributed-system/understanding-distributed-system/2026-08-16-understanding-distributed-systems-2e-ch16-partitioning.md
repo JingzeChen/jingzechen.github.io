@@ -18,8 +18,6 @@ math: true
 mermaid: true
 ---
 
-> 对应原文：Understanding Distributed Systems 2nd edition.md
->
 > 本文严格沿原章顺序展开：先说明为何要 partition、gateway 与 metadata mapping、分区带来的复杂度及 cache 为何适合分区；再依次讨论 Range partitioning 的边界、热点、静态/动态再均衡，以及 Hash partitioning、modulo reshuffle、consistent hashing 和有序扫描损失。原章正文约 7 页；文中的容量/吞吐模型、scatter-gather 可靠性、分位点边界、负载方差、virtual nodes、迁移状态机和 C11 穷举实验用于补足直觉与工程边界，不应误认为原书逐字给出的生产算法。
 
 ## 0. 导读：当一台机器装不下、也扛不住时

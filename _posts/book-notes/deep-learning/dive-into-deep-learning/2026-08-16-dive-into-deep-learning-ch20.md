@@ -18,7 +18,7 @@ math: true
 mermaid: true
 ---
 
-> 对应原文：d2l-en.md 第 20 章 **Generative Adversarial Networks**。本章依次介绍基础生成对抗网络（GAN）和深度卷积生成对抗网络（DCGAN），先用二维高斯分布解释对抗训练，再用 Pokémon sprite 数据说明图像生成。
+> 本章依次介绍基础生成对抗网络（GAN）和深度卷积生成对抗网络（DCGAN），先用二维高斯分布解释对抗训练，再用 Pokémon sprite 数据说明图像生成。
 
 ## 1. 本章主线：把“两样本检验”变成生成器的学习信号
 

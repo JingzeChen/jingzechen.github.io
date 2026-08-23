@@ -18,8 +18,6 @@ math: true
 mermaid: true
 ---
 
-> 对应原文：8. Transactions.md
->
 > 本文严格按照原章顺序讲解，并在章后统一补充易混概念、综合案例和可复用的事务设计方法。原章重点是 ACID、安全保证、弱隔离异常、serializability、two-phase commit 与 distributed transaction。文中的公式、推导、可运行示例和扩展案例用于解释与验证原理，不应误认为原书逐字给出的实现。
 
 ## 0. 本章定位：事务把故障与并发复杂度封装成可依赖的安全保证

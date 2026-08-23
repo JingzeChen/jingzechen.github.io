@@ -18,8 +18,6 @@ math: true
 mermaid: true
 ---
 
-> 对应原文：Understanding Distributed Systems 2nd edition.md
->
 > 本文严格沿原章顺序展开：先从 Cruder 本地磁盘的容量限制引出 managed file store 与 CDN 回源，再分析 Azure Storage 的 global namespace、Location Service、storage cluster，以及 stream、partition、front-end 三层。原章正文约 5 页；文中的容量/耐久性估算、control plane/data plane、故障域、上传发布协议、校验和、成本模型和 C11 状态机用于补足直觉与工程边界，不应误认为原书逐字给出的 Azure 当前实现或云厂商 API 规范。
 
 ## 0. 导读：把大文件从应用服务器的本地磁盘中拆出去

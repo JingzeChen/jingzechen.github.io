@@ -18,7 +18,7 @@ math: true
 mermaid: true
 ---
 
-> 对应原文：d2l-en.md 第 19 章 **Hyperparameter Optimization**。本章依次介绍超参数优化问题、统一 HPO API、异步随机搜索、多保真超参数优化、Successive Halving 和 Asynchronous Successive Halving（ASHA）。
+> 本章依次介绍超参数优化问题、统一 HPO API、异步随机搜索、多保真超参数优化、Successive Halving 和 Asynchronous Successive Halving（ASHA）。
 
 ## 1. 本章主线：优化“如何训练模型”
 

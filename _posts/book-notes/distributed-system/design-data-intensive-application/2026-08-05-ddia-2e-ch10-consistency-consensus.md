@@ -18,8 +18,6 @@ math: true
 mermaid: true
 ---
 
-> 对应原文：10. Consistency and Consensus.md
->
 > 本文严格按照原章顺序讲解，并在章后统一补充易混概念、综合案例和可复用的一致性/共识设计方法。原章重点是 linearizability、logical clocks、ID generators、consensus、shared logs 与 coordination services。文中的公式、推导、可运行示例与扩展案例用于解释和验证原理，不应误认为原书逐字给出的实现。
 
 ## 0. 本章定位：复制带来容错，也带来“哪一份是真”的问题

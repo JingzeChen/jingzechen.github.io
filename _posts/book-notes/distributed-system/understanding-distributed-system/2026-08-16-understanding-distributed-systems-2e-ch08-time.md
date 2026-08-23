@@ -18,8 +18,6 @@ math: true
 mermaid: true
 ---
 
-> 对应原文：Understanding Distributed Systems 2nd edition.md
->
 > 本文严格按照原章顺序展开：先说明分布式系统为什么难以排序事件，再依次讲解 Physical clocks、Logical clocks 和 Vector clocks。原章以建立核心直觉为主；文中的 drift/skew 公式、NTP 四时间戳推导、因果关系形式化、偏序证明、冲突示例和标准 C11 实现用于展开原理，不应误认为原书逐字给出的协议规范或完整生产代码。
 
 ## 0. 本章定位：物理时间不可靠，事件顺序仍必须可推理

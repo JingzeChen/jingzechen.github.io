@@ -18,8 +18,6 @@ math: true
 mermaid: true
 ---
 
-> 对应原文：9. The Trouble with Distributed Systems.md
->
 > 本文严格按照原章顺序讲解，并在章后统一补充易混概念、综合案例和可复用的分布式系统推理方法。原章重点是 partial failure、不可靠网络、不可靠时钟、知识与真相、system model，以及 formal methods 和 deterministic testing。文中的公式、推导、可运行示例与扩展案例用于解释和验证原理，不应误认为原书逐字给出的实现。
 
 ## 0. 本章定位：在无法确定发生了什么时，系统仍要保持正确

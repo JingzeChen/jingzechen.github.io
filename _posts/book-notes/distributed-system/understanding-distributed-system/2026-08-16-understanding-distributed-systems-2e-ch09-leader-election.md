@@ -18,8 +18,6 @@ math: true
 mermaid: true
 ---
 
-> 对应原文：Understanding Distributed Systems 2nd edition.md
->
 > 本文严格按照原章顺序展开：先说明为什么需要 leader 以及 safety/liveness 目标，再讲 Raft leader election 的 follower/candidate/leader 状态机、term、heartbeat、投票、多数派和 split vote，最后讨论用线性一致 CAS+TTL 实现租约、租约为何不能单独保证互斥、conditional write/fencing、leader 瓶颈与故障域，以及租约存储自身的容错要求。原章只介绍选举子协议；文中的 quorum 推导、概率示例、fencing token 和标准 C11 模拟用于展开原理，不应误认为完整 Raft 共识实现。
 
 ## 0. 本章定位：把特殊权力安全地交给一个进程

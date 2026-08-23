@@ -18,8 +18,6 @@ math: true
 mermaid: true
 ---
 
-> 对应原文：Understanding Distributed Systems 2nd edition.md
->
 > 本文严格沿原章顺序展开：先定义 redundancy，并分析“冗余真正提高可用性”的四个前提；再以 stateless load-balanced pool 对应复杂度、健康检测、degraded mode 和恢复 full redundancy；最后在 Correlation 小节中，从 machine fault、data-center fault、Availability Zone、跨 AZ 同步复制，一路推到跨 region global DNS 与异步复制，并讨论 region resiliency 的成本与合规驱动。原章正文约 4 页；文中的概率模型、容量公式、repair window、RPO/RTO、故障域矩阵和 C11 状态机用于补足推导与工程应用，不应误认为原书逐字给出的云厂商 SLA、复制协议或部署模板。
 
 ## 0. 本章定位：冗余是第一道防线，但不是副本计数游戏

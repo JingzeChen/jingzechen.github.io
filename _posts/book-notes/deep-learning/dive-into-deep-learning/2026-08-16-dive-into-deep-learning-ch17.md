@@ -18,7 +18,7 @@ math: true
 mermaid: true
 ---
 
-> 对应原文：d2l-en.md 第 17 章 **Reinforcement Learning**。本章按原书顺序介绍马尔可夫决策过程（MDP）、价值迭代（Value Iteration）与 Q-learning，并以 FrozenLake 网格世界说明“已知环境模型时用动态规划规划”和“未知环境模型时从交互样本学习”的区别。
+> 本章按原书顺序介绍马尔可夫决策过程（MDP）、价值迭代（Value Iteration）与 Q-learning，并以 FrozenLake 网格世界说明“已知环境模型时用动态规划规划”和“未知环境模型时从交互样本学习”的区别。
 
 ## 1. 本章主线：从预测问题到顺序决策问题
 

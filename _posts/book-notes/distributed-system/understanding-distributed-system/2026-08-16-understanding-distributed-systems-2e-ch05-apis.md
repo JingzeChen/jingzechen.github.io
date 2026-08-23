@@ -18,8 +18,6 @@ math: true
 mermaid: true
 ---
 
-> 对应原文：Understanding Distributed Systems 2nd edition.md
->
 > 本文严格按照原章顺序展开：先说明 API、通信风格、序列化和同步/异步调用，再依次讲解 HTTP、Resources、Request methods、Response status codes、OpenAPI、Evolution、Idempotency，最后总结 Part I Communication。原章以产品目录服务为贯穿案例；文中的性能公式、HTTP 现代版本边界、完整 OpenAPI、事务伪代码和标准 C 示例用于展开原理，不应误认为原书逐字给出的规范或生产实现。
 
 ## 0. 本章定位：让远端服务的能力可被调用

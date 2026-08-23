@@ -18,8 +18,6 @@ math: true
 mermaid: true
 ---
 
-> 对应原文：Understanding Distributed Systems 2nd edition.md
->
 > 本文严格按照原章顺序展开：先说明 TCP 为什么要在 IP 之上构造可靠链路，再依次讨论 Reliability、Connection lifecycle、Flow control、Congestion control 和 Custom protocols。原章以建立直觉为主，采用了简化表述；文中的累计确认、滑动窗口、带宽时延积、状态细节、数值示例、伪代码和 C 示例用于展开原理，不应误认为原书逐字给出的实现或现代 TCP 的唯一算法。
 
 ## 0. 本章定位：在不可靠 IP 上构造可靠字节流

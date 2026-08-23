@@ -18,8 +18,6 @@ math: true
 mermaid: true
 ---
 
-> 对应原文：Chapter 5. Beyond State Sharding with DeepSpeed and Megatron
->
 > 本笔记严格沿原章顺序展开：ZeRO Stage 1/2/3、CPU/NVMe offload、ZeRO++，再进入 Megatron 的 tensor、pipeline、sequence/context、Ulysses 与 expert parallelism，最后讨论 Megatron Core、混合并行、真实配置、选型和练习。文中把算法机制、特定框架配置和厂商性能声明分开；当前工作区为 PyTorch 2.11.0+cpu，且未安装 DeepSpeed、Megatron、Transformer Engine，因此纯 Python 数学与 Gloo 示例可运行验证，CUDA/NCCL/框架性能配置只能做静态检查并明确标注目标环境验证要求。
 
 ## 0. 本章要回答的核心问题

@@ -18,8 +18,6 @@ math: true
 mermaid: true
 ---
 
-> 对应原文：Understanding Distributed Systems 2nd edition.md
->
 > 本文严格按照原章顺序展开：先说明 2PC 为什么不适合长事务，再依次讲解 Outbox pattern、Sagas 和 Isolation，最后总结 Part II Coordination。原章把异步事务描述为通过持久消息与补偿获得原子效果；本文保留该论证主线，同时明确工程边界：消息通常是 at-least-once delivery 配合 idempotent processing，而 saga compensation 是业务补偿，不是隐藏所有中间状态的 ACID rollback。文中的状态机、容量公式、故障矩阵、伪代码和标准 C11 示例用于展开原理，不应误认为原书逐字给出的生产实现。
 
 ## 0. 本章定位：长时间跨服务操作不能一直持锁等待

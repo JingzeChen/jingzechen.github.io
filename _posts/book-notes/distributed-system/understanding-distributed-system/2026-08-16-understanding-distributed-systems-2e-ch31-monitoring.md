@@ -18,8 +18,6 @@ math: true
 mermaid: true
 ---
 
-> 对应原文：Understanding Distributed Systems 2nd edition.md
->
 > 本文严格沿原章顺序展开：先区分 black-box/white-box monitoring 与 synthetics，再依次讨论 31.1 Metrics、31.2 Service-level indicators、31.3 Service-level objectives、31.4 Alerts、31.5 Dashboards（含 31.5.1 Best practices）和 31.6 Being on call。重点推导 label cardinality、预聚合、百分位、Little's Law、SLI 比率、error budget、precision/recall 与 burn rate，并复盘 DNS synthetic、长尾线程翻倍、99%/30 天告警、三类 dashboard、事故缓解和 postmortem。文中的 synthetic 内容校验、cardinality budget、SLI denominator policy、chaos 安全边界、离散百分位定义、多窗口与最小样本 burn-rate 策略、availability 换算、incident timeline、dashboard-as-code 细化及 Python 模型均属于工程补充，不应误认为原书指定的监控产品、固定阈值或生产告警策略。
 
 ---

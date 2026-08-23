@@ -18,8 +18,6 @@ math: true
 mermaid: true
 ---
 
-> 对应原文：Understanding Distributed Systems 2nd edition.md
->
 > 本文严格沿原章顺序展开：先说明 redundancy 为什么无法处理高度相关的软件/负载故障，再用 poison pill、noisy neighbor 和按用户划分物理分区解释 bulkhead fault isolation；随后推导 shuffle sharding 的永久随机子集、组合数、完全/部分重叠概率，以及 LB 摘除与 client retry 的配合；最后把隔离范围扩展到整个 application stack，分析 cellular architecture、Azure Storage stamp/cell、gateway routing 与固定 cell 容量。原章正文约 5 页；文中的 blast-radius 公式、组合概率、容量模型、映射与迁移协议、shared-control-plane 风险和 C11 穷举模拟用于补足推导与工程应用，不应误认为原书逐字给出的生产分片算法或 Azure 当前内部实现。
 
 ## 0. 本章定位：冗余应对“某个副本坏了”，隔离应对“同一种输入能打坏所有副本”

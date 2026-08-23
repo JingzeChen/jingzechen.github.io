@@ -18,8 +18,6 @@ math: true
 mermaid: true
 ---
 
-> 对应原文：Understanding Distributed Systems 2nd edition.md
->
 > 本文严格沿原章顺序展开：先从 Cruder 对 data store 的热点读取引出 cache、hit ratio、高层缓存收益与“缓存只是优化”；再依次讨论 side/inline cache、eviction、TTL、stale serving 和 invalidation；最后比较 local cache 与 external cache 的容量、重复、一致性、thundering herd、request coalescing、分区复制、再均衡和故障级联。原章正文约 6 页；文中的命中率/延迟/容量模型、cache-aside 竞态、版本化失效、singleflight、negative caching、TTL jitter、分层缓存、过载保护和 C11 模拟用于补足推导与现代工程边界，不应误认为原书逐字给出的 Redis、Memcached、RocksDB 或云托管服务规范。
 
 ## 0. 导读：缓存把昂贵的重复工作换成廉价的近端副本

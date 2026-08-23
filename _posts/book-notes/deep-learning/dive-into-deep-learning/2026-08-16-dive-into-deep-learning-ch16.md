@@ -18,7 +18,7 @@ math: true
 mermaid: true
 ---
 
-> 对应原文：d2l-en.md 第 16 章 **Natural Language Processing: Applications**。本章按原书顺序介绍 IMDb 情感分析数据集、基于双向 RNN 和 TextCNN 的情感分类、SNLI 自然语言推断数据集、可分解注意力模型、BERT 在序列级与词元级任务上的通用微调方式，以及在 SNLI 上微调 BERT。
+> 本章按原书顺序介绍 IMDb 情感分析数据集、基于双向 RNN 和 TextCNN 的情感分类、SNLI 自然语言推断数据集、可分解注意力模型、BERT 在序列级与词元级任务上的通用微调方式，以及在 SNLI 上微调 BERT。
 
 ## 1. 本章主线：如何把预训练表示变成下游系统
 

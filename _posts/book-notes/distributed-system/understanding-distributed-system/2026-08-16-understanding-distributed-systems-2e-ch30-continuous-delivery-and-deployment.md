@@ -18,8 +18,6 @@ math: true
 mermaid: true
 ---
 
-> 对应原文：Understanding Distributed Systems 2nd edition.md
->
 > 本文按原章顺序展开：先解释为什么手工发布会把变更批量化、放大失败并消耗工程师注意力，以及 CD pipeline 如何在发布速度和安全性之间权衡；随后依次讨论 30.1 Review and build、30.2 Pre-production、30.3 Production、30.4 Rollbacks；最后完整解释 canary、incremental rollout、regional staging、health signals、bake time、request-count gate、rollback/roll forward、backward compatibility、prepare/activate/cleanup 和 upgrade-downgrade test。概率、容量和暴露量公式、release policy、schema compatibility matrix 与 Python 状态机是本文用于解释原理的工程补充，不应误认为原书给出的固定阈值、统计检验或特定 CD 产品实现。
 
 ---

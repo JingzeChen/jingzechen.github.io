@@ -18,8 +18,6 @@ math: true
 mermaid: true
 ---
 
-> 对应原文：Understanding Distributed Systems 2nd edition.md
->
 > 本文严格按照原章顺序展开：Encryption、Authentication、Integrity、Handshake。原章以 TLS 的核心思想为主，部分术语采用了便于入门的概括；本文在保留论证主线的同时，补充 Diffie–Hellman 密钥协商、证书路径验证、HMAC、AEAD 与 TLS 1.3 的现代实现边界。公式、数值例子、伪代码和 C/OpenSSL 示例用于解释机制，不应误认为原书逐字给出的算法或完整协议规范。
 
 ## 0. 本章定位：可靠送达不等于安全通信

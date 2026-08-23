@@ -18,8 +18,6 @@ math: true
 mermaid: true
 ---
 
-> 对应原文：Understanding Distributed Systems 2nd edition.md
->
 > 本文严格沿原章顺序展开：先讨论 timeout 如何限制无界等待、避免资源泄漏与故障传播，并用 false-timeout rate/p99.9 选择时长；再讨论 retry 的适用错误、capped exponential backoff、full jitter、retry queue、幂等性和多层 retry amplification；最后分析 circuit breaker 对长期故障的快速失败、graceful degradation，以及 closed/open/half-open 三态恢复。原章正文约 8 页；文中的 deadline budget、Little's Law、重试乘法、滑动窗口、半开探针并发、熔断器作用域和 C11 状态机用于补足推导与工程边界，不应误认为原书逐字给出的客户端默认值、生产阈值或韧性库配置。
 
 ## 0. 本章定位：在服务边界处阻止下游 fault 向上游传播

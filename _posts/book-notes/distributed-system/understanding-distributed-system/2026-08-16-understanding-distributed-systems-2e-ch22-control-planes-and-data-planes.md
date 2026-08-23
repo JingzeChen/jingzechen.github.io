@@ -18,8 +18,6 @@ math: true
 mermaid: true
 ---
 
-> 对应原文：Understanding Distributed Systems 2nd edition.md
->
 > 本文严格沿原章顺序展开：先从 API gateway 的高可用、高吞吐服务请求与低吞吐、强一致管理请求之间的冲突，引出 data plane/control plane 分离；再分析 hard dependency、static stability 和 scale imbalance；随后依次讨论经 file store 发布全量 snapshot、由 control plane 主动 push、versioned delta 与 snapshot+delta 混合方案；最后用 control theory 的 monitor-compare-action 闭环解释 chain replication 和 CI/CD rollout。原章正文约 7 页；文中的可用性/传播延迟/带宽模型、版本与 epoch、backpressure、constant work、配置安全性、控制器稳定性和 C11 状态机用于补足推导与工程边界，不应误认为原书逐字给出的控制系统算法或生产配置协议。
 
 ## 0. 导读：把“决定怎么运行”与“执行每个请求”分开

@@ -18,8 +18,6 @@ math: true
 mermaid: true
 ---
 
-> 对应原文：Understanding Distributed Systems 2nd edition.md
->
 > 本文严格沿原章顺序展开：先定义 CDN 与一次请求的基本流程，再讨论 Overlay network，最后讨论多层 Caching 与集群内内容分区。原章只有 4 页，主旨非常集中；文中的传播时延、带宽时延积、分层命中率、Poisson 请求模型、容量估算、安全边界和 C11 模拟用于补足推导与工程应用，不应误认为原书逐字给出的协议或厂商实现。
 
 ## 0. 导读与本章定位：把“离用户更近”从缓存策略扩展为网络架构

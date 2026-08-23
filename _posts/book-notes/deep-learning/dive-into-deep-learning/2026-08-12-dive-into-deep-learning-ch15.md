@@ -18,7 +18,7 @@ math: true
 mermaid: true
 ---
 
-> 对应原文：d2l-en.md 第 15 章 **Natural Language Processing: Pretraining**。本章按原书顺序介绍 word2vec、近似训练、词嵌入数据管线、word2vec 预训练、GloVe、子词嵌入、词相似度与类比、BERT、BERT 预训练数据和 BERT 预训练。
+> 本章按原书顺序介绍 word2vec、近似训练、词嵌入数据管线、word2vec 预训练、GloVe、子词嵌入、词相似度与类比、BERT、BERT 预训练数据和 BERT 预训练。
 
 ## 1. 本章主线：文本表示为什么需要预训练
 

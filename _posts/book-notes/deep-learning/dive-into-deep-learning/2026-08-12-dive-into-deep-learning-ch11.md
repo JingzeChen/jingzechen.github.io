@@ -18,7 +18,7 @@ math: true
 mermaid: true
 ---
 
-> 对应原文：d2l-en.md 第 11 章 **Attention Mechanisms and Transformers**。本章从查询、键和值的抽象开始，依次讲解基于相似度的注意力池化、注意力评分函数、Bahdanau 注意力、多头注意力、自注意力与位置编码、完整 Transformer、视觉 Transformer，以及 BERT、T5、GPT 等大规模预训练范式。
+> 本章从查询、键和值的抽象开始，依次讲解基于相似度的注意力池化、注意力评分函数、Bahdanau 注意力、多头注意力、自注意力与位置编码、完整 Transformer、视觉 Transformer，以及 BERT、T5、GPT 等大规模预训练范式。
 
 ## 1. 本章要解决的核心问题
 

@@ -18,8 +18,6 @@ math: true
 mermaid: true
 ---
 
-> 对应原文：Understanding Distributed Systems 2nd edition.md
->
 > 本文严格按照原章顺序展开：先说明复制的动机与困难，再依次讲解 State machine replication、Consensus、Consistency models（linearizability、sequential consistency、eventual consistency、CAP、PACELC）和 Chain replication。原章以建立完整机制图景为主；文中的 Raft 精确边界、quorum 推导、历史判定、延迟模型、CRAQ 读路径与标准 C11 模拟用于展开原理，不应误认为原书逐字给出的完整 Raft/chain replication 规范或生产实现。
 
 ## 0. 本章定位：复制数据容易，让副本表现成一份数据很难

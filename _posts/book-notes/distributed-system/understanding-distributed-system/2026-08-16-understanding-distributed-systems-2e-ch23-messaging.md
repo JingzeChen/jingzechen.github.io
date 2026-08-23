@@ -18,8 +18,6 @@ math: true
 mermaid: true
 ---
 
-> 对应原文：Understanding Distributed Systems 2nd edition.md
->
 > 本文严格沿原章顺序展开：先用视频上传与异步编码说明 fire-and-forget 的丢失风险，引入 message channel、command/event、adapter、`202 Accepted`、缓冲、解耦、负载平滑与 batching；再讨论 one-way、request-response、broadcast 三种通信风格；随后依次分析 broker ordering/delivery/durability 等 guarantees、at-least-once 与 visibility timeout、exactly-once processing、retry/DLQ、backlog 和 poisonous-message fault isolation。正文之后另设“Part III Summary”一节，明确它是全篇 Scalability 部分的总结，不属于 23.5。文中的排队/吞吐/积压公式、幂等收件箱、原子副作用、退避、lag 估算和 C11 状态机用于补足推导与工程边界，不应误认为原书逐字给出的 SQS、Kafka、Azure Queue Storage 或 AMQP 当前产品规范。
 
 ## 0. 导读：把“调用一个在线服务”改成“持久提交一项待办工作”

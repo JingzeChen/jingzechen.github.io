@@ -18,8 +18,6 @@ math: true
 mermaid: true
 ---
 
-> 对应原文：Chapter 4. Scaling with Fully Sharded Data Parallel (FSDP)
->
 > 本笔记严格沿原章顺序展开：从 DDP 到 FSDP、FSDP1/FSDP2、DeviceMesh 与层次化分片、T5 案例、DCP checkpoint、prefetch、activation checkpoint/offload、性能、多节点、调试、框架对比、高级集成与练习。文中会把稳定的算法机制与快速变化的 PyTorch API 分开；当前工作区为 PyTorch 2.11.0+cpu，可验证 API 签名、纯 Python 算法和 Gloo 通信，但无法在本机验证 CUDA/NCCL 的显存、吞吐与 FSDP GPU 性能。
 
 ## 0. 本章要回答的核心问题

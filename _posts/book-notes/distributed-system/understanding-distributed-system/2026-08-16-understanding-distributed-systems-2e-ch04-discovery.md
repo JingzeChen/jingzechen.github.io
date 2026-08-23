@@ -18,8 +18,6 @@ math: true
 mermaid: true
 ---
 
-> 对应原文：Understanding Distributed Systems 2nd edition.md
->
 > 本文严格沿原章论证顺序展开：先说明为什么可靠、安全的链路仍需要服务发现，再跟随 `www.example.com` 的六步 DNS 解析过程，随后讨论子域委派、DNS 传输安全、分层缓存、TTL 权衡、单点故障与 static stability。原章没有正式算法；文中的记录类型、委派细节、缓存负载模型、变更流程、伪代码和标准 C 示例用于展开作者的直觉，不应误认为原书逐字给出的协议规范或实现。
 
 ## 0. 本章定位：建立连接之前，先找到对方

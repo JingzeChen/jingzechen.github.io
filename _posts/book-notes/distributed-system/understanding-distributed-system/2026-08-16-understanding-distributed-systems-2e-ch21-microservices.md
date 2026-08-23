@@ -18,8 +18,6 @@ math: true
 mermaid: true
 ---
 
-> 对应原文：Understanding Distributed Systems 2nd edition.md
->
 > 本文严格沿原章顺序展开：先从 Cruder monolith 随业务和团队增长产生的耦合出发，说明 independently deployable services、API boundary、small-team ownership 和独立 data model；再逐项讨论 tech stack、remote communication、distributed monolith、resource provisioning、testing、operations、observability 和 eventual consistency；最后分析 API gateway 的 routing、composition、translation、GraphQL、cache/rate limit、session、authentication/authorization、opaque/transparent token、JWT、API key 与 gateway caveats。原章正文约 11 页；文中的团队通信边数、组合调用可用性/延迟、服务边界判据、契约演化、故障预算、安全边界和 C11 gateway 模拟用于补足推导与现代工程边界，不应误认为原书逐字给出的组织设计、JWT 标准细节或生产 gateway 配置。
 
 ## 0. 导读：Microservices 首先扩展的是组织，而不是请求吞吐

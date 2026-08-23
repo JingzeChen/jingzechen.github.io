@@ -18,8 +18,6 @@ math: true
 mermaid: true
 ---
 
-> 对应原文：Understanding Distributed Systems 2nd edition.md
->
 > 本文严格沿原章顺序展开：先说明为什么需要系统模型，再依次讨论通信链路模型、进程故障模型和时间模型，最后分析全书采用的 `fair-loss links + crash-recovery processes + partial synchrony` 组合及模型边界。原章篇幅很短、以概念分类为主；文中的可靠链路构造、$n\ge 3f+1$ 推导、安全性/活性辨析、伪代码和标准 C 示例用于展开前提与直觉，不应误认为原书给出的完整协议或无条件定理。
 
 ## 0. 本章定位：先规定“世界可能怎样坏”，再证明算法

@@ -18,8 +18,6 @@ math: true
 mermaid: true
 ---
 
-> 对应原文：Understanding Distributed Systems 2nd edition.md
->
 > 本文沿原章顺序展开：先解释测试的长期价值与能力边界，再按 **scope** 区分 unit、integration、end-to-end tests；随后按 **size** 区分 small、intermediate、large tests，并比较 fake、stub、mock 与 contract test；接着用普通 API 和 GDPR 数据删除两个案例说明测试选择必须由风险驱动；最后进入 formal verification，介绍 specification、state、behavior、safety、liveness、TLA+ 与 model checking，并完整复盘从 X 向 Y 迁移时 dual write 的崩溃与并发乱序反例。概率公式、风险模型、测试矩阵和 Python 状态空间搜索器是本文为解释原理所作的工程补充，不应误认为原书给出的数学测试覆盖保证或 TLA+ 替代品。
 
 ---
