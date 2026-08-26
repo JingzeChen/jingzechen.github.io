@@ -1,7 +1,7 @@
 ---
 title: "《认知天性：让学习轻而易举的心理学规律》序与前言读书笔记"
 date: 2026-08-01 06:00:00 +0800
-updated: 2026-08-06
+updated: 2026-08-26
 uid: make-it-stick-preface
 type: reading
 content_lang: zh-CN

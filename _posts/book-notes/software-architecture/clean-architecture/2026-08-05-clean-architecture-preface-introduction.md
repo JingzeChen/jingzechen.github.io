@@ -1,7 +1,7 @@
 ---
 title: "《Clean Architecture》Preface 与 Introduction 读书笔记"
 date: 2026-08-05 00:40:00 +0800
-updated: 2026-08-05
+updated: 2026-08-26
 uid: clean-architecture-preface-introduction
 type: reading
 content_lang: zh-CN
