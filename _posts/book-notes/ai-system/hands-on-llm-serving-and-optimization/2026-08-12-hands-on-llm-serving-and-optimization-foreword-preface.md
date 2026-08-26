@@ -1,7 +1,7 @@
 ---
 title: "《Hands-On LLM Serving and Optimization》Foreword 与 Preface 读书笔记"
 date: 2026-08-12 00:13:00 +0800
-updated: 2026-08-12
+updated: 2026-08-26
 uid: hands-on-llm-serving-and-optimization-foreword-preface
 type: reading
 content_lang: zh-CN
@@ -14,7 +14,6 @@ categories: ["读书笔记","AI 系统","Hands-On LLM Serving and Optimization"]
 tags: ["large-language-models","model-serving","inference-optimization","reading-notes"]
 description: "核心问题：为什么大模型进入生产后，决定成败的重点从“模型是否足够聪明”转向“能否以可接受的延迟、可靠性和成本持续提供推理”？"
 toc: true
-math: true
 mermaid: true
 ---
 
@@ -64,17 +63,7 @@ flowchart LR
 
 推荐序首先把 LLM 的兴起定义为软件构建和人机交互方式的根本变化。LLM 从研究成果迅速演变为 copilots、autonomous agents 等现代 AI 应用的基础。
 
-这里隐含着一个重要转折：
-
-$$
-\text{研究阶段的核心问题}
-\approx\text{模型能否获得某种能力},
-$$
-
-$$
-\text{生产阶段的核心问题}
-\approx\text{这种能力能否持续交付给真实用户}.
-$$
+这里隐含着一个重要转折：研究阶段的核心问题是模型能否获得某种能力，生产阶段的核心问题则是这种能力能否持续交付给真实用户。
 
 模型开发和部署速度提高以后，行业的共同约束转移到 **inference at scale**。这不是说训练不重要，而是产品上线后，每次用户交互都要经过推理，推理能力便从一次性工程任务变成持续运营能力。
 
@@ -87,18 +76,7 @@ $$
 - **At what cost**：单位有效请求或 token 的成本是否可持续？
 - **At what scale**：用户与调用链增长后，系统能否扩展？
 
-可以把生产可行性表达为约束优化：
-
-$$
-\min C_{serve}
-\quad\text{s.t.}\quad
-L_{p95}\le L_{SLO},\quad
-A\ge A_{min},\quad
-X\ge X_{demand},\quad
-Q\ge Q_{min}.
-$$
-
-其中 $C$ 是成本，$L$ 是延迟，$A$ 是可用性，$X$ 是吞吐，$Q$ 是模型或业务质量。推荐序没有给出这个公式，但其核心判断正是：AI 产品不能只优化 $Q$，而要在多项约束下持续运行。
+推荐序的核心判断是：AI 产品不能只优化模型或业务质量，而要在成本、延迟、可用性和吞吐等多项约束下持续运行。
 
 ### 1.3 为什么 Serving 已不是次要问题
 
@@ -110,14 +88,7 @@ $$
 4. GPU 和 API 成本随调用量持续累积；
 5. 同一模型的服务效率会决定可承受的用户规模和商业毛利。
 
-因此，训练得到 checkpoint 不等于交付产品：
-
-$$
-\text{Real-world value}
-=\text{Model capability}
-\times\text{Serving availability}
-\times\text{Usability under latency/cost constraints}.
-$$
+因此，训练得到 checkpoint 不等于交付产品。真实价值还取决于服务是否可用，以及延迟和成本约束下的可用性。
 
 如果服务可用性为零，或成本超过业务价值，再强的模型也无法创造持续价值。
 
@@ -228,13 +199,7 @@ Compliance, Cost Control]
 
 作者列举的失败现象包括：优秀 demo 在真实流量下崩溃、一周耗尽 GPU 预算、组织因 public API 成本和数据安全放弃关键 use case、团队面对框架与云选项不知从何开始。
 
-这些现象可以统一为“原型没有验证约束分布”：
-
-$$
-\text{Demo success}
-\not\Rightarrow
-\text{Production feasibility under traffic, SLO, governance and TCO}.
-$$
+这些现象可以统一为“原型没有验证约束分布”：Demo 成功并不表示系统在真实流量、SLO、治理和 TCO 约束下可用于生产。
 
 ### 2.3 知识碎片化与本书的回应
 
@@ -272,16 +237,7 @@ LLM 在多个维度改变问题：
 
 ### 3.2 Performance 的定义发生变化
 
-不再只测“模型单次运行多久”，而是：
-
-$$
-\max X_{good}
-\quad\text{s.t.}\quad
-TTFT_{p95}\le S_1,
-\quad ITL_{p95}\le S_2,
-\quad M_{KV}\le M_{device},
-\quad Q\ge Q_{min}.
-$$
+不再只测“模型单次运行多久”，而要在 TTFT、ITL、KV cache 容量和质量均达标的前提下提高有效吞吐。
 
 需要同时调度数千 conversations，避免长 prompt、长 output 或高优先级任务破坏他人延迟。Batching 从“把固定 tensors 拼一起”变成 token/KV-aware scheduling。
 
@@ -311,13 +267,7 @@ Guardrail 不是一个单独 filter 就能解决，需要输入、工具、模�
 
 前言将 LLM inference 称为 dominant cost，强调 GPU memory 的战略性和低效 scheduling 的直接浪费。这个判断对高使用量产品常成立，但不是所有阶段的定律：预训练、低流量 API、离线 fine-tune、工程人力等都可能成为主要成本。
 
-一般生命周期模型：
-
-$$
-C_{total}=C_{train}+N\,c_{inference}+C_{platform}+C_{people}.
-$$
-
-当累计调用 $N$ 足够大，单位 inference 的小差异会超过前期训练。API-only 是否昂贵也取决于流量稳定性、自建利用率、冗余和团队能力。
+生命周期总成本包括训练、持续推理、平台和人力。当累计调用足够多时，单位 inference 的小差异会超过前期训练。API-only 是否昂贵也取决于流量稳定性、自建利用率、冗余和团队能力。
 
 ### 3.6 新 Serving Patterns 为什么必要
 
@@ -351,13 +301,7 @@ flowchart TB
 
 ## 4. What This Book Aims to Do
 
-本书要弥合的是：
-
-$$
-\text{Having an LLM}
-\longrightarrow
-\text{Running LLMs efficiently, reliably and affordably}.
-$$
+本书要弥合的是从拥有 LLM 到高效、可靠且经济地运行 LLM 之间的距离。
 
 ### 4.1 七项目标及其关系
 
@@ -416,7 +360,7 @@ $$
 - 对 Transformer/LLM 有初步理解；
 - 愿意阅读性能指标、架构图和系统设计。
 
-不要求成为 GPU kernel 或 distributed systems 专家。这里的边界是“能够理解和使用 profiler/框架/公式”，不是“从零编写 CUDA collective”。
+不要求成为 GPU kernel 或 distributed systems 专家。这里的边界是“能够理解和使用 profiler、框架与性能指标”，不是“从零编写 CUDA collective”。
 
 ### 5.3 如何判断自己是否需要补前置知识
 
@@ -588,11 +532,11 @@ flowchart LR
 
 - 系统概念和架构；
 - 作者预执行实验与分析；
-- 性能公式和容量估算；
+- 性能与容量估算；
 - Framework API/设计；
 - 用 CPU/小模型做功能性验证。
 
-不要把“无法复现绝对 TPS”误解为无法验证因果。可以检查：量化是否减少文件/内存、batch 是否改变吞吐/延迟方向、cache 是否跳过工作、公式是否自洽。
+不要把“无法复现绝对 TPS”误解为无法验证因果。可以检查：量化是否减少文件/内存、batch 是否改变吞吐/延迟方向、cache 是否跳过工作、容量估算是否自洽。
 
 ### 9.3 环境差异为何必然存在
 
@@ -699,12 +643,12 @@ ISBN 979-8-341-62149-7
 
 ### 13.2 为什么勘误尤其重要
 
-LLM serving 技术和 API 更新快，且书中存在少量可能的命名、公式或版本差异。遇到异常时应依次：
+LLM serving 技术和 API 更新快，且书中存在少量可能的命名或版本差异。遇到异常时应依次：
 
 1. 查看书籍 errata；
 2. 查看代码仓库对应 commit/README；
 3. 核对框架当前版本文档；
-4. 用原始公式和日志复算；
+4. 用原始数据和日志复核；
 5. 再向 support/社区提问并附环境信息。
 
 ---
@@ -713,16 +657,7 @@ LLM serving 技术和 API 更新快，且书中存在少量可能的命名、公
 
 ### 14.1 知识来源不是单一作者
 
-作者感谢编辑、雇主团队、同事、家人、朋友、导师、reviewers，以及开放源代码和研究社区。这个致谢揭示了全书知识的来源结构：
-
-$$
-\text{Book knowledge}
-=\text{Production incidents/experiments}
-+\text{Team discussions}
-+\text{Research}
-+\text{Open source}
-+\text{Editorial review}.
-$$
+作者感谢编辑、雇主团队、同事、家人、朋友、导师、reviewers，以及开放源代码和研究社区。这个致谢揭示了全书知识的来源结构：生产事故与实验、团队讨论、研究、开源工作和编辑评审共同构成了本书。
 
 LLM serving 是高度协作的领域，框架、论文、kernel、硬件和 production feedback 共同推动进展。
 
@@ -744,7 +679,7 @@ LLM serving 是高度协作的领域，框架、论文、kernel、硬件和 prod
 
 ### 14.4 对错误负责
 
-作者最后声明剩余错误由自己承担。对读者而言，合适态度也是：尊重作者经验，同时独立复核公式、规格、价格、API 和实验条件。
+作者最后声明剩余错误由自己承担。对读者而言，合适态度也是：尊重作者经验，同时独立复核规格、价格、API 和实验条件。
 
 ---
 
@@ -792,11 +727,11 @@ LLM serving 是高度协作的领域，框架、论文、kernel、硬件和 prod
 
 ### 15.11 Hands-on 意味着必须购买高端 GPU
 
-错误。无 GPU 仍可学习架构、公式和 captured experiments；可用 Colab、CPU 或小模型验证部分机制。
+错误。无 GPU 仍可学习架构和 captured experiments；可用 Colab、CPU 或小模型验证部分机制。
 
 ### 15.12 复现不出相同 TPS 说明实验失败
 
-错误。环境差异必然存在；先验证条件、方向、公式和瓶颈，再比较绝对数字。
+错误。环境差异必然存在；先验证条件、方向和瓶颈，再比较绝对数字。
 
 ### 15.13 读完 Chapter 8 就能脱离 Chapters 5～7 选框架
 
@@ -846,12 +781,7 @@ Under which workload/hardware does net value become positive?
 
 ### 第六步：用完整目标函数避免局部优化
 
-$$
-\max Goodput
-\quad\text{s.t. quality, latency, reliability, security}
-$$
-
-并最小化 TCO，而不是最大化裸 TPS/GPU utilization。
+在质量、延迟、可靠性和安全性达标的前提下提高 Goodput，并最小化 TCO，而不是最大化裸 TPS/GPU utilization。
 
 ### 第七步：让阅读与实验互相校正
 
@@ -861,9 +791,9 @@ $$
 
 Selective reading 可以提高效率，遇到术语时回查其因果前置章节，避免只会调用 API。
 
-### 第九步：建立自己的术语、公式和实验账本
+### 第九步：建立自己的术语和实验账本
 
-记录 metric definition、model/GPU/config、原始 counters、推导和结论；这比散落收藏 blog 更能积累能力。
+记录 metric definition、model/GPU/config、原始 counters、分析和结论；这比散落收藏 blog 更能积累能力。
 
 ### 第十步：把框架与 vendor 看作可替换实现
 
@@ -938,9 +868,9 @@ mindmap
 8. **目标读者跨越模型与系统角色。** 共同前提是能读 Python、懂基本 LLM，并愿意处理指标和架构，而非必须会 CUDA。
 9. **边界清晰使内容更聚焦。** 本书不系统教授 ML/GenAI，不穷举产品，也不形式化综述全部研究。
 10. **Selective reading 可行，但不能跳过概念依赖。** 不同角色可选择路径，遇到优化和框架问题时要回查 execution/hardware 基础。
-11. **GPU 访问不是学习门槛。** Captured experiments、公式和小环境仍可建立判断力；绝对数字的复现不是唯一目标。
+11. **GPU 访问不是学习门槛。** Captured experiments 和小环境仍可建立判断力；绝对数字的复现不是唯一目标。
 12. **代码示例是学习材料，不是 production guarantee。** 许可、兼容、安全和工程完备性是不同维度。
-13. **生产经验、研究、开源和编辑共同构成本书。** 应尊重经验，同时对规格、价格、公式和版本独立复核。
+13. **生产经验、研究、开源和编辑共同构成本书。** 应尊重经验，同时对规格、价格和版本独立复核。
 14. **没有 one-size-fits-all 并不意味着只能靠经验猜。** 稳定的方法是定义约束、描述 workload、定位瓶颈、受控实验和持续重评。
 
 ### 17.3 一句话复盘

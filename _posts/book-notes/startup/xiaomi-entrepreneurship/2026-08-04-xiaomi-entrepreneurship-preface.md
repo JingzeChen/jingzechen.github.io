@@ -1,7 +1,7 @@
 ---
 title: "《小米创业思考》前言读书笔记"
 date: 2026-08-03 05:00:00 +0800
-updated: 2026-08-04
+updated: 2026-08-26
 uid: xiaomi-entrepreneurship-preface
 type: reading
 content_lang: zh-CN

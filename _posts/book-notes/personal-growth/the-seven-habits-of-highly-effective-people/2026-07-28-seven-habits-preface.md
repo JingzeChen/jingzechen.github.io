@@ -1,7 +1,7 @@
 ---
 title: "《高效能人士的七个习惯》读书笔记：序言"
 date: 2026-07-27 08:00:00 +0800
-updated: 2026-07-28
+updated: 2026-08-26
 uid: seven-habits-preface
 type: reading
 content_lang: zh-CN

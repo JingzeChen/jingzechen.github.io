@@ -1,7 +1,7 @@
 ---
 title: "《Hands-On Large Language Models》前言读书笔记"
 date: 2026-08-08 00:49:00 +0800
-updated: 2026-08-08
+updated: 2026-08-26
 uid: hands-on-large-language-models-preface
 type: reading
 content_lang: zh-CN
