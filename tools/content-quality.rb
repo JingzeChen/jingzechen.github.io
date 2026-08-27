@@ -4,6 +4,7 @@ require "date"
 require "json"
 require "kramdown"
 require "optparse"
+require "pathname"
 require "yaml"
 
 options = { check: false }
@@ -14,6 +15,7 @@ OptionParser.new do |parser|
 end.parse!
 
 source_dir = File.expand_path("..", __dir__)
+source_root = Pathname(source_dir)
 config = YAML.safe_load_file(File.join(source_dir, "_config.yml"), aliases: true)
 hidden_topics = Array(config.dig("garden", "hidden_topics"))
 template_description = /梳理核心概念、论证结构、适用边\s*界与实践要点/
@@ -31,7 +33,7 @@ posts = Dir.glob(File.join(source_dir, "_posts", "**", "*.md")).map do |path|
     stack.concat(element.children.reverse)
   end
   {
-    "path" => path.delete_prefix("#{source_dir}/").tr("\\", "/"),
+    "path" => Pathname(path).relative_path_from(source_root).to_s.tr("\\", "/"),
     "uid" => data["uid"],
     "type" => data["type"],
     "status" => data["status"],
