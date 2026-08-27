@@ -14,6 +14,7 @@ categories: [读书笔记, 个人成长, 高效能人士的七个习惯]
 tags: [personal-growth, seven-habits, reading-notes]
 description: 理解独立如何通向互赖，以及信任与情感账户为何是高效人际关系的基础。
 toc: true
+math: true
 ---
 
 > **所属部分**：第 3 部分“公众领域的成功：从独立到互赖”  

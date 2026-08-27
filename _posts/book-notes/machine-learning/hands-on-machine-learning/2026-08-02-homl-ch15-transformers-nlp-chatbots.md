@@ -1616,7 +1616,7 @@ print(sources[["Title", "Release Year", "score"]])
 | MHA | $Concat(head_1,\ldots,head_h)W^O$ |
 | NTP | $-\sum_t\log p(x_{t+1}\mid x_{\le t})$ |
 | MLM | $-\sum_{i\in\mathcal M}\log p(x_i\mid x_{\setminus\mathcal M})$ |
-| Cosine | $u^Tv/(\|u\|\|v\|)$ |
+| Cosine | $u^Tv/(\lVert u\rVert\lVert v\rVert)$ |
 | SFT answer mask | $-\sum_{t\in answer}\log p(y_t\mid x,y_{<t})$ |
 | DPO | $-\log\sigma(\beta[\delta(y_c)-\delta(y_r)])$ |
 | Temperature | $softmax(z/T)$ |

@@ -166,7 +166,7 @@ graph TD
 | 训练步粗估 | $\text{training step FLOPs}\approx 6ND$ | 可执行代码讲义证据 | [模块 01](/courses/stanford-cs336-s26/modules/01/) | 是课堂粗估；长上下文 attention 平方项会让近似变差 |
 | Roofline 判断 | $\text{arithmetic intensity}=\frac{\text{FLOPs}}{\text{bytes}}$；与 accelerator intensity 比较以判定 memory-bound 或 compute-bound | 可执行代码讲义证据 | [模块 02](/courses/stanford-cs336-s26/modules/02/) | 用于解释为什么 kernel 优化常先减少数据搬运 |
 | 现代默认项 | prenorm / RMSNorm / GLU / RoPE / GQA | PDF 课件证据 | [模块 01](/courses/stanford-cs336-s26/modules/01/) | 这是“现代起步配置”，不是永恒唯一正确答案 |
-| perplexity | $\left(1/p(D)\right)^{1/|D|}$；条件困惑度只对 response 部分计量 | 可执行代码讲义证据 | [模块 04](/courses/stanford-cs336-s26/modules/04/) | 适合做统一 LM 指标，但不等于所有任务能力 |
+| perplexity | $\left(1/p(D)\right)^{1/\lvert D\rvert}$；条件困惑度只对 response 部分计量 | 可执行代码讲义证据 | [模块 04](/courses/stanford-cs336-s26/modules/04/) | 适合做统一 LM 指标，但不等于所有任务能力 |
 | ELO 胜率模型 | $p(A\text{ 胜 }B)=\frac{1}{1+10^{(\mathrm{ELO}_B-\mathrm{ELO}_A)/400}}$ | 可执行代码讲义证据 | [模块 04](/courses/stanford-cs336-s26/modules/04/) | 便于 pairwise ranking，但会带入 judge bias 与分布偏差 |
 | 数据缩放 toy model | $\mathbb E[(\hat\mu-\mu)^2]=\sigma^2/n$；$\log(\text{Error})=-\log n+2\log\sigma$；非参数直觉可近似按 $n^{-1/d}$ | PDF 课件证据 | [模块 03](/courses/stanford-cs336-s26/modules/03/) | 用来理解幂律为何不神秘，而不是直接证明 LM 必然如此 |
 | critical batch | $E=S\times B$；$B_{\text{crit}}\approx E_{\min}/S_{\min}$ | PDF 课件证据 | [模块 03](/courses/stanford-cs336-s26/modules/03/) | 只保留课堂支持的结构，不补写未明确给出的闭式解 |

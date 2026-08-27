@@ -1494,7 +1494,7 @@ $$
 | AllOne | 桶计数严格递减 | `_CountBucket` 链表 | `CountBucket*` 链表 | `*countBucket` 链表 |
 | AllOne | `location[key]` 指向唯一计数桶 | `location` | `location` | `location` |
 | MedianFinder | $max(lower)\le min(upper)$ | 负数堆 + 小根堆 | 默认大根堆 + `greater` 小根堆 | `maxHeap` + `minHeap` |
-| MedianFinder | $|upper|-|lower|\in\{0,1\}$ | 插入后重平衡 | 插入后重平衡 | 插入后重平衡 |
+| MedianFinder | $\lvert upper\rvert-\lvert lower\rvert\in\{0,1\}$ | 插入后重平衡 | 插入后重平衡 | 插入后重平衡 |
 
 ### 删除时的同步顺序
 

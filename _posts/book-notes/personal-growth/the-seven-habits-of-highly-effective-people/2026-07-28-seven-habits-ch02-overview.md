@@ -14,6 +14,7 @@ categories: [读书笔记, 个人成长, 高效能人士的七个习惯]
 tags: [personal-growth, seven-habits, reading-notes]
 description: 用习惯模型、成熟模式和产出与产能平衡，梳理七个习惯的整体结构与实践顺序。
 toc: true
+math: true
 ---
 
 > **所属部分**：第 1 部分“思维方式与原则”  

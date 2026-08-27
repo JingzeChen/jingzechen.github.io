@@ -1415,7 +1415,7 @@ $$
 \rightarrow
 \text{用分块、压缩和 Delta 降低带宽}
 \rightarrow
-\text{用 base_version CAS 处理冲突}
+\text{用 base\_version CAS 处理冲突}
 \rightarrow
 \text{用状态机提交完整版本}
 \rightarrow

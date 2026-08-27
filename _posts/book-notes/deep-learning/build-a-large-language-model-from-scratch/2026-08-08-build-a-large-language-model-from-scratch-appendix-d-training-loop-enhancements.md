@@ -1115,7 +1115,7 @@ vs clipping every update
 $$
 \alpha_s
 =\min\left(1,\frac{c}{\lVert g_s\rVert_2+\epsilon}
-ight).
+\right).
 $$
 
 以及 `fraction(alpha < 1)`。

@@ -782,7 +782,7 @@ flowchart TD
 因此：
 
 $$
-\text{某领域坚持}\centernot\Rightarrow
+\text{某领域坚持}\not\Rightarrow
 \text{所有领域都有相同坚持水平}.
 $$
 

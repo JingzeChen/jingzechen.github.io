@@ -3129,7 +3129,7 @@ flowchart TD
 | queue saturation | $1/[\mu(1-\rho)]$ | utilization趋 1 时 delay爆炸 |
 | clock drift | $T\rho10^{-6}$ | ppm 在 interval内误差 |
 | majority | $\lfloor n/2\rfloor+1$ | absolute majority size |
-| quorum overlap | $|Q_1\cap Q_2|\ge2q-n$ | conflicting sets共享 voters |
+| quorum overlap | $\lvert Q_1\cap Q_2\rvert\ge2q-n$ | conflicting sets共享 voters |
 | BFT common bound | $n\ge3f+1$ | tolerate $f$ arbitrary nodes |
 | fencing | $token_{new}>token_{old}$ | authority generations单调 |
 | confidence order | $A_{latest}<B_{earliest}$ | A definitely before B |

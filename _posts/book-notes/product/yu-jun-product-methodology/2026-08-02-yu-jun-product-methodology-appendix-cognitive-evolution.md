@@ -14,6 +14,7 @@ categories: [读书笔记, 产品, 俞军产品方法论]
 tags: [product-management, reading-notes]
 description: 沿时间线梳理俞军产品认知的形成、证伪与重建，理解经验规则如何演化为用户价值和交易模型。
 toc: true
+math: true
 mermaid: true
 ---
 

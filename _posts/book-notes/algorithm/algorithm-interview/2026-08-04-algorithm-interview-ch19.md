@@ -4833,7 +4833,7 @@ $$
 | 19.3.1 全排列 | `permutations` | `permutations` / `permutations` | 路径长度决定位置，`used` 标记已用下标 |
 | 19.3.2 全排列 II | `unique_permutations` | `uniquePermutations` / `uniquePermutations` | 排序后跳过“前一个相同值尚未使用”的同层分支 |
 | 19.3.3 排列序列 | `kth_permutation_backtracking` | `kthPermutationBacktracking` / `kthPermutationBacktracking` | 按字典序计数到 $k$；补充版本按阶乘块直接定位 |
-| 19.3.4 n 皇后 | `solve_n_queens` | `solveNQueens` / `solveNQueens` | 列向量是排列；$|x_i-x_r|\ne i-r$ 才能扩展 |
+| 19.3.4 n 皇后 | `solve_n_queens` | `solveNQueens` / `solveNQueens` | 列向量是排列；$\lvert x_i-x_r\rvert\ne i-r$ 才能扩展 |
 
 ### 4. 四类辅助状态的含义
 

@@ -2896,7 +2896,7 @@ flowchart LR
 
 | 主题 | 公式 | 含义 |
 |---|---|---|
-| quorum overlap | $|W\cap R|\ge w+r-n$ | 最小 read/write 交集 |
+| quorum overlap | $\lvert W\cap R\rvert\ge w+r-n$ | 最小 read/write 交集 |
 | quorum 条件 | $w+r>n$ | 静态集合至少交一个节点 |
 | failure tolerance | $n-w$、$n-r$ | write/read 可缺少副本数 |
 | vector order | $U\preceq V\iff\forall i,U_i\le V_i$ | V 包含 U 的 causal history |
