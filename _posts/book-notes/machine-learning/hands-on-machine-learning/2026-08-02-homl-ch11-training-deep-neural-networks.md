@@ -2119,7 +2119,7 @@ history, best_accuracy = train_with_early_stopping(
 | He | $2/fan_{in}$ |
 | Leaky He | $2/[(1+\alpha^2)fan_{in}]$ |
 | Dropout | $\widetilde a=ma/(1-p)$ |
-| Max-norm | $w\leftarrow w\min(1,r/\|w\|)$ |
+| Max-norm | $w\leftarrow w\min(1,r/\lVert w\rVert)$ |
 
 ## 14. PyTorch API 速查
 

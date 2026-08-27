@@ -14,6 +14,7 @@ categories: [读书笔记, 个人成长, 高效能人士的七个习惯]
 tags: [personal-growth, seven-habits, reading-notes]
 description: 从两次创造、个人使命宣言与生活中心出发，练习先定义方向，再安排当下行动。
 toc: true
+math: true
 ---
 
 > **所属部分**：第 2 部分“个人领域的成功：从依赖到独立”  

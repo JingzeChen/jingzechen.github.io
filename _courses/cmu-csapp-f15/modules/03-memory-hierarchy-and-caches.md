@@ -280,7 +280,7 @@ $$
 | 类型 | 根因 | 课堂判据或例子 |
 |---|---|---|
 | Cold / compulsory | Cache 初始为空，首次访问目标块 | warming up 前无法由已有内容命中 |
-| Capacity | 当前 working set 确实装不下 | $|W|>C_{blocks}$ |
+| Capacity | 当前 working set 确实装不下 | $\lvert W\rvert>C_{blocks}$ |
 | Conflict | Placement 受限，多个 active blocks 争同一位置 | 总容量足够仍反复驱逐 |
 
 Lecture 11 的 4-slot 直接放置模型为：

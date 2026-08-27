@@ -2020,7 +2020,7 @@ function translate(virtualAddress, length, access):
 |---|---|---|
 | $VPN=VA\gg p$ | 取虚拟页号 | 页大小 $2^p$ |
 | $offset=VA\ \&\ (2^p-1)$ | 取页内偏移 | 页大小/页框按 $2^p$ 对齐 |
-| $PA=(PFN\ll p)\mathbin{|}offset$ | 拼物理地址 | PTE 有效且权限允许 |
+| $PA=(PFN\ll p)\mathbin{\vert}offset$ | 拼物理地址 | PTE 有效且权限允许 |
 | $N_{PTE}=2^{v-p}$ | 平坦页表项数 | $v$ 位完整 VA、页大小 $2^p$ |
 | $M_{PT}=e2^{v-p}$ | 平坦页表空间 | 每项固定 $e$ bytes |
 | $b=\log_2(P/e)$ | 一页页表的索引位数 | $P/e$ 为 2 的幂 |

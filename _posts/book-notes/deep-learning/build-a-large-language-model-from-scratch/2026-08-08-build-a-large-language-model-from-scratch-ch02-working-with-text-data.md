@@ -443,7 +443,9 @@ $$
 词表建立双向映射：
 
 $$
-{\text{token}}\xleftrightarrow[\text{decode}]{\text{encode}}{\text{token ID}}.
+{\text{token}}
+\underset{\text{decode}}{\overset{\text{encode}}{\rightleftarrows}}
+{\text{token ID}}.
 $$
 
 ID 只是稳定行号。训练、保存模型和推理都必须使用同一映射，否则同一个整数会查到不同 token 的嵌入。

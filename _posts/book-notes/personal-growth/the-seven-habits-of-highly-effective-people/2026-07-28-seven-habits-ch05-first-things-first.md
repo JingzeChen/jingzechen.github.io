@@ -14,6 +14,7 @@ categories: [读书笔记, 个人成长, 高效能人士的七个习惯]
 tags: [personal-growth, seven-habits, reading-notes]
 description: 通过时间管理矩阵、第二象限与授权原则，把重要但不紧急的事项落实到日常行动中。
 toc: true
+math: true
 ---
 
 > **所属部分**：第 2 部分“个人领域的成功：从依赖到独立”  

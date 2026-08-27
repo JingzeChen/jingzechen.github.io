@@ -2168,7 +2168,7 @@ for k in range(1, 7):
 | $\gamma_{ij}$ | GMM 成分责任度 |
 | GMM M-step | 责任度加权权重、均值、协方差 |
 | 8-2 | BIC/AIC：拟合与复杂度权衡 |
-| $e(x)=\|x-\hat x\|^2$ | 重建误差异常分数 |
+| $e(x)=\lVert x-\hat x\rVert^2$ | 重建误差异常分数 |
 
 ## 23. API 速查
 

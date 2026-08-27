@@ -14,6 +14,7 @@ categories: [读书笔记, 个人成长, 高效能人士的七个习惯]
 tags: [personal-growth, seven-habits, reading-notes]
 description: 从选择自由、责任意识与影响圈出发，理解如何以积极主动取代被动反应。
 toc: true
+math: true
 ---
 
 > **所属部分**：第 2 部分“个人领域的成功：从依赖到独立”  

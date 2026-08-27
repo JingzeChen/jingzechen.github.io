@@ -312,7 +312,7 @@ flowchart LR
 工作重复主要优化熟练与效率，不自动暴露弱点。年资可以增加案例库，也可能自动化旧方法。
 
 $$
-\text{经验年数}\centernot\Rightarrow\text{能力持续增长}.
+\text{经验年数}\not\Rightarrow\text{能力持续增长}.
 $$
 
 只有经验被反馈、反思和重新尝试加工时，才更可能变成技能。

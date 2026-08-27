@@ -1968,7 +1968,7 @@ $$
 | $T_{access}=T_{seek}+T_{rot}+T_{transfer}$ | 单个 cache-miss 请求、分量近似串行 | queue、pipeline、cache hit、并行设备 |
 | $E[T_{rot}]=T_{rev}/2$ | 请求相位独立均匀 | 顺序流、旋转感知调度、track buffer |
 | $T_{transfer}=D/B$ | $B$ 在区间内稳定、启动成本忽略 | 小请求、zone 变化、链路/协议瓶颈 |
-| $E|X-Y|=1/3$ | 起止径向位置独立均匀 | 文件 locality、热点、非均匀数据布局 |
+| $E\lvert X-Y\rvert=1/3$ | 起止径向位置独立均匀 | 文件 locality、热点、非均匀数据布局 |
 | $E[\min U_i]=T/(k+1)$ | $k$ 个相位独立均匀、均可选 | 候选相关、seek 时间不同、deadline |
 | $WA\approx1/(1-u)$ | 简化稳态 GC、每轮按一块回收 | metadata、压缩、cache、冷热分离、FTL 策略 |
 | $Q=\lambda W$ | 稳态、平均量、系统内请求定义一致 | 瞬时 burst、非稳态启动/结束 |

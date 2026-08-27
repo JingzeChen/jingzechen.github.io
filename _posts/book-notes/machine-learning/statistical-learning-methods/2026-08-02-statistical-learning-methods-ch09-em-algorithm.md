@@ -1142,7 +1142,7 @@ $$
 **（2）** 由于 $H(\tilde P^{(i+1)})$ 与 $\theta$ 无关：
 
 $$
-\theta^{(i+1)}=\arg\max_\theta F\bigl(\tilde P^{(i+1)},\theta\right)
+\theta^{(i+1)}=\arg\max_\theta F\bigl(\tilde P^{(i+1)},\theta\bigr)
 =\arg\max_\theta Q\bigl(\theta,\theta^{(i)}\bigr)。\quad\blacksquare
 $$
 

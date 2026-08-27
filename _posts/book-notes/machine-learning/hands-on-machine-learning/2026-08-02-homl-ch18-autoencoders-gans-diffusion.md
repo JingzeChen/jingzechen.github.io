@@ -2144,13 +2144,13 @@ MLP 是教学 baseline；实际 U-Net block 将 projected time/class embeddings 
 | --- | --- |
 | AE | $\min\ell(x,g(f(x)))+\lambda R$ |
 | Sparse KL | $p\log(p/q)+(1-p)\log((1-p)/(1-q))$ |
-| ELBO loss | $-E_q\log p(x\mid z)+D_{KL}(q\|p)$ |
+| ELBO loss | $-E_q\log p(x\mid z)+D_{KL}(q\Vert p)$ |
 | Gaussian KL | $-\frac12\sum(1+\log\sigma^2-\sigma^2-\mu^2)$ |
 | Reparameterization | $z=\mu+\sigma\odot\epsilon$ |
 | GAN | $\min_G\max_D E\log D+E\log(1-D(G))$ |
 | Optimal D | $p_{data}/(p_{data}+p_g)$ |
 | Forward diffusion | $x_t=\sqrt{\bar\alpha_t}x_0+\sqrt{1-\bar\alpha_t}\epsilon$ |
-| Noise loss | $E\|\epsilon-\epsilon_\theta(x_t,t)\|^2$ |
+| Noise loss | $E\lVert\epsilon-\epsilon_\theta(x_t,t)\rVert^2$ |
 | DDPM mean | $\alpha_t^{-1/2}(x_t-\beta_t\epsilon_\theta/\sqrt{1-\bar\alpha_t})$ |
 | DDIM | $\sqrt{\bar\alpha_p}\hat x_0+\sqrt{1-\bar\alpha_p-\sigma^2}\epsilon_\theta+\sigma z$ |
 
